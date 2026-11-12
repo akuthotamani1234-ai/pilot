@@ -207,10 +207,24 @@ def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
                                             f"a/{rel}", f"b/{rel}", n=2))
         out_files.append({"path": rel, "fixes": sorted(set(titles)), "diff": diff,
                           "old_hash": _text_hash(original[p]), "content": texts[p]})
-    plan = {"repo": f"{owner}/{repo}", "repo_url": repo_url, "files": out_files, "applied": applied, "skipped": skipped,
-            "no_code": [x["title"] for x in fixes if x not in with_code], "prepared": time.time()}
+    no_code = [
+        {"title": x.get("title") or "Advice", "why": (x.get("why") or x.get("fix") or "")[:400]}
+        for x in fixes if x not in with_code
+    ]
+    plan = {
+        "repo": f"{owner}/{repo}",
+        "repo_url": repo_url,
+        "files": out_files,
+        "applied": applied,
+        "skipped": skipped,
+        "no_code": no_code,
+        "files_scanned": len(files),
+        "fixes_considered": len(with_code),
+        "fixes_total": len(fixes),
+        "prepared": time.time(),
+    }
     (run_dir / "repo_fix_plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
-    return dict(plan) | {"files":[{k: v for k, v in f.items() if k != "content"} for f in out_files]}
+    return dict(plan) | {"files": [{k: v for k, v in f.items() if k != "content"} for f in out_files]}
 
 
 # ------------------------------------------------------------------ 2) create the Pull Request (GitHub)

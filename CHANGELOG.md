@@ -2,6 +2,13 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Repo-fix: scan summary and “what you have to do next”
+
+- After a web report, **Apply fixes** still appears when code-bearing findings exist.
+- Paste a GitHub link → **Prepare changes** (or Enter): validates `github.com/owner/repo`, scans the repo,
+  shows files scanned / matched / hand fixes / advice-only, then an ordered **What you have to do next** checklist.
+- `repo_fix.prepare` returns `files_scanned`, `fixes_considered`, `fixes_total`, and structured `no_code` items.
+
 ## 2026-11-12 — Studio MCP Android parity, Standard budgets, delete/history
 
 - Android MCP panel mirrors Standard essentials: device + Refresh, Appium URL, optional activity, test-build and
