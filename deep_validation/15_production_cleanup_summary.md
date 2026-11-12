@@ -21,7 +21,7 @@ Prerequisite completed: all prior Phase 0–18 / Android work merged and pushed 
 | Untracked gradle dirty state under `tests/android_demo/.gradle/` | Build cache (must stay ignored) |
 | Root/`tests`/`backend` `__pycache__`, `.pytest_cache` | Already gitignored; ensure absent from commits |
 
-**Not deleted (intentional product / evidence):** `FINAL_*.md`, `deep_validation/**` assessments, LLM provider docs (OpenAI/Anthropic/Gemini are **product features**, not authorship attribution), live-run assessment markdown.
+**Follow-up:** Root `FINAL_*` / phase checklist docs were later replaced by `STATUS.md`. `deep_validation/**` markdown assessments remain; raw txt/log dumps were removed from git.
 
 ## Planned refactors (scoped)
 
