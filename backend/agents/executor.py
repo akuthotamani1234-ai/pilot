@@ -257,7 +257,12 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         print(f"  [execution] running tests in {workers} browsers at the same time")
     cmd += select or [str(test_dir.resolve())]
 
-    kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS else {"start_new_session": True}
+    # getattr: Linux unit tests force IS_WINDOWS to exercise Job Object fail-closed without the Win32 flag.
+    kwargs = (
+        {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+        if IS_WINDOWS
+        else {"start_new_session": True}
+    )
     proc = subprocess.Popen(cmd, cwd=test_dir.resolve(), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", errors="replace", **kwargs)
     job, sandbox = None, "own process, clean environment, network + file guard, per-test time limit"
