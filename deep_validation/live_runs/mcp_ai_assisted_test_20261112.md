@@ -1,15 +1,27 @@
 # MCP AI-assisted live test — 2026-11-12
 
-> Follow-up (offline): after this live session, `BridgeError` from MCP tools was wrapped as
-> `mcp.server.mcpserver.exceptions.ToolError` so assistants see the actionable bridge message
-> instead of a bare `UnexpectedToolError: Error executing tool ...`. No new live run claimed here.
+Live stdio MCP client (AI tool sequence) against Studio UI + Appium + Sauce Labs My Demo App.
 
-- UI: `http://127.0.0.1:8000`
-- Protocol init: `{'protocolVersion': None, 'server': None, 'version': None}`
-- Tools exposed: **11** — `get_connection_info, list_runs, get_android_environment, crawl_website, start_web_test, start_android_test, get_run_status, list_page_components, get_run_report, get_qa_contract_schema, stop_run`
-- Final job status: **None**
-- Run folder: `None`
-- Full JSON: `/opt/cursor/artifacts/mcp_ai_live_test.json`
+> Follow-up (offline): `BridgeError` from MCP tools is now wrapped as
+> `mcp.server.mcpserver.exceptions.ToolError` so assistants see the actionable bridge message
+> instead of a bare `UnexpectedToolError`.
+
+| Field | Value |
+| --- | --- |
+| UI | `http://127.0.0.1:8000` (restarted with `ANDROID_HOME=/opt/android-sdk`) |
+| Tools exposed | **11** |
+| Job | `1` → status **done** |
+| Run | `android_20261112_105018_1e0c72` |
+| Target | `com.saucelabs.mydemoapp.android` on `emulator-5554` |
+| LLM | `none` (rules-only) |
+| Verdict | Insufficient Evidence (3 infrastructure/locator inconclusive) |
+| Results | **38 passed** / 3 failures / 42 result rows |
+| Workflow tag | `mcp` / privacy `local` |
+
+## Gaps found and fixed during this exercise
+
+1. Studio UI had been started **without** `ANDROID_HOME` → MCP `get_android_environment` reported SDK/ADB missing and `start_android_test` returned HTTP 409. **Fix:** restart UI with SDK on PATH.
+2. `BridgeError` surfaced as `UnexpectedToolError` to the AI client. **Fix:** map to `ToolError` in `backend/mcp_server.py`.
 
 ## AI tool sequence
 
