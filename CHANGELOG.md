@@ -30,6 +30,13 @@ Prior commits on this branch (not re-verified as a full suite here):
 - Phase 11: Safety controls for metadata, private artifacts, and uploads.
 - Phases 12–13: Reporting honesty remains code policy (counts from run files; Incomplete → Insufficient Evidence); not a fresh accuracy VERIFIED claim.
 
+## 2026-11-12 — Thorough exploration + ecommerce contract
+
+- UI: Standard/Thorough exploration intensity; Thorough forces full crawl budgets, repeated-control exploration, and ≥50 actions/page; coverage reminder when pages/features were not visited/blocked/not tested.
+- Added `project-docs/examples/ecommerce-web-contract.json` template and `demo-apps/ecommerce-web-contract.json` (Automation Exercise search/cart) exposed via `/api/contracts/examples`.
+- Documented Thorough crawl knobs in `.env.example`.
+- Live thorough run on automationexercise.com: 19 pages visited (pattern sampling), 0 not-visited within limits, 204 tests, 171 passed, verdict Not Ready (no login account; protected actions still blocked).
+
 ## 2026-11-12 — Phases 6–18 implementation + Linux Phase 17
 
 - Implemented Phases 6–16 (Android env/locator, frontend UX, API contracts, repo-fix partial match, LLM/MCP errors, security, report clarity, performance/deploy docs).
