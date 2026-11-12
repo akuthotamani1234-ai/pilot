@@ -166,7 +166,8 @@ Not Ready · other missing evidence → Insufficient Evidence · risks → Ready
 - The server listens on **`127.0.0.1` only** and only answers to the host names 127.0.0.1 / localhost
   (protects against DNS-rebinding pages).
 - **Every change** (start, stop, delete, repo-fix, shutdown) needs the **`X-Agentic-QA: 1`** header.
-- Run names are checked so no one can read files **outside `runs/`**; hidden files and `auth.json` are never served.
+- Run names are checked so no one can read files **outside `runs/`**; hidden files, `auth.json`, APKs, Android config
+  and contract inputs are never served as public static files.
 - **Passwords and keys are redacted** (`[REDACTED]`) in the live log, console.log, results, pytest output, traces and
   AI requests (`backend/safety.py: redact`). AI requests also never contain the test account's user name.
 - Typing a password in a visible browser shows `••••••` in the caption bar.

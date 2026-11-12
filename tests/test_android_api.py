@@ -65,6 +65,56 @@ def test_mobile_run_requires_explicit_ownership_confirmation(client):
     assert "permission" in response.json()["detail"]
 
 
+def _asgi_mobile_post(extra_headers: list[tuple[bytes, bytes]]):
+    """POST /api/mobile/runs at the ASGI layer so Content-Length can be omitted or forged."""
+    import asyncio
+
+    body = b"app_mode=installed&package_name=com.example.demo&device_id=emulator-5554&authorized=true"
+    headers = [
+        (b"host", b"127.0.0.1:8000"),
+        (b"x-agentic-qa", b"1"),
+        (b"content-type", b"application/x-www-form-urlencoded"),
+        *extra_headers,
+    ]
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/api/mobile/runs",
+        "raw_path": b"/api/mobile/runs",
+        "query_string": b"",
+        "headers": headers,
+        "client": ("127.0.0.1", 50000),
+        "server": ("127.0.0.1", 8000),
+    }
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    asyncio.run(server.app(scope, receive, send))
+    start = next(m for m in messages if m["type"] == "http.response.start")
+    payload = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    return start["status"], json.loads(payload.decode() or "{}")
+
+
+def test_mobile_upload_rejects_missing_or_oversized_content_length():
+    status, body = _asgi_mobile_post([])
+    assert status == 411
+    assert "Content-Length" in body["detail"]
+    status, body = _asgi_mobile_post([(b"content-length", b"not-a-number")])
+    assert status == 400
+    assert "Invalid upload Content-Length" in body["detail"]
+    status, body = _asgi_mobile_post([(b"content-length", str(502 * 1024 * 1024).encode())])
+    assert status == 413
+    assert "500 MB" in body["detail"]
+
+
 def test_mobile_run_checks_environment_before_accepting_an_apk(client, monkeypatch):
     monkeypatch.setattr(android, "android_environment", lambda *_args: DEVICE_ENVIRONMENT)
     apk = io.BytesIO(b"not an apk archive")

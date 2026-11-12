@@ -53,11 +53,25 @@ def _resolve(host: str) -> tuple:
         return ()
 
 
+def _is_metadata_address(host: str) -> bool:
+    """Literal metadata name/IP, including IPv4-mapped forms (:ffff:169.254.169.254)."""
+    if host in METADATA_HOSTS:
+        return True
+    ip = _ip(host)
+    if ip is None:
+        return False
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return str(ip) in METADATA_HOSTS
+
+
 def is_metadata_host(host: str | None, resolve: bool = False) -> bool:
     h = (host or "").lower().strip("[]").rstrip(".")
-    if h in METADATA_HOSTS:
+    if not h:
+        return False
+    if _is_metadata_address(h):
         return True
-    return resolve and any(a in METADATA_HOSTS for a in _resolve(h))
+    return resolve and any(_is_metadata_address(a) for a in _resolve(h))
 
 
 def is_private_host(host: str | None, resolve: bool = False) -> bool:
@@ -174,8 +188,10 @@ class Scope:
         if p.scheme not in ("http", "https", "ws", "wss"):
             return None  # data:, blob:, about: ... stay inside the browser
         h = (p.hostname or "").lower()
-        if is_metadata_host(h):
-            return "cloud metadata address (always blocked)"
+        # resolve=True: a DNS name that points at metadata must not slip through when the target is local
+        # (local targets may reach other private addresses, but never cloud metadata).
+        if is_metadata_host(h, resolve=True):
+            return "cloud metadata address (always blocked; it can expose server secrets)"
         if not self.local and is_private_host(h) and not self.in_scope(url):
             return "private network / this PC (blocked because the website under test is public)"
         return None
@@ -187,7 +203,8 @@ class Scope:
             return why
         p = urlparse(url)
         if p.scheme in ("http", "https") and not self.in_scope(url):
-            return f"outside the approved scope ({p.hostname} is not {self.host}; add it to ALLOWED_HOSTS to allow it)"
+            return (f"outside the approved scope ({p.hostname} is not {self.host}; "
+                    f"add it to ALLOWED_HOSTS to allow it)")
         return None
 
 
