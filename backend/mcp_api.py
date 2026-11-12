@@ -54,6 +54,12 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
         if path.stat().st_size > 64 * 1024 * 1024:
             raise HTTPException(413, "This artifact is too large for MCP. Open its report in the Blow AI UI.")
         data = read_json(path, None)
+        if data is None:
+            # File exists but is not usable JSON: callers must not invent report contents.
+            raise HTTPException(
+                422,
+                "This report section exists but could not be read as JSON. Open the report in the Blow AI UI.",
+            )
         if isinstance(data, list):
             body = {"items": data[offset:offset + limit], "total": len(data), "offset": offset, "limit": limit}
         else:
@@ -65,4 +71,4 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
 
 def _page(offset, limit):
     if offset < 0 or not 1 <= limit <= 100:
-        raise HTTPException(400, "Use a nonnegative offset and a limit between 1 and 100.")
+        raise HTTPException(400, "Invalid request: use a nonnegative offset and a limit between 1 and 100.")
