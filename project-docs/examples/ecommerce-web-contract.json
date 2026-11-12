@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "test_environment": false,
+  "flows": [
+    {
+      "id": "search_product",
+      "title": "Search finds a product result (replace selectors for your shop)",
+      "approved": false,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "css",
+            "value": "input[name='search']"
+          },
+          "value": "blue shirt"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "button[type='submit']"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "css",
+            "value": "[data-test='product']"
+          }
+        }
+      ]
+    },
+    {
+      "id": "open_product_add_to_cart",
+      "title": "Open a product and add it to the cart (replace selectors for your shop)",
+      "approved": false,
+      "authentication": false,
+      "setup_flow": "search_product",
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "a[href*='/product']"
+          },
+          "purpose": "navigation"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "css",
+            "value": "[data-test='product-title']"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "[data-test='add-to-cart']"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "[data-test='cart-count']"
+          },
+          "value": "1"
+        }
+      ]
+    }
+  ]
+}

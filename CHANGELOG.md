@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Thorough exploration preset + ecommerce contract example
+
+- Website setup: **Exploration intensity** Standard / Thorough. Thorough sets full crawl (`max_pages` 0), site scope,
+  repeated-control exploration, and at least 50 actions per page; helper text names HARD_PAGE_CAP / time budgets.
+- Finished chat reports show a short **Coverage reminder** when not-visited, limit-reached, blocked, or not-tested gaps appear.
+- Added `project-docs/examples/ecommerce-web-contract.json` (search → product → add to cart; flows unapproved templates).
+- Docs: `docs/17_CLEAR_SETUP_AND_CRAWL_AUDIT.md`, `project-docs/13_ADVANCED_QA.md`. Existing APIs/workflows unchanged.
+
 ## 2026-11-12 — Phases 14–16 documentation / hygiene
 
 - Added `docs/31_PERFORMANCE_AND_LIMITS.md`: known config caps (`MAX_PAGES`, `HARD_PAGE_CAP`, workers, timeouts, sandbox) and **measure before optimize**. No invented benchmarks.

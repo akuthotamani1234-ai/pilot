@@ -741,12 +741,17 @@
       '<span>If the selected AI becomes unavailable, allow a clearly labelled rules-only fallback.</span></label></section>' +
       '<section class="setup-section" id="setupScope"><div class="setup-section-title"><span>03</span><div><h3>Choose exploration scope</h3>' +
       '<p>Whole website is the default. Every limit and inaccessible area is reported.</p></div></div>' +
-      '<div class="fields"><label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
+      '<div class="fields"><label>Exploration intensity <select id="aiIntensity" aria-describedby="aiIntensityNote">' +
+      '<option value="standard">Standard — current defaults</option>' +
+      '<option value="thorough">Thorough — full crawl within safety budgets</option></select></label>' +
+      '<label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
       '<option value="section">Only the URL section</option><option value="page">Only the supplied page</option></select></label>' +
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
       '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="50"></label></div>' +
+      '<p class="note" id="aiIntensityNote" hidden>Thorough uses safety budgets (HARD_PAGE_CAP / time limit). ' +
+      'Unvisited pages remain listed if budgets stop the crawl.</p>' +
       '<p class="note" id="aiScopeNote">Whole-site route discovery, including menus, nested controls, pagination and logged-in pages when access is available. ' +
       'Safety budgets: up to ' + cap + ' pages, ' + minutes + ' minutes, and the selected actions per page. ' +
       'Discovered does not mean functionally verified.</p></section>' +
@@ -867,7 +872,11 @@
       $("aiRefresh").disabled = false;
     });
     $("aiAccountMode").addEventListener("change", refreshAccountFields);
-    ["aiCrawlMode","aiScope"].forEach((id) => $(id).addEventListener("change", updateSetupSummary));
+    $("aiIntensity").addEventListener("change", applyExplorationIntensity);
+    ["aiCrawlMode","aiScope","aiActions"].forEach((id) => $(id).addEventListener("change", () => {
+      if ($("aiIntensity").value === "thorough") applyExplorationIntensity();
+      else updateSetupSummary();
+    }));
     $("advEnv").addEventListener("change", () => {
       $("advProdBox").hidden = $("advEnv").value !== "production";
       $("advStagingBox").hidden = $("advEnv").value !== "staging";
@@ -904,16 +913,54 @@
     updateSetupSummary();
   }
 
+  function applyExplorationIntensity() {
+    if (!$("aiIntensity")) return;
+    const thorough = $("aiIntensity").value === "thorough";
+    $("aiIntensityNote").hidden = !thorough;
+    if (thorough) {
+      // Full crawl: max_pages 0 → HARD_PAGE_CAP, site scope, repeated controls, ≥50 actions/page.
+      $("aiCrawlMode").value = "full";
+      $("aiScope").value = "site";
+      $("aiActions").value = String(Math.max(50, Math.min(100, +$("aiActions").value || 50)));
+    }
+    updateSetupSummary();
+  }
+
+  function coverageReminderHtml(s, crawl) {
+    const pagesCov = (s && s.pages_coverage) || {};
+    const lim = (s && s.coverage_limitations) || {};
+    const crawlInfo = crawl || (s && s.crawl) || {};
+    const counts = (s && s.result_status_counts) || {};
+    const notVisited = +(pagesCov.not_visited ?? crawlInfo.not_visited_count ?? s.pages_not_visited ?? 0) || 0;
+    const limitHit = !!(lim.partial || pagesCov.limit_reached || pagesCov.time_limit_reached
+      || crawlInfo.limit_reached || crawlInfo.time_limit_reached
+      || (lim.limits_hit && lim.limits_hit.length));
+    const blocked = +(counts.BLOCKED || 0) || 0;
+    const notTested = +(counts["NOT TESTED"] || 0) || 0;
+    if (!notVisited && !limitHit && !blocked && !notTested) return "";
+    const bits = [];
+    if (notVisited) bits.push(notVisited + " page(s) not visited");
+    if (limitHit) bits.push("a safety budget or limit stopped further exploration");
+    if (blocked) bits.push(blocked + " blocked");
+    if (notTested) bits.push(notTested + " not tested");
+    const detail = lim.statement || ("Coverage gaps remain: " + bits.join("; ")
+      + ". Unvisited and untested items stay listed in this report.");
+    return `<div class="warn coverage-reminder" role="status"><b>Coverage reminder:</b> ${esc(detail)}</div>`;
+  }
+
   function updateSetupSummary() {
     if (!$("aiRunSummary")) return;
+    const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
     const limited = $("aiCrawlMode").value === "limited";
     $("aiPageBudget").hidden = !limited;
+    if ($("aiIntensityNote")) $("aiIntensityNote").hidden = !thorough;
     const area = $("aiScope").value === "site" ? "Whole website" : $("aiScope").value === "section" ? "URL section" : "One page";
     const account = $("aiAccountMode").selectedOptions[0].textContent;
     const provider = (providers || []).find((p) => p.id === chosen);
     const ai = provider ? (provider.id === "none" ? "Rules only, no AI interpretation" : provider.name + " / " + ($("aiModel").value || "choose a model")) : "Choose an AI engine or Rules only";
-    $("aiRunSummary").textContent = area + " ? " + (limited ? "up to " + $("aiPages").value + " pages" : "all discovered pages within safety budgets") +
-      " ? " + account + " ? " + ai + ". Unvisited pages and untested controls stay visible in the report.";
+    const coverage = limited ? "up to " + $("aiPages").value + " pages" : "all discovered pages within safety budgets";
+    $("aiRunSummary").textContent = (thorough ? "Thorough · " : "Standard · ") + area + " · " + coverage +
+      " · " + account + " · " + ai + ". Unvisited pages and untested controls stay visible in the report.";
     $("aiScopeNote").classList.toggle("limited-scope", limited || $("aiScope").value !== "site" || +$("advDepth").value > 0);
   }
 
@@ -964,10 +1011,14 @@
       $("aiNote").textContent = problems.join(" ");
       return;
     }
-    const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: $("aiCrawlMode").value === "full" ? 0 : Math.max(1, +$("aiPages").value || 10),
-                   crawl_scope: $("aiScope").value, auth_mode: accountMode,
-                   max_interactions_per_page: Math.min(100, Math.max(1, +$("aiActions").value || 50)),
-                   explore_repeated_controls: $("aiCrawlMode").value === "full",
+    const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
+    if (thorough) applyExplorationIntensity();
+    const fullCrawl = thorough || $("aiCrawlMode").value === "full";
+    const actionsPerPage = Math.min(100, Math.max(thorough ? 50 : 1, +$("aiActions").value || 50));
+    const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
+                   crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
+                   max_interactions_per_page: actionsPerPage,
+                   explore_repeated_controls: thorough || fullCrawl,
                    allow_rules_fallback: $("aiFallback").checked,
                    show_browser: $("aiWatch").checked, fresh: $("aiFresh").checked,
                    authorized: true, allow_signup: accountMode === "signup" && $("aiSignup").checked, environment: val("advEnv") || "test",
@@ -1554,6 +1605,7 @@
       say(`<div class="card exploration-result">
         <span class="section-label">EXPLORATION REPORT</span><h2>Pages and components explored</h2>
         <p>Functional tests were not generated or run. This report shows what was discovered — not PASS/FAIL evidence for release.</p>
+        ${coverageReminderHtml(s, crawl)}
         <div class="stats"><div class="stat"><b>${esc(pagesCov.discovered ?? ((crawl.visited ?? s.pages ?? 0) + (crawl.not_visited_count ?? 0)))}</b><span>pages discovered</span></div>
           <div class="stat"><b>${esc(pagesCov.visited ?? crawl.visited ?? s.pages ?? 0)}</b><span>pages visited</span></div>
           ${d.components_count != null ? `<div class="stat"><b>${esc(d.components_count)}</b><span>components observed</span></div>` : ""}
@@ -1681,9 +1733,9 @@
         <div class="verdict" style="--vc:${VERDICT_COLOR[s.verdict] || "#64748b"}">
           <div class="v-row"><span class="v-emoji">${esc(h.emoji)}</span><div><b>${esc(h.title)}</b><p>${esc(h.text)}</p></div>
           ${s.pass_rate != null ? `<div class="v-rate" title="${esc(M.headline ? M.headline.denominator : "")}"><b>${esc(s.pass_rate)}%</b><span>${M.headline ? `functional test cases passed (${esc(M.headline.passed)} of ${esc(M.headline.of)})` : "passed"}</span></div>` : ""}</div></div>
+        ${coverageReminderHtml(s, d.crawl || s.crawl)}
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
-        ${(s.coverage_limitations && s.coverage_limitations.partial) ? `<div class="warn">${esc(s.coverage_limitations.statement || "Coverage was incomplete; unvisited pages and limits are listed in the full report.")}</div>` : ""}
         ${s.result_status_counts ? `<div class="stats">
           ${stat(s.result_status_counts.PASS, "PASS", "good")}
           ${stat(s.result_status_counts.FAIL, "FAIL", s.result_status_counts.FAIL ? "bad" : "")}

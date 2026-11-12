@@ -38,6 +38,8 @@ No permission dialog, MFA challenge or security protection is bypassed.
 
 Use the examples under project-docs/examples as starting points. The default examples require you to review and
 enable their approvals. They contain placeholder application selectors; replace them with your app's actual IDs.
+`ecommerce-web-contract.json` is a public shop-style web template (search → open product → add to cart). Flows stay
+`approved: false` until you adapt the CSS placeholders and explicitly approve them in a test environment.
 
 ## Secrets and configured databases
 
