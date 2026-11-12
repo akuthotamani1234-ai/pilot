@@ -2,8 +2,8 @@
 
 **Baseline date:** 2026-11-10 (Windows workstation)  
 **Cloud re-baseline:** 2026-11-12 (Cursor Linux agent at `/workspace`)  
-**Status:** Windows Phases 0–5 are **historically documented as complete**. Phases 6–13 are **IMPLEMENTED** on this checkout (offline/additive slices); they are **not VERIFIED** — full-suite and live-device/provider evidence remain deferred by the owner. Phases 14–16 are documentation/hygiene (this update).  
-**Evidence:** `PROJECT_AUDIT.md`, `deep_validation/06_test_evidence_index.md`, phase reports 08–12, `deep_validation/13_phase0_cloud_rebaseline.md`, and focused offline tests added with Phases 6–11.
+**Status:** Windows Phases 0–5 historically complete; Phases 6–16 implemented; Phase 17 Linux non-slow **816 passed** (2 skipped, 65 deselected); Phase 18 reports published. Live device/cloud/MCP/GitHub remain unverified.  
+**Evidence:** `PROJECT_AUDIT.md`, phase reports 08–14, `FINAL_*.md`, `REMAINING_ISSUES.md`.
 
 ## Cloud agent Phase 0 re-inspection (2026-11-12)
 
