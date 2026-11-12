@@ -1,0 +1,77 @@
+
+Source: https://automationexercise.com
+LLM:    none (rule-based)
+Output: runs/automationexercise.com_20261112_073118
+
+  [discovery] scope: Entire website – I'll test every page of automationexercise.com (up to 12 pages).
+  [discovery] page 1: 200  https://automationexercise.com  - learned what 9 control(s) do
+  [discovery] page 2: 200  https://automationexercise.com/products  - learned what 1 control(s) do
+  [discovery] page 3: 200  https://automationexercise.com/view_cart
+  [discovery] login: This website has a login, but no test account was given (creating a test account on the website was not allowed for this run) - only the public pages (login, register...) were tested. Give a test account to test everything behind the login.
+  [discovery] page 4: 200  https://automationexercise.com/login
+  [discovery] an action changed https://automationexercise.com - it is read again
+  [discovery] page 5: 200  https://automationexercise.com/test_cases  - learned what 15 control(s) do
+  [discovery] page 5: 200  https://automationexercise.com
+  [discovery] page 6: 200  https://automationexercise.com/api_list  - learned what 5 control(s) do
+  [discovery] page 7: 200  https://automationexercise.com/contact_us
+  [discovery] page 8: 200  https://automationexercise.com/category_products/1
+  [discovery] page 9: 200  https://automationexercise.com/brand_products/Polo
+  [discovery] page 10: 200  https://automationexercise.com/brand_products/H&M
+  [discovery] page 11: 200  https://automationexercise.com/brand_products/Madame
+  [discovery] page 12: 200  https://automationexercise.com/brand_products/Mast%20&%20Harbour
+  [discovery] registry: 12 page pattern(s), 121 feature(s) / control(s), 107 link(s) between pages
+  [visual] no approved look yet - the look of 12 page(s) becomes it when this run finishes (compared from the next run).
+  [test-design] 91 test cases (built-in rules): 3 journeys, 1 feature tests, 21 learned-behaviour tests, 32 focused checks, 0 AI journeys, 0 of your own tests, 5 site-wide checks, 18 blocked (protected actions) - for 12 pages (0 behind the login); the search tests look for 'Tshirt'
+  [test-design] 84 of 124 registered feature(s) / control(s) have a test case
+  [excel] wrote runs/automationexercise.com_20261112_073118/test_cases.xlsx
+  [script-gen] template test_features.py
+  [script-gen] template test_learned.py
+  [script-gen] template test_forms.py
+  [script-gen] template test_items.py
+  [script-gen] template test_journeys.py
+  [script-gen] template steps_products.py
+  [script-gen] template steps_login.py
+  [script-gen] template steps_test_cases.py
+  [script-gen] template steps_home.py
+  [script-gen] template steps_api_list.py
+  [script-gen] template steps_contact_us.py
+  [script-gen] template test_checks.py
+  [script-gen] template test_site.py
+  [script-gen] template test_all_links.py
+  [script-gen] coverage: 105 of 123 controls are used by the tests
+  [excel] wrote runs/automationexercise.com_20261112_073118/test_cases.xlsx
+  [execution] running generated tests in the sandbox ...
+  [execution] running tests in 4 browsers at the same time
+  [execution] still running: 0 result(s) so far; between tests
+  [execution] still running: 22 result(s) so far; between tests
+  [execution] still running: 45 result(s) so far; between tests
+  [execution] still running: 64 result(s) so far; between tests
+  [execution] still running: 145 result(s) so far; between tests
+  [excel] wrote runs/automationexercise.com_20261112_073118/test_cases.xlsx
+  [cost] AI cost for this run: $0.00 (0 calls, 0 tokens) - $0.00 per test case
+
+  - Setup: testing website URL https://automationexercise.com.
+  - Discovery: visited 12 pages, found 46 different issue(s) while crawling, 87 times in all (STOPPED AT THE PAGE LIMIT of 12; 51 more pages were found but not visited). 1 link(s) were skipped on purpose (see the coverage section).
+  - Login: This website has a login, but no test account was given (creating a test account on the website was not allowed for this run) - only the public pages (login, register...) were tested. Give a test account to test everything behind the login.
+  - Change detection: first run for 'automationexercise.com' - no baseline yet, all 12 pages are new.
+  - Visual check: no approved look yet - the look of 12 page(s) becomes it when this run finishes (compared from the next run).
+  - Test design: 91 test cases (built-in rules): 3 journeys, 1 feature tests, 21 learned-behaviour tests, 32 focused checks, 0 AI journeys, 0 of your own tests, 5 site-wide checks, 18 blocked (protected actions) - for 12 pages (0 behind the login); the search tests look for 'Tshirt'.
+  - Script generation: 8 test files {'template': 14}; 0 rejected.
+  - Execution: 170 tests run — 140 passed, 24 failed (0 flaky), 3 skipped, 3 inconclusive (checked nothing).
+  - Failure analysis: 37 findings {'assertion_failure': 13, 'inconclusive': 3, 'product_defect': 16, 'infrastructure': 4, 'third_party': 1}.
+  - Report: verdict = Not Ready.
+  - Baseline: saved to baseline/automationexercise.com (next run compares against this one). The look of 12 new page(s) was added.
+
+============================================================
+  TEST COMPLETED
+============================================================
+  Website : https://automationexercise.com
+  Pages   : 12 visited
+  Tests   : 170 single tests - 140 passed, 24 failed, 3 inconclusive, 3 skipped
+  Functional test cases: 47 of 65 passed (72%)
+  VERDICT : Not Ready
+  AI cost : $0.00 total, $0.00 per test case (0 AI calls)
+  Report  : /workspace/runs/automationexercise.com_20261112_073118/report.html
+  Open    : file:///workspace/runs/automationexercise.com_20261112_073118/report.html   (Ctrl+click if the browser did not open)
+============================================================
+
