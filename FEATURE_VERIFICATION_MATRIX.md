@@ -69,6 +69,10 @@ Rule-based failure classification and self-healing passed the focused regression
 
 No feature row above was upgraded to “Verified” on the Linux cloud agent. Environment blockers for fresh verification: Python 3.12 host vs required 3.13, missing `.venv`/deps confirmation, no ADB/Appium, no live runs directory. Preserve Implemented vs Historical/Partial/Blocked vocabulary until a Phase 1 Linux suite produces new evidence.
 
+## Phase 17 Linux verification update - 2026-11-12
+
+Offline non-slow suite on Python 3.13.18: **816 passed**, 2 skipped, 65 `slow` deselected; ruff clean. Phases 6–13 code paths covered by that suite are **Verified offline** on Linux. Live Android device, paid providers, live GitHub PR, and live MCP client sessions remain **Unverified**. See `FINAL_TEST_REPORT.md` and `REMAINING_ISSUES.md`.
+
 ## Phases 6–16 documentation note - 2026-11-12
 
 Rows for Phases 6–13 were marked **Implemented** (with offline test pointers) but **not VERIFIED**. Phase 14 adds `docs/31_PERFORMANCE_AND_LIMITS.md` (caps only). Phase 15 notes Windows-primary deployment. Phase 16 is this matrix/status hygiene. Full-suite VERIFIED upgrades require owner-approved evidence runs.

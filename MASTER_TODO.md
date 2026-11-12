@@ -23,8 +23,8 @@
 | 14 — Performance/scalability | **IMPLEMENTED** (docs); measure before any optimization | `docs/31_PERFORMANCE_AND_LIMITS.md` lists config caps only — no fake benchmarks. |
 | 15 — DevOps/deployment | **IMPLEMENTED** (docs note); Windows remains primary | `DEPLOYMENT.md`: Linux = offline/regression exploration only; do not recreate `.venv` without approval. |
 | 16 — Hygiene/documentation | **IMPLEMENTED** (this pass) | Status/TODO/matrix/changelog updated; no artifact deletion. |
-| 17 — Final regression/acceptance | NOT STARTED | Requires completed phase gates and real declared-target verification. |
-| 18 — Final delivery reports | NOT STARTED | Produce only after evidence exists; distinguish historical from fresh results. |
+| 17 — Final regression/acceptance | **COMPLETE (Linux non-slow)** | Ruff clean; **816 passed**, 2 skipped, 65 deselected. See `deep_validation/14_phase17_results.md`. Live device/cloud/MCP still open. |
+| 18 — Final delivery reports | **COMPLETE** | `FINAL_*.md`, `REMAINING_ISSUES.md`, updated matrix. Distinguish Linux offline vs live verification. |
 
 ## Owner decision needed after Phases 6–16 docs
 
