@@ -308,12 +308,16 @@ def redact(text, values: list[str] | None = None, include_username: bool = False
 
 # App package ids often contain a short test username (com.blowai.demo + username "demo").
 # Machine-readable Android artifacts still need a valid package for reset/activate/terminate.
-ANDROID_PACKAGE_KEYS = frozenset({"package_name", "appPackage", "app_package", "package"})
+ANDROID_PACKAGE_KEYS = frozenset({"package_name", "appPackage", "app_package", "package", "android_package"})
 _ANDROID_PACKAGE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+# coverage / app_map often store the package only inside android://<package>/... URLs
+_ANDROID_URL_PACKAGE = re.compile(
+    r"android://([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)(?:/|$)"
+)
 
 
 def android_package_identifiers(data) -> list[str]:
-    """Collect dotted Android package ids from known keys (longest first)."""
+    """Collect dotted Android package ids from known keys and android:// URLs (longest first)."""
     found: set[str] = set()
 
     def walk(obj):
@@ -325,6 +329,9 @@ def android_package_identifiers(data) -> list[str]:
         elif isinstance(obj, list):
             for item in obj:
                 walk(item)
+        elif isinstance(obj, str):
+            for match in _ANDROID_URL_PACKAGE.finditer(obj):
+                found.add(match.group(1))
 
     walk(data)
     return sorted(found, key=len, reverse=True)
