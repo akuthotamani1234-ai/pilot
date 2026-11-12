@@ -22,6 +22,13 @@ Prior commits on this branch (not re-verified as a full suite here):
 - Phase 11: Safety controls for metadata, private artifacts, and uploads.
 - Phases 12–13: Reporting honesty remains code policy (counts from run files; Incomplete → Insufficient Evidence); not a fresh accuracy VERIFIED claim.
 
+## 2026-11-12 — Phases 6–18 implementation + Linux Phase 17
+
+- Implemented Phases 6–16 (Android env/locator, frontend UX, API contracts, repo-fix partial match, LLM/MCP errors, security, report clarity, performance/deploy docs).
+- Phase 17 Linux non-slow regression: first run 6 failed / 810 passed; after fixes **816 passed**, 2 skipped, 65 deselected; ruff clean.
+- Phase 18 delivery reports added: `FINAL_IMPLEMENTATION_REPORT.md`, `FINAL_TEST_REPORT.md`, `FINAL_SECURITY_REPORT.md`, `FINAL_COVERAGE_REPORT.md`, `FINAL_BENCHMARK_REPORT.md`, `FINAL_CHANGELOG.md`, `REMAINING_ISSUES.md`.
+- Live Android/cloud LLM/GitHub/MCP sessions remain unverified on this host.
+
 ## 2026-11-12 — Phase 0 cloud re-baseline (docs only)
 
 - Re-inspected the Git checkout on the Cursor Linux cloud agent (`/workspace`).
