@@ -143,6 +143,32 @@ def test_stdio_tools_register_without_contacting_ui(monkeypatch):
     assert tools["stop_run"].parameters["properties"]["confirmed"]["default"] is False
 
 
+def test_bridge_error_surfaces_as_tool_error_not_unexpected(monkeypatch):
+    """BridgeError must reach the MCP client as ToolError text, not UnexpectedToolError."""
+    import asyncio
+
+    pytest.importorskip("mcp.server")
+    from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
+
+    from backend.mcp_server import build_server
+
+    monkeypatch.setattr(BlowAIBridge, "_send", lambda *a, **k: pytest.fail("Permission denial must not contact UI"))
+    server = build_server()
+
+    async def call_denied_tools():
+        with pytest.raises(ToolError, match=r"Permission required") as web_err:
+            await server.call_tool("start_web_test", {"url": "https://example.test", "authorized": False})
+        assert not isinstance(web_err.value, UnexpectedToolError)
+        assert "authorized=true" in str(web_err.value)
+
+        with pytest.raises(ToolError, match=r"Stopping interrupts a run") as stop_err:
+            await server.call_tool("stop_run", {"job_id": 1, "confirmed": False})
+        assert not isinstance(stop_err.value, UnexpectedToolError)
+        assert "confirmed=true" in str(stop_err.value)
+
+    asyncio.run(call_denied_tools())
+
+
 def test_discovery_report_does_not_fabricate_test_passes(tmp_path):
     from backend.discovery_report import discovery_report
     result = discovery_report({"run_id": "inventory", "run_dir": str(tmp_path), "url": "https://example.test",
