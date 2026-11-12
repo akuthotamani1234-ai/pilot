@@ -1870,9 +1870,14 @@
       const plan = await postJSON(`/api/runs/${encodeURIComponent(run)}/repo-fix/prepare`, body);
       const files = plan.files.map((f) => `<details class="log"><summary><b>${esc(f.path)}</b> · ${esc(f.fixes.join(", "))}</summary>
           <pre>${esc(f.diff)}</pre></details>`).join("");
+      const fullApplied = (plan.applied || []).filter((a) => !a.partial);
+      const partialApplied = (plan.applied || []).filter((a) => a.partial);
       const skipped = plan.skipped.map((s) => `<li>${esc(s.title)} <span class="muted">· ${esc(s.reason)}</span></li>`).join("");
+      const readyLabel = partialApplied.length
+        ? `${plan.files.length} file(s), ${fullApplied.length} fix(es), ${partialApplied.length} partial`
+        : `${plan.files.length} file(s), ${fullApplied.length} fix(es)`;
       out.innerHTML = files
-        ? `<h4>Changes ready (${plan.files.length} file(s), ${plan.applied.length} fix(es))</h4>${files}
+        ? `<h4>Changes ready (${readyLabel})</h4>${files}
            ${skipped ? `<h4>Fix these by hand</h4><ul>${skipped}</ul>` : ""}
            <div class="note">Creates a new branch and a Pull Request in <b>${esc(plan.repo)}</b>. Your main branch is not changed.</div>
            <div class="actions"><button type="button" class="primary" id="${id}-pr">⬆ Create Pull Request on GitHub</button></div>
