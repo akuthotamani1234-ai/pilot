@@ -94,4 +94,4 @@ Timeouts and missing keys must surface as clear errors / rules fallback — neve
 - [README — Configure / Troubleshooting](../README.md)
 - [DEPLOYMENT.md](../DEPLOYMENT.md) — Windows primary; Linux not a supported shared deploy
 - [Clear setup and crawl audit](17_CLEAR_SETUP_AND_CRAWL_AUDIT.md) — exploration defaults and remaining coverage limits
-- `MASTER_TODO.md` Phase 14 gate
+- [STATUS.md](../STATUS.md) — implementation vs verification

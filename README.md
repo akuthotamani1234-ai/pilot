@@ -388,10 +388,12 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 | `PermissionError` when deleting a test | A file of it (e.g. the Excel file) is open in another program; close it |
 
 ## 12. More documents
-- [ARCHITECTURE.md](ARCHITECTURE.md): directory rules, file-size limits, assistant/vibe-coding guardrails
+- [STATUS.md](STATUS.md): what is implemented vs verified (single status page)
+- [ARCHITECTURE.md](ARCHITECTURE.md): directory rules, file-size limits, assistant guardrails
 - [DEPLOYMENT.md](DEPLOYMENT.md): install on another PC, update, what never to copy
-- [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md): configured crawl/test caps; measure before optimizing
-- [CONTRIBUTING.md](CONTRIBUTING.md): branching, Conventional Commits, PR checklist, coding rules
+- [docs/15_MCP_INTEGRATION.md](docs/15_MCP_INTEGRATION.md): optional MCP assistant bridge
+- [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md): configured crawl/test caps
+- [CONTRIBUTING.md](CONTRIBUTING.md): branching, Conventional Commits, PR checklist
 - [SECURITY.md](SECURITY.md): reporting a security problem, and what the tool protects
 - [backend/README.md](backend/README.md): the pipeline and every backend module
 - [frontend/README.md](frontend/README.md): the web page and the API it uses
@@ -411,12 +413,14 @@ blow-ai/
 ├── tests/                  # Offline pytest suite (+ android_demo fixture)
 ├── demo-apps/              # Sample contracts (APKs gitignored)
 ├── docs/ / project-docs/   # Operator and design docs
-├── deep_validation/        # Phase evidence summaries
+├── deep_validation/        # Compact validation notes (markdown)
+├── STATUS.md               # Implementation vs verification
+├── ARCHITECTURE.md         # Placement + assistant guardrails
+├── CONTRIBUTING.md         # Branching, commits, PR checklist
 ├── .env.example            # Public env template (copy to .env locally)
 ├── requirements.txt        # Direct dependencies
-├── constraints.txt         # Locked transitive pins
-├── ARCHITECTURE.md         # Placement + vibe-coding guardrails
-└── CONTRIBUTING.md         # Branching, commits, PR checklist
+├── requirements-mcp.txt    # Optional MCP SDK extras
+└── constraints.txt         # Locked transitive pins
 ```
 Local-only (never commit): `.env`, `.venv/`, `runs/`, `logs/`, `accounts/`, `artifacts/`.
 
