@@ -820,8 +820,12 @@ def discovery_agent(state):
         auto_flows = interaction.pop("flows", []) if contract else []
         if contract:
             # Private copy for the trusted runtime; a public copy the person can reuse as approved flows.
+            # Do not redact the private contract: assert_text / accessibility_id values often contain the
+            # test username (e.g. "Welcome demo user"); redacting them makes execution look for [REDACTED].
             (run_dir / ".private").mkdir(exist_ok=True)
-            _save_json(run_dir / ".private" / "auto_contract.json", contract)
+            (run_dir / ".private" / "auto_contract.json").write_text(
+                json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             _save_json(run_dir / "auto_flows.json", contract)
         _save_json(run_dir / "android_interaction.json", {**interaction, "kept": len(auto_flows)})
         log.append(f"Test-build mode: kept {len(auto_flows)} replay-verified user-like tests from "
