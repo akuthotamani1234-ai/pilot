@@ -53,11 +53,25 @@ def _resolve(host: str) -> tuple:
         return ()
 
 
+def _is_metadata_address(host: str) -> bool:
+    """Literal metadata name/IP, including IPv4-mapped forms (:ffff:169.254.169.254)."""
+    if host in METADATA_HOSTS:
+        return True
+    ip = _ip(host)
+    if ip is None:
+        return False
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped
+    return str(ip) in METADATA_HOSTS
+
+
 def is_metadata_host(host: str | None, resolve: bool = False) -> bool:
     h = (host or "").lower().strip("[]").rstrip(".")
-    if h in METADATA_HOSTS:
+    if not h:
+        return False
+    if _is_metadata_address(h):
         return True
-    return resolve and any(a in METADATA_HOSTS for a in _resolve(h))
+    return resolve and any(_is_metadata_address(a) for a in _resolve(h))
 
 
 def is_private_host(host: str | None, resolve: bool = False) -> bool:
@@ -174,8 +188,10 @@ class Scope:
         if p.scheme not in ("http", "https", "ws", "wss"):
             return None  # data:, blob:, about: ... stay inside the browser
         h = (p.hostname or "").lower()
-        if is_metadata_host(h):
-            return "cloud metadata address (always blocked)"
+        # resolve=True: a DNS name that points at metadata must not slip through when the target is local
+        # (local targets may reach other private addresses, but never cloud metadata).
+        if is_metadata_host(h, resolve=True):
+            return "cloud metadata address (always blocked; it can expose server secrets)"
         if not self.local and is_private_host(h) and not self.in_scope(url):
             return "private network / this PC (blocked because the website under test is public)"
         return None
@@ -187,7 +203,8 @@ class Scope:
             return why
         p = urlparse(url)
         if p.scheme in ("http", "https") and not self.in_scope(url):
-            return f"outside the approved scope ({p.hostname} is not {self.host}; add it to ALLOWED_HOSTS to allow it)"
+            return (f"outside the approved scope ({p.hostname} is not {self.host}; "
+                    f"add it to ALLOWED_HOSTS to allow it)")
         return None
 
 
@@ -287,6 +304,51 @@ def redact(text, values: list[str] | None = None, include_username: bool = False
         if v and v in text:
             text = text.replace(v, REDACTED)
     return URL_USERINFO.sub(r"\1" + REDACTED + "@", text)
+
+
+# App package ids often contain a short test username (com.blowai.demo + username "demo").
+# Machine-readable Android artifacts still need a valid package for reset/activate/terminate.
+ANDROID_PACKAGE_KEYS = frozenset({"package_name", "appPackage", "app_package", "package", "android_package"})
+_ANDROID_PACKAGE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+# coverage / app_map often store the package only inside android://<package>/... URLs
+_ANDROID_URL_PACKAGE = re.compile(
+    r"android://([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+)(?:/|$)"
+)
+
+
+def android_package_identifiers(data) -> list[str]:
+    """Collect dotted Android package ids from known keys and android:// URLs (longest first)."""
+    found: set[str] = set()
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in ANDROID_PACKAGE_KEYS and isinstance(value, str) and _ANDROID_PACKAGE_ID.fullmatch(value):
+                    found.add(value)
+                walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+        elif isinstance(obj, str):
+            for match in _ANDROID_URL_PACKAGE.finditer(obj):
+                found.add(match.group(1))
+
+    walk(data)
+    return sorted(found, key=len, reverse=True)
+
+
+def redact_json(data, values: list[str] | None = None, include_username: bool = False) -> str:
+    """JSON dump with secrets removed, but valid Android package identifiers left intact."""
+    text = json.dumps(data, indent=2, ensure_ascii=False)
+    packages = android_package_identifiers(data)
+    if values is None:
+        values = secret_values(include_username)
+    out = redact(text, values=values, include_username=include_username)
+    for package in packages:
+        corrupted = redact(package, values=values, include_username=include_username)
+        if corrupted != package and corrupted in out:
+            out = out.replace(corrupted, package)
+    return out
 
 
 def clean_env(env: dict, keep_test_account: bool = False) -> dict:

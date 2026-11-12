@@ -9,7 +9,7 @@
   const dialog = document.createElement("dialog");
   dialog.className = "flow-dialog";
   dialog.setAttribute("aria-labelledby", "flowTitle");
-  dialog.innerHTML = `<form id="flowForm"><div class="flow-heading"><div><span class="section-label">EXPECTED BEHAVIOR</span><h2 id="flowTitle">Build a test flow</h2></div><button type="button" class="secondary" id="flowClose">Close</button></div>
+  dialog.innerHTML = `<form id="flowForm"><div class="flow-heading"><div><span class="section-label">EXPECTED BEHAVIOR</span><h2 id="flowTitle">Build a test flow</h2></div><button type="button" class="secondary" id="flowClose" aria-label="Close test flow builder">Close</button></div>
     <p>Add the actions in order, then assert the result you expect. Use observed locators from your component inventory or Inspector.</p>
     <label>Flow name<input id="flowName" required maxlength="180" placeholder="Login reaches the dashboard"></label>
     <div class="fields"><label>Run this setup flow first<select id="flowSetup"><option value="">Start from the launch screen</option></select></label><label>Flow timeout (seconds)<input id="flowTimeout" type="number" min="10" max="300" value="90" required></label></div>
@@ -79,6 +79,9 @@
 
   $("flowForm").onsubmit = async event => {
     event.preventDefault();
+    $("flowMessage").textContent = "Validating the flow…";
+    const submit = $("flowForm").querySelector('[type="submit"]');
+    if (submit) { submit.disabled = true; submit.setAttribute("aria-busy", "true"); }
     try {
       const contract = field.value.trim() ? JSON.parse(field.value) : {version:1,flows:[],rules:[],checks:[],allowed_origins:[]};
       const steps = [...$("flowSteps").children].map(row => {
@@ -117,7 +120,13 @@
       const note = document.querySelector(`[data-flow-review="${field.id}"]`);
       note.textContent = `${result.flows} configured flows · ${result.rules} business rules · ${result.checks} backend checks. Ready for execution review.`;
       close();
-    } catch(error) { $("flowMessage").textContent = error instanceof SyntaxError ? "Correct the existing JSON before adding another flow." : error.message; }
+    } catch(error) {
+      $("flowMessage").textContent = error instanceof SyntaxError
+        ? "Correct the existing JSON before adding another flow."
+        : (error.message || "Could not validate this flow. Check the steps and try again.");
+    } finally {
+      if (submit) { submit.disabled = false; submit.removeAttribute("aria-busy"); }
+    }
   };
 
   function mount() {

@@ -26,6 +26,11 @@ SCREENS = json.loads((RUN / "screens.json").read_text(encoding="utf-8"))
 UNAVAILABLE = RUN / "android_execution_unavailable.json"
 
 
+def _app_package():
+    """Prefer the run config package; screens.json is only a fallback if config omitted it."""
+    return (CONFIG.get("package_name") or "").strip() or SCREENS[0]["package_name"]
+
+
 def _append(name, record):
     with (RUN / name).open("a", encoding="utf-8") as output:
         output.write(redact(json.dumps(record, ensure_ascii=False)) + "\n")
@@ -89,7 +94,7 @@ def appium_driver():
         session_file.write_text(json.dumps({"session_id": driver.session_id}), encoding="utf-8")
         if CONFIG.get("app_mode") == "installed" and not interaction_blocker(CONFIG):
             # Test-build mode explored a freshly reset app: the read-only checks start from that same state.
-            reset_app_data(driver, SCREENS[0]["package_name"])
+            reset_app_data(driver, _app_package())
         yield driver
     finally:
         cleanup = close_session(driver)
@@ -123,7 +128,7 @@ def mobile(request, appium_driver):
         target = next(s for s in SCREENS if s["id"] == target_id)
         if not target.get("authentication_flow_id"):
             try:
-                reuse = same_screen(inspect_driver(driver, {**CONFIG, "package_name": SCREENS[0]["package_name"]}), target)
+                reuse = same_screen(inspect_driver(driver, {**CONFIG, "package_name": _app_package()}), target)
             except AndroidEnvironmentError as error:
                 if device_unavailable(error):
                     raise
@@ -131,7 +136,7 @@ def mobile(request, appium_driver):
         # Test mode: a permission prompt or the keyboard an earlier test left in front never fails this test
         from backend.android import bring_app_back
 
-        bring_app_back(driver, {**CONFIG, "package_name": SCREENS[0]["package_name"]})
+        bring_app_back(driver, {**CONFIG, "package_name": _app_package()})
     if reuse:
         pass  # The frozen plan has no mutations; verify its screen again in open_screen.
     elif CONFIG.get("app_mode") == "web" and case.get("reset_app_data") and not interaction_blocker(CONFIG):
@@ -143,21 +148,40 @@ def mobile(request, appium_driver):
         driver.get(CONFIG["start_url"])
     elif case.get("reset_app_data"):
         # A test-build flow changes app data: it starts from a freshly reset app, like its discovery replay did.
-        reset_app_data(driver, SCREENS[0]["package_name"])
+        reset_app_data(driver, _app_package())
     elif activity:
-        driver.execute_script(
-            "mobile: startActivity",
-            {"component": SCREENS[0]["package_name"] + "/" + activity, "wait": True, "stop": True},
-        )
+        # Prefer the configured activity, but many apps expose only a Splash LAUNCHER activity.
+        # Falling back to activate_app avoids Permission Denial on non-exported MainActivity.
+        try:
+            driver.execute_script(
+                "mobile: startActivity",
+                {"component": _app_package() + "/" + activity, "wait": True, "stop": True},
+            )
+        except Exception as error:
+            message = str(error)
+            if "not exported" in message or "Permission Denial" in message:
+                from backend.android import launchable_activity
+
+                launcher = launchable_activity(CONFIG["device_id"], _app_package())
+                if launcher and launcher != activity:
+                    driver.execute_script(
+                        "mobile: startActivity",
+                        {"component": _app_package() + "/" + launcher, "wait": True, "stop": True},
+                    )
+                else:
+                    driver.terminate_app(_app_package())
+                    driver.activate_app(_app_package())
+            else:
+                raise
     else:
-        driver.terminate_app(SCREENS[0]["package_name"])
-        driver.activate_app(SCREENS[0]["package_name"])
+        driver.terminate_app(_app_package())
+        driver.activate_app(_app_package())
     runtime = MobileRuntime(driver, CONFIG, SCREENS, case, RUN)
     driver._blowai_previous_read_only = read_only
     if not reuse:
         runtime.wait_for_start()
     native = CONFIG.get("app_mode") != "web"
-    package = SCREENS[0]["package_name"]
+    package = _app_package()
     since = device_time(CONFIG["device_id"]) if native else None  # crashes are looked up from this moment
     recording = native and not read_only and start_recording(driver)
     try:

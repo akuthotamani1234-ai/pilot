@@ -184,8 +184,11 @@ FAILURES = [
 
 def test_slack_and_jira_get_only_application_defects_once(tmp_path, monkeypatch):
     from backend.integrations import integrations_agent
+    from backend.privacy import PrivacyPolicy
     _Fake.got = []
     srv, url = _serve(_Fake)
+    # Integrations are cloud-only; keep product local-mode blocking while asserting defect filtering.
+    monkeypatch.setattr("backend.privacy.load_policy", lambda: PrivacyPolicy(mode="cloud", cloud_consent=True))
     monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
     monkeypatch.setattr(settings, "slack_webhook_url", url + "/slack")
     for k, v in {"jira_url": url, "jira_email": "qa@shop.test", "jira_api_token": "jira-secret-token",

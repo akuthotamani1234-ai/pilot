@@ -56,6 +56,31 @@ def test_installed_launch_waits_for_the_package_after_splash_handoff():
     assert caps["appium:appActivity"] == ".SplashActivity"
 
 
+def test_normalize_resolved_launcher_activity():
+    assert android._normalize_resolved_activity(
+        "com.saucelabs.mydemoapp.android",
+        "com.saucelabs.mydemoapp.android/.view.activities.SplashActivity",
+    ) == ".view.activities.SplashActivity"
+    assert android._normalize_resolved_activity(
+        "com.example.demo",
+        "com.example.demo/com.example.demo.MainActivity",
+    ) == "com.example.demo.MainActivity"
+
+
+def test_launchable_activity_parses_resolve_activity_output(monkeypatch):
+    class Result:
+        stdout = (
+            "priority=0 preferredOrder=0 match=0x108000\n"
+            "com.saucelabs.mydemoapp.android/.view.activities.SplashActivity\n"
+        )
+
+    monkeypatch.setattr(android.shutil, "which", lambda _: "/usr/bin/adb")
+    monkeypatch.setattr(android.subprocess, "run", lambda *_a, **_k: Result())
+    assert android.launchable_activity(
+        "emulator-5554", "com.saucelabs.mydemoapp.android"
+    ) == ".view.activities.SplashActivity"
+
+
 def test_recovery_reopens_only_the_target_when_back_exits_the_app(tmp_path, monkeypatch):
     class Driver(FakeDriver):
         activated = []

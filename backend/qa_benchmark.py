@@ -1,11 +1,18 @@
-"""Known-truth measurement and repeatability evidence across web and Android runs."""
+"""Known-truth measurement and repeatability evidence across web and Android runs.
+
+These numbers apply ONLY to the supplied known-truth cases. They are not overall product accuracy
+and must never be published as a site-wide or app-wide accuracy percentage.
+"""
 
 import argparse
 import html
 import json
 import os
+import platform
 import re
+import sys
 from collections import Counter, defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import Field
@@ -91,7 +98,21 @@ def measure(root, value):
         "missed_defects": counts["fn"] + counts["unanswered_positive"],
         "unstable_cases": instability,
         "rows": rows,
+        "overall_accuracy_percent": None,  # never invented; known-truth metrics above are not site/app accuracy
         "scope": "Only the supplied known-truth cases and repeated conditions; not general product accuracy.",
+        "metric_labels": {
+            "precision": "Known-truth defect precision (TP/(TP+FP)). Not overall product accuracy.",
+            "recall": ("Known-truth known-defect recall (TP/(TP+FN+unanswered positives)). "
+                       "Unanswered positives reduce recall. Not overall accuracy."),
+            "answered_coverage": ("Share of known-truth expectations answered with pass or fail. "
+                                  "Not site/app coverage and not overall accuracy."),
+        },
+        "environment": {
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+            "runs_root": str(Path(root).resolve()),
+            "measured_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
     }
 
 
@@ -123,8 +144,9 @@ def save_showcase(root, manifest, output):
     def percentage(value):
         return "Not measured" if value is None else f"{value * 100:.1f}%"
 
+    env = result["environment"]
     document = """<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blow AI | QA evidence</title><style>
-body{margin:0;background:#f0f3fa;color:#17243d;font:16px/1.6 system-ui}main{max-width:1180px;margin:auto;padding:30px}header{background:#152442;color:white;padding:30px;border-radius:18px}section{background:white;padding:24px;border-radius:16px;margin:20px 0}.cards{display:flex;gap:16px;flex-wrap:wrap}.cards article{background:white;border:1px solid #dce4f2;padding:20px;flex:1;border-radius:12px}.cards strong{display:block;font-size:28px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:12px;border-bottom:1px solid #ddd}a{color:#4f46cb}.scroll{overflow:auto}code{overflow-wrap:anywhere}</style><main><header><h1>QA results you can verify</h1><p>Compare clean and known-defect runs. Inspect the assertions, screenshots and unchanged recovery evidence.</p></header><div class="cards"><article><strong>PRECISION</strong>Defect precision</article><article><strong>RECALL</strong>Known-defect recall</article><article><strong>COVERAGE</strong>Answered expectations</article><article><strong>UNSTABLE</strong>Unstable repeated cases</article></div><section><h2>Known-truth execution evidence</h2><div class="scroll"><table><tr><th>Condition</th><th>Actual run</th><th>Case</th><th>Expected</th><th>Observed</th></tr>ROWS</table></div></section><section><h2>Measurement scope</h2><p>SCOPE</p><p>Infrastructure failures, blocked flows and missing results are unanswered; they never count as true positives or clean passes. Missed known defects include unanswered positive cases. Flakiness is compared only within the same named condition.</p><p><a href="benchmark.json">Download measurements and classifications</a></p></section></main></html>"""
+body{margin:0;background:#f0f3fa;color:#17243d;font:16px/1.6 system-ui}main{max-width:1180px;margin:auto;padding:30px}header{background:#152442;color:white;padding:30px;border-radius:18px}section{background:white;padding:24px;border-radius:16px;margin:20px 0}.cards{display:flex;gap:16px;flex-wrap:wrap}.cards article{background:white;border:1px solid #dce4f2;padding:20px;flex:1;border-radius:12px}.cards strong{display:block;font-size:28px}.cards span{display:block;color:#5b6b86;font-size:13px;margin-top:6px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:12px;border-bottom:1px solid #ddd}a{color:#4f46cb}.scroll{overflow:auto}code{overflow-wrap:anywhere}</style><main><header><h1>QA results you can verify</h1><p>Compare clean and known-defect runs. Inspect the assertions, screenshots and unchanged recovery evidence. These cards are known-truth metrics only — not overall product accuracy.</p></header><div class="cards"><article><strong>PRECISION</strong><span>Known-truth defect precision</span></article><article><strong>RECALL</strong><span>Known-defect recall (unanswered positives reduce it)</span></article><article><strong>COVERAGE</strong><span>Answered known-truth expectations (not site coverage)</span></article><article><strong>UNSTABLE</strong><span>Unstable repeated cases</span></article></div><section><h2>Known-truth execution evidence</h2><div class="scroll"><table><tr><th>Condition</th><th>Actual run</th><th>Case</th><th>Expected</th><th>Observed</th></tr>ROWS</table></div></section><section><h2>Measurement scope</h2><p>SCOPE</p><p>Overall product accuracy is not measured here (overall_accuracy_percent remains unset). Infrastructure failures, blocked flows and missing results are unanswered; they never count as true positives or clean passes. Missed known defects include unanswered positive cases. Flakiness is compared only within the same named condition.</p><p>Environment: Python ENV_PYTHON on ENV_PLATFORM; runs root <code>ENV_ROOT</code>; measured at ENV_WHEN (UTC).</p><p><a href="benchmark.json">Download measurements and classifications</a></p></section></main></html>"""
     for key, value in {
         "PRECISION": percentage(result["precision"]),
         "RECALL": percentage(result["recall"]),
@@ -132,6 +154,10 @@ body{margin:0;background:#f0f3fa;color:#17243d;font:16px/1.6 system-ui}main{max-
         "UNSTABLE": len(result["unstable_cases"]),
         "ROWS": "".join(rows),
         "SCOPE": esc(result["scope"]),
+        "ENV_PYTHON": esc(env["python"]),
+        "ENV_PLATFORM": esc(env["platform"]),
+        "ENV_ROOT": esc(env["runs_root"]),
+        "ENV_WHEN": esc(env["measured_at"]),
     }.items():
         document = document.replace(key, str(value))
     (output / "report.html").write_text(document, encoding="utf-8")

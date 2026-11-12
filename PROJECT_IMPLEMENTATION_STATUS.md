@@ -1,8 +1,27 @@
 # Blow AI — Project Implementation Status
 
-**Baseline date:** 2026-11-10  
-**Status:** Phases 0-5 are complete. Phase 6 has not started.  
-**Evidence:** `PROJECT_AUDIT.md`, `deep_validation/06_test_evidence_index.md`, and phase result reports 08–10 under `deep_validation/`.
+**Baseline date:** 2026-11-10 (Windows workstation)  
+**Cloud re-baseline:** 2026-11-12 (Cursor Linux agent at `/workspace`)  
+**Status:** Windows Phases 0–5 historically complete; Phases 6–16 implemented; Phase 17 Linux non-slow **816 passed** (2 skipped, 65 deselected); Phase 18 reports published. Live device/cloud/MCP/GitHub remain unverified.  
+**Evidence:** `PROJECT_AUDIT.md`, phase reports 08–14, `FINAL_*.md`, `REMAINING_ISSUES.md`.
+
+## Cloud agent Phase 0 re-inspection (2026-11-12)
+
+Documentation-only. No application code or tests were changed in this re-inspection.
+
+| Fact | Observation |
+|---|---|
+| Intended product root | `/workspace` (contains `main.py`, `backend/`, `frontend/`, `tests/`, docs) |
+| Git | Initialized; `main` @ `925ae2f` “Initial commit: Blow AI”; clean before docs update |
+| Python | Host `3.12.3`; product `requires-python >=3.13`; no 3.13 binary found on PATH |
+| Install state | No `.venv`; no `.env`; dependencies/Playwright not confirmed installed for this host |
+| Android tools | Java 21 present; ADB/Appium absent from PATH; no connected device |
+| Browser | Google Chrome present at `/usr/local/bin/google-chrome` |
+| Runtime data | No `runs/`, `accounts/`, or `logs/`; placeholders only under `baseline/` and `workspace/` |
+| Prior phase evidence | Windows Phase 1–5 logs under `deep_validation/` retained; treat as historical, not Linux-verified |
+| Secrets | `.env` absent here; `.env.example` present; secrets not opened |
+
+**Implication:** Do not treat Windows Phase 1–5 “COMPLETE” marks as verified on this Linux cloud agent. Re-run a Phase 1-style non-slow baseline after installing Python 3.13 + deps before advancing.
 
 ## Product and architecture
 
@@ -23,8 +42,14 @@ The UI is plain HTML/CSS/JavaScript. Optional areas include local/cloud LLM prov
 | Android Appium/Pytest, native and WebView support | Implemented across `backend/android*.py`, `backend/android_pipeline.py`, runner and templates. CSS locators are for WebView; native locator strategies are separate. | Historical emulator runs exist. No ADB device was available in the current Phase 0 environment check. |
 | QA contracts, business rules and oracles | Implemented in `backend/qa_contracts.py`, `qa_runtime.py`, `qa_oracles.py`, `qa_web.py`. | Historical focused tests/runs exist; current focused pytest run had temp-directory setup errors. |
 | MCP | Server, bridge and API code exist. | `MCP_IMPLEMENTATION_STATUS.md` says protocol round trips and live execution remain deferred. |
-| GitHub repo fixes | `backend/repo_fix.py` has prepare and PR flows; server/frontend callers exist. | Dedicated functional repo-fix behavior test was not found; GitHub was not contacted. Partial tag-fix reporting is a static-review risk in `PROJECT_AUDIT.md`. |
+| GitHub repo fixes | `backend/repo_fix.py` prepare/PR flows; Phase 9 marks multi-tag findings as partial when only some changes match, and lists unmatched changes in skipped. | Offline `tests/test_repo_fix.py` covers partial-match reporting. Live GitHub was not contacted. **IMPLEMENTED; not VERIFIED** against a real PR. |
 | Slack/Jira/webhook/schedules | Optional source/configuration paths exist. | External integrations were not contacted or verified in Phase 0. |
+| Frontend empty/error UX (Phase 7) | `frontend/chat.*`, `qa-lab.*`, contract builder: clearer empty/error copy, basic a11y, HTML escaping of untrusted labels. | Offline `tests/test_frontend_ux.py`. No fresh UI E2E. **IMPLEMENTED; not VERIFIED** live. |
+| API error contracts (Phase 8) | Missing job stop/review → explicit 404; ended workers expose `exit_code` in status polling. | Offline `tests/test_server.py` extensions. Successful response shapes unchanged. **IMPLEMENTED; not VERIFIED** full API surface. |
+| Android env/locator (Phase 6) | Clearer ADB/Appium/device/UiAutomator2/APK unreadiness messages; CSS rejected in native `find_unique`, kept for WebView/Chrome. | Offline `tests/test_android_env_locator_safety.py`. No connected device on cloud host. **IMPLEMENTED; not VERIFIED** on device. |
+| AI provider + MCP errors (Phase 10) | Clearer `LLMError` / `BridgeError` text; blank cloud keys refused before outbound calls; corrupt MCP report JSON → 422. | Offline `tests/test_llm_provider_errors.py`, `tests/test_mcp_integration.py`. No live provider/MCP session. **IMPLEMENTED; not VERIFIED** live. |
+| Security hardening (Phase 11) | Block IPv4-mapped cloud metadata even for localhost targets; refuse sensitive run files outside `.private`; APK Content-Length limits; secret redaction coverage. | Offline safety/server/android API tests. **IMPLEMENTED; not VERIFIED** as a full security audit. |
+| Reporting honesty (Phases 12–13) | Report numbers counted from run files (`metrics.py`); incomplete runs → Insufficient Evidence with limit reasons; accuracy measured from run artifacts. | Existing metrics/report regressions and historical deep_validation notes. Full export equality / accuracy denominator not freshly claimed. **IMPLEMENTED; not VERIFIED** as a complete accuracy suite. |
 
 ## Registered HTTP surface inspected
 
@@ -158,4 +183,24 @@ See `MASTER_TODO.md` for the phased plan and `FEATURE_VERIFICATION_MATRIX.md` fo
 - Controlled DemoStore repair end-to-end test: 1 passed in 967.53 seconds. It verified selector-match repair from `#notify` to `#notify-me`, preservation of a pre-repair backup, a rerun with related tests, and retention of the seeded no-message failure as `assertion_failure`.
 - Ruff on `tests/test_end_to_end.py`: passed.
 - The first E2E attempt exposed a test-fixture premise issue, not a product-code bug: runtime text fallback located the renamed button, so there was no locator failure to heal. The fixture now disables that fallback for the specific saved test while preserving its expected-message assertion.
-- No failure-analysis/self-healing production logic was changed. Phase 5 is complete; Phase 6 has not started. See `deep_validation/12_phase5_results.md`.
+- No failure-analysis/self-healing production logic was changed. Phase 5 is complete. See `deep_validation/12_phase5_results.md`.
+
+## Phases 6–13 implementation update - 2026-11-12
+
+Offline / additive slices landed on `cursor/phase0-cloud-baseline-cb5b`. Status vocabulary: **IMPLEMENTED** (code + focused offline tests exist); **not VERIFIED** (owner deferred full non-slow suite, live device, live providers, and live GitHub).
+
+| Phase | What landed | Offline evidence (not full-suite VERIFIED) |
+|---|---|---|
+| 6 Android env/locator | Actionable readiness errors; native vs WebView CSS boundary | `tests/test_android_env_locator_safety.py` |
+| 7 Frontend UX | Empty/error states, basic a11y, escaping | `tests/test_frontend_ux.py` |
+| 8 API reliability | 404s for missing stop/review; `exit_code` on ended jobs | `tests/test_server.py` |
+| 9 Repo-fix | Partial-match reporting for multi-tag findings | `tests/test_repo_fix.py` |
+| 10 AI / MCP errors | Clearer LLMError/BridgeError; no invented report JSON | `tests/test_llm_provider_errors.py`, `tests/test_mcp_integration.py`; note in `MCP_IMPLEMENTATION_STATUS.md` |
+| 11 Security | Metadata SSRF hardening, private artifact serving, upload limits | `tests/test_safety.py`, `tests/test_server.py`, `tests/test_android_api.py` |
+| 12–13 Reporting honesty | Numbers from run files; incomplete → Insufficient Evidence; no invented accuracy % | Existing `metrics` / `test_run_always_reports` / accuracy helpers; historical `deep_validation/05_reporting_accuracy_validation.md` |
+
+## Phases 14–16 documentation update - 2026-11-12
+
+- Phase 14: `docs/31_PERFORMANCE_AND_LIMITS.md` records config caps (`MAX_PAGES`, `HARD_PAGE_CAP`, workers, timeouts, sandbox) and **measure-before-optimize**. No fake benchmarks.
+- Phase 15: `DEPLOYMENT.md` keeps Windows as primary; Linux noted for offline/regression exploration only.
+- Phase 16: this status / TODO / matrix / changelog hygiene. No runtime artifacts deleted; no `.venv` recreated.

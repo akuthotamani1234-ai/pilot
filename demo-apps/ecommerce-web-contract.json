@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "test_environment": false,
+  "flows": [
+    {
+      "id": "search_product",
+      "title": "Search finds a product result",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "css",
+            "value": "#search_product"
+          },
+          "value": "Tshirt"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "#submit_search"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "css",
+            "value": ".features_items .product-image-wrapper, .features_items .single-products"
+          }
+        }
+      ]
+    },
+    {
+      "id": "open_product_add_to_cart",
+      "title": "Open a product and add it to the cart (checkout remains blocked in test mode)",
+      "approved": true,
+      "authentication": false,
+      "setup_flow": "search_product",
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": ".features_items .product-image-wrapper a[href*='product_details'], .features_items a[href*='/product_details/']"
+          },
+          "purpose": "navigation"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "css",
+            "value": ".product-information, .product-details"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "button.cart, .product-information button, .add-to-cart"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "css",
+            "value": "#cartModal, .modal-content, a[href='/view_cart']"
+          }
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "checks": [],
+  "allowed_origins": ["https://automationexercise.com"]
+}

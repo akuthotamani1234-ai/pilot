@@ -378,6 +378,7 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 
 ## 12. More documents
 - [DEPLOYMENT.md](DEPLOYMENT.md): install on another PC, update, what never to copy
+- [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md): configured crawl/test caps; measure before optimizing
 - [CONTRIBUTING.md](CONTRIBUTING.md): working on the code: checks, tests, coding rules, commits
 - [SECURITY.md](SECURITY.md): reporting a security problem, and what the tool protects
 - [backend/README.md](backend/README.md): the pipeline and every backend module

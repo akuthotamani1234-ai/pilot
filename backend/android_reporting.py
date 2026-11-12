@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from .android_design import normalize_case
-from .safety import redact
+from .safety import redact, redact_json
 
 
 def classify_failure(result: dict) -> str:
@@ -453,7 +453,7 @@ def report(state: dict) -> dict:
                            "user_like": summary["user_like_coverage"]["rows"]}),
         ('features.json', features),
     ):
-        (run_dir / name).write_text(redact(json.dumps(value, indent=2, ensure_ascii=False)), encoding="utf-8")
+        (run_dir / name).write_text(redact_json(value), encoding="utf-8")
     cost = write_report(run_dir, cases, results)
     write_workbook(run_dir, cases, results, cost=cost)
     content = render_mobile_report(
