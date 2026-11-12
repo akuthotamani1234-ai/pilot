@@ -417,11 +417,18 @@ class AndroidContractAdapter:
         deadline = time.monotonic() + (0 if optional else 8)
         if self.active == "webview":
             if strategy != "css":
-                raise ValueError("WebView contracts require CSS locators")
+                raise ValueError(
+                    "WebView and Android Chrome steps need CSS selectors. "
+                    f"Got '{strategy}'; switch to native context for accessibility_id, "
+                    "resource_id, text or xpath."
+                )
             using, value = "css selector", locator.value
         else:
             if strategy == "css":
-                raise ValueError("CSS locators require a WebView context")
+                raise ValueError(
+                    "CSS selectors belong to WebView or Android Chrome contexts, not native UI. "
+                    "Add a context step to webview first, or use accessibility_id, resource_id, text or xpath."
+                )
             from appium.webdriver.common.appiumby import AppiumBy
 
             strategies = {
@@ -430,6 +437,11 @@ class AndroidContractAdapter:
                 "text": AppiumBy.ANDROID_UIAUTOMATOR,
                 "xpath": AppiumBy.XPATH,
             }
+            if strategy not in strategies:
+                raise ValueError(
+                    f"Unsupported native locator strategy '{strategy}'. "
+                    "Use accessibility_id, resource_id, text or xpath."
+                )
             value = "new UiSelector().text(" + json.dumps(locator.value) + ")" if strategy == "text" else locator.value
             using = strategies[strategy]
         while True:

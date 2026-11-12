@@ -76,6 +76,7 @@ def test_validate_apk_rejects_non_apk_and_unsafe_paths(tmp_path):
     unsafe_path = tmp_path / "unsafe.apk"
     with zipfile.ZipFile(unsafe_path, "w") as apk:
         apk.writestr("AndroidManifest.xml", b"manifest")
+        apk.writestr("classes.dex", b"dex")
         apk.writestr("../outside", b"payload")
     with pytest.raises(AndroidEnvironmentError, match="unsafe archive path"):
         validate_apk(unsafe_path)
@@ -85,6 +86,7 @@ def test_build_capabilities_supports_apk_and_installed_app(tmp_path):
     apk_path = tmp_path / "demo.apk"
     with zipfile.ZipFile(apk_path, "w") as apk:
         apk.writestr("AndroidManifest.xml", b"manifest")
+        apk.writestr("classes.dex", b"dex")
 
     base = {"device_id": "emulator-5554", "app_activity": ".MainActivity"}
     apk_caps = build_capabilities({**base, "app_mode": "apk", "apk_path": str(apk_path)})
