@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 430" width="1160" height="430" font-family="Inter, Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b8fa3"/>
+    </marker>
+    <filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".25"/></filter>
+  </defs>
+
+  <!-- top row -->
+  <g filter="url(#s)">
+    <rect x="20"  y="30" width="200" height="120" rx="16" fill="#a5b4fc"/>
+    <rect x="320" y="30" width="220" height="120" rx="16" fill="#86efac"/>
+    <rect x="640" y="30" width="220" height="120" rx="16" fill="#fde68a"/>
+    <rect x="940" y="30" width="200" height="120" rx="16" fill="#f0abfc"/>
+  </g>
+  <g text-anchor="middle" fill="#1a1b2e">
+    <text x="120" y="72" font-size="28">👤</text>
+    <text x="120" y="106" font-size="17" font-weight="700">User</text>
+    <text x="120" y="128" font-size="12.5">Web browser</text>
+
+    <text x="430" y="72" font-size="28">🖥️</text>
+    <text x="430" y="106" font-size="17" font-weight="700">Frontend</text>
+    <text x="430" y="128" font-size="12.5">Chat page (HTML/CSS/JS)</text>
+
+    <text x="750" y="72" font-size="28">⚙️</text>
+    <text x="750" y="106" font-size="17" font-weight="700">Backend Server</text>
+    <text x="750" y="128" font-size="12.5">FastAPI · server.py · JSON API</text>
+
+    <text x="1040" y="72" font-size="28">🤖</text>
+    <text x="1040" y="106" font-size="17" font-weight="700">Agent Engine</text>
+    <text x="1040" y="128" font-size="12.5">main.py · LangGraph · the agents</text>
+  </g>
+
+  <!-- top row arrows -->
+  <g stroke="#8b8fa3" stroke-width="2" fill="none">
+    <line x1="226" y1="80"  x2="314" y2="80"  marker-end="url(#a)"/>
+    <line x1="314" y1="100" x2="226" y2="100" marker-end="url(#a)"/>
+    <line x1="546" y1="80"  x2="634" y2="80"  marker-end="url(#a)"/>
+    <line x1="634" y1="100" x2="546" y2="100" marker-end="url(#a)"/>
+    <line x1="866" y1="80"  x2="934" y2="80"  marker-end="url(#a)"/>
+    <line x1="934" y1="100" x2="866" y2="100" marker-end="url(#a)"/>
+  </g>
+  <g text-anchor="middle" fill="#8b8fa3" font-size="11.5" font-weight="600">
+    <text x="270" y="70">HTTP</text>
+    <text x="590" y="70">JSON · poll 0.9 s</text>
+    <text x="900" y="70">process</text>
+    <text x="900" y="122">live log</text>
+  </g>
+
+  <!-- engine -> services -->
+  <g stroke="#8b8fa3" stroke-width="2" fill="none">
+    <path d="M1040,156 L1040,200 L330,200 L330,250" marker-end="url(#a)"/>
+    <path d="M700,200 L700,250" marker-end="url(#a)"/>
+    <path d="M1040,200 L1040,250" marker-end="url(#a)"/>
+  </g>
+  <text x="560" y="192" text-anchor="middle" fill="#8b8fa3" font-size="11.5" font-weight="600">the agents use</text>
+
+  <!-- bottom row -->
+  <g filter="url(#s)">
+    <rect x="210" y="256" width="240" height="130" rx="16" fill="#fdba74"/>
+    <rect x="580" y="256" width="240" height="130" rx="16" fill="#67e8f9"/>
+    <rect x="900" y="256" width="240" height="130" rx="16" fill="#cbd5e1"/>
+  </g>
+  <g text-anchor="middle" fill="#1a1b2e">
+    <text x="330" y="296" font-size="26">🧠</text>
+    <text x="330" y="328" font-size="17" font-weight="700">AI Engine (LLM)</text>
+    <text x="330" y="350" font-size="12.5">Ollama (default, local) · Gemini</text>
+    <text x="330" y="368" font-size="12.5">OpenAI · Claude · or no AI</text>
+
+    <text x="700" y="296" font-size="26">🌐</text>
+    <text x="700" y="328" font-size="17" font-weight="700">Browser</text>
+    <text x="700" y="350" font-size="12.5">Playwright · Chromium</text>
+    <text x="700" y="368" font-size="12.5">PyTest runs the tests</text>
+
+    <text x="1020" y="296" font-size="26">📁</text>
+    <text x="1020" y="328" font-size="17" font-weight="700">Files</text>
+    <text x="1020" y="350" font-size="12.5">runs/ · baseline/ · workspace/</text>
+    <text x="1020" y="368" font-size="12.5">Excel · report · screenshots</text>
+  </g>
+
+  <text x="580" y="418" text-anchor="middle" fill="#8b8fa3" font-size="12">Everything runs on your PC · server listens on 127.0.0.1:8000 only</text>
+</svg>

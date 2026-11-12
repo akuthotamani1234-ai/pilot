@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blow AI</title>
+<link rel="stylesheet" href="/static/chat.css">
+<link rel="stylesheet" href="/static/studio.css">
+</head>
+<body data-test-mode="web" data-workflow="standard" data-setup-state="idle">
+<div class="app">
+
+  <!-- ===== left: new test + recent tests ===== -->
+  <aside class="side" id="side" tabindex="0" aria-label="Workspace navigation and recent runs">
+    <button class="drawer-close" id="navClose" type="button" aria-label="Close navigation">&#215;</button>
+    <div class="logo"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>blow<span>ai</span></b><small>STUDIO</small></div>
+    <button class="new-btn" id="newBtn" type="button"><span aria-hidden="true">+</span> New test</button>
+    <div class="side-title">WORKSPACE</div>
+    <a class="studio-nav current" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span><span class="nav-indicator"></span></a>
+    <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
+    <button class="studio-nav privacy-nav" id="privacySettingsBtn" type="button"><span aria-hidden="true">&#9881;</span><span>Privacy &amp; connections</span></button>
+    <div class="side-section-head"><span class="side-title">RECENT RUNS</span></div>
+    <nav class="recent" id="recent"><span class="muted small">Your test history appears here.</span></nav>
+    <div class="side-title">SCHEDULES</div>
+    <nav class="recent" id="schedules"><span class="muted small">Create a schedule from a completed report.</span></nav>
+    <div class="side-footer"><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Your testing workspace</b><small>Web + Android, together</small></div></div>
+  </aside>
+
+  <!-- ===== middle: the chat ===== -->
+  <main class="chat">
+    <header class="chat-top">
+      <button class="icon-btn menu" id="menuBtn" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="side">☰</button>
+      <div class="chat-title">
+        <span class="breadcrumb-label">Workspace <span>/</span></span><b id="chatTitle">Test studio</b>
+        <span class="pill" id="statusPill" hidden></span>
+      </div>
+      <button type="button" class="workspace-location privacy-status-button" id="privacyStatusBtn" aria-haspopup="dialog" aria-controls="privacyModal">Privacy settings</button>
+      <button class="secondary results-new" id="resultsNewBtn" type="button">+ New test</button>
+      <button class="stop-btn" id="stopBtn" type="button" hidden>■ Stop</button>
+      <button class="icon-btn" id="todoBtn" type="button" aria-label="Open execution plan" aria-expanded="false" aria-controls="todo">✓</button>
+    </header>
+
+    <div class="workspace-hero"><span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg> AI QUALITY WORKSPACE</span><h1>Test with clarity.<br><span>Release with confidence.</span></h1><p>Choose your platform. Discover components, run checks, and review the evidence.</p></div>
+    <div class="mode-switcher" role="group" aria-label="Testing platform">
+      <button id="webModeBtn" class="mode-card selected" type="button" aria-pressed="true" aria-controls="composer"><span class="mode-icon web"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span><span class="mode-copy"><b>Web testing <small>Playwright</small></b><span>Websites &amp; web applications</span></span><span class="mode-radio" aria-hidden="true"></span></button>
+      <button id="mobileModeBtn" class="mode-card" type="button" aria-pressed="false" aria-controls="mobileForm"><span class="mode-icon android"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10 5h4M11 18.5h2"/></svg></span><span class="mode-copy"><b>Android testing <small>Appium</small></b><span>APK files, installed apps &amp; websites in Chrome</span></span><span class="mode-radio" aria-hidden="true"></span></button>
+    </div>
+    <section class="workflow-choice" aria-labelledby="workflowChoiceTitle">
+      <div class="workflow-choice-head"><span class="section-label" id="workflowChoiceTitle">HOW WOULD YOU LIKE TO TEST?</span><span id="workflowPrivacyBadge">Loading privacy settings?</span></div>
+      <div class="workflow-options" role="group" aria-label="Testing workflow">
+        <button class="workflow-option selected" id="standardWorkflowBtn" type="button" aria-pressed="true">
+          <span class="workflow-option-icon" aria-hidden="true">01</span><span><b>Standard testing</b><small>Configure, generate scripts, run and report</small></span><i aria-hidden="true"></i>
+        </button>
+        <button class="workflow-option" id="mcpWorkflowBtn" type="button" aria-pressed="false" aria-controls="mcpPanel">
+          <span class="workflow-option-icon assistant" aria-hidden="true">02</span><span><b>AI assistant through MCP</b><small>Describe a task to your connected assistant</small></span><i aria-hidden="true"></i>
+        </button>
+      </div>
+    </section>
+    <section class="mcp-panel" id="mcpPanel" hidden aria-labelledby="mcpPanelTitle">
+      <div class="mcp-panel-head"><div><span class="section-label">CONNECTED WORKFLOW</span><h2 id="mcpPanelTitle">Your assistant. Your testing tools.</h2></div><span class="mcp-state" id="mcpConnectionStatus" role="status">Checking connection?</span></div>
+      <p class="mcp-panel-copy">Describe the task in your MCP assistant. Blow AI uses the same scripts, test engines and reports, and shows the run here.</p>
+      <p class="note" id="mcpConnectionNote" role="status"></p>
+      <details class="mcp-setup"><summary>Connect your assistant</summary>
+        <ol><li>Run <b>setup/install-mcp.bat</b> once.</li><li>Add the Blow AI server configuration to your MCP client.</li><li>Approve the assistant in <button type="button" class="inline-button" id="mcpPrivacyBtn">Privacy settings</button>, then ask it to check the connection.</li></ol>
+        <button class="secondary" id="copyMcpConfig" type="button">Copy server configuration</button>
+        <pre class="mcp-config" id="mcpConfigText" hidden tabindex="0" aria-label="MCP server configuration"></pre>
+      </details>
+      <div class="mcp-request">
+        <label for="mcpAndroidSource" id="mcpAndroidSourceLabel" hidden>Android app source</label>
+        <select id="mcpAndroidSource" hidden><option value="installed">Installed app package</option><option value="apk">APK path on this computer</option><option value="web">Website in Android Chrome</option></select>
+        <label for="mcpTarget" id="mcpTargetLabel">Website URL</label><input id="mcpTarget" type="text" spellcheck="false" placeholder="https://your-test-site.example">
+        <label for="mcpTask">What would you like to check?</label><textarea id="mcpTask" rows="2" maxlength="4000" placeholder="List dashboard menus and dropdowns, then test the approved login flow."></textarea>
+        <div class="row"><button class="primary" id="copyMcpRequest" type="button">Prepare assistant request</button><span class="muted small">Review it, then paste it into your assistant.</span></div>
+        <textarea class="mcp-prepared" id="mcpRequestPreview" rows="5" readonly hidden aria-label="Prepared assistant request"></textarea>
+      </div>
+      <p class="muted small" id="mcpPanelMessage" role="status" aria-live="polite"></p>
+    </section>
+    <div class="thread" id="thread" tabindex="0" aria-label="Test progress and results" aria-live="polite"></div>
+    <button class="jump" id="jumpBtn" type="button" aria-controls="thread" hidden>↓ Follow latest</button>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <label class="sr-only" for="msg">Website URL or project source</label>
+      <span class="composer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span>
+      <input id="msg" type="text" spellcheck="false"
+             placeholder="Paste a website URL, GitHub repo or project folder…">
+      <button id="sendBtn" type="submit" aria-label="Configure website testing"><span>Configure test</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+    </form>
+    <p id="composer-hint" class="composer-hint muted">Supports public URLs, localhost, GitHub repositories, and local projects.</p>
+
+    <form class="mobile-form" id="mobileForm" hidden>
+      <div class="mobile-form-head"><div><span class="section-label">ANDROID SETUP</span><b>Connect your application</b></div>
+        <button class="secondary" id="mobileCancel" type="button">Switch to web</button></div>
+      <div class="note" id="androidEnvNote" role="status" aria-live="polite">Checking Android tools and connected devices...</div>
+      <button class="secondary" id="androidEnvRefresh" type="button">Refresh device status</button>
+      <div class="fields">
+        <label>App source
+          <select id="androidMode" aria-describedby="androidSourceHelp"><option value="apk">Upload an APK</option><option value="installed">Already installed on the device</option><option value="web">Website in Android Chrome</option></select>
+        </label>
+        <label>Android device
+          <select id="androidDevice" required><option value="">Refresh device status first</option></select>
+          <span class="muted small">Start Android test reopens a selected emulator if it is closed and waits for Android to boot. Keep it open during the run.</span>
+        </label>
+        <div id="androidSourceHelp" class="wide android-source-help" role="note">
+          <table><caption>Choose how to connect your target</caption><tbody>
+            <tr><th scope="row">Upload an APK</th><td>Choose an .apk file from your computer. It is installed on the selected device.</td></tr>
+            <tr><th scope="row">Already installed</th><td>Install the app on that device first, then enter its package name.</td></tr>
+            <tr><th scope="row">Website in Chrome</th><td>Enter a URL. Chrome must be installed on the selected Android device; no APK is needed.</td></tr>
+          </tbody></table>
+        </div>
+        <label id="androidApkField">APK file
+          <input id="androidApk" type="file" accept=".apk,application/vnd.android.package-archive">
+        </label>
+        <label id="androidPackageField" hidden>Installed app package name
+          <input id="androidPackage" type="text" spellcheck="false" placeholder="com.example.myapp">
+        </label>
+        <label id="androidUrlField" hidden>Website URL<input id="androidUrl" type="url" placeholder="https://example.com" spellcheck="false"></label>
+        <label id="androidActivityField">Launch activity (optional)
+          <input id="androidActivity" type="text" spellcheck="false" placeholder=".MainActivity">
+        </label>
+        <label>AI provider
+          <select id="androidProvider"><option value="">Use configured provider</option><option value="none">No AI (rules)</option><option value="ollama">Ollama (local)</option><option value="gemini">Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option></select>
+        </label>
+        <label>AI model (optional)<input id="androidModel" type="text" maxlength="200" placeholder="Use configured model"></label>
+        <label>API key for this run (optional)<input id="androidApiKey" type="password" maxlength="4096" autocomplete="off" placeholder="Use configured key, or enter a replacement" aria-describedby="androidApiKeyHelp"><span id="androidApiKeyHelp" class="muted small">Used only for this run. Never saved in test files or reports. With "Use configured provider", the provider is taken from the key (sk-ant- = Anthropic).</span></label>
+      </div>
+      <details class="mobile-advanced">
+        <summary>Advanced checks and exploration settings</summary>
+        <div class="android-run-mode">
+          <label class="tick android-scope"><input type="checkbox" id="androidWholeApp" checked><span><b>Whole app</b><small>Explore reachable screens; check every unique discovered control.</small></span></label>
+          <div id="androidFlowToolsSlot"></div>
+        </div>
+        <p class="muted small android-scope-note">Whole-app mode checks visible text, control visibility and enabled state, and safe navigation within the limits below. Build a test flow for actions that change app data.</p>
+        <input id="androidContractOnly" type="checkbox" hidden>
+        <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
+        <div class="fields">
+          <label>Test account username or email<input id="androidTestUsername" type="text" maxlength="1024" autocomplete="off" placeholder="Optional, used by test-build login checks"></label>
+          <label>Test account password<input id="androidTestPassword" type="password" maxlength="4096" autocomplete="new-password" placeholder="Optional, private for this run"></label>
+        </div>
+        <p class="muted small">Test-build mode uses these only when it discovers a login form. Flows can reference <code>secret:BLOWAI_SECRET_TEST_USERNAME</code> and <code>secret:BLOWAI_SECRET_TEST_PASSWORD</code>. Values are cleared after submission and excluded from reports and AI prompts.</p>
+        <div class="fields">
+          <label>Appium server URL<input id="androidAppiumUrl" type="url" value="http://127.0.0.1:4723" required></label>
+          <label>Maximum exploration depth<input id="androidDepth" type="number" min="0" max="10" value="5"></label>
+          <label>Exploration timeout (seconds)<input id="androidDiscoveryTimeout" type="number" min="10" max="900" value="600"></label>
+          <label>Maximum screens<input id="androidMaxScreens" type="number" min="1" max="100" value="40"></label>
+          <label>Maximum safe navigation actions<input id="androidMaxActions" type="number" min="0" max="200" value="60"></label>
+          <label>Maximum discovery scrolls<input id="androidMaxScrolls" type="number" min="0" max="100" value="30"></label>
+          <label>Maximum test cases<input id="androidMaxCases" type="number" min="1" max="300" value="300"></label>
+          <label>Test mode: user-like tries<input id="androidMaxInteractions" type="number" min="0" max="500" value="300"></label>
+          <label>Test mode: time limit (seconds)<input id="androidInteractionTimeout" type="number" min="30" max="3600" value="2700"></label>
+          <label>Navigation expectations<textarea id="androidExpectations" rows="3" placeholder="One per line, for example: About = About"></textarea></label>
+          <label>Expected displayed values<textarea id="androidExpectedValues" rows="2" placeholder="One per line, for example: Cart total = Total: $0.00"></textarea></label>
+          <label class="wide">Requirements<textarea id="androidRequirements" rows="3" maxlength="12000" placeholder="Describe the behavior you expect. Unknown behavior stays marked for review."></textarea></label>
+        </div>
+        <details class="android-raw-contract">
+          <summary>Advanced workflow JSON (optional)</summary>
+          <label class="wide">Approved test flows and business checks
+            <textarea id="androidContract" rows="6" maxlength="64000" spellcheck="false" aria-describedby="androidContractHelp" placeholder='{"version":1,"test_environment":false,"flows":[],"rules":[],"checks":[]}'></textarea>
+          </label>
+          <p id="androidContractHelp" class="muted small">Most users can build or load a workflow above. Use credential references rather than passwords in JSON. <a href="/api/contracts/schema" target="_blank" rel="noopener">View configuration schema</a></p>
+        </details>
+        <div id="androidPermissionPolicy" class="note" hidden>
+          <label class="tick"><input type="checkbox" id="androidPermissionApproval"><span>Approve the listed permission tests on the selected emulator. Original granted/denied states will be restored afterward.</span></label>
+          <p id="androidPermissionScope" class="muted small"></p>
+        </div>
+        <label class="tick"><input type="checkbox" id="androidFallback" checked><span>Continue with rules and validated templates if the selected AI fails</span></label>
+      </details>
+      <label class="tick mobile-authorize">
+        <input id="androidTestBuild" type="checkbox">
+        <span><b>This is a test build or a test / demo website I may test: test it like a real user.</b> Opens every menu and page, then uses every feature: forms with valid and wrong data, sign-up with test data (example.com), login with your test account or the one it registered, search, sort, the cart (add, quantity, remove), wishlist, contact and log out. Never pressed: checkout, payment, placing an order, paid plans, deleting an account, crash buttons, sharing, calls and SMS. Each test starts fresh (app data cleared, or for a website only that site's cookies and storage) and is replayed before it is kept. An app installed on a physical phone is not reset, so use an emulator or an APK.</span>
+      </label>
+      <label class="tick mobile-authorize">
+        <input id="androidAuthorized" type="checkbox" required>
+        <span>I own this app or have permission to test it, and trust the APK. Discovery uses safe navigation. Only explicitly approved test flows, or test-build mode above, may fill or submit test forms.</span>
+      </label>
+      <div class="row">
+        <button class="primary" id="androidStart" type="submit">Start Android test</button>
+        <span class="muted small" id="androidRunNote" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+  </main>
+
+  <!-- ===== right: to-do list ===== -->
+  <aside class="todo" id="todo" tabindex="0" aria-label="Execution plan">
+    <button class="drawer-close" id="planClose" type="button" aria-label="Close execution plan">&#215;</button>
+    <div class="todo-head">
+      <span class="section-label">YOUR WORKFLOW</span><b>Execution plan</b>
+      <span class="muted small" id="todoMeta">Ready when you are</span>
+    </div>
+    <div class="todo-bar"><i id="todoBar"></i></div>
+    <ol class="todo-list" id="todoList"></ol>
+
+    <div class="todo-box" id="costBox" hidden>
+      <span class="muted small">AI cost so far</span>
+      <b id="costNow">$0.00</b>
+      <span class="muted small" id="costCalls"></span>
+    </div>
+
+    <div class="todo-actions" id="todoActions" hidden>
+      <a class="act" id="actExcel" href="#" download hidden>⬇ Download Excel</a>
+      <a class="act" id="actReport" href="#" target="_blank" hidden>📄 Full report</a>
+      <a class="act" id="actComponents" href="#" target="_blank" rel="noopener" hidden>Page components</a>
+      <a class="act" id="actSite" href="#" target="_blank" rel="noopener" hidden>↗ Open the website</a>
+    </div>
+  </aside>
+</div>
+
+<button class="drawer-backdrop" id="drawerBackdrop" type="button" aria-label="Close side panels" tabindex="-1" hidden></button>
+
+<!-- ===== Excel viewer (opened by "View test cases") ===== -->
+<div class="modal" id="excelModal" hidden role="dialog" aria-modal="true" aria-labelledby="excelTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="xl" aria-hidden="true">X</span>
+      <div class="grow"><b id="excelTitle">Test cases</b><span class="muted small" id="excelFile"></span></div>
+      <a class="secondary" id="excelDl" href="#" download>⬇ Download .xlsx</a>
+      <button class="xl-close" type="button" id="excelClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-tools">
+      <div class="sheet-tabs" id="sheetTabs"></div>
+      <div class="grow"></div>
+      <input id="excelSearch" type="search" placeholder="Search…" aria-label="Search test cases">
+      <select id="excelFilter" aria-label="Filter by status"></select>
+    </div>
+    <div class="sheet-wrap"><table class="sheet" id="sheet"></table></div>
+    <div class="modal-foot muted small" id="excelCount"></div>
+  </div>
+</div>
+
+
+<div class="privacy-modal" id="privacyModal" hidden role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+  <div class="privacy-dialog">
+    <div class="privacy-dialog-head"><div><span class="section-label">WORKSPACE SETTINGS</span><h2 id="privacyTitle">Your data, your choice</h2></div><button class="icon-btn" id="privacyClose" type="button" aria-label="Close privacy settings">&#215;</button></div>
+    <p>Choose where AI processes testing information. Application traffic and your approved verification endpoints are still contacted.</p>
+    <form id="privacyForm">
+      <fieldset class="privacy-modes"><legend class="sr-only">AI processing location</legend>
+        <label class="privacy-mode"><input type="radio" name="privacyMode" id="privacyLocal" value="local" checked><span><b>Local only <small>Default</small></b><span>Use rules or local Ollama. Cloud AI and automatic Slack/Jira report sharing are disabled.</span></span></label>
+        <label class="privacy-mode"><input type="radio" name="privacyMode" id="privacyCloud" value="cloud"><span><b>Cloud assisted</b><span>Enable cloud models. Page content, screenshots and test evidence may be sent to the provider you choose.</span></span></label>
+      </fieldset>
+      <label class="tick privacy-consent" id="privacyCloudConsentField" hidden><input type="checkbox" id="privacyCloudConsent"><span>I agree that selected cloud models, approved assistants and configured report integrations may receive testing data.</span></label>
+      <div class="privacy-assistant">
+        <label class="tick"><input type="checkbox" id="privacyAllowMcp"><span><b>Allow my MCP assistant to access Blow AI</b><br>It can start permitted tests and read public run history, results and reports. Credentials and private session files are excluded.</span></label>
+        <label class="tick privacy-consent" id="privacyLocalAssistantField" hidden><input type="checkbox" id="privacyLocalAssistant"><span>I confirm this assistant processes tool data locally. Blow AI cannot verify where an assistant processes data.</span></label>
+      </div>
+      <p class="note" id="privacyMessage" role="status" aria-live="polite"></p>
+      <div class="privacy-dialog-actions"><button class="secondary" id="privacyCancel" type="button">Cancel</button><button class="primary" id="privacySave" type="submit">Save privacy settings</button></div>
+    </form>
+  </div>
+</div>
+
+<script src="/static/workflow.js"></script>
+<script src="/static/contract-builder.js"></script>
+<script src="/static/chat.js"></script>
+</body>
+</html>

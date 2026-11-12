@@ -1,0 +1,10 @@
+{
+  "webdriverio": {
+    "url": "https://github.com/webdriverio/native-demo-app/releases/download/v2.2.0/android.wdio.native.app.v2.2.0.apk",
+    "sha256": "fe1d605ce099c73d93f33e5cbcb0df0bea437ce57aaaaf156b3b0fa1ca54931d",
+    "bytes": 123595826,
+    "downloaded_in_visible_browser": true
+  },
+  "package_name": "com.wdiodemoapp",
+  "file": "android.wdio.native.app.v2.2.0.apk"
+}

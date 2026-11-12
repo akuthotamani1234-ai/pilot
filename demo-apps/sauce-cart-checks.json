@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "android_package": "com.saucelabs.mydemoapp.android",
+  "test_environment": true,
+  "flows": [
+    {
+      "id": "sauce_cart_add_and_verify",
+      "title": "Add Sauce Labs Backpack and verify cart",
+      "approved": true,
+      "authentication": false,
+      "timeout_s": 180,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "xpath",
+            "value": "//*[@text='Sauce Labs Backpack']/..//*[@resource-id='com.saucelabs.mydemoapp.android:id/productIV']"
+          },
+          "purpose": "navigation"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "xpath",
+            "value": "//*[@class='android.widget.ScrollView']"
+          },
+          "target": {
+            "strategy": "text",
+            "value": "Add To Cart"
+          },
+          "value": "down"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "Add To Cart"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "View cart"
+          },
+          "purpose": "navigation"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "text",
+            "value": "Sauce Labs Backpack"
+          },
+          "value": "Sauce Labs Backpack"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "text",
+            "value": "$ 29.99"
+          },
+          "value": "$ 29.99"
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "checks": [],
+  "allowed_origins": []
+}

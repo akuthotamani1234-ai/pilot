@@ -1,0 +1,52 @@
+Design {n} LARGE end-to-end UI test cases for this whole website.
+
+WEBSITE (every page found by a crawler; "logged_in": true = the page is behind the login and the test
+starts already logged in with a test account; "built_in_checks" = what each page offers; "observed" = what REALLY
+happened when the crawler used a control: "did" = message / navigates / list / panel / value / text / picture /
+nothing, "said" = the website's own words ("alert: ..." = it answered in the browser's alert box), "opens" = the
+page it led to; "on_screen" = what an AI saw in the page's screenshot: its purpose, its features, its messages):
+{site}
+
+REQUIREMENTS from the website's owner (business workflows, expected results, user roles). Cover them first when the
+WEBSITE has the pages and controls they need; never invent pages or controls for them:
+{requirements}
+
+What a LARGE test case is:
+- A LONG real user journey of 8-20 steps, the way a person really uses the website in one visit: it goes through
+  at least 3 pages and uses several features, and after EVERY action it checks the RESULT (the thing a user expects
+  really appears). Write each step as one action or one check. Example (12 steps):
+  "Open the home page -> the featured products are shown -> open Products -> search 'Tomato' -> Tomato is in the
+  results -> open Tomato -> its name and price are shown -> choose quantity 2 -> add it to the cart -> open the cart
+  -> Tomato is listed with quantity 2 -> the total is 2 x its price";
+  others: "Open the events list -> filter by a category -> only that category is listed -> open an event -> its
+  details match the list -> go back -> the filter is still applied -> ...";
+  "Pick Round Trip -> the return date becomes available -> choose From = Delhi -> the To list no longer offers
+  Delhi -> pick To -> pick the dates -> search -> the results show the route and dates -> ...".
+- Together, the {n} test cases must use EVERY feature of EVERY page at least once (each search, filter, sort,
+  dropdown, choice, checkbox, tab, calendar, popup, menu, cart, quantity control, form and navigation link),
+  so nothing is left untested. Use "built_in_checks" and the "on_screen" features as the list of features to cover.
+- Include the negative paths that matter: wrong password, required fields left empty, invalid email,
+  a search that finds nothing.
+- NEVER complete a purchase, payment, booking confirmation, deletion or logout: stop the journey BEFORE that
+  final button (you may check that the button is shown).
+- "count" on a button means it repeats (e.g. once per product): use the first one.
+
+Rules:
+- Only use pages, buttons, boxes and links that appear in WEBSITE. Never invent features.
+- Expected results come from "observed" and "on_screen" (e.g. Add to cart -> observed "did": "text" and the cart
+  count changed; a message only when "said" or on_screen "messages" shows those words). When neither shows what
+  happens, start the expected result with "Exploratory:" and say what to look at - never invent exact messages,
+  numbers, item names or addresses the website was not seen to show. Use the account the website really has (the
+  test account) - never invent a user name. A login that must WORK uses "the test account" (write exactly that);
+  only a wrong password may be made up - never a "correct" password like 'correctpass'.
+- Write the title, steps and expected result in SIMPLE ENGLISH a manual tester understands. Name elements by
+  what a person sees (label, placeholder, button text). NEVER write CSS selectors, ids or code.
+- "pages": the "page" values (from WEBSITE) the journey visits, in order.
+- "guest": true only for journeys that must start NOT logged in (login with a wrong password, register).
+- Do NOT write separate cases for: page loads, no JavaScript errors, pictures load, every link works, typing
+  unusual values (empty / too long / emoji / attack text) into boxes - those 5 checks are added automatically.
+- Priority: "high" for login / signup / search / cart / booking / forms, "medium" for navigation, "low" for cosmetic.
+
+Return ONLY a JSON array of exactly {n} items. Each item:
+{{"title": "...", "priority": "high|medium|low", "pages": ["..."], "guest": false,
+  "test_data": "values typed, e.g. 'Tomato', 'not-an-email'", "steps": ["...", "..."], "expected": "..."}}

@@ -1,0 +1,8 @@
+{
+  "name": "Blow Android QA Demo",
+  "package": "com.blowai.demo",
+  "version": "1.2",
+  "sha256": "86977011060d11a43aa24159be8ec3382a3164273c3e436f692ccb6b504bd859",
+  "built_offline": true,
+  "installed_or_live_tested_after_expansion": false
+}

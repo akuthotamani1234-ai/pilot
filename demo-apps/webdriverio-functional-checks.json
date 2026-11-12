@@ -1,0 +1,190 @@
+{
+  "android_package": "com.wdiodemoapp",
+  "version": 1,
+  "test_environment": true,
+  "allowed_origins": [],
+  "flows": [
+    {
+      "id": "typed_output",
+      "title": "Typed input is retained and echoed",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "text-input"
+          },
+          "target": null,
+          "value": "Blow AI live demo",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-text-result"
+          },
+          "target": null,
+          "value": "Blow AI live demo",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "switch_roundtrip",
+      "title": "Switch turns on and off",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "target": null,
+          "value": "Click to turn the switch ON",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "target": null,
+          "value": "Click to turn the switch OFF",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "target": null,
+          "value": "Click to turn the switch ON",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "empty_login",
+      "title": "Empty login shows email and password validation",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter a valid email address"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter at least 8 characters"
+          },
+          "target": null,
+          "value": null,
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "checks": []
+}

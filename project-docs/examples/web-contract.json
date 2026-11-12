@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "test_environment": false,
+  "flows": [
+    {
+      "id": "login",
+      "title": "Approved account reaches its expected screen",
+      "approved": false,
+      "authentication": true,
+      "steps": [
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "css",
+            "value": "#username"
+          },
+          "secret_ref": "BLOWAI_SECRET_LOGIN_USERNAME"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "css",
+            "value": "#password"
+          },
+          "secret_ref": "BLOWAI_SECRET_LOGIN_PASSWORD"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "css",
+            "value": "#loginSubmit"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "h1"
+          },
+          "value": "Dashboard"
+        }
+      ]
+    }
+  ]
+}

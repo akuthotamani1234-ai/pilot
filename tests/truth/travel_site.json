@@ -1,0 +1,30 @@
+{
+  "about": "Everything that is really on TravelSite (tests/travel_site.py) - the same fields as demo_store_truth.json. Measured on the default environment (test: nothing is sent - the sign-up's confirm-password rule is checked with the write guard). T1-T3 and T6 are rules between fields: caught as rule_violation findings (questions for you), T4 / T5 as failed item checks.",
+  "pages": [
+    {"path": "/", "auth": false},
+    {"path": "/search", "auth": false, "how": "only through the flight search form"},
+    {"path": "/flight/{id}", "auth": false, "how": "6 flights of one pattern: a sample is enough"},
+    {"path": "/signup", "auth": false}
+  ],
+  "inaccessible": [],
+  "never": ["POST /signup"],
+  "features": [
+    {"id": "search.date_range", "page": "/", "detect": "return date", "test": "'return date' before 'departure date'", "bug": "T1"},
+    {"id": "search.same_value", "page": "/", "detect": "from", "test": "same value in 'from' and 'to'", "bug": "T2"},
+    {"id": "search.count_total", "page": "/", "detect": "passengers", "test": "changing 'passengers'", "bug": "T3"},
+    {"id": "search.past_date", "page": "/", "detect": "departure date", "test": "date in the past"},
+    {"id": "results.filter_nonstop", "page": "/search", "anywhere": true, "detect": "non-stop", "test": "filter 'non-stop only'", "bug": "T4"},
+    {"id": "results.items_open", "page": "/search", "anywhere": true, "detect": "qa101", "test": "items of /search", "bug": "T5"},
+    {"id": "results.sort", "page": "/search", "anywhere": true, "detect": "sort by", "test": "sort by"},
+    {"id": "signup.confirm", "page": "/signup", "detect": "confirm password", "test": "'confirm password' different", "bug": "T6"},
+    {"id": "signup.email", "page": "/signup", "detect": "e-mail", "test": "wrong values in 'e-mail'"}
+  ],
+  "bugs": {
+    "T1": {"what": "a return date before the departure date is accepted", "signature": "'return date' before"},
+    "T2": {"what": "From = To is accepted", "signature": "same value in 'from'"},
+    "T3": {"what": "2 passengers show the same total as 1", "signature": "changing 'passengers'|amounts stayed"},
+    "T4": {"what": "the non-stop filter shows a 1-stop flight", "signature": "without 'non-stop'"},
+    "T5": {"what": "the flight's page shows another price than the list", "signature": "its card says|its page shows"},
+    "T6": {"what": "a confirm-password mismatch is accepted", "signature": "'confirm password' that differs"}
+  }
+}

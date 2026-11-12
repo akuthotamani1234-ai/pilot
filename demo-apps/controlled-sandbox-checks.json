@@ -1,0 +1,54 @@
+{
+  "android_package": "com.blowai.demo",
+  "test_environment": true,
+  "flows": [
+    {"id": "fixture_login", "title": "Local demo credentials open Dashboard", "approved": true, "authentication": true,
+      "steps": [
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Open login screen"}},
+        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Username"}, "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"},
+        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Password"}, "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Login"}, "purpose": "test_form"},
+        {"action": "assert_screen", "value": "Dashboard"}
+      ]},
+    {"id": "protected_is_locked", "title": "Signed-out users cannot open protected content", "approved": true,
+      "steps": [
+        {"action": "scroll_to", "locator": {"strategy": "accessibility_id", "value": "Home-screen"}, "target": {"strategy": "accessibility_id", "value": "Log out"}, "value": "up"},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Log out"}},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Protected dashboard"}},
+        {"action": "assert_screen", "value": "Login required"}
+      ]},
+    {"id": "protected_after_login", "title": "Login setup reaches protected content", "approved": true, "setup_flow": "fixture_login",
+      "steps": [
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Home"}},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Protected dashboard"}},
+        {"action": "assert_screen", "value": "Protected dashboard"},
+        {"action": "assert_text", "locator": {"strategy": "accessibility_id", "value": "Protected content"}, "value": "Local test account is signed in"}
+      ]},
+    {"id": "session_after_relaunch", "title": "Local test session survives an app relaunch", "approved": true, "setup_flow": "fixture_login", "timeout_s": 180,
+      "steps": [
+        {"action": "relaunch"},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Protected dashboard"}},
+        {"action": "assert_screen", "value": "Protected dashboard"}
+      ]},
+    {"id": "logout_locks_content", "title": "Signing out locks protected content again", "approved": true, "setup_flow": "fixture_login",
+      "steps": [
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Home"}},
+        {"action": "scroll_to", "locator": {"strategy": "accessibility_id", "value": "Home-screen"}, "target": {"strategy": "accessibility_id", "value": "Log out"}, "value": "up"},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Log out"}},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Protected dashboard"}},
+        {"action": "assert_screen", "value": "Login required"}
+      ]},
+    {"id": "order_preview", "title": "Order simulation performs only a local preview", "approved": true,
+      "steps": [
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Simulation dashboard"}},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Preview order"}},
+        {"action": "assert_text", "locator": {"strategy": "accessibility_id", "value": "Simulation result"}, "value": "Order preview only; no transaction was submitted"}
+      ]},
+    {"id": "removal_preview", "title": "Removal simulation does not delete an account", "approved": true,
+      "steps": [
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Simulation dashboard"}},
+        {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Preview removal"}},
+        {"action": "assert_text", "locator": {"strategy": "accessibility_id", "value": "Simulation result"}, "value": "Removal preview only; no account was deleted"}
+      ]}
+  ]
+}

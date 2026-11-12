@@ -1,0 +1,59 @@
+# Checks the tester's own code on every push and Pull Request: the code checker (ruff) and the quick tests.
+# The quick tests need no internet, AI or test account (tests/conftest.py switches the AI off; the websites they test
+# are practice websites started on the runner). The slow tests (whole main.py runs, 1-2 h) run only when you start
+# this workflow by hand with "full" ticked (Actions -> CI -> Run workflow).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Also run the slow tests (whole runs of the tester: 1-2 hours)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# a newer push to the same branch cancels the check that is still running
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Windows: the sandbox (Job Object) and the account store (DPAPI) are Windows-only
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m playwright install chromium
+
+      - name: Check the code (ruff)
+        run: python -m ruff check . --output-format github
+
+      - name: Test the tester
+        env:
+          FULL: ${{ inputs.full }}
+          PYTHONUTF8: "1"
+        run: |
+          if ($env:FULL -eq "true") {
+            python -m pytest -q -n 3 --dist loadfile
+          } else {
+            python -m pytest -q -n 3 --dist loadfile -m "not slow"
+          }

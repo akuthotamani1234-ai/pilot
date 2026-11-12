@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "test_environment": false,
+  "allowed_origins": [
+    "http://127.0.0.1:8080"
+  ],
+  "flows": [
+    {
+      "id": "embedded_journey",
+      "title": "Native to embedded page and back",
+      "approved": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Embedded page"
+          }
+        },
+        {
+          "action": "context",
+          "value": "webview"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "#status"
+          },
+          "value": "Ready"
+        },
+        {
+          "action": "context",
+          "value": "native"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Home"
+          }
+        },
+        {
+          "action": "assert_screen",
+          "value": "Home"
+        }
+      ]
+    }
+  ]
+}

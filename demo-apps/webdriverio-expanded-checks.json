@@ -1,0 +1,617 @@
+{
+  "android_package": "com.wdiodemoapp",
+  "version": 1,
+  "test_environment": true,
+  "allowed_origins": [],
+  "flows": [
+    {
+      "id": "typed_output",
+      "title": "Typed input is retained and echoed",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "text-input"
+          },
+          "value": "Blow AI live demo",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-text-result"
+          },
+          "value": "Blow AI live demo",
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "switch_roundtrip",
+      "title": "Switch turns on and off",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch ON",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch OFF",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch ON",
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "empty_login",
+      "title": "Empty login shows email and password validation",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter a valid email address"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter at least 8 characters"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "dropdown_roundtrip",
+      "title": "Native dropdown retains each selected option",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "webdriver.io is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "webdriver.io is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "Appium is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Appium is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "This app is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "This app is awesome"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "active_dialog",
+      "title": "Active button opens its expected dialog",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "swipe",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms-screen"
+          },
+          "value": "up",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-Active"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/message"
+          },
+          "value": "This button is active",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/button1"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "invalid_email",
+      "title": "Invalid email is rejected",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-email"
+          },
+          "value": "invalid-email",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter a valid email address"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "signup_validation",
+      "title": "Empty sign-up requires a matching password",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-sign-up-container"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-SIGN UP"
+          },
+          "purpose": "test_form",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter the same password"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "horizontal_swipe",
+      "title": "Carousel moves to the next card",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "swipe",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "Carousel"
+          },
+          "value": "left",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "GREAT COMMUNITY"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "vertical_scroll",
+      "title": "Bounded scrolling reaches the offscreen logo",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "WebdriverIO logo"
+          },
+          "value": "up",
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "WebdriverIO logo"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "drag_puzzle",
+      "title": "All puzzle pieces reach their targets",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Drag"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l2"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r3"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r1"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c1"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c3"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r2"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c2"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l1"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l3"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Congratulations"
+          },
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "checks": []
+}

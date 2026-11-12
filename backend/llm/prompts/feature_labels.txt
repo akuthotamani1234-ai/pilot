@@ -1,0 +1,12 @@
+A tester used each control below on a real website, one at a time, and recorded what the control DID (the evidence:
+"effect" = navigates / list / message / value / panel / text / nothing, plus the website's own message, the page it
+opened, or the controls it revealed).
+
+For every control, name the feature it belongs to and say in one plain sentence what a person should see when it
+works. Use ONLY the evidence: never invent a feature, a page or a behaviour the evidence does not show.
+
+CONTROLS (JSON):
+{controls}
+
+Return ONLY a JSON array, one item per control "id" from the list above:
+[{{"id": "F-...", "feature": "short name, e.g. Language switch", "category": "navigation|search|filter|sort|pagination|cart|wishlist|account|form|content|media|help|settings|other", "expected": "one plain sentence"}}]

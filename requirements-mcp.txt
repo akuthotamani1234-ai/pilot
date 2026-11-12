@@ -1,0 +1,13 @@
+# Optional local MCP bridge. The UI and test engines do not require this extra.
+-r requirements.txt
+mcp==2.3.0
+mcp-types==2.3.0
+requests-toolbelt==1.0.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+referencing==0.37.0
+rpds-py==2026.9.1
+PyJWT==2.15.1
+cryptography==50.0.2
+sse-starlette==3.6.0
+pywin32==312; sys_platform == "win32"
