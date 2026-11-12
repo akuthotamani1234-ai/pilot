@@ -719,13 +719,22 @@ def discovery_agent(state):
                 initial = inspect_driver(driver, config)
             config["package_name"] = initial["package_name"]
             stored = run_dir / ".private" / "android_config.json"
-            if config.get("app_mode") == "apk" and stored.is_file():
-                # An uploaded APK's package is known only now: store it so the report and the config agree.
+            if stored.is_file():
+                # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
                 try:
                     saved = json.loads(stored.read_text(encoding="utf-8"))
-                    if not saved.get("package_name"):
-                        stored.write_text(json.dumps({**saved, "package_name": config["package_name"]}, indent=2),
-                                          encoding="utf-8")
+                    changed = False
+                    if config.get("app_mode") == "apk" and not saved.get("package_name"):
+                        saved["package_name"] = config["package_name"]
+                        changed = True
+                    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
+                        saved["package_name"] = config["package_name"]
+                        changed = True
+                    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
+                        saved["app_activity"] = config["app_activity"]
+                        changed = True
+                    if changed:
+                        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
                 except (OSError, ValueError):
                     pass
             bound_package = config.get('qa_contract', {}).get('android_package')
