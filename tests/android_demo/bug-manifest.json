@@ -1,0 +1,45 @@
+{
+  "fixture": "Blow Android QA Demo",
+  "default_mode": "clean",
+  "seeded_bugs": [
+    {
+      "id": "ANDROID-DEMO-001",
+      "flag": "about_navigation",
+      "screen": "Home",
+      "control": "About",
+      "expected": "Open About",
+      "actual": "Opens Settings",
+      "detection": "Supply About = About; generated navigation assertion fails",
+      "expected_result": "Not Ready"
+    },
+    {
+      "id": "ANDROID-DEMO-002",
+      "flag": "validation_accepts_empty",
+      "screen": "Form validation",
+      "expected": "Empty name is rejected",
+      "actual": "Empty form accepted",
+      "detection": "With an explicitly approved test flow, submit an empty Required name and assert Name is required. Contract ID: required_name.",
+      "expected_result": "Not Ready when the approved expected-result assertion fails; seeded emulator rerun deferred."
+    },
+    {
+      "id": "ANDROID-DEMO-003",
+      "flag": "wrong_total",
+      "screen": "Cart",
+      "expected": "Quantity multiplied by $10",
+      "actual": "An extra $7 is added",
+      "detection": "Supply Cart total = Total: $0.00 for quantity zero; generated expected-value assertion fails. Verified on API 36 emulator.",
+      "expected_result": "Not Ready when an explicit correct expected value is supplied"
+    }
+  ],
+  "blocked_actions": [
+    "Login",
+    "Register",
+    "Submit",
+    "Add to cart",
+    "Save settings",
+    "Delete account",
+    "Delete record",
+    "Pay Now"
+  ],
+  "safety_evidence": "The demo shared preference unsafe_action_count must stay zero."
+}

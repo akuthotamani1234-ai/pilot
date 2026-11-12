@@ -1,0 +1,8 @@
+Your previous code was rejected:
+{error}
+
+Previous code:
+```python
+{code}
+```
+Return the corrected full file in one ```python block.

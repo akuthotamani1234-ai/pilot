@@ -1,0 +1,407 @@
+{
+  "$defs": {
+    "BackendCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 180,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "http",
+            "sqlite"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "setup_flow": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup Flow"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "token_ref": {
+          "anyOf": [
+            {
+              "pattern": "^BLOWAI_SECRET_[A-Z0-9_]{1,80}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Ref"
+        },
+        "status": {
+          "default": 200,
+          "maximum": 599,
+          "minimum": 100,
+          "title": "Status",
+          "type": "integer"
+        },
+        "json_pointer": {
+          "default": "",
+          "maxLength": 500,
+          "title": "Json Pointer",
+          "type": "string"
+        },
+        "database_ref": {
+          "anyOf": [
+            {
+              "pattern": "^BLOWAI_DB_[A-Z0-9_]{1,80}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Database Ref"
+        },
+        "query": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query"
+        },
+        "parameters": {
+          "items": {},
+          "maxItems": 30,
+          "title": "Parameters",
+          "type": "array"
+        },
+        "expected": {
+          "title": "Expected"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "expected"
+      ],
+      "title": "BackendCheck",
+      "type": "object"
+    },
+    "Flow": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 180,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "authentication": {
+          "default": false,
+          "title": "Authentication",
+          "type": "boolean"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "maxItems": 40,
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "steps"
+      ],
+      "title": "Flow",
+      "type": "object"
+    },
+    "Locator": {
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "enum": [
+            "accessibility_id",
+            "resource_id",
+            "text",
+            "css"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy",
+        "value"
+      ],
+      "title": "Locator",
+      "type": "object"
+    },
+    "NumberSource": {
+      "additionalProperties": false,
+      "properties": {
+        "locator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "number": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Number"
+        }
+      },
+      "title": "NumberSource",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 180,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "setup_flow": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setup Flow"
+        },
+        "actual": {
+          "$ref": "#/$defs/Locator"
+        },
+        "variables": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NumberSource"
+          },
+          "maxProperties": 12,
+          "minProperties": 1,
+          "title": "Variables",
+          "type": "object"
+        },
+        "expression": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Expression",
+          "type": "string"
+        },
+        "tolerance": {
+          "default": "0.01",
+          "title": "Tolerance",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "actual",
+        "variables",
+        "expression"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "tap",
+            "fill",
+            "assert_text",
+            "assert_visible",
+            "assert_not_visible",
+            "assert_enabled",
+            "assert_screen",
+            "context"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "locator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "secret_ref": {
+          "anyOf": [
+            {
+              "pattern": "^BLOWAI_SECRET_[A-Z0-9_]{1,80}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Secret Ref"
+        },
+        "purpose": {
+          "default": "navigation",
+          "enum": [
+            "navigation",
+            "test_form"
+          ],
+          "title": "Purpose",
+          "type": "string"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "Step",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "test_environment": {
+      "default": false,
+      "title": "Test Environment",
+      "type": "boolean"
+    },
+    "allowed_origins": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Allowed Origins",
+      "type": "array"
+    },
+    "flows": {
+      "items": {
+        "$ref": "#/$defs/Flow"
+      },
+      "maxItems": 40,
+      "title": "Flows",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "maxItems": 40,
+      "title": "Rules",
+      "type": "array"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/BackendCheck"
+      },
+      "maxItems": 40,
+      "title": "Checks",
+      "type": "array"
+    }
+  },
+  "title": "Contract",
+  "type": "object"
+}

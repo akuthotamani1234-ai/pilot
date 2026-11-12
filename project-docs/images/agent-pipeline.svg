@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 470" width="1160" height="470" font-family="Inter, Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b8fa3"/>
+    </marker>
+    <filter id="s" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".25"/></filter>
+  </defs>
+
+  <!-- legend -->
+  <g font-size="12" fill="#8b8fa3" font-weight="600">
+    <rect x="20"  y="8" width="14" height="14" rx="4" fill="#93c5fd"/><text x="40"  y="20">Prepare</text>
+    <rect x="120" y="8" width="14" height="14" rx="4" fill="#86efac"/><text x="140" y="20">Design</text>
+    <rect x="215" y="8" width="14" height="14" rx="4" fill="#fde68a"/><text x="235" y="20">Run &amp; check</text>
+    <rect x="340" y="8" width="14" height="14" rx="4" fill="#fdba74"/><text x="360" y="20">Repair</text>
+    <rect x="430" y="8" width="14" height="14" rx="4" fill="#f0abfc"/><text x="450" y="20">Report</text>
+  </g>
+
+  <!-- row 1 -->
+  <g filter="url(#s)">
+    <rect x="20"  y="45" width="190" height="80" rx="14" fill="#93c5fd"/>
+    <rect x="250" y="45" width="190" height="80" rx="14" fill="#93c5fd"/>
+    <rect x="480" y="45" width="190" height="80" rx="14" fill="#93c5fd"/>
+    <rect x="710" y="45" width="190" height="80" rx="14" fill="#86efac"/>
+    <rect x="940" y="45" width="200" height="80" rx="14" fill="#86efac"/>
+  </g>
+  <g text-anchor="middle" fill="#1a1b2e">
+    <text x="115"  y="78" font-size="15" font-weight="700">0 · Setup</text>
+    <text x="115"  y="100" font-size="11.5">repo / folder → localhost</text>
+    <text x="345"  y="78" font-size="15" font-weight="700">1 · Discovery</text>
+    <text x="345"  y="100" font-size="11.5">pages · screenshots · errors</text>
+    <text x="575"  y="78" font-size="15" font-weight="700">2 · Change Detection</text>
+    <text x="575"  y="100" font-size="11.5">new · changed · removed</text>
+    <text x="805"  y="78" font-size="15" font-weight="700">3 · Test Design</text>
+    <text x="805"  y="100" font-size="11.5">test cases → Excel</text>
+    <text x="1040" y="78" font-size="15" font-weight="700">4 · Script Generator</text>
+    <text x="1040" y="100" font-size="11.5">Playwright + PyTest</text>
+  </g>
+  <g stroke="#8b8fa3" stroke-width="2" fill="none">
+    <line x1="212" y1="85" x2="246" y2="85" marker-end="url(#a)"/>
+    <line x1="442" y1="85" x2="476" y2="85" marker-end="url(#a)"/>
+    <line x1="672" y1="85" x2="706" y2="85" marker-end="url(#a)"/>
+    <line x1="902" y1="85" x2="936" y2="85" marker-end="url(#a)"/>
+    <!-- script generator -> execution -->
+    <path d="M1040,127 L1040,165 L135,165 L135,206" marker-end="url(#a)"/>
+  </g>
+
+  <!-- row 2 -->
+  <g filter="url(#s)">
+    <rect x="40"  y="210" width="190" height="80" rx="14" fill="#fde68a"/>
+    <rect x="330" y="210" width="190" height="80" rx="14" fill="#fde68a"/>
+    <rect x="640" y="210" width="190" height="80" rx="14" fill="#f0abfc"/>
+    <rect x="930" y="210" width="190" height="80" rx="14" fill="#f0abfc"/>
+    <rect x="185" y="350" width="190" height="80" rx="14" fill="#fdba74"/>
+  </g>
+  <g text-anchor="middle" fill="#1a1b2e">
+    <text x="135" y="243" font-size="15" font-weight="700">5 · Execution</text>
+    <text x="135" y="265" font-size="11.5">run · retry · screenshots</text>
+    <text x="425" y="243" font-size="15" font-weight="700">6 · Failure Analysis</text>
+    <text x="425" y="265" font-size="11.5">bug · script · flaky · network</text>
+    <text x="735" y="243" font-size="15" font-weight="700">8 · Report</text>
+    <text x="735" y="265" font-size="11.5">verdict · fixes · cost</text>
+    <text x="1025" y="243" font-size="15" font-weight="700">9 · Save Baseline</text>
+    <text x="1025" y="265" font-size="11.5">memory for next run</text>
+    <text x="280" y="383" font-size="15" font-weight="700">7 · Self-Healing</text>
+    <text x="280" y="405" font-size="11.5">repair broken scripts</text>
+  </g>
+  <g stroke="#8b8fa3" stroke-width="2" fill="none">
+    <line x1="232" y1="250" x2="326" y2="250" marker-end="url(#a)"/>
+    <line x1="522" y1="250" x2="636" y2="250" marker-end="url(#a)"/>
+    <line x1="832" y1="250" x2="926" y2="250" marker-end="url(#a)"/>
+    <!-- healing loop -->
+    <path d="M425,292 L425,390 L379,390" marker-end="url(#a)"/>
+    <path d="M185,390 L135,390 L135,294" marker-end="url(#a)"/>
+  </g>
+  <g fill="#8b8fa3" font-size="11.5" font-weight="600">
+    <text x="579" y="240" text-anchor="middle">no repair needed</text>
+    <text x="435" y="330">broken scripts?</text>
+    <text x="435" y="346">(max 2 rounds)</text>
+    <text x="20"  y="330">re-run only</text>
+    <text x="20"  y="346">the repaired tests</text>
+    <text x="1025" y="315" text-anchor="middle">→ END</text>
+  </g>
+
+  <text x="760" y="400" fill="#8b8fa3" font-size="12" text-anchor="middle">Short-cut: setup failed · site down · no scripts  →  straight to Report</text>
+  <text x="760" y="420" fill="#8b8fa3" font-size="12" text-anchor="middle">AI slow or failing  →  that step uses built-in rules and the run continues</text>
+</svg>

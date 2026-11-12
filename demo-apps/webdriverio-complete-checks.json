@@ -1,0 +1,2278 @@
+{
+  "test_environment": true,
+  "flows": [
+    {
+      "id": "typed_output",
+      "title": "Typed input is retained and echoed",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          }
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "text-input"
+          },
+          "value": "Blow AI live demo"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-text-result"
+          },
+          "value": "Blow AI live demo"
+        }
+      ]
+    },
+    {
+      "id": "switch_roundtrip",
+      "title": "Switch turns on and off",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          }
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch ON"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          }
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch OFF"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch"
+          }
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "switch-text"
+          },
+          "value": "Click to turn the switch ON"
+        }
+      ]
+    },
+    {
+      "id": "empty_login",
+      "title": "Empty login shows email and password validation",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter a valid email address"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter at least 8 characters"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dropdown_roundtrip",
+      "title": "Native dropdown retains each selected option",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "webdriver.io is awesome"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "webdriver.io is awesome"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "Appium is awesome"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Appium is awesome"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Dropdown"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "text",
+            "value": "This app is awesome"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "This app is awesome"
+          }
+        }
+      ]
+    },
+    {
+      "id": "active_dialog",
+      "title": "Active button opens its expected dialog",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms"
+          }
+        },
+        {
+          "action": "swipe",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms-screen"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-Active"
+          }
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/message"
+          },
+          "value": "This button is active"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/button1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "invalid_email",
+      "title": "Invalid email is rejected",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-email"
+          },
+          "value": "invalid-email"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter a valid email address"
+          }
+        }
+      ]
+    },
+    {
+      "id": "signup_validation",
+      "title": "Empty sign-up requires a matching password",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-sign-up-container"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-SIGN UP"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Please enter the same password"
+          }
+        }
+      ]
+    },
+    {
+      "id": "horizontal_swipe",
+      "title": "Carousel moves to the next card",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe"
+          }
+        },
+        {
+          "action": "swipe",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "Carousel"
+          },
+          "value": "left"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "GREAT COMMUNITY"
+          }
+        }
+      ]
+    },
+    {
+      "id": "vertical_scroll",
+      "title": "Bounded scrolling reaches the offscreen logo",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "WebdriverIO logo"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "WebdriverIO logo"
+          }
+        }
+      ]
+    },
+    {
+      "id": "drag_puzzle",
+      "title": "All puzzle pieces reach their targets",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Drag"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l2"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r3"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r1"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c1"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c3"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-r2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-r2"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-c2"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-c2"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l1"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l1"
+          }
+        },
+        {
+          "action": "drag",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "drag-l3"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "drop-l3"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "text",
+            "value": "Congratulations"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_home",
+      "title": "Menu opens home",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-home"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Home-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_login",
+      "title": "Menu opens login",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-login"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_forms",
+      "title": "Menu opens forms",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-forms"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Forms-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_swipe",
+      "title": "Menu opens swipe",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-swipe"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Swipe-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_drag",
+      "title": "Menu opens drag",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-drag"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Drag-drop-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_permissions",
+      "title": "Menu opens permissions",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Permissions-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_data_management",
+      "title": "Menu opens data-management",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          }
+        }
+      ]
+    },
+    {
+      "id": "menu_webview",
+      "title": "Menu opens the embedded website",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-webview"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "xpath",
+            "value": "(//android.webkit.WebView)[1]"
+          }
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "successful_login",
+      "title": "Demo login accepts approved valid inputs",
+      "approved": true,
+      "authentication": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-email"
+          },
+          "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-password"
+          },
+          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-LOGIN"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/message"
+          },
+          "value": "You are logged in!"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/button1"
+          }
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "successful_signup",
+      "title": "Demo sign-up accepts matching approved inputs",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Login"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-sign-up-container"
+          }
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-email"
+          },
+          "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-password"
+          },
+          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "input-repeat-password"
+          },
+          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-SIGN UP"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/message"
+          },
+          "value": "You successfully signed up!"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/button1"
+          }
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "storage_memory",
+      "title": "Memory storage save, restart and clear behavior",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-input"
+          },
+          "value": "up"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-input"
+          },
+          "value": "blowai_test_memory"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-memory-save"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-memory-save"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "blowai_test_memory"
+        },
+        {
+          "action": "relaunch"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "— empty —"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-memory-clear"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-memory-clear"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-memory-readout"
+          },
+          "value": "— empty —"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "storage_async",
+      "title": "Async storage save, restart and clear behavior",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-async-input"
+          },
+          "value": "up"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-async-input"
+          },
+          "value": "blowai_test_async"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-async-save"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-async-save"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "blowai_test_async"
+        },
+        {
+          "action": "relaunch"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "blowai_test_async"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-async-clear"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-async-clear"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-async-readout"
+          },
+          "value": "— nothing saved yet —"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "storage_sqlite",
+      "title": "Sqlite storage save, restart and clear behavior",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-input"
+          },
+          "value": "up"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-input"
+          },
+          "value": "blowai_test_sqlite"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-sqlite-save"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-sqlite-save"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "blowai_test_sqlite"
+        },
+        {
+          "action": "relaunch"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "blowai_test_sqlite"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-sqlite-clear"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-sqlite-clear"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-sqlite-readout"
+          },
+          "value": "— nothing saved yet —"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "storage_secure",
+      "title": "Secure storage save, restart and clear behavior",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-input"
+          },
+          "value": "up"
+        },
+        {
+          "action": "fill",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-input"
+          },
+          "value": "blowai_test_secure"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-secure-save"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-secure-save"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "blowai_test_secure"
+        },
+        {
+          "action": "relaunch"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-data-management"
+          }
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "blowai_test_secure"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "button-data-secure-clear"
+          },
+          "value": "up"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "button-data-secure-clear"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "scroll_to",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "DataManagement-screen"
+          },
+          "target": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "up"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "data-secure-readout"
+          },
+          "value": "— nothing saved yet —"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "camera_once",
+      "title": "Emulator camera once prompt and app state",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "false"
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "handle_permission",
+          "value": "allow_once",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "true"
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "camera_allow",
+      "title": "Emulator camera allow prompt and app state",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "false"
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "handle_permission",
+          "value": "allow_while_using",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "true"
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "camera_deny",
+      "title": "Emulator camera deny prompt and app state",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "false"
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "handle_permission",
+          "value": "deny",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_permission",
+          "value": "denied",
+          "permission": "android.permission.CAMERA"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-camera"
+          },
+          "value": "false"
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "microphone_allow",
+      "title": "Emulator microphone allow prompt and app state",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.RECORD_AUDIO"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-microphone"
+          },
+          "value": "false"
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-microphone"
+          },
+          "permission": "android.permission.RECORD_AUDIO"
+        },
+        {
+          "action": "handle_permission",
+          "value": "allow_while_using",
+          "permission": "android.permission.RECORD_AUDIO"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.RECORD_AUDIO"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-microphone"
+          },
+          "value": "true"
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "location_allow",
+      "title": "Emulator location allow prompt and app state",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.ACCESS_COARSE_LOCATION"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-location"
+          },
+          "value": "false"
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-location"
+          },
+          "permission": "android.permission.ACCESS_COARSE_LOCATION"
+        },
+        {
+          "action": "handle_permission",
+          "value": "allow_while_using",
+          "permission": "android.permission.ACCESS_COARSE_LOCATION"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.ACCESS_COARSE_LOCATION"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-location"
+          },
+          "value": "true"
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "photo_permission_state",
+      "title": "Emulator photo access reflects granted and denied OS states",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "permission_state",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "action": "permission_state",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-photos"
+          },
+          "value": "true"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-photos"
+          },
+          "value": "false"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "photo_permission_prompt",
+      "title": "Emulator photo-library request handles its declared media prompts",
+      "steps": [
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "action": "permission_state",
+          "value": "denied",
+          "permission": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "tab-side-menu-panel"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "request_permission",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-photos"
+          },
+          "permission": "android.permission.READ_MEDIA_IMAGES",
+          "permissions": [
+            "android.permission.READ_MEDIA_IMAGES",
+            "android.permission.READ_MEDIA_VIDEO",
+            "android.permission.READ_MEDIA_AUDIO"
+          ]
+        },
+        {
+          "action": "handle_permission",
+          "value": "allow",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_IMAGES"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_VIDEO"
+        },
+        {
+          "action": "assert_permission",
+          "value": "granted",
+          "permission": "android.permission.READ_MEDIA_AUDIO"
+        },
+        {
+          "action": "assert_checked",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "permission-switch-photos"
+          },
+          "value": "true"
+        }
+      ],
+      "timeout_s": 300
+    },
+    {
+      "id": "tab_limit",
+      "title": "Menu refuses a sixth pinned tab",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-star-permissions"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/alertTitle"
+          },
+          "value": "Tab bar full"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "resource_id",
+            "value": "android:id/button1"
+          }
+        }
+      ],
+      "timeout_s": 180
+    },
+    {
+      "id": "tab_swap",
+      "title": "Pinned tabs can be exchanged and restored",
+      "approved": true,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-star-webview"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-star-permissions"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-permissions"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Permissions"
+          }
+        },
+        {
+          "action": "assert_not_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Webview"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Menu"
+          }
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-star-permissions"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-star-webview"
+          },
+          "purpose": "test_form"
+        },
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "side-menu-item-home"
+          }
+        },
+        {
+          "action": "assert_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Webview"
+          }
+        },
+        {
+          "action": "assert_not_visible",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Permissions"
+          }
+        }
+      ],
+      "timeout_s": 180
+    }
+  ],
+  "android_permissions": {
+    "app_label": "wdiodemoapp",
+    "allowed": [
+      "android.permission.CAMERA",
+      "android.permission.RECORD_AUDIO",
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.READ_MEDIA_IMAGES",
+      "android.permission.READ_MEDIA_VIDEO",
+      "android.permission.READ_MEDIA_AUDIO",
+      "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+    ]
+  },
+  "android_package": "com.wdiodemoapp"
+}

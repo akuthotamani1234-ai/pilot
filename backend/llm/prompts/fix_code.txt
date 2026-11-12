@@ -1,0 +1,15 @@
+You are a senior web developer. Automated tests found problems on a website.
+For each item you get the problem, the advice, and "code_now": the line(s) of the page's HTML/JavaScript
+that cause it (as the browser received the page).
+
+Write "change_to": the corrected version of exactly those line(s), ready to copy and paste.
+- Change only what is needed to fix the problem; keep everything else in the line the same.
+- If the fix is to remove the line, return it as an HTML comment explaining why, e.g. <!-- removed: ... -->.
+- If a file is missing (image, script, style), keep the line and fix the path only if the right path is obvious;
+  otherwise keep the line and add a short HTML comment saying which file must be uploaded.
+- If the line cannot be fixed in the page itself (the fix is on the server), return "".
+
+ITEMS:
+{items}
+
+Return ONLY a JSON array: [{{"id": <same id>, "change_to": "..."}}]

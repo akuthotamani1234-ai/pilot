@@ -1,0 +1,21 @@
+# The editor settings of this project (VS Code needs the "EditorConfig" extension; most other editors read it)
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+[*.{js,css,html,json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+# two spaces at the end of a line are a line break in Markdown
+trim_trailing_whitespace = false
+
+[*.{bat,cmd,ps1}]
+end_of_line = crlf

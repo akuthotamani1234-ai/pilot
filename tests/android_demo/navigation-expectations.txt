@@ -1,0 +1,11 @@
+About = About
+Open login screen = Login
+Registration = Registration
+Dashboard = Dashboard
+Products = Products
+Product details = Product details
+Cart = Cart
+Form validation = Form validation
+Settings = Settings
+Home = Home
+Broken scenario = Broken scenario

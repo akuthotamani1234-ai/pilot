@@ -1,0 +1,19 @@
+# The app's packages, pinned to the versions the full test suite passed with (Python 3.13, Windows 11, Nov 2026).
+# Developers also install requirements-dev.txt (the code checker and the test-only packages).
+# constraints.txt pins the packages these need too, so a new PC gets exactly the tested versions.
+-c constraints.txt
+playwright==1.64.0         # the browser (after installing: python -m playwright install chromium)
+pytest==9.1.1              # runs the generated tests
+pytest-xdist==3.8.0        # runs the generated tests in several browsers at the same time
+langgraph==1.2.15          # runs the agents in order
+langgraph-checkpoint-sqlite==3.1.2  # saves the state after every agent: `main.py --resume <run>` goes on after a stop
+pydantic==2.14.1           # checks the AI's answers before anything uses them
+requests==2.34.2
+openpyxl==3.1.5            # test cases -> Excel (test_cases.xlsx)
+Appium-Python-Client==6.0.0  # Android automation (Python 3.10+; Selenium 4.37+)
+selenium==4.46.0             # Appium Python Client's WebDriver binding
+defusedxml==0.7.1            # safely parses Android UI hierarchy XML
+# web UI (ui.bat / backend/server.py)
+fastapi==0.143.1
+uvicorn==0.54.0
+python-multipart==0.0.33     # FastAPI APK uploads

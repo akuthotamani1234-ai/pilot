@@ -1,0 +1,30 @@
+A UI test started failing after the website's frontend changed. The WEBSITE may be fine - the test
+script is probably using an old selector or old steps. Repair the TEST SCRIPT so it works with the
+NEW page.
+
+FAILING TEST: {test}
+ERROR:
+{error}
+
+CURRENT TEST FILE:
+```python
+{code}
+```
+
+OLD PAGE DATA (when the test was written):
+{old_page}
+
+NEW PAGE DATA (the page as it is now):
+{new_page}
+
+STRICT RULES - read carefully:
+- You may ONLY change HOW elements are found (the address given to page.locator / frame_locator / get_by_label /
+  get_by_placeholder / get_by_test_id) and the steps to reach them.
+- Every assert and every expect(...).to_*(...) must stay EXACTLY as it is - the same expression, the same expected
+  value, the same message. Adding a check is fine; removing or changing one is rejected automatically.
+- NEVER add `or True`, `assert True` / an assert of a constant, a new `try / except` (AssertionError, Exception or a
+  bare except) around checks, `pytest.skip`, `pytest.xfail` or skip marks: such a repair is rejected automatically.
+- NEVER delete or rename test functions.
+- If the element the test needs truly does not exist anymore, return the file UNCHANGED.
+- Use only selectors present in NEW PAGE DATA.
+Return the full corrected file in one ```python block.

@@ -1,0 +1,47 @@
+# Project metadata and tool settings. The packages themselves are pinned in requirements.txt (the app) and
+# requirements-dev.txt (checking and testing the tester itself).
+[project]
+name = "blow-ai"
+version = "1.0.0"
+description = "Agentic AI website tester: explores a website, writes Playwright + pytest tests, runs them and reports"
+readme = "README.md"
+requires-python = ">=3.13"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+# run output, saved baselines and downloaded repositories are not our code
+extend-exclude = ["runs", "baseline", "workspace", "accounts", "logs", ".snapshots", ".private"]
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9", "F",  # pyflakes + pycodestyle errors (ruff's defaults)
+    "W",                    # whitespace and invalid escape sequences
+    "B",                    # likely bugs (bugbear)
+    "C4",                   # simpler comprehensions
+    "UP",                   # modern Python syntax
+    "I",                    # sorted imports
+    "S",                    # security (bandit)
+    "PLE",                  # pylint errors
+    "PLW1510",              # subprocess.run must say whether a failure raises (check=...)
+    "RUF100",               # no stale `# noqa`
+]
+ignore = [
+    "E741",          # short names such as `l` in comprehensions are fine here
+    "B905",          # zip() without strict=: the lists zipped together are built side by side
+    "S101",          # assert: pytest and the generated tests check with assert
+    "S110", "S112",  # try / except / pass: an optional crawl or report step that fails is skipped on purpose
+    "S311",          # random: test data, not cryptography
+    "S603", "S607",  # subprocess with an argument list: the commands are fixed (python, pytest, git, taskkill)
+    "S404",          # importing subprocess
+]
+
+[tool.ruff.lint.per-file-ignores]
+# the tester's own tests: practice-site passwords and exec() of the generated helper code are intended
+"tests/*" = ["S105", "S106", "S102", "S108"]
+# `enqueue` is defined inside the crawl loop and only called in the same iteration (the late binding is intended)
+"backend/agents/discovery.py" = ["B023"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "tests"]
+combine-as-imports = true

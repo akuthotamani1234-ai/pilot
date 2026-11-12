@@ -1,0 +1,101 @@
+# Continuous testing: runs Blow AI against your website after a push, after a deployment, every day, or by hand.
+#
+# Set up once (repository Settings -> Secrets and variables -> Actions):
+#   Variables: QA_URL (the website to test), optional LLM_PROVIDER (openai / gemini / anthropic; default: none = no AI),
+#              LLM_MODEL, JIRA_URL, JIRA_PROJECT
+#   Secrets:   optional OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY, TEST_USERNAME + TEST_PASSWORD (a test
+#              account), SLACK_WEBHOOK_URL, JIRA_EMAIL + JIRA_API_TOKEN
+# Trigger after a deployment from another repository / your deploy script:
+#   POST https://api.github.com/repos/<owner>/<repo>/dispatches  {"event_type": "deployed", "client_payload": {"url": "https://..."}}
+# The job fails when the verdict is 'Not Ready' or 'Insufficient Evidence' (main.py --exit-code). The report, the
+# Excel test cases and the evidence are attached to the workflow run (artifact 'blow-ai-report').
+# Until QA_URL is set (or a url is given), the job is skipped: a push of the tester's own code then only runs ci.yml.
+name: Blow AI
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Website to test (empty = the QA_URL variable)"
+        required: false
+      approve_visual:
+        description: "Accept this run's look as the new approved look (after an intended redesign)"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [deployed]
+  deployment_status:
+  push:
+    branches: [main]
+  schedule:                    # a daily run of the QA_URL website - change the time, or delete these 2 lines
+    - cron: "30 1 * * *"       # every day at 01:30 UTC (07:00 in India)
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # a deployment that did not succeed is not tested, and nothing runs while no website is set
+    if: >-
+      (github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success') &&
+      (inputs.url || github.event.client_payload.url || github.event.deployment_status.environment_url ||
+       github.event.deployment_status.target_url || vars.QA_URL)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install -r requirements.txt
+          python -m playwright install chromium
+
+      # the last run's baseline (pages, tests, approved look): change detection + the visual check compare with it
+      - uses: actions/cache@v4
+        with:
+          path: baseline
+          key: blow-ai-baseline-${{ github.run_id }}
+          restore-keys: blow-ai-baseline-
+
+      - name: Test the website
+        env:
+          QA_URL: ${{ inputs.url || github.event.client_payload.url || github.event.deployment_status.environment_url || github.event.deployment_status.target_url || vars.QA_URL }}
+          VISUAL_AUTO_APPROVE: ${{ inputs.approve_visual && 'true' || 'false' }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'none' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_PROJECT: ${{ vars.JIRA_PROJECT }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          HEADLESS: "true"
+          PYTHONUTF8: "1"
+        run: |
+          if (-not $env:QA_URL) { Write-Error "No website to test: set the QA_URL variable or give a url."; exit 2 }
+          python main.py $env:QA_URL --no-open --exit-code
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blow-ai-report
+          path: |
+            runs/*/report.html
+            runs/*/summary.json
+            runs/*/failures.json
+            runs/*/visual.json
+            runs/*/test_cases.xlsx
+            runs/*/screenshots/
+            runs/*/failure_screenshots/
+            runs/*/visual/
+          retention-days: 14

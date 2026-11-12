@@ -1,0 +1,6 @@
+# For working on the tester itself: the app's packages + the checker + test-only packages.
+#   .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+-r requirements.txt
+httpx==0.28.1              # FastAPI's TestClient (tests/test_server.py)
+ruff==0.14.10              # code checker:  .venv\Scripts\python.exe -m ruff check .
+vulture==2.14              # unused code:   .venv\Scripts\python.exe -m vulture backend main.py --min-confidence 60

@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "test_environment": false,
+  "allowed_origins": [
+    "http://127.0.0.1:8080"
+  ],
+  "flows": [
+    {
+      "id": "open_cart",
+      "title": "Cart is reachable",
+      "approved": false,
+      "steps": [
+        {
+          "action": "tap",
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Cart"
+          }
+        },
+        {
+          "action": "assert_screen",
+          "value": "Cart"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "cart_total",
+      "title": "Quantity multiplied by configured price",
+      "setup_flow": "open_cart",
+      "actual": {
+        "strategy": "accessibility_id",
+        "value": "Cart total"
+      },
+      "variables": {
+        "quantity": {
+          "locator": {
+            "strategy": "accessibility_id",
+            "value": "Cart quantity"
+          }
+        },
+        "price": {
+          "number": "10"
+        }
+      },
+      "expression": "quantity * price",
+      "tolerance": "0.01"
+    }
+  ],
+  "checks": [
+    {
+      "id": "api_total",
+      "title": "API confirms expected cart total",
+      "kind": "http",
+      "setup_flow": "open_cart",
+      "url": "http://127.0.0.1:8080/api/cart",
+      "json_pointer": "/total",
+      "expected": 0
+    },
+    {
+      "id": "database_total",
+      "title": "Read-only database confirms expected cart total",
+      "kind": "sqlite",
+      "setup_flow": "open_cart",
+      "database_ref": "BLOWAI_DB_QA",
+      "query": "SELECT total FROM cart WHERE cart_id = ?",
+      "parameters": [
+        "qa-cart"
+      ],
+      "expected": 0
+    }
+  ]
+}

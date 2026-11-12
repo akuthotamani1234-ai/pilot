@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "test_environment": true,
+  "allowed_origins": [
+    "https://the-internet.herokuapp.com"
+  ],
+  "flows": [
+    {
+      "id": "dropdown_roundtrip",
+      "title": "Dropdown selection is retained for Option 1, Option 2 and back",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "select",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown"
+          },
+          "target": null,
+          "value": "1",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown option:checked"
+          },
+          "target": null,
+          "value": "Option 1",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "select",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown"
+          },
+          "target": null,
+          "value": "2",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown option:checked"
+          },
+          "target": null,
+          "value": "Option 2",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "select",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown"
+          },
+          "target": null,
+          "value": "1",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        },
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "#dropdown option:checked"
+          },
+          "target": null,
+          "value": "Option 1",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    },
+    {
+      "id": "dropdown_heading",
+      "title": "The expected dropdown page is displayed",
+      "approved": true,
+      "authentication": false,
+      "steps": [
+        {
+          "action": "assert_text",
+          "locator": {
+            "strategy": "css",
+            "value": "h3"
+          },
+          "target": null,
+          "value": "Dropdown List",
+          "secret_ref": null,
+          "purpose": "navigation",
+          "sensitive": false
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "checks": []
+}

@@ -1,0 +1,1336 @@
+{
+  "site": "classic",
+  "clean": {
+    "run": "127.0.0.1_60961_20261028_072028",
+    "pages": {
+      "discovered": 34,
+      "logged_in": 18,
+      "failed": 0,
+      "not_visited": 0,
+      "sampled": 39
+    },
+    "test_cases": {
+      "planned": 56,
+      "passed": 12,
+      "failed": 41,
+      "flaky": 0,
+      "skipped": 0,
+      "blocked": 3,
+      "inconclusive": 0,
+      "not_run": 0,
+      "click_only": 0,
+      "exploratory": 4
+    },
+    "pytest_tests": {
+      "total": 266,
+      "passed": 211,
+      "failed": 54,
+      "error": 0,
+      "skipped": 1,
+      "inconclusive": 0
+    },
+    "coverage_claimed": {
+      "tested": 418,
+      "total": 421
+    },
+    "actions": {
+      "attempted": 13,
+      "learned": 8,
+      "no_effect": 5,
+      "failed": 0,
+      "blocked": 3,
+      "skipped": 2,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 6,
+      "blocked_list": [
+        {
+          "control": "Subscribe",
+          "page": "http://127.0.0.1:60961",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        },
+        {
+          "control": "Subscribe",
+          "page": "http://127.0.0.1:60961/index.php?rt=account/login",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        },
+        {
+          "control": "Update",
+          "page": "http://127.0.0.1:60961/index.php?rt=checkout/cart",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        }
+      ],
+      "skipped_list": [
+        {
+          "control": "Continue",
+          "page": "http://127.0.0.1:60961/index.php?rt=account/login",
+          "why": "sends a form - the form tests check it"
+        },
+        {
+          "control": "Login",
+          "page": "http://127.0.0.1:60961/index.php?rt=account/login",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "registry": {
+      "pages": {
+        "discovered": 3,
+        "inspected": 3,
+        "tested": 3,
+        "verified": 0,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 60,
+        "tested": 39,
+        "verified": 5,
+        "failed": 34,
+        "blocked": 12,
+        "needs_login": 0,
+        "inconclusive": 0,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 9,
+        "by_level": {
+          "control": {
+            "discovered": 28,
+            "verified": 2
+          },
+          "feature": {
+            "discovered": 29,
+            "verified": 1
+          },
+          "workflow": {
+            "discovered": 3,
+            "verified": 2
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 14,
+        "found": [
+          "/",
+          "/index.php?rt=product/category&path={id}",
+          "/index.php?rt=product/special",
+          "/index.php?rt=product/product&product_id={id}",
+          "/index.php?rt=checkout/cart",
+          "/index.php?rt=account/login",
+          "/index.php?rt=account/invoice",
+          "/index.php?rt=content/content&content_id={id}",
+          "/index.php?rt=account/account"
+        ],
+        "missing": [
+          "/index.php?rt=product/search  (only through the search box)",
+          "/index.php?rt=account/create  (linked from the site map)",
+          "/index.php?rt=content/contact",
+          "/index.php?rt=content/sitemap",
+          "/index.php?rt=account/history"
+        ],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 20,
+        "detected": 18,
+        "tested": 13,
+        "verified": 1,
+        "judged": 20,
+        "correct": 2,
+        "rows": [
+          {
+            "id": "login.wrong_password",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "login.new_customer_choice",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "search.finds",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "search.nothing",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "category.sort",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "category.pagination",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-18B222E9"
+            ]
+          },
+          {
+            "id": "category.per_page",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "product.option",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-5CF56A09"
+            ]
+          },
+          {
+            "id": "product.quantity",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "product.add_to_cart",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0"
+            ]
+          },
+          {
+            "id": "product.tabs",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-46282CA4"
+            ]
+          },
+          {
+            "id": "product.print",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-D6466599"
+            ]
+          },
+          {
+            "id": "cart.totals",
+            "expect": "verified",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "cart.checkout",
+            "expect": "blocked",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "newsletter.subscribe",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-3BC595D6"
+            ]
+          },
+          {
+            "id": "header.cart_menu",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "header.category_menu",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "footer.back_to_top",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-FA619FA1"
+            ]
+          },
+          {
+            "id": "contact.validation",
+            "expect": "verified",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "invoice.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-FBCB1228"
+            ]
+          }
+        ]
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-119E9E1C",
+          "title": "Sorting with 'Sort By' puts the items in that order (Special Offers)",
+          "why": "E   AssertionError: 'Name A - Z' should sort by name (ascending), the items show: ['login or register', 'login or register', 'specials', 'account', 'check your order', 'cart', 'checkout', '$ us dollar"
+        },
+        {
+          "tc_id": "TC-AA1B19BF",
+          "title": "'\u2630' gives a visible response when clicked (Special Offers)",
+          "why": "E   AssertionError: '\u2630' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:60961/index.php?rt=product/special' != 'http://127.0.0.1:60961/index.php?rt=product"
+        },
+        {
+          "tc_id": "TC-73069779",
+          "title": "'\u25a6' gives a visible response when clicked (Special Offers)",
+          "why": "E   AssertionError: '\u25a6' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:60961/index.php?rt=product/special' != 'http://127.0.0.1:60961/index.php?rt=product"
+        },
+        {
+          "tc_id": "TC-D6466599",
+          "title": "'Print' gives a visible response when clicked (Velvet Matte Lipstick)",
+          "why": "E   AssertionError: 'Print' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:60961/index.php?rt=product/product&path=10&product_id=1' != 'http://127.0.0.1:6"
+        },
+        {
+          "tc_id": "TC-FA619FA1",
+          "title": "'Back to top' gives a visible response when clicked (ClassicShop)",
+          "why": "E   AssertionError: 'Back to top' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:60961/' != 'http://127.0.0.1:60961/' or 'Login or register\\nSpecials\\nAcc"
+        },
+        {
+          "tc_id": "TC-47C3D7AB",
+          "title": "End-to-end on Account Login: 8 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 8 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-329A9882",
+          "title": "End-to-end on index php rt product special: 6 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 6 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 6 'Pointing at"
+        },
+        {
+          "tc_id": "TC-46282CA4",
+          "title": "End-to-end on index php rt product product path 10 pro: 6 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 6 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-5CF56A09",
+          "title": "End-to-end on index php rt product product path 20 pro: 6 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 6 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-FBCB1228",
+          "title": "End-to-end on Order Details: 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-A00F5ED5",
+          "title": "End-to-end on index php rt product product path 30 pro: 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-14868069",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-C663F201",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-92FF762D",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-0138DBD4",
+          "title": "End-to-end on index php rt product product path 10 pro: 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-0BD42681",
+          "title": "End-to-end on index php rt product product path 20 pro: 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-E296572C",
+          "title": "End-to-end on index php rt product product path 30 pro: 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-9BB3CEC5",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-A66D6271",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-B33DB7D0",
+          "title": "End-to-end on index php rt product product product id : 5 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 5 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-F5BAC1BA",
+          "title": "End-to-end on My Account: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-0D30A8BF",
+          "title": "End-to-end on index php: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 6 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-878B5B07",
+          "title": "End-to-end on index php rt product category path 10: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 8 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-5928B833",
+          "title": "End-to-end on index php rt product category path 10 11: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-085DA1F7",
+          "title": "End-to-end on index php rt product category path 10 12: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-AA4E2EF6",
+          "title": "End-to-end on index php rt content content content id : 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-2F8D7D75",
+          "title": "End-to-end on index php rt content content content id : 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-AD4952AF",
+          "title": "End-to-end on Shopping Cart: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-4EF654FE",
+          "title": "End-to-end on index php rt product category path 10 so: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 2 items before, 0 after"
+        },
+        {
+          "tc_id": "TC-7DDB5F0E",
+          "title": "End-to-end on index php rt product category path 10 so: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 8 items before, 0 after"
+        },
+        {
+          "tc_id": "TC-24F82599",
+          "title": "End-to-end on home: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 6 items before, 0 after"
+        },
+        {
+          "tc_id": "TC-DB203801",
+          "title": "End-to-end on index php rt product special x: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-848FC572",
+          "title": "End-to-end on index php rt product category path 10 x: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 8 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-5FCB9F33",
+          "title": "End-to-end on index php rt product category path 10 11: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-342F4D93",
+          "title": "End-to-end on index php rt product category path 10 12: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 5 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-A239376F",
+          "title": "End-to-end on index php rt content content content id : 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-5D6391F3",
+          "title": "End-to-end on index php rt content content content id : 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' also shows items that don't match: ['Specials', 'Account', 'Check Your Order', 'C"
+        },
+        {
+          "tc_id": "TC-0370FF30",
+          "title": "End-to-end on index php rt product category path 10 so: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 2 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-4EF49317",
+          "title": "End-to-end on index php rt product category path 10 so: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 2 of 4 steps failed: | E   step 1 'Search finds 'Login'' failed: AssertionError: Searching 'Login' should show the matching items: 8 items before, 0 after | E   step 4 'Pointing at"
+        },
+        {
+          "tc_id": "TC-00DBA372",
+          "title": "Every link works (41 links, 3 links to a part of a page)",
+          "why": "E   AssertionError: The link 'Description' points to #description on http://127.0.0.1:60961/, but that page has no such part - clicking it goes nowhere (found on http://127.0.0.1:60961/index.php?rt=pr"
+        },
+        {
+          "tc_id": "TC-4780F1A8",
+          "title": "Input boxes handle wrong and unusual values (73 values, 8 boxes)",
+          "why": "E   AssertionError: An invalid value was accepted: 'testuser.example.com' | E   assert (not True or not True or 'testuser.example.com' != 'testuser.example.com') (+11 more failed)"
+        }
+      ],
+      "never_requested_but_done": []
+    },
+    "run_dir": "<temp>\\clean\\runs\\127.0.0.1_60961_20261028_072028"
+  },
+  "buggy": {
+    "run": "127.0.0.1_56773_20261028_073143",
+    "pages": {
+      "discovered": 34,
+      "logged_in": 18,
+      "failed": 0,
+      "not_visited": 0,
+      "sampled": 39
+    },
+    "test_cases": {
+      "planned": 56,
+      "passed": 13,
+      "failed": 40,
+      "flaky": 0,
+      "skipped": 0,
+      "blocked": 3,
+      "inconclusive": 0,
+      "not_run": 0,
+      "click_only": 0,
+      "exploratory": 4
+    },
+    "pytest_tests": {
+      "total": 266,
+      "passed": 212,
+      "failed": 53,
+      "error": 0,
+      "skipped": 1,
+      "inconclusive": 0
+    },
+    "coverage_claimed": {
+      "tested": 418,
+      "total": 421
+    },
+    "actions": {
+      "attempted": 13,
+      "learned": 8,
+      "no_effect": 5,
+      "failed": 0,
+      "blocked": 3,
+      "skipped": 2,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 6,
+      "blocked_list": [
+        {
+          "control": "Subscribe",
+          "page": "http://127.0.0.1:56773",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        },
+        {
+          "control": "Subscribe",
+          "page": "http://127.0.0.1:56773/index.php?rt=account/login",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        },
+        {
+          "control": "Update",
+          "page": "http://127.0.0.1:56773/index.php?rt=checkout/cart",
+          "why": "protected: it could pay, order, delete, send, publish or log out - never performed"
+        }
+      ],
+      "skipped_list": [
+        {
+          "control": "Continue",
+          "page": "http://127.0.0.1:56773/index.php?rt=account/login",
+          "why": "sends a form - the form tests check it"
+        },
+        {
+          "control": "Login",
+          "page": "http://127.0.0.1:56773/index.php?rt=account/login",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "registry": {
+      "pages": {
+        "discovered": 3,
+        "inspected": 3,
+        "tested": 3,
+        "verified": 0,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 60,
+        "tested": 39,
+        "verified": 5,
+        "failed": 34,
+        "blocked": 12,
+        "needs_login": 0,
+        "inconclusive": 0,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 9,
+        "by_level": {
+          "control": {
+            "discovered": 28,
+            "verified": 2
+          },
+          "feature": {
+            "discovered": 29,
+            "verified": 1
+          },
+          "workflow": {
+            "discovered": 3,
+            "verified": 2
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 14,
+        "found": [
+          "/",
+          "/index.php?rt=product/category&path={id}",
+          "/index.php?rt=product/special",
+          "/index.php?rt=product/product&product_id={id}",
+          "/index.php?rt=checkout/cart",
+          "/index.php?rt=account/login",
+          "/index.php?rt=account/invoice",
+          "/index.php?rt=content/content&content_id={id}",
+          "/index.php?rt=account/account"
+        ],
+        "missing": [
+          "/index.php?rt=product/search  (only through the search box)",
+          "/index.php?rt=account/create  (linked from the site map)",
+          "/index.php?rt=content/contact",
+          "/index.php?rt=content/sitemap",
+          "/index.php?rt=account/history"
+        ],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 20,
+        "detected": 18,
+        "tested": 13,
+        "verified": 4,
+        "judged": 6,
+        "correct": 3,
+        "rows": [
+          {
+            "id": "login.wrong_password",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "login.new_customer_choice",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "search.finds",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "search.nothing",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "category.sort",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "category.pagination",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-18B222E9"
+            ]
+          },
+          {
+            "id": "category.per_page",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "product.option",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-5CF56A09"
+            ]
+          },
+          {
+            "id": "product.quantity",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "product.add_to_cart",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0"
+            ]
+          },
+          {
+            "id": "product.tabs",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-46282CA4"
+            ]
+          },
+          {
+            "id": "product.print",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-D6466599"
+            ]
+          },
+          {
+            "id": "cart.totals",
+            "expect": "catch bug",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "cart.checkout",
+            "expect": "blocked",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-47C3D7AB"
+            ]
+          },
+          {
+            "id": "newsletter.subscribe",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-3BC595D6"
+            ]
+          },
+          {
+            "id": "header.cart_menu",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-47C3D7AB",
+              "TC-329A9882",
+              "TC-46282CA4",
+              "TC-5CF56A09",
+              "TC-FBCB1228",
+              "TC-A00F5ED5",
+              "TC-14868069",
+              "TC-C663F201",
+              "TC-92FF762D",
+              "TC-0138DBD4",
+              "TC-0BD42681",
+              "TC-E296572C",
+              "TC-9BB3CEC5",
+              "TC-A66D6271",
+              "TC-B33DB7D0",
+              "TC-F5BAC1BA",
+              "TC-0D30A8BF",
+              "TC-878B5B07",
+              "TC-5928B833",
+              "TC-085DA1F7",
+              "TC-AA4E2EF6",
+              "TC-2F8D7D75",
+              "TC-AD4952AF",
+              "TC-4EF654FE",
+              "TC-7DDB5F0E",
+              "TC-24F82599",
+              "TC-DB203801",
+              "TC-848FC572",
+              "TC-5FCB9F33",
+              "TC-342F4D93",
+              "TC-A239376F",
+              "TC-5D6391F3",
+              "TC-0370FF30",
+              "TC-4EF49317"
+            ]
+          },
+          {
+            "id": "header.category_menu",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "footer.back_to_top",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-FA619FA1"
+            ]
+          },
+          {
+            "id": "contact.validation",
+            "expect": "verified",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "invoice.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-FBCB1228"
+            ]
+          }
+        ]
+      },
+      "bugs": {
+        "planted": 3,
+        "caught": [
+          "search_wrong_hit"
+        ],
+        "false_pass": [],
+        "not_tested": [
+          "cart_total",
+          "sort_price"
+        ]
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-119E9E1C",
+          "title": "Sorting with 'Sort By' puts the items in that order (Special Offers)",
+          "why": "E   AssertionError: 'Name A - Z' should sort by name (ascending), the items show: ['login or register', 'login or register', 'specials', 'account', 'check your order', 'cart', 'checkout', '$ us dollar"
+        },
+        {
+          "tc_id": "TC-AA1B19BF",
+          "title": "'\u2630' gives a visible response when clicked (Special Offers)",
+          "why": "E   AssertionError: '\u2630' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:56773/index.php?rt=product/special' != 'http://127.0.0.1:56773/index.php?rt=product"
+        },
+        {
+          "tc_id": "TC-73069779",
+          "title": "'\u25a6' gives a visible response when clicked (Special Offers)",
+          "why": "E   AssertionError: '\u25a6' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:56773/index.php?rt=product/special' != 'http://127.0.0.1:56773/index.php?rt=product"
+        },
+        {
+          "tc_id": "TC-D6466599",
+          "title": "'Print' gives a visible response when clicked (Velvet Matte Lipstick)",
+          "why": "E   AssertionError: 'Print' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:56773/index.php?rt=product/product&path=10&product_id=1' != 'http://127.0.0.1:5"
+        },
+        {
+          "tc_id": "TC-FA619FA1",
+          "title": "'Back to top' gives a visible response when clicked (ClassicShop)",
+          "why": "E   AssertionError: 'Back to top' gave no visible response (no message, nothing changed) | E   assert ([] or 'http://127.0.0.1:56773/' != 'http://127.0.0.1:56773/' or 'Login or register\\nSpecials\\nAcc"
+        },
+        {
+          "tc_id": "TC-329A9882",
+          "title": "End-to-end on index php rt product special: 6 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 6 steps failed: | E   step 6 'Pointing at (or clicking) '0 ITEMS - $0.00' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-text"
+        },
+        {
+          "tc_id": "TC-878B5B07",
+          "title": "End-to-end on index php rt product category path 10: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '0 ITEMS - $0.00' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-text"
+        },
+        {
+          "tc_id": "TC-5928B833",
+          "title": "End-to-end on index php rt product category path 10 11: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '0 ITEMS - $0.00' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-text"
+        },
+        {
+          "tc_id": "TC-085DA1F7",
+          "title": "End-to-end on index php rt product category path 10 12: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '0 ITEMS - $0.00' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-text"
+        },
+        {
+          "tc_id": "TC-DB203801",
+          "title": "End-to-end on index php rt product special x: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '1 ITEMS - $18.50' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-tex"
+        },
+        {
+          "tc_id": "TC-848FC572",
+          "title": "End-to-end on index php rt product category path 10 x: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '1 ITEMS - $18.50' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-tex"
+        },
+        {
+          "tc_id": "TC-5FCB9F33",
+          "title": "End-to-end on index php rt product category path 10 11: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '1 ITEMS - $18.50' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-tex"
+        },
+        {
+          "tc_id": "TC-342F4D93",
+          "title": "End-to-end on index php rt product category path 10 12: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '1 ITEMS - $18.50' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-tex"
+        },
+        {
+          "tc_id": "TC-4EF49317",
+          "title": "End-to-end on index php rt product category path 10 so: 4 steps (Search finds 'Login', Search for something that doesn't exist \u2026)",
+          "why": "E   AssertionError: 1 of 4 steps failed: | E   step 4 'Pointing at (or clicking) '1 ITEMS - $18.50' shows its menu / details' failed: AssertionError: it should be visible [locator(\"li.dropdown:has-tex"
+        },
+        {
+          "tc_id": "TC-00DBA372",
+          "title": "Every link works (41 links, 3 links to a part of a page)",
+          "why": "E   AssertionError: The link 'Description' points to #description on http://127.0.0.1:56773/, but that page has no such part - clicking it goes nowhere (found on http://127.0.0.1:56773/index.php?rt=pr"
+        },
+        {
+          "tc_id": "TC-4780F1A8",
+          "title": "Input boxes handle wrong and unusual values (73 values, 8 boxes)",
+          "why": "E   AssertionError: An invalid value was accepted: 'testuser.example.com' | E   assert (not True or not True or 'testuser.example.com' != 'testuser.example.com') (+11 more failed)"
+        }
+      ],
+      "never_requested_but_done": []
+    },
+    "run_dir": "<temp>\\buggy\\runs\\127.0.0.1_56773_20261028_073143"
+  }
+}

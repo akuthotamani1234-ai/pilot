@@ -1,0 +1,34 @@
+An automated test of a website FAILED. Look at the pictures and decide whose mistake it is - the website's or the test's.
+
+THE TEST: {title}
+WHO WROTE IT: {origin}
+WHAT IT DID: {steps}
+WHAT IT EXPECTED: {expected}
+WHY IT FAILED (the test's own words): {error}
+ITEMS THIS WEBSITE REALLY HAS (names seen while it was explored - also ones not in the pictures): {known}
+THE PICTURES: {pictures}
+
+Answer with one verdict:
+- "website_bug": the pictures show the WEBSITE doing something wrong - an error page or error message, a broken or
+  overlapping layout, a wrong value / count / total, a button or link that clearly did nothing, a page that did not open.
+- "test_mistake": the pictures show the website did the RIGHT thing and the test was wrong. For example: the message the
+  test says was missing IS on the screen (also a red "Required" under a box); the value the test read is shown
+  correctly (Qty 2 when the test says 1); the item it looked for is there under another name; the test expected
+  something this kind of page does not do (a search / filter form sent empty lists all records - that is normal; a menu
+  button that hides the side menu instead of opening a list); the test looked for a message the website never shows.
+  A RED "Required" (or "required", "is required", "Invalid") under a box, or boxes outlined in red, IS the website's
+  error message: when the test says "no error message was shown" but the pictures show that, choose "test_mistake".
+  A form whose boxes are all optional may be sent empty - that is not a bug either.
+  A MISSING MESSAGE ALONE IS NEVER A WEBSITE BUG: many websites show no "added" / "saved" message and show the result
+  instead (the cart count in the header changed, the item is listed, the page changed). If the test only says a
+  message was missing: choose "test_mistake" when the result of the action is visible or the website clearly
+  never shows such messages, else "cannot_tell".
+- "cannot_tell": the pictures can't show it (a JavaScript / console error, an HTTP status, something off screen) or they
+  are unclear. When in doubt, choose this one.
+Judge ONLY from what the pictures (and the list of items above) show - never guess. A search that shows "no result"
+for a word that one of the website's items has in its name (any capital letters) is a website bug. If the answer needs
+something neither the pictures nor that list show, choose "cannot_tell".
+In "seen", quote the exact words on the screen that matter.
+
+Return ONLY JSON:
+{{"verdict": "website_bug | test_mistake | cannot_tell", "seen": "<what the pictures show that matters, quoting the screen>", "reason": "<one plain sentence a non-technical person understands>"}}

@@ -1,0 +1,56 @@
+# Secrets: your settings and API keys (.env.example is the empty template that IS shared)
+.env
+.env.*
+!.env.example
+
+# Local data written by runs: never part of a release
+runs/
+baseline/*
+!baseline/.gitkeep
+workspace/*
+!workspace/.gitkeep
+accounts/
+logs/
+schedules.json
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Python environment and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Playwright output when the generated tests are run by hand outside a run folder
+test-results/
+playwright-report/
+
+# Editors and the operating system
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+# Excel's lock file while test_cases.xlsx is open
+~$*
+
+# old snapshot folder (no longer used)
+.snapshots/
+
+# Workspace-only privacy preferences and generated MCP paths
+.private/
+mcp-config.local.json
+
+# Downloaded demo applications and browser-driver binaries
+demo-apps/*.apk
+tools/chromedriver/*.exe

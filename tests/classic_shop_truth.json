@@ -1,0 +1,50 @@
+{
+  "about": "Everything that is really on ClassicShop (tests/classic_shop.py), to measure what the agent finds and misses on a shop that picks its pages with index.php?rt=<route>. Same fields as demo_store_truth.json: 'detect' = words that show the feature was seen on the page; 'test' = words a test case about it contains; 'expect' = the correct outcome (verified / blocked = protected, never run); 'bug' = the planted bug (ClassicShop(bugs=True)) its test must catch. A page path with '?' matches on the address path plus these query values ({id} = any value); other query values are ignored.",
+  "pages": [
+    {"path": "/", "auth": false},
+    {"path": "/index.php?rt=product/category&path={id}", "auth": false},
+    {"path": "/index.php?rt=product/special", "auth": false},
+    {"path": "/index.php?rt=product/search", "auth": false, "how": "only through the search box"},
+    {"path": "/index.php?rt=product/product&product_id={id}", "auth": false, "how": "18 pages of one route: a sample is enough"},
+    {"path": "/index.php?rt=checkout/cart", "auth": false},
+    {"path": "/index.php?rt=account/login", "auth": false},
+    {"path": "/index.php?rt=account/create", "auth": false, "how": "linked from the site map"},
+    {"path": "/index.php?rt=account/invoice", "auth": false},
+    {"path": "/index.php?rt=content/contact", "auth": false},
+    {"path": "/index.php?rt=content/content&content_id={id}", "auth": false},
+    {"path": "/index.php?rt=content/sitemap", "auth": false},
+    {"path": "/index.php?rt=account/account", "auth": true},
+    {"path": "/index.php?rt=account/history", "auth": true}
+  ],
+  "inaccessible": [],
+  "never": ["POST checkout/confirm", "GET account/logout", "POST account/subscriber", "POST content/contact",
+            "POST account/create"],
+  "features": [
+    {"id": "login.wrong_password", "page": "/index.php?rt=account/login", "detect": "login name|password", "test": "wrong password"},
+    {"id": "login.new_customer_choice", "page": "/index.php?rt=account/login", "detect": "guest checkout", "test": "register account / guest checkout"},
+    {"id": "search.finds", "page": "/", "anywhere": true, "detect": "search", "test": "search (finds|for ')", "bug": "search_wrong_hit"},
+    {"id": "search.nothing", "page": "/", "anywhere": true, "detect": "search", "test": "doesn't exist|does not exist|no results", "bug": "search_wrong_hit"},
+    {"id": "category.sort", "page": "/index.php?rt=product/category&path={id}", "detect": "sort", "test": "sort", "bug": "sort_price"},
+    {"id": "category.pagination", "page": "/index.php?rt=product/category&path={id}", "detect": "pagination|next", "test": "other items|next page|'>'"},
+    {"id": "category.per_page", "page": "/index.php?rt=product/category&path={id}", "anywhere": true, "detect": "per page|limit", "test": "per page",
+     "note": "the same 'Per page' box is on every list page (categories, specials): a test on any of them tests it"},
+    {"id": "product.option", "page": "/index.php?rt=product/product&product_id={id}", "detect": "please select|shade|size", "test": "shade|size"},
+    {"id": "product.quantity", "page": "/index.php?rt=product/product&product_id={id}", "detect": "qty|quantity", "test": "quantity"},
+    {"id": "product.add_to_cart", "page": "/index.php?rt=product/product&product_id={id}", "detect": "add to cart", "test": "add to cart|adds the item"},
+    {"id": "product.tabs", "page": "/index.php?rt=product/product&product_id={id}", "detect": "reviews", "test": "tabs"},
+    {"id": "product.print", "page": "/index.php?rt=product/product&product_id={id}", "detect": "print", "test": "'print'"},
+    {"id": "cart.totals", "page": "/index.php?rt=checkout/cart", "anywhere": true, "detect": "total", "test": "total", "bug": "cart_total"},
+    {"id": "cart.checkout", "page": "/index.php?rt=checkout/cart", "anywhere": true, "detect": "checkout", "test": "checkout", "expect": "blocked"},
+    {"id": "newsletter.subscribe", "page": "/", "anywhere": true, "detect": "subscribe", "test": "subscribe", "expect": "blocked"},
+    {"id": "header.cart_menu", "page": "/", "anywhere": true, "detect": "items", "test": "pointing at.*items"},
+    {"id": "header.category_menu", "page": "/", "anywhere": true, "detect": "makeup", "test": "pointing at.*makeup"},
+    {"id": "footer.back_to_top", "page": "/", "anywhere": true, "detect": "back to top", "test": "back to top"},
+    {"id": "contact.validation", "page": "/index.php?rt=content/contact", "detect": "enquiry", "test": "empty|required|invalid email"},
+    {"id": "invoice.validation", "page": "/index.php?rt=account/invoice", "detect": "order id", "test": "empty|required"}
+  ],
+  "bugs": {
+    "search_wrong_hit": {"what": "the search also lists items that don't match", "signature": "don't match|does not exist still shows|still shows"},
+    "sort_price": {"what": "'Price Low > High' is not sorted", "signature": "should sort by price"},
+    "cart_total": {"what": "the cart total ignores the quantity", "signature": "cart total|total should"}
+  }
+}

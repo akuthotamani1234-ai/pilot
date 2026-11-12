@@ -1,0 +1,71 @@
+Write ONE PyTest file that implements these LARGE end-to-end test cases for a website.
+
+PAGES (real addresses and selectors found by the crawler - use ONLY these; "observed" = what really happened when the
+crawler used a control: "said" = the website's own words, "alert: ..." = it answered in the browser's alert box;
+"on_screen" = what an AI saw in the page's screenshot: its features and the messages it shows, word for word):
+{pages}
+
+TEST CASES:
+{cases}
+
+STRICT RULES:
+- Fixtures already exist in conftest.py - do NOT define them:
+  `page` (Playwright sync Page; it starts LOGGED IN with the test account when the site has a login),
+  `console_errors` (list of console error strings), `qa_login` (returns (user name, password) of the test account;
+  use it only to type the test account into a login form - never write a password in the code).
+- Start with: `import re`, `import pytest` and `from playwright.sync_api import expect`.
+- One function per test case, named exactly `test_<id>` (e.g. `test_flow_3`), taking `page` (plus `console_errors` /
+  `qa_login` if needed). First line: a one-line docstring with the test title.
+- A test case with "guest": true must be decorated with `@pytest.mark.guest` (it then starts NOT logged in).
+- Each test goes to its first page with `page.goto("<url>")` (use the full url from PAGES), then follows the steps,
+  moving between pages by clicking like a user (or page.goto for the next page's url).
+- Check the RESULT of every step, not only that it can be clicked: after a search assert the matching item is
+  shown; after "add to cart" assert the cart count / contents changed; after choosing an option assert it is
+  selected; after a navigation click assert the new page or section is shown; after a wrong password assert you are
+  still on the login page or an error is shown. Use `expect(...)` (to_be_visible, to_have_text, to_contain_text,
+  to_have_count, to_have_value, to_be_checked, to_have_url) or plain `assert` with a helpful message.
+  Count with `expect(locator).to_have_count(n)` (it waits until the page updates) - never `assert locator.count() == n`
+  right after a click or a search. to_have_count takes a NUMBER; "at least one" is `not_to_have_count(0)`.
+  Never `assert True` or any check that cannot fail.
+- A website whose addresses use "#/" (https://site.com/#/category/7): its home page is "https://site.com/#/".
+- Logging in with the RIGHT account: `user, password = qa_login` and type those (a "guest" test starts logged out).
+  A wrong password may be made up; NEVER make up a "correct" password or user name.
+- Selectors: use the ones in PAGES with `page.locator(selector)`. They may be CSS (`a.increment`,
+  `input[placeholder="Search"]`) or Playwright text selectors (`button:has-text("ADD TO CART")`).
+  Copy them EXACTLY, including any ` >> visible=true` or ` >> nth=0` part: that part makes them point to ONE element.
+  A button with "count" > 1 repeats (e.g. once per product): use `.first`.
+  A text locator (`text=...`, `get_by_text`, a list of headings) often matches SEVERAL elements (a menu item, the page
+  title and a filter label with the same words): prefer a selector from PAGES, else add `.first`.
+  A control inside an embedded frame has a selector with ` >> internal:control=enter-frame >> ` in it (the same as
+  `page.frame_locator(a).frame_locator(b).locator(sel)`): pass the WHOLE selector to `page.locator(...)` unchanged.
+  A control inside a web component (shadow DOM) is found by its selector as given (CSS looks inside open shadow roots).
+- Messages: to check what the website SAID (a toast, a status line, or the browser's alert box "alert: ..."), use the
+  helper `_said(page)` - it is already defined in the file, do NOT define it. It returns every message shown so far:
+  `assert any('<words from "said" / on_screen messages>' in m for m in _said(page)), "no '<words>' message"`.
+  Never look for an alert box's text with page.locator / get_by_text (it is not on the page).
+- ONLY assert texts that really appear in PAGES: a title, a heading, a button / link text, items_listed, an "observed"
+  "said" or an on_screen message. Never invent a message (a confirmation toast, a "success" line) or an item name.
+  When the website shows no message after an action, check its RESULT instead (the cart lists the item, the URL
+  changed, the table shows the row). Item names: copy them exactly as items_listed shows them.
+- A test case whose expected result starts with "Exploratory:" only checks what is certain (the page or element is
+  shown); never assert texts or numbers that were guessed.
+  You may also use `page.get_by_role`, `page.get_by_text`, `page.get_by_placeholder`, `page.get_by_label`.
+- Wait for results with expect(...) (it auto-waits); `page.wait_for_timeout` at most 2000 ms.
+- Never import os, subprocess, sys, shutil, socket; never read/write files; no time.sleep.
+- NEVER complete a purchase, payment, booking confirmation, deletion or logout: never click checkout / place order /
+  pay / buy / confirm / delete / logout buttons. Stop the flow before them.
+Output ONLY the Python code in one ```python block.
+
+
+ADDITIONAL EVIDENCE REQUIREMENTS:
+- document_title is the browser tab title. Assert it with expect(page).to_have_title; never assume an h1 contains it.
+- headings are the observed page headings. Use get_by_role("heading", name=observed_text, exact=True), scoped when needed.
+- Never use bare h1/h2/h3/h4/h5/h6 selectors for a single-element text assertion.
+- Never use text= selectors or non-exact get_by_text to click products: descriptions can contain the same words.
+  Prefer an observed href/selector or get_by_role("link", name=observed_text, exact=True).
+- opener_paths gives the actions needed before a hidden control can be used. Replay those actions before filling or clicking.
+- Assert message text only when observed evidence or owner requirements supply that text. Do not guess "incorrect",
+  "required", "success" or a welcome message. Check a grounded state; use pytest.skip with a clear missing-evidence
+  explanation when the expected result is unknown.
+- Respect permissions: do not create/register accounts when account_creation is false, and do not invent valid
+  login credentials when test_account_available is false.

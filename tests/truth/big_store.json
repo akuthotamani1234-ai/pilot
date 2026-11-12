@@ -1,0 +1,31 @@
+{
+  "about": "BigStore (tests/big_store.py): 2,000 products in 20 categories. Measured with BigStore(slugs=True) - product addresses without a number (/products/red-oak-lamp): the product pages must still be ONE page type (by their design), 3 fully tested, 10 smoke-checked, 2,000 found (the sitemap lists them all).",
+  "pages": [
+    {"path": "/", "auth": false},
+    {"path": "/category/{id}", "auth": false},
+    {"path": "/products/{id}", "auth": false, "how": "2,000 pages of one design: a sample is enough"},
+    {"path": "/search", "auth": false, "how": "only through the search box"},
+    {"path": "/cart", "auth": false},
+    {"path": "/login", "auth": false},
+    {"path": "/account", "auth": true},
+    {"path": "/orders", "auth": true}
+  ],
+  "inaccessible": [],
+  "never": ["GET /logout"],
+  "page_type": {"kind": "/products/* (one design)", "fully_tested": 3, "smoke": 10, "found": 2000},
+  "features": [
+    {"id": "search.finds", "page": "/", "anywhere": true, "detect": "search", "test": "search (finds|for ')", "bug": "S1"},
+    {"id": "category.sort", "page": "/category/{id}", "detect": "sort by", "test": "sort", "bug": "S2"},
+    {"id": "category.instock", "page": "/category/{id}", "detect": "in stock only", "test": "in stock"},
+    {"id": "category.pages", "page": "/category/{id}", "detect": "next", "test": "next page|other items"},
+    {"id": "product.add_to_cart", "page": "/products/{id}", "detect": "add to cart", "test": "add to cart|adds the item"},
+    {"id": "product.quantity", "page": "/products/{id}", "detect": "quantity", "test": "quantity"},
+    {"id": "cart.total", "page": "/cart", "anywhere": true, "detect": "total", "test": "total", "bug": "S3"},
+    {"id": "cart.checkout", "page": "/cart", "anywhere": true, "detect": "checkout", "test": "checkout", "expect": "blocked"}
+  ],
+  "bugs": {
+    "S1": {"what": "the search also lists a product without the word", "signature": "don't match|without|does not mention"},
+    "S2": {"what": "'Price: low to high' is not sorted", "signature": "should sort|not sorted|not in order"},
+    "S3": {"what": "the cart total ignores the quantity", "signature": "cart total|total should|follows the quantity|total"}
+  }
+}

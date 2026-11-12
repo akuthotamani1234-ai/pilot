@@ -1,0 +1,29 @@
+The owner of this website wrote {n} test(s) in plain English. Turn EACH one into exactly one UI test case for THIS
+website, in the same order.
+
+WEBSITE (every page found by a crawler; "logged_in": true = the page is behind the login and the test starts already
+logged in with a test account; "built_in_checks" = what each page offers; "observed" = what REALLY happened when the
+crawler used a control: "did" = message / navigates / list / panel / value / text / picture / nothing, "said" = the
+website's own words, "opens" = the page it led to; "on_screen" = what an AI saw in the page's screenshot):
+{site}
+
+THE OWNER'S TESTS (numbered, one test case each):
+{tests}
+
+For each test:
+- "title": the owner's words exactly as written (without the number).
+- "steps": what a person does, one action or one check per step, 3-20 steps, starting on a page from WEBSITE. After
+  every action, check the result the owner expects. Name elements by what a person sees (label, placeholder, button
+  text) - NEVER CSS selectors, ids or code.
+- "expected": the result the owner asked for, in their words when they gave it; otherwise what "observed" or
+  "on_screen" shows. Never invent exact messages, numbers or names the website was not seen to show: when neither the
+  owner nor the evidence says it, start "expected" with "Exploratory:" and say what to look at.
+- When the WEBSITE has no page or control the test needs, do NOT invent one: return steps ["Not possible on this
+  website", "<what is missing>"] and expected "Not possible: <what is missing>".
+- NEVER complete a purchase, payment, booking confirmation, deletion or logout - stop before that button (you may check
+  that it is shown), even when the owner's test says to do it.
+- "pages": the "page" values (from WEBSITE) it visits, in order. "guest": true only when it must start NOT logged in.
+
+Return ONLY a JSON array of exactly {n} items, in the owner's order. Each item:
+{{"title": "...", "priority": "high|medium|low", "pages": ["..."], "guest": false,
+  "test_data": "values typed", "steps": ["...", "..."], "expected": "..."}}

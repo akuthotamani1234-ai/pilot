@@ -1,0 +1,2148 @@
+[
+ {
+  "url": "https://automationexercise.com/products",
+  "slug": "products",
+  "title": "Automation Exercise - All Products",
+  "page_type": "listing",
+  "auth": false,
+  "status": 200,
+  "inputs": [
+   {
+    "tag": "input",
+    "type": "text",
+    "name": "search",
+    "id": "search_product",
+    "selector": "#search_product",
+    "label": "Search Product",
+    "accname": "Search Product",
+    "role": "textbox",
+    "required": false,
+    "placeholder": "Search Product",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"text\" name=\"search\" id=\"search_product\" value=\"\" placeholder=\"Search Product\" class=\"form-control input-lg\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   },
+   {
+    "tag": "input",
+    "type": "email",
+    "name": "",
+    "id": "susbscribe_email",
+    "selector": "#susbscribe_email",
+    "label": "Your email address",
+    "accname": "Your email address",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Your email address",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   }
+  ],
+  "buttons": [
+   {
+    "text": "fa fa search btn btn default btn lg",
+    "accname": "",
+    "role": "button",
+    "selector": "#submit_search",
+    "type": "button",
+    "tag": "button",
+    "named": false,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"button\" id=\"submit_search\" class=\"btn btn-default btn-lg\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "WOMEN",
+    "accname": "WOMEN",
+    "role": "link",
+    "selector": "a:has-text(\"WOMEN\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Women\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "MEN",
+    "accname": "MEN",
+    "role": "link",
+    "selector": "a:has-text(\"MEN\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Men\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "KIDS",
+    "accname": "KIDS",
+    "role": "link",
+    "selector": "a:has-text(\"KIDS\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Kids\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Add to cart",
+    "accname": "Add to cart",
+    "role": "link",
+    "selector": "a.btn.btn-default",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<a data-product-id=\"1\" class=\"btn btn-default add-to-cart\">",
+    "count": 68,
+    "first_seen": true
+   },
+   {
+    "text": "fa fa arrow circle o right btn btn default",
+    "accname": "",
+    "role": "button",
+    "selector": "#subscribe",
+    "type": "submit",
+    "tag": "button",
+    "named": false,
+    "in_form": true,
+    "disabled": false,
+    "inert": false,
+    "form_method": "post",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"submit\" id=\"subscribe\" class=\"btn btn-default\">",
+    "count": 1,
+    "first_seen": true
+   }
+  ],
+  "links": [
+   {
+    "href": "https://automationexercise.com",
+    "text": "",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/products",
+    "text": "\ue8f8 Products",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/view_cart",
+    "text": "Cart",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/login",
+    "text": "Signup / Login",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/test_cases",
+    "text": "Test Cases",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/api_list",
+    "text": "API Testing",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://www.youtube.com/c/AutomationExercise",
+    "text": "Video Tutorials",
+    "visible": true,
+    "external": true,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/contact_us",
+    "text": "Contact us",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/1",
+    "text": "Dress",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/2",
+    "text": "Tops",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/7",
+    "text": "Saree",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/3",
+    "text": "Tshirts",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/6",
+    "text": "Jeans",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/4",
+    "text": "Dress",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/5",
+    "text": "Tops & Shirts",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Polo",
+    "text": "(6)\nPOLO",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/H&M",
+    "text": "(5)\nH&M",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Madame",
+    "text": "(5)\nMADAME",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Mast%20&%20Harbour",
+    "text": "(3)\nMAST & HARBOUR",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Babyhug",
+    "text": "(4)\nBABYHUG",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Allen%20Solly%20Junior",
+    "text": "(3)\nALLEN SOLLY JUNIOR",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Kookie%20Kids",
+    "text": "(3)\nKOOKIE KIDS",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Biba",
+    "text": "(5)\nBIBA",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/1",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/2",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/3",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/4",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/5",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/6",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/7",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/8",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/11",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/12",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/13",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/14",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/15",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/16",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/18",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/19",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/20",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/21",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/22",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/23",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/24",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/28",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/29",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/30",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/31",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/33",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/35",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/37",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/38",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/39",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/40",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/41",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/42",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/43",
+    "text": "View Product",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   }
+  ],
+  "forms": [
+   {
+    "index": 0,
+    "selector": "form >> nth=0",
+    "open_tag": "<form class=\"searchform\" method=\"POST\">",
+    "action": "",
+    "method": "post",
+    "hidden": [],
+    "fields": [
+     {
+      "name": "",
+      "id": "susbscribe_email",
+      "type": "email",
+      "selector": "#susbscribe_email",
+      "required": true,
+      "label": "Your email address",
+      "placeholder": "Your email address",
+      "autocomplete": "",
+      "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">"
+     }
+    ],
+    "submit": {
+     "text": "",
+     "selector": "#subscribe"
+    }
+   }
+  ],
+  "itemLinks": {
+   "selector": "div.features_items > div.col-sm-4 a[href]:not([href^=\"#\"]):not([href^=\"javascript\" i])",
+   "links": [
+    {
+     "href": "https://automationexercise.com/product_details/1",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/2",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/3",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/4",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/5",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/6",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/7",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/8",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/11",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/12",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/13",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/14",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/15",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/16",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/18",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/19",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/20",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/21",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/22",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/23",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/24",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/28",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/29",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/30",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/31",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/33",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/35",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/37",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/38",
+     "text": "View Product"
+    },
+    {
+     "href": "https://automationexercise.com/product_details/39",
+     "text": "View Product"
+    }
+   ],
+   "cards": [
+    "Rs. 500\n\nBlue Top\n\nAdd to cart\nRs. 500\n\nBlue Top\n\nAdd to cart\nView Product",
+    "Rs. 400\n\nMen Tshirt\n\nAdd to cart\nRs. 400\n\nMen Tshirt\n\nAdd to cart\nView Product",
+    "Rs. 1000\n\nSleeveless Dress\n\nAdd to cart\nRs. 1000\n\nSleeveless Dress\n\nAdd to cart\nView Product",
+    "Rs. 1500\n\nStylish Dress\n\nAdd to cart\nRs. 1500\n\nStylish Dress\n\nAdd to cart\nView Product",
+    "Rs. 600\n\nWinter Top\n\nAdd to cart\nRs. 600\n\nWinter Top\n\nAdd to cart\nView Product",
+    "Rs. 400\n\nSummer White Top\n\nAdd to cart\nRs. 400\n\nSummer White Top\n\nAdd to cart\nView Product",
+    "Rs. 1000\n\nMadame Top For Women\n\nAdd to cart\nRs. 1000\n\nMadame Top For Women\n\nAdd to cart\nView Product",
+    "Rs. 700\n\nFancy Green Top\n\nAdd to cart\nRs. 700\n\nFancy Green Top\n\nAdd to cart\nView Product",
+    "Rs. 499\n\nSleeves Printed Top - White\n\nAdd to cart\nRs. 499\n\nSleeves Printed Top - White\n\nAdd to cart\nView Product",
+    "Rs. 359\n\nHalf Sleeves Top Schiffli Detailing - Pink\n\nAdd to cart\nRs. 359\n\nHalf Sleeves Top Schiffli Detailing - Pink\n\nAdd to cart\nView Product",
+    "Rs. 278\n\nFrozen Tops For Kids\n\nAdd to cart\nRs. 278\n\nFrozen Tops For Kids\n\nAdd to cart\nView Product",
+    "Rs. 679\n\nFull Sleeves Top Cherry - Pink\n\nAdd to cart\nRs. 679\n\nFull Sleeves Top Cherry - Pink\n\nAdd to cart\nView Product",
+    "Rs. 315\n\nPrinted Off Shoulder Top - White\n\nAdd to cart\nRs. 315\n\nPrinted Off Shoulder Top - White\n\nAdd to cart\nView Product",
+    "Rs. 478\n\nSleeves Top and Short - Blue & Pink\n\nAdd to cart\nRs. 478\n\nSleeves Top and Short - Blue & Pink\n\nAdd to cart\nView Product",
+    "Rs. 1200\n\nLittle Girls Mr. Panda Shirt\n\nAdd to cart\nRs. 1200\n\nLittle Girls Mr. Panda Shirt\n\nAdd to cart\nView Product",
+    "Rs. 1050\n\nSleeveless Unicorn Patch Gown - Pink\n\nAdd to cart\nRs. 1050\n\nSleeveless Unicorn Patch Gown - Pink\n\nAdd to cart\nView Product",
+    "Rs. 1190\n\nCotton Mull Embroidered Dress\n\nAdd to cart\nRs. 1190\n\nCotton Mull Embroidered Dress\n\nAdd to cart\nView Product",
+    "Rs. 1530\n\nBlue Cotton Indie Mickey Dress\n\nAdd to cart\nRs. 1530\n\nBlue Cotton Indie Mickey Dress\n\nAdd to cart\nView Product",
+    "Rs. 1600\n\nLong Maxi Tulle Fancy Dress Up Outfits -Pink\n\nAdd to cart\nRs. 1600\n\nLong Maxi Tulle Fancy Dress Up Outfits -Pink\n\nAdd to cart\nView Product",
+    "Rs. 1100\n\nSleeveless Unicorn Print Fit & Flare Net Dress - Multi\n\nAdd to cart\nRs. 1100\n\nSleeveless Unicorn Print Fit & Flare Net Dress - Multi\n\nAdd to cart\nView Product",
+    "Rs. 849\n\nColour Blocked Shirt \u2013 Sky Blue\n\nAdd to cart\nRs. 849\n\nColour Blocked Shirt \u2013 Sky Blue\n\nAdd to cart\nView Product",
+    "Rs. 1299\n\nPure Cotton V-Neck T-Shirt\n\nAdd to cart\nRs. 1299\n\nPure Cotton V-Neck T-Shirt\n\nAdd to cart\nView Product",
+    "Rs. 1000\n\nGreen Side Placket Detail T-Shirt\n\nAdd to cart\nRs. 1000\n\nGreen Side Placket Detail T-Shirt\n\nAdd to cart\nView Product",
+    "Rs. 1500\n\nPremium Polo T-Shirts\n\nAdd to cart\nRs. 1500\n\nPremium Polo T-Shirts\n\nAdd to cart\nView Product",
+    "Rs. 850\n\nPure Cotton Neon Green Tshirt\n\nAdd to cart\nRs. 850\n\nPure Cotton Neon Green Tshirt\n\nAdd to cart\nView Product",
+    "Rs. 799\n\nSoft Stretch Jeans\n\nAdd to cart\nRs. 799\n\nSoft Stretch Jeans\n\nAdd to cart\nView Product",
+    "Rs. 1200\n\nRegular Fit Straight Jeans\n\nAdd to cart\nRs. 1200\n\nRegular Fit Straight Jeans\n\nAdd to cart\nView Product",
+    "Rs. 1400\n\nGrunt Blue Slim Fit Jeans\n\nAdd to cart\nRs. 1400\n\nGrunt Blue Slim Fit Jeans\n\nAdd to cart\nView Product",
+    "Rs. 2300\n\nRose Pink Embroidered Maxi Dress\n\nAdd to cart\nRs. 2300\n\nRose Pink Embroidered Maxi Dress\n\nAdd to cart\nView Product",
+    "Rs. 3000\n\nCotton Silk Hand Block Print Saree\n\nAdd to cart\nRs. 3000\n\nCotton Silk Hand Block Print Saree\n\nAdd to cart\nView Product"
+   ],
+   "odd": []
+  },
+  "headings": [
+   "CATEGORY",
+   "BRANDS",
+   "ALL PRODUCTS",
+   "Rs. 500",
+   "Rs. 500",
+   "Rs. 400",
+   "Rs. 400",
+   "Rs. 1000",
+   "Rs. 1000",
+   "Rs. 1500"
+  ],
+  "final_url": "https://automationexercise.com/products"
+ },
+ {
+  "url": "https://automationexercise.com/view_cart",
+  "slug": "view_cart",
+  "title": "Automation Exercise - Checkout",
+  "page_type": "cart",
+  "auth": false,
+  "status": 200,
+  "inputs": [
+   {
+    "tag": "input",
+    "type": "email",
+    "name": "",
+    "id": "susbscribe_email",
+    "selector": "#susbscribe_email",
+    "label": "Your email address",
+    "accname": "Your email address",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Your email address",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   }
+  ],
+  "buttons": [
+   {
+    "text": "Proceed To Checkout",
+    "accname": "Proceed To Checkout",
+    "role": "link",
+    "selector": "a.btn.btn-default",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<a class=\"btn btn-default check_out\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "2",
+    "accname": "2",
+    "role": "button",
+    "selector": null,
+    "type": "",
+    "tag": "button",
+    "named": true,
+    "in_form": false,
+    "disabled": true,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button class=\"disabled\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "fa fa arrow circle o right btn btn default",
+    "accname": "",
+    "role": "button",
+    "selector": "#subscribe",
+    "type": "submit",
+    "tag": "button",
+    "named": false,
+    "in_form": true,
+    "disabled": false,
+    "inert": false,
+    "form_method": "post",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"submit\" id=\"subscribe\" class=\"btn btn-default\">",
+    "count": 1,
+    "first_seen": false
+   }
+  ],
+  "links": [
+   {
+    "href": "https://automationexercise.com",
+    "text": "",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/products",
+    "text": "\ue8f8 Products",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/view_cart",
+    "text": "Cart",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/login",
+    "text": "Signup / Login",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/test_cases",
+    "text": "Test Cases",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/api_list",
+    "text": "API Testing",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://www.youtube.com/c/AutomationExercise",
+    "text": "Video Tutorials",
+    "visible": true,
+    "external": true,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/contact_us",
+    "text": "Contact us",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/1",
+    "text": "Blue Top",
+    "visible": true,
+    "external": false
+   }
+  ],
+  "forms": [
+   {
+    "index": 0,
+    "selector": "form >> nth=0",
+    "open_tag": "<form class=\"searchform\" method=\"POST\">",
+    "action": "",
+    "method": "post",
+    "hidden": [],
+    "fields": [
+     {
+      "name": "",
+      "id": "susbscribe_email",
+      "type": "email",
+      "selector": "#susbscribe_email",
+      "required": true,
+      "label": "Your email address",
+      "placeholder": "Your email address",
+      "autocomplete": "",
+      "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">"
+     }
+    ],
+    "submit": {
+     "text": "",
+     "selector": "#subscribe"
+    }
+   }
+  ],
+  "itemLinks": {},
+  "headings": [
+   "SUBSCRIPTION"
+  ],
+  "final_url": "https://automationexercise.com/view_cart"
+ },
+ {
+  "url": "https://automationexercise.com/test_cases",
+  "slug": "test_cases",
+  "title": "Automation Practice Website for UI Testing - Test Cases",
+  "page_type": "product",
+  "auth": false,
+  "status": 200,
+  "inputs": [
+   {
+    "tag": "input",
+    "type": "email",
+    "name": "",
+    "id": "susbscribe_email",
+    "selector": "#susbscribe_email",
+    "label": "Your email address",
+    "accname": "Your email address",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Your email address",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   }
+  ],
+  "buttons": [
+   {
+    "text": "Test Case 1: Register User",
+    "accname": "Test Case 1: Register User",
+    "role": "link",
+    "selector": "a:has-text(\"Register User\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse1\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 2: Login User with correct email and password",
+    "accname": "Test Case 2: Login User with correct email and password",
+    "role": "link",
+    "selector": "a:has-text(\"Login User with correct ema\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse2\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 3: Login User with incorrect email and password",
+    "accname": "Test Case 3: Login User with incorrect email and password",
+    "role": "link",
+    "selector": "a:has-text(\"Login User with incorrect e\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse3\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 4: Logout User",
+    "accname": "Test Case 4: Logout User",
+    "role": "link",
+    "selector": "a:has-text(\"Logout User\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse4\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 5: Register User with existing email",
+    "accname": "Test Case 5: Register User with existing email",
+    "role": "link",
+    "selector": "a:has-text(\"Register User with existing\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse5\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 6: Contact Us Form",
+    "accname": "Test Case 6: Contact Us Form",
+    "role": "link",
+    "selector": "a:has-text(\"Contact Us Form\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse6\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 7: Verify Test Cases Page",
+    "accname": "Test Case 7: Verify Test Cases Page",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Test Cases Page\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse7\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 8: Verify All Products and product detail page",
+    "accname": "Test Case 8: Verify All Products and product detail page",
+    "role": "link",
+    "selector": "a:has-text(\"Verify All Products and pro\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse8\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 9: Search Product",
+    "accname": "Test Case 9: Search Product",
+    "role": "link",
+    "selector": "a:has-text(\"Search Product\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse9\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 10: Verify Subscription in home page",
+    "accname": "Test Case 10: Verify Subscription in home page",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Subscription in hom\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse10\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 11: Verify Subscription in Cart page",
+    "accname": "Test Case 11: Verify Subscription in Cart page",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Subscription in Car\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse11\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 12: Add Products in Cart",
+    "accname": "Test Case 12: Add Products in Cart",
+    "role": "link",
+    "selector": "a:has-text(\"Add Products in Cart\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse12\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 13: Verify Product quantity in Cart",
+    "accname": "Test Case 13: Verify Product quantity in Cart",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Product quantity in\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse13\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 14: Place Order: Register while Checkout",
+    "accname": "Test Case 14: Place Order: Register while Checkout",
+    "role": "link",
+    "selector": "a:has-text(\"Place Order: Register whil\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse14\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 15: Place Order: Register before Checkout",
+    "accname": "Test Case 15: Place Order: Register before Checkout",
+    "role": "link",
+    "selector": "a:has-text(\"Place Order: Register befo\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse15\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 16: Place Order: Login before Checkout",
+    "accname": "Test Case 16: Place Order: Login before Checkout",
+    "role": "link",
+    "selector": "a:has-text(\"Place Order: Login before\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse16\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 17: Remove Products From Cart",
+    "accname": "Test Case 17: Remove Products From Cart",
+    "role": "link",
+    "selector": "a:has-text(\"Remove Products From Cart\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse17\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 18: View Category Products",
+    "accname": "Test Case 18: View Category Products",
+    "role": "link",
+    "selector": "a:has-text(\"View Category Products\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse18\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 19: View & Cart Brand Products",
+    "accname": "Test Case 19: View & Cart Brand Products",
+    "role": "link",
+    "selector": "a:has-text(\"View & Cart Brand Products\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse19\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 20: Search Products and Verify Cart After Login",
+    "accname": "Test Case 20: Search Products and Verify Cart After Login",
+    "role": "link",
+    "selector": "a:has-text(\"Search Products and Verify\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse20\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 21: Add review on product",
+    "accname": "Test Case 21: Add review on product",
+    "role": "link",
+    "selector": "a:has-text(\"Add review on product\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse21\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 22: Add to cart from Recommended items",
+    "accname": "Test Case 22: Add to cart from Recommended items",
+    "role": "link",
+    "selector": "a:has-text(\"Add to cart from Recommend\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse22\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 23: Verify address details in checkout page",
+    "accname": "Test Case 23: Verify address details in checkout page",
+    "role": "link",
+    "selector": "a:has-text(\"Verify address details in\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse23\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 24: Download Invoice after purchase order",
+    "accname": "Test Case 24: Download Invoice after purchase order",
+    "role": "link",
+    "selector": "a:has-text(\"Download Invoice after pur\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse24\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 25: Verify Scroll Up using 'Arrow' button and Scroll Down functionalit",
+    "accname": "Test Case 25: Verify Scroll Up using 'Arrow' button and Scroll Down functionalit",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Scroll Up using 'Ar\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse25\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Test Case 26: Verify Scroll Up without 'Arrow' button and Scroll Down functional",
+    "accname": "Test Case 26: Verify Scroll Up without 'Arrow' button and Scroll Down functional",
+    "role": "link",
+    "selector": "a:has-text(\"Verify Scroll Up without '\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#collapse26\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Feedback for Us",
+    "accname": "Feedback for Us",
+    "role": "link",
+    "selector": "a:has-text(\"Feedback for Us\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" href=\"#feedback\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "fa fa arrow circle o right btn btn default",
+    "accname": "",
+    "role": "button",
+    "selector": "#subscribe",
+    "type": "submit",
+    "tag": "button",
+    "named": false,
+    "in_form": true,
+    "disabled": false,
+    "inert": false,
+    "form_method": "post",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"submit\" id=\"subscribe\" class=\"btn btn-default\">",
+    "count": 1,
+    "first_seen": false
+   }
+  ],
+  "links": [
+   {
+    "href": "https://automationexercise.com",
+    "text": "",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/products",
+    "text": "\ue8f8 Products",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/view_cart",
+    "text": "Cart",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/login",
+    "text": "Signup / Login",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/test_cases",
+    "text": "Test Cases",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/api_list",
+    "text": "API Testing",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://www.youtube.com/c/AutomationExercise",
+    "text": "Video Tutorials",
+    "visible": true,
+    "external": true,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/contact_us",
+    "text": "Contact us",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   }
+  ],
+  "forms": [
+   {
+    "index": 0,
+    "selector": "form >> nth=0",
+    "open_tag": "<form class=\"searchform\" method=\"POST\">",
+    "action": "",
+    "method": "post",
+    "hidden": [],
+    "fields": [
+     {
+      "name": "",
+      "id": "susbscribe_email",
+      "type": "email",
+      "selector": "#susbscribe_email",
+      "required": true,
+      "label": "Your email address",
+      "placeholder": "Your email address",
+      "autocomplete": "",
+      "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">"
+     }
+    ],
+    "submit": {
+     "text": "",
+     "selector": "#subscribe"
+    }
+   }
+  ],
+  "itemLinks": {},
+  "headings": [
+   "TEST CASES",
+   "SUBSCRIPTION"
+  ],
+  "final_url": "https://automationexercise.com/test_cases"
+ },
+ {
+  "url": "https://automationexercise.com/product_details/1",
+  "slug": "product_details_1",
+  "title": "Automation Exercise - Product Details",
+  "page_type": "product",
+  "auth": false,
+  "status": 200,
+  "inputs": [
+   {
+    "tag": "input",
+    "type": "number",
+    "name": "quantity",
+    "id": "quantity",
+    "selector": "#quantity",
+    "label": "Quantity:",
+    "accname": "",
+    "role": "spinbutton",
+    "required": false,
+    "placeholder": "",
+    "autocomplete": "",
+    "min": "1",
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"number\" name=\"quantity\" id=\"quantity\" value=\"1\" min=\"1\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   },
+   {
+    "tag": "input",
+    "type": "text",
+    "name": "",
+    "id": "name",
+    "selector": "#name",
+    "label": "Your Name",
+    "accname": "Your Name",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Your Name",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"text\" id=\"name\" required=\"\" placeholder=\"Your Name\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   },
+   {
+    "tag": "input",
+    "type": "email",
+    "name": "",
+    "id": "email",
+    "selector": "#email",
+    "label": "Email Address",
+    "accname": "Email Address",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Email Address",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"email\" id=\"email\" required=\"\" placeholder=\"Email Address\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   },
+   {
+    "tag": "textarea",
+    "type": "textarea",
+    "name": "review",
+    "id": "review",
+    "selector": "#review",
+    "label": "Add Review Here!",
+    "accname": "Add Review Here!",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Add Review Here!",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<textarea name=\"review\" placeholder=\"Add Review Here!\" id=\"review\" required=\"\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   },
+   {
+    "tag": "input",
+    "type": "email",
+    "name": "",
+    "id": "susbscribe_email",
+    "selector": "#susbscribe_email",
+    "label": "Your email address",
+    "accname": "Your email address",
+    "role": "textbox",
+    "required": true,
+    "placeholder": "Your email address",
+    "autocomplete": "",
+    "min": null,
+    "max": null,
+    "minlength": null,
+    "maxlength": null,
+    "pattern": null,
+    "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">",
+    "readonly": false,
+    "disabled": false,
+    "opener": false,
+    "suggests": false,
+    "checked": false,
+    "options": null
+   }
+  ],
+  "buttons": [
+   {
+    "text": "WOMEN",
+    "accname": "WOMEN",
+    "role": "link",
+    "selector": "a:has-text(\"WOMEN\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Women\">",
+    "count": 1,
+    "first_seen": false
+   },
+   {
+    "text": "MEN",
+    "accname": "MEN",
+    "role": "link",
+    "selector": "a:has-text(\"MEN\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Men\">",
+    "count": 1,
+    "first_seen": false
+   },
+   {
+    "text": "KIDS",
+    "accname": "KIDS",
+    "role": "link",
+    "selector": "a:has-text(\"KIDS\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "collapse",
+    "html": "<a data-toggle=\"collapse\" data-parent=\"#accordian\" href=\"#Kids\">",
+    "count": 1,
+    "first_seen": false
+   },
+   {
+    "text": "Add to cart",
+    "accname": "Add to cart",
+    "role": "button",
+    "selector": "button.btn.btn-default:has-text(\"Add to cart\")",
+    "type": "button",
+    "tag": "button",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"button\" class=\"btn btn-default cart\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "WRITE YOUR REVIEW",
+    "accname": "WRITE YOUR REVIEW",
+    "role": "link",
+    "selector": "a:has-text(\"WRITE YOUR REVIEW\")",
+    "type": "",
+    "tag": "a",
+    "named": true,
+    "in_form": false,
+    "disabled": false,
+    "inert": false,
+    "form_method": "",
+    "opener": false,
+    "custom": false,
+    "kind": "tab",
+    "html": "<a href=\"#reviews\" data-toggle=\"tab\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "Submit",
+    "accname": "Submit",
+    "role": "button",
+    "selector": "#button-review",
+    "type": "submit",
+    "tag": "button",
+    "named": true,
+    "in_form": true,
+    "disabled": false,
+    "inert": false,
+    "form_method": "script",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"submit\" id=\"button-review\" class=\"btn btn-default pull-right\">",
+    "count": 1,
+    "first_seen": true
+   },
+   {
+    "text": "fa fa arrow circle o right btn btn default",
+    "accname": "",
+    "role": "button",
+    "selector": "#subscribe",
+    "type": "submit",
+    "tag": "button",
+    "named": false,
+    "in_form": true,
+    "disabled": false,
+    "inert": false,
+    "form_method": "post",
+    "opener": false,
+    "custom": false,
+    "kind": "",
+    "html": "<button type=\"submit\" id=\"subscribe\" class=\"btn btn-default\">",
+    "count": 1,
+    "first_seen": false
+   }
+  ],
+  "links": [
+   {
+    "href": "https://automationexercise.com",
+    "text": "",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/products",
+    "text": "\ue8f8 Products",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/view_cart",
+    "text": "Cart",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/login",
+    "text": "Signup / Login",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/test_cases",
+    "text": "Test Cases",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/api_list",
+    "text": "API Testing",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://www.youtube.com/c/AutomationExercise",
+    "text": "Video Tutorials",
+    "visible": true,
+    "external": true,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/contact_us",
+    "text": "Contact us",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/1",
+    "text": "Dress",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/2",
+    "text": "Tops",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/7",
+    "text": "Saree",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/3",
+    "text": "Tshirts",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/6",
+    "text": "Jeans",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/4",
+    "text": "Dress",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/category_products/5",
+    "text": "Tops & Shirts",
+    "visible": false,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Polo",
+    "text": "(6)\nPOLO",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/H&M",
+    "text": "(5)\nH&M",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Madame",
+    "text": "(5)\nMADAME",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Mast%20&%20Harbour",
+    "text": "(3)\nMAST & HARBOUR",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Babyhug",
+    "text": "(4)\nBABYHUG",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Allen%20Solly%20Junior",
+    "text": "(3)\nALLEN SOLLY JUNIOR",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Kookie%20Kids",
+    "text": "(3)\nKOOKIE KIDS",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/brand_products/Biba",
+    "text": "(5)\nBIBA",
+    "visible": true,
+    "external": false,
+    "chrome": true
+   },
+   {
+    "href": "https://automationexercise.com/product_details/1",
+    "text": "",
+    "visible": true,
+    "external": false
+   }
+  ],
+  "forms": [
+   {
+    "index": 0,
+    "selector": "#review-form",
+    "open_tag": "<form id=\"review-form\">",
+    "action": "",
+    "method": "script",
+    "hidden": [],
+    "fields": [
+     {
+      "name": "",
+      "id": "name",
+      "type": "text",
+      "selector": "#name",
+      "required": true,
+      "label": "Your Name",
+      "placeholder": "Your Name",
+      "autocomplete": "",
+      "html": "<input type=\"text\" id=\"name\" required=\"\" placeholder=\"Your Name\">"
+     },
+     {
+      "name": "",
+      "id": "email",
+      "type": "email",
+      "selector": "#email",
+      "required": true,
+      "label": "Email Address",
+      "placeholder": "Email Address",
+      "autocomplete": "",
+      "html": "<input type=\"email\" id=\"email\" required=\"\" placeholder=\"Email Address\">"
+     },
+     {
+      "name": "review",
+      "id": "review",
+      "type": "textarea",
+      "selector": "#review",
+      "required": true,
+      "label": "Add Review Here!",
+      "placeholder": "Add Review Here!",
+      "autocomplete": "",
+      "html": "<textarea name=\"review\" placeholder=\"Add Review Here!\" id=\"review\" required=\"\">"
+     }
+    ],
+    "submit": {
+     "text": "Submit",
+     "selector": "#button-review"
+    }
+   },
+   {
+    "index": 1,
+    "selector": "form >> nth=1",
+    "open_tag": "<form class=\"searchform\" method=\"POST\">",
+    "action": "",
+    "method": "post",
+    "hidden": [],
+    "fields": [
+     {
+      "name": "",
+      "id": "susbscribe_email",
+      "type": "email",
+      "selector": "#susbscribe_email",
+      "required": true,
+      "label": "Your email address",
+      "placeholder": "Your email address",
+      "autocomplete": "",
+      "html": "<input type=\"email\" id=\"susbscribe_email\" required=\"\" placeholder=\"Your email address\">"
+     }
+    ],
+    "submit": {
+     "text": "",
+     "selector": "#subscribe"
+    }
+   }
+  ],
+  "itemLinks": {},
+  "headings": [
+   "CATEGORY",
+   "BRANDS",
+   "Blue Top",
+   "SUBSCRIPTION"
+  ],
+  "final_url": "https://automationexercise.com/product_details/1"
+ }
+]

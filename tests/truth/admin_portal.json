@@ -1,0 +1,56 @@
+{
+  "about": "Everything that is really on AdminPortal (tests/admin_portal.py) - the same fields as demo_store_truth.json: 'detect' = words that show the feature was seen on the page; 'test' = words a test case about it contains; 'expect' = the correct outcome (verified / blocked / unsupported = a closed shadow root, never claimed as tested); 'bug' = the planted bug (AdminPortal(bugs=True)) its test must catch. Measured on STAGING (TEST_ENVIRONMENT=staging, ALLOW_ACTIONS=delete): B7 (an edited name is not saved) can only be seen when the form is really sent.",
+  "pages": [
+    {"path": "/", "auth": false},
+    {"path": "/users", "auth": false},
+    {"path": "/users/new", "auth": false},
+    {"path": "/users/{id}/edit", "auth": false, "how": "23 pages of one pattern: a sample is enough"},
+    {"path": "/widgets", "auth": false},
+    {"path": "/reports", "auth": false},
+    {"path": "/help", "auth": false},
+    {"path": "/help/guide", "auth": false, "how": "a 404 with the bugs on (B5)"}
+  ],
+  "frames": [
+    {"page": "/reports", "name": "Totals", "depth": 1},
+    {"page": "/reports", "name": "Archive options", "depth": 2}
+  ],
+  "inaccessible": [],
+  "never": [],
+  "features": [
+    {"id": "users.sort_name", "page": "/users", "detect": "name", "test": "'name' column sorts"},
+    {"id": "users.sort_score", "page": "/users", "detect": "score", "test": "'score' column sorts", "bug": "B1"},
+    {"id": "users.sort_joined", "page": "/users", "detect": "joined", "test": "'joined' column sorts"},
+    {"id": "users.search", "page": "/users", "detect": "search users", "test": "searching the table", "bug": "B2"},
+    {"id": "users.page_size", "page": "/users", "detect": "rows per page", "test": "rows per page"},
+    {"id": "users.select_all", "page": "/users", "detect": "select all", "test": "select all"},
+    {"id": "users.next_page", "page": "/users", "detect": "next", "test": "next page|'next'"},
+    {"id": "user_form.valid", "page": "/users/new", "detect": "full name", "test": "valid values are accepted"},
+    {"id": "user_form.email", "page": "/users/new", "detect": "e-mail", "test": "wrong values in 'e-mail'", "bug": "B3"},
+    {"id": "user_form.name", "page": "/users/new", "detect": "full name", "test": "wrong values in 'full name'"},
+    {"id": "user_form.age", "page": "/users/new", "detect": "age", "test": "wrong values in 'age'"},
+    {"id": "users.crud", "page": "/users", "anywhere": true, "detect": "edit", "test": "create -> find", "bug": "B7"},
+    {"id": "widgets.alert", "page": "/widgets", "detect": "show alert", "test": "'show alert'"},
+    {"id": "widgets.prompt", "page": "/widgets", "detect": "ask my name", "test": "'ask my name'"},
+    {"id": "widgets.modal", "page": "/widgets", "detect": "open settings", "test": "'open settings'.*popup", "bug": "B4"},
+    {"id": "widgets.download", "page": "/widgets", "detect": "download users", "test": "downloads its file"},
+    {"id": "widgets.upload", "page": "/widgets", "detect": "avatar", "test": "accepts a file"},
+    {"id": "widgets.range", "page": "/widgets", "detect": "volume", "test": "'volume' slider"},
+    {"id": "widgets.details", "page": "/widgets", "detect": "more info", "test": "more info"},
+    {"id": "widgets.shadow_nickname", "page": "/widgets", "detect": "nickname", "test": "nickname"},
+    {"id": "widgets.shadow_newsletter", "page": "/widgets", "detect": "newsletter", "test": "newsletter"},
+    {"id": "widgets.closed_shadow", "page": "/widgets", "detect": "secret-widget", "test": "secret-widget", "expect": "unsupported"},
+    {"id": "reports.load_totals", "page": "/reports", "detect": "load totals", "test": "load totals", "bug": "B6",
+     "note": "with the bug the button does nothing - while exploring too: a 'suspect' finding counts as caught"},
+    {"id": "reports.include_archived", "page": "/reports", "detect": "include archived", "test": "include archived"},
+    {"id": "help.guide_link", "page": "/help", "anywhere": true, "detect": "user guide", "test": "link", "bug": "B5"}
+  ],
+  "bugs": {
+    "B1": {"what": "the Score column sorts as text (100 before 23)", "signature": "not in order|reverse the order"},
+    "B2": {"what": "the table search is case-sensitive", "signature": "upper / lower case"},
+    "B3": {"what": "the e-mail 'a@' is accepted and sent", "signature": "'a@'"},
+    "B4": {"what": "the modal can't be closed", "signature": "could not be closed"},
+    "B5": {"what": "the user guide link is a 404", "signature": "404|broken|does not work|guide"},
+    "B6": {"what": "the iframe's 'Load totals' does nothing", "signature": "no visible response|changed nothing|did not show|load totals"},
+    "B7": {"what": "an edited user name is not saved", "signature": "edited name"}
+  }
+}

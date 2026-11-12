@@ -1,0 +1,14 @@
+The picture is a screenshot of one page of a website: {url} (title: "{title}").
+
+List what a person can USE on this page, the way a tester lists the features before testing it:
+search boxes, filters, sort options, forms (say what each form is for), tables, lists of items, tabs, menus, buttons
+that do something, page links (1 2 3 / Next), upload / download, a cart, dialogs ...
+- Use the name the screen shows (the button's or the box's own words).
+- The site's main menu, header and footer together are ONE feature of kind "navigation".
+- Leave out plain text, pictures and decoration.
+Also copy every MESSAGE the page shows (a notice, an error, "No Records Found", a success line) word for word.
+
+Return ONLY JSON:
+{{"purpose": "<what this page is for, one sentence>",
+  "features": [{{"name": "<as shown>", "kind": "<one of: navigation, search, filter, sort, pagination, form, table, list, tabs, menu, button, cart, dialog, upload, download, media, account, content, other>", "does": "<what it should do, one short sentence>"}}],
+  "messages": ["<message, word for word>"]}}
