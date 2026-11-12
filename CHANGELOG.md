@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Docs cleanup + MCP/AI hardening
+
+- Replaced root `FINAL_*` / phase checklist sprawl with a single [`STATUS.md`](STATUS.md).
+- Removed raw `deep_validation` pytest dumps and live `.log` files from git; kept markdown assessments.
+- Fixed `ask_llm` when `LLM_PROVIDER=none`: clear “AI is turned off… rules are used” error.
+- Documented optional MCP install (`requirements-mcp.txt`); verified MCP server registers 11 tools after install.
+- Trimmed one-off session review docs under `docs/`.
+
 ## 2026-11-12 — Production Git governance
 
 - Expanded `.gitignore` (Android/Gradle locals, artifacts, tool caches, `.claude/`).
