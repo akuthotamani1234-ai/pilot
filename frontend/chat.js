@@ -1107,6 +1107,9 @@
     $("statusPill").hidden = !text;
     $("statusPill").textContent = text;
     $("statusPill").className = "pill " + (cls || "");
+    const busy = /loading|testing|starting|waiting/i.test(text || "");
+    if (busy) $("statusPill").setAttribute("aria-busy", "true");
+    else $("statusPill").removeAttribute("aria-busy");
   }
 
   function showQualityStatus(summary) {
@@ -1351,19 +1354,26 @@
   // ------------------------------------------------------------ Excel viewer (the real .xlsx, read-only)
   async function openExcel(run) {
     let d;
+    $("excelModal").setAttribute("aria-busy", "true");
     try {
       const res = await fetch(`/api/excel/${encodeURIComponent(run)}`);
       if (!res.ok) throw new Error();
       d = await res.json();
-    } catch (e) { alert("The Excel file is not ready yet."); return; }
+    } catch (e) {
+      $("excelModal").setAttribute("aria-busy", "false");
+      alert("The Excel file is not ready yet. Wait until test design finishes, then try again.");
+      return;
+    }
     excelData = d; excelSheet = 0;
     $("excelFile").textContent = `${d.name || "test_cases.xlsx"} · ${run}`;
     $("excelDl").href = `/api/excel/${encodeURIComponent(run)}/download`;
-    $("sheetTabs").innerHTML = d.sheets.map((s, i) => `<button type="button" data-i="${i}">${esc(s.name)} (${s.rows.length})</button>`).join("");
+    $("sheetTabs").innerHTML = d.sheets.map((s, i) =>
+      `<button type="button" data-i="${i}" aria-label="Show sheet ${esc(s.name)}">${esc(s.name)} (${s.rows.length})</button>`).join("");
     $("excelSearch").value = "";
     fillFilter();
     renderSheet();
     $("excelModal").hidden = false;
+    $("excelModal").setAttribute("aria-busy", "false");
     $("excelSearch").focus();
   }
 
@@ -1925,21 +1935,32 @@
   let shownPast = null;  // the previous test open in the chat right now
 
   async function loadHistory() {
+    $("recent").setAttribute("aria-busy", "true");
+    $("recent").innerHTML = '<span class="muted small" role="status">Loading recent runs…</span>';
     try {
-      const runs = await (await fetch("/api/history")).json();
-      if (!runs.length) {
-        $("recent").innerHTML = '<span class="muted small">No tests yet</span>';
-        return;
-      }
-      $("recent").innerHTML = runs.map((r) => `<div class="item${r.run === shownPast ? " on" : ""}">
-        <button type="button" class="open" data-run="${esc(r.run)}">
-          <span class="r-url">${esc((r.url || r.run).replace(/^https?:\/\//, ""))}</span>
+      const response = await fetch("/api/history");
+      if (!response.ok) throw new Error("Could not load recent runs.");
+      const runs = await response.json();
+      if (!Array.isArray(runs) || !runs.length) {
+        $("recent").innerHTML = '<span class="muted small" role="status">No tests yet. Configure a website or Android app to see runs here.</span>';
+      } else {
+        $("recent").innerHTML = runs.map((r) => {
+          const label = (r.url || r.run || "").replace(/^https?:\/\//, "");
+          return `<div class="item${r.run === shownPast ? " on" : ""}">
+        <button type="button" class="open" data-run="${esc(r.run)}" aria-label="Open run ${esc(label)}">
+          <span class="r-url">${esc(label)}</span>
           <span class="r-meta">${esc(r.date)} · ${esc(r.verdict)}</span></button>
-        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete this test">🗑</button>
-      </div>`).join("");
-      $("recent").querySelectorAll(".open").forEach((b) => b.addEventListener("click", () => openPast(b)));
-      $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", () => deleteTest(b)));
-    } catch (e) {}
+        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete run ${esc(label)}">🗑</button>
+      </div>`;
+        }).join("");
+        $("recent").querySelectorAll(".open").forEach((b) => b.addEventListener("click", () => openPast(b)));
+        $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", () => deleteTest(b)));
+      }
+    } catch (e) {
+      $("recent").innerHTML = `<span class="muted small" role="alert">Could not load recent runs. ${esc(e.message || "Check that the UI server is running.")}</span>`;
+    } finally {
+      $("recent").removeAttribute("aria-busy");
+    }
     loadSchedules();
   }
 
@@ -1949,19 +1970,27 @@
     return s.every === "hourly" ? `every hour at :${s.at.slice(3)}` : s.every === "weekly" ? `every ${DAYS[s.day]} ${s.at}` : `every day ${s.at}`;
   }
   async function loadSchedules() {
+    $("schedules").setAttribute("aria-busy", "true");
+    $("schedules").innerHTML = '<span class="muted small" role="status">Loading schedules…</span>';
     try {
-      const items = await (await fetch("/api/schedules")).json();
-      $("schedules").innerHTML = items.length ? items.map((s) => `<div class="item">
+      const response = await fetch("/api/schedules");
+      if (!response.ok) throw new Error("Could not load schedules.");
+      const items = await response.json();
+      $("schedules").innerHTML = Array.isArray(items) && items.length ? items.map((s) => `<div class="item">
         <span class="open"><span class="r-url">🕒 ${esc(s.source.replace(/^https?:\/\//, ""))}</span>
           <span class="r-meta">${esc(scheduleWhen(s))} · next ${esc(s.next.replace("T", " "))}${s.missed ? ` · ${esc(s.missed)} missed (window closed)` : ""}${s.last_error ? ` · ⚠ ${esc(s.last_error)}` : ""}</span></span>
-        <button type="button" class="del sched-del" data-id="${esc(s.id)}" title="Delete this schedule" aria-label="Delete this schedule">✕</button>
-      </div>`).join("") : '<span class="muted small">None yet - open a report and press ⏰</span>';
+        <button type="button" class="del sched-del" data-id="${esc(s.id)}" title="Delete this schedule" aria-label="Delete schedule for ${esc((s.source || "").replace(/^https?:\/\//, ""))}">✕</button>
+      </div>`).join("") : '<span class="muted small" role="status">None yet — open a completed report and press ⏰ Repeat this test.</span>';
       $("schedules").querySelectorAll(".sched-del").forEach((b) => b.addEventListener("click", async () => {
         if (!confirm("Delete this scheduled test? (Its past reports stay.)")) return;
         await fetch(`/api/schedules/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE", headers: { "X-Agentic-QA": "1" } });
         loadSchedules();
       }));
-    } catch (e) {}
+    } catch (e) {
+      $("schedules").innerHTML = `<span class="muted small" role="alert">Could not load schedules. ${esc(e.message || "Try refreshing the page.")}</span>`;
+    } finally {
+      $("schedules").removeAttribute("aria-busy");
+    }
   }
 
   // "⏰ Repeat this test": every hour / day / week, with this run's website and settings
