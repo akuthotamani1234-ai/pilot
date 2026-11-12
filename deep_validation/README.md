@@ -1,9 +1,11 @@
 # deep_validation/
 
-Compact validation notes for Blow AI. Prefer **markdown summaries** here.
+Compact live-validation notes for Blow AI.
 
-- Live Android / web assessments: `live_runs/*.md`
-- Historical phase write-ups: `08_*.md` … `15_*.md` (optional reading)
-- Current product status: see root [`STATUS.md`](../STATUS.md)
+| Path | Purpose |
+| --- | --- |
+| [`STATUS.md`](../STATUS.md) | Current implementation vs verification (start here) |
+| `06_test_evidence_index.md` | Short evidence index |
+| `live_runs/*.md` | Live Android / ecommerce assessment write-ups |
 
-Raw pytest dumps and bulky run logs are **not** kept in git (see `.gitignore`).
+Raw pytest dumps and historical phase checklists are not kept in git.

@@ -38,6 +38,7 @@ historical `FINAL_*` / phase checklist sprawl.
 ## Where to look next
 
 - Architecture & contribution rules: `ARCHITECTURE.md`, `CONTRIBUTING.md`
+- Release notes: `CHANGELOG.md`
 - MCP setup: `docs/15_MCP_INTEGRATION.md`
 - Android: `project-docs/12_ANDROID.md`
-- Historical phase notes (optional reading): `deep_validation/*.md`
+- Live assessments: `deep_validation/live_runs/`

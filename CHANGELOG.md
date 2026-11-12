@@ -2,6 +2,12 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Keep main only; trim deep_validation archive
+
+- Keep production docs: `CHANGELOG.md`, `CONTRIBUTING.md`, `STATUS.md`.
+- Slim `deep_validation/` to README + evidence index + `live_runs/*.md` (drop historical phase write-ups).
+- Delete merged remote feature branches; only `main` remains as the working branch.
+
 ## 2026-11-12 — Docs cleanup + MCP/AI hardening
 
 - Replaced root `FINAL_*` / phase checklist sprawl with a single [`STATUS.md`](STATUS.md).
