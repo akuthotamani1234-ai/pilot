@@ -2,6 +2,17 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Studio MCP Android parity, Standard budgets, delete/history
+
+- Android MCP panel mirrors Standard essentials: device + Refresh, Appium URL, optional activity, test-build and
+  ownership checkboxes, apk/installed/web (APK as path string). Prepare request includes `get_android_environment`
+  then `start_android_test` fields; Standard↔MCP values sync where possible.
+- Web Standard intensity reset drops Thorough-forced full/site/80; `explore_repeated_controls` no longer follows
+  full crawl alone; server applies Thorough budgets only when `thorough=true` is explicit.
+- `/api/history` lists incomplete runs (no `summary.json`); DELETE still removes the runs folder; Recent delete
+  control stays visible and clears the open chat after a successful delete.
+- In-UI MCP help blurb + short note in `docs/15_MCP_INTEGRATION.md`.
+
 ## 2026-11-12 — Thorough mode raises real per-run budgets
 
 - `RunRequest.thorough` raises this-run budgets: repeated controls, ≥80 actions/page (cap 100), ≥60 min crawl,

@@ -281,7 +281,7 @@ def test_thorough_does_not_lower_higher_crawl_time_env(client, isolated_jobs, mo
     monkeypatch.setenv("MAX_TEST_CASES", "800")
 
     response = client.post("/api/runs", headers=H, json={
-        "source": "https://shop.example.test", "authorized": True,
+        "source": "https://shop.example.test", "authorized": True, "thorough": True,
         "explore_repeated_controls": True, "max_pages": 0, "max_interactions_per_page": 95,
         "llm_provider": "none",
     })
@@ -290,3 +290,72 @@ def test_thorough_does_not_lower_higher_crawl_time_env(client, isolated_jobs, mo
     assert env["MAX_INTERACTIONS_PER_PAGE"] == "95"
     assert float(env["CRAWL_TIME_LIMIT_MIN"]) == 90.0
     assert env["MAX_TEST_CASES"] == "800"
+    assert env.get("QA_THOROUGH") == "1"
+
+
+def test_thorough_false_does_not_raise_budgets_even_with_full_crawl(client, isolated_jobs, monkeypatch):
+    """Standard intensity / thorough=false must not inherit Thorough floors from explore_repeated + full crawl."""
+    captured = {}
+
+    def fake_popen(cmd, cwd=None, env=None, **kwargs):
+        captured["env"] = dict(env or {})
+        return _FakeProcess()
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(server.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(server, "_audit", lambda *a, **k: None)
+    monkeypatch.setenv("CRAWL_TIME_LIMIT_MIN", "30")
+    monkeypatch.setenv("MAX_TEST_CASES", "300")
+    monkeypatch.setenv("PATTERN_SAMPLES", "3")
+
+    response = client.post("/api/runs", headers=H, json={
+        "source": "https://shop.example.test", "authorized": True, "thorough": False,
+        "explore_repeated_controls": True, "max_pages": 0, "max_interactions_per_page": 15,
+        "llm_provider": "none",
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body.get("thorough") is False
+    assert not any("Thorough budgets active" in line for line in body.get("lines") or [])
+    env = captured["env"]
+    assert env.get("QA_THOROUGH") != "1"
+    assert env["EXPLORE_REPEATED_CONTROLS"] == "true"
+    assert env["MAX_INTERACTIONS_PER_PAGE"] == "15"
+    assert float(env["CRAWL_TIME_LIMIT_MIN"]) == 30.0
+    assert env["MAX_TEST_CASES"] == "300"
+    assert env["PATTERN_SAMPLES"] == "3"
+
+
+def test_history_lists_incomplete_runs_without_summary(client, tmp_path, monkeypatch):
+    runs = tmp_path / "runs"
+    incomplete = runs / "zz_incomplete_20260101_000001"
+    complete = runs / "zz_complete_20260101_000002"
+    incomplete.mkdir(parents=True)
+    (incomplete / ".private").mkdir()
+    (incomplete / ".private" / "android_config.json").write_text(
+        json.dumps({"package_name": "com.example.demo", "app_mode": "installed"}), encoding="utf-8")
+    complete.mkdir(parents=True)
+    (complete / "summary.json").write_text(
+        json.dumps({"source": "https://done.example.test", "verdict": "Ready"}), encoding="utf-8")
+    monkeypatch.setattr(server, "RUNS", runs)
+    items = client.get("/api/history").json()
+    by_run = {item["run"]: item for item in items}
+    assert by_run["zz_incomplete_20260101_000001"]["incomplete"] is True
+    assert by_run["zz_incomplete_20260101_000001"]["verdict"] == "incomplete"
+    assert "com.example.demo" in by_run["zz_incomplete_20260101_000001"]["url"]
+    assert by_run["zz_complete_20260101_000002"]["incomplete"] is False
+    assert by_run["zz_complete_20260101_000002"]["verdict"] == "Ready"
+
+
+def test_delete_run_removes_runs_folder(client, tmp_path, monkeypatch, isolated_jobs):
+    runs = tmp_path / "runs"
+    run = runs / "zz_delete_me_20260101_000003"
+    run.mkdir(parents=True)
+    (run / "summary.json").write_text(json.dumps({"source": "https://x.test", "verdict": "Ready"}), encoding="utf-8")
+    (run / "report.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setattr(server, "RUNS", runs)
+    monkeypatch.setattr(server, "_audit", lambda *a, **k: None)
+    response = client.delete("/api/runs/zz_delete_me_20260101_000003", headers=H)
+    assert response.status_code == 200, response.text
+    assert response.json()["ok"] is True
+    assert not run.exists()
