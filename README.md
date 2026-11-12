@@ -42,6 +42,17 @@ and press **Start testing**. No git? Download the repository as a ZIP from GitHu
 10. [For developers](#10-for-developers)
 11. [Troubleshooting](#11-troubleshooting)
 12. [More documents](#12-more-documents)
+13. [Repository layout](#13-repository-layout)
+
+## Key features
+- Web testing with Playwright (discovery, design, execution, healing, HTML/Excel reports)
+- Android / Appium testing (native APK, installed package, or website in Android Chrome)
+- Optional LLM providers (Ollama, OpenAI, Gemini, Anthropic) or **No AI / rules**
+- Release gates with plain-English verdicts; secrets redacted from logs and reports
+- Local-first privacy controls; optional Slack / Jira / GitHub integrations when configured
+
+## Tech stack
+Python 3.13 · FastAPI · LangGraph · Playwright · Appium · pytest · ruff · vanilla HTML/CSS/JS studio UI
 
 ## 1. Requirements
 - **Windows 10 or 11.** Developed and tested on Windows 11. The web UI, the sandbox limits (Windows Job Object) and
@@ -377,14 +388,37 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 | `PermissionError` when deleting a test | A file of it (e.g. the Excel file) is open in another program; close it |
 
 ## 12. More documents
+- [ARCHITECTURE.md](ARCHITECTURE.md): directory rules, file-size limits, assistant/vibe-coding guardrails
 - [DEPLOYMENT.md](DEPLOYMENT.md): install on another PC, update, what never to copy
 - [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md): configured crawl/test caps; measure before optimizing
-- [CONTRIBUTING.md](CONTRIBUTING.md): working on the code: checks, tests, coding rules, commits
+- [CONTRIBUTING.md](CONTRIBUTING.md): branching, Conventional Commits, PR checklist, coding rules
 - [SECURITY.md](SECURITY.md): reporting a security problem, and what the tool protects
 - [backend/README.md](backend/README.md): the pipeline and every backend module
 - [frontend/README.md](frontend/README.md): the web page and the API it uses
 - [tests/README.md](tests/README.md): the tests, the practice websites and the accuracy benchmark
 - [project-docs/README.md](project-docs/README.md): product, architecture, rules and design
+
+## 13. Repository layout
+```
+blow-ai/
+├── main.py                 # CLI entry for a single run
+├── ui.bat / run.bat        # Windows launchers (install + studio)
+├── backend/                # FastAPI server, LangGraph agents, Android/web engines
+│   ├── agents/             # Pipeline steps (discovery, design, scripts, report, …)
+│   ├── llm/                # Optional provider wrapper
+│   └── templates/          # Generated pytest/Appium conftest templates
+├── frontend/               # Studio UI (HTML/CSS/JS)
+├── tests/                  # Offline pytest suite (+ android_demo fixture)
+├── demo-apps/              # Sample contracts (APKs gitignored)
+├── docs/ / project-docs/   # Operator and design docs
+├── deep_validation/        # Phase evidence summaries
+├── .env.example            # Public env template (copy to .env locally)
+├── requirements.txt        # Direct dependencies
+├── constraints.txt         # Locked transitive pins
+├── ARCHITECTURE.md         # Placement + vibe-coding guardrails
+└── CONTRIBUTING.md         # Branching, commits, PR checklist
+```
+Local-only (never commit): `.env`, `.venv/`, `runs/`, `logs/`, `accounts/`, `artifacts/`.
 
 ## Native Android testing
 
