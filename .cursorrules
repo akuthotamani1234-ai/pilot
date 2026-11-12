@@ -1,0 +1,24 @@
+# Blow AI — assistant rules (mirror of ARCHITECTURE.md)
+
+Before creating or editing files, read `ARCHITECTURE.md`, `CONTRIBUTING.md`, and `backend/README.md`.
+
+## Placement
+- UI only in `frontend/`
+- Agents in `backend/agents/` + wire `graph.py` / `state.py`
+- Android/Appium in `backend/android*.py` and `backend/templates/`
+- Safety/secrets in `backend/safety.py` (use `redact`)
+- Tests in `tests/`; mark live/emulator work `@pytest.mark.slow`
+- Docs in `docs/` or `project-docs/`; demo contracts in `demo-apps/`
+
+## Constraints
+- Prefer new modules &lt; 400 lines (&lt; 250 for new JS). Do not casually split existing 2k+ agent files without a full-suite PR.
+- Separate UI from business logic; frontend must not invent verdicts.
+- No hardcoded secrets; use `.env` / `BLOWAI_SECRET_*`; never commit `.env`.
+- Reuse existing utilities before adding new ones.
+- Do not add AI authorship watermarks or `Co-authored-by` AI tags.
+- Never weaken irreversible-action blocks or write-guards.
+
+## When you change the product
+- New env var → update `.env.example` and README Configure section.
+- New dependency → update `requirements.txt` / `constraints.txt` and run offline tests.
+- Run `ruff check` and targeted offline pytest before done.
