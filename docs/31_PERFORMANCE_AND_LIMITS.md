@@ -33,6 +33,21 @@ Interrupted or budget-stopped runs already report **Insufficient Evidence** with
 
 A run that hits a crawl or time limit is incomplete by design. Coverage claims must stay bounded by what was visited.
 
+### Thorough mode (Studio + MCP)
+
+**Thorough** raises **this-run only** budgets (it does not rewrite `.env` defaults permanently):
+
+| This-run override | Floor |
+|---|---|
+| `EXPLORE_REPEATED_CONTROLS` | `true` |
+| `MAX_INTERACTIONS_PER_PAGE` | at least `80` (still capped at `100`) |
+| `CRAWL_TIME_LIMIT_MIN` | at least `60` (never lowered if already higher) |
+| `MAX_TEST_CASES` | at least `500` |
+| `PATTERN_SAMPLES` | `0` (every URL pattern) |
+| `QA_THOROUGH` | `1` (job log notes Thorough budgets) |
+
+Studio defaults intensity to Thorough (`max_pages=0` within `HARD_PAGE_CAP`). MCP `crawl_website` / `start_web_test` post the same Thorough fields with depth default `12`. Coverage stays finite: closed shadow DOM, pay/delete/logout, and cross-origin frames remain out of reach. Scripted controls ≠ business-verified checks.
+
 ## Test volume and parallelism
 
 | Setting | Default | Role |

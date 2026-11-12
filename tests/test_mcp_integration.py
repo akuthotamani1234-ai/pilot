@@ -139,8 +139,52 @@ def test_stdio_tools_register_without_contacting_ui(monkeypatch):
         assert tool.parameters["properties"]["authorized"]["default"] is False
         assert tool.annotations.read_only_hint is False
         assert tool.annotations.destructive_hint is True
+    for name in ("crawl_website", "start_web_test"):
+        props = tools[name].parameters["properties"]
+        assert props["max_pages"]["default"] == 0
+        assert props["max_depth"]["default"] == 12
+        assert props["max_pages"]["minimum"] == 0
     assert tools["get_run_status"].annotations.read_only_hint is True
     assert tools["stop_run"].parameters["properties"]["confirmed"]["default"] is False
+
+
+def test_mcp_web_start_posts_thorough_budgets(monkeypatch):
+    """crawl_website / start_web_test must post Thorough-aligned RunRequest fields via the bridge."""
+    import asyncio
+
+    pytest.importorskip("mcp.server")
+    from backend.mcp_server import THOROUGH_INTERACTIONS, build_server
+
+    posts = []
+
+    def fake_send(self, method, route, **kwargs):
+        if method == "GET" and route == "/api/mcp/info":
+            return {"product": "blow-ai", "bridge_version": 1,
+                    "privacy": {"mcp_allowed": True, "mode": "local", "allow_mcp": True}}
+        if method == "POST" and route == "/api/runs":
+            posts.append(kwargs.get("body") or {})
+            return {"id": len(posts), "status": "running"}
+        raise AssertionError(f"unexpected {method} {route}")
+
+    monkeypatch.setattr(BlowAIBridge, "_send", fake_send)
+    server = build_server()
+
+    async def call_starts():
+        await server.call_tool("crawl_website", {"url": "https://example.test", "authorized": True})
+        await server.call_tool("start_web_test", {
+            "url": "https://example.test", "authorized": True, "llm_provider": "none",
+        })
+
+    asyncio.run(call_starts())
+    assert len(posts) == 2
+    for body in posts:
+        assert body["thorough"] is True
+        assert body["explore_repeated_controls"] is True
+        assert body["max_interactions_per_page"] == THOROUGH_INTERACTIONS
+        assert body["max_pages"] == 0
+        assert body["max_depth"] == 12
+        assert body["authorized"] is True
+        assert body["website_only"] is True
 
 
 def test_bridge_error_surfaces_as_tool_error_not_unexpected(monkeypatch):

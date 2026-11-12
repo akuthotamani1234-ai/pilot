@@ -164,6 +164,9 @@ def test_more_control_kinds_and_coverage_list():
     cov = coverage(page, code)  # tested = really used by the generated test code
     not_tested = {i["name"]: i["reason"] for i in cov["items"] if i["status"] != "tested"}
     assert list(not_tested) == ["Delete account"] and "on purpose" in not_tested["Delete account"]
+    scripted = [i for i in cov["items"] if i["status"] == "tested"]
+    assert scripted and all(i.get("meaning") == "scripted" for i in scripted)
+    assert cov.get("notes") and "business-verified" in cov["notes"][0]
 
 
 def test_every_step_is_its_own_focused_test_case():

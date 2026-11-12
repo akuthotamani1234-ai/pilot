@@ -9,7 +9,7 @@ historical `FINAL_*` / phase checklist sprawl.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Web Playwright pipeline | Implemented | Offline non-slow suite green on Linux |
+| Web Playwright pipeline | Implemented | Offline non-slow suite green on Linux; **Thorough** raises per-run budgets (finite; not every component) |
 | Android Appium pipeline | Implemented | Offline + live emulator demos recorded |
 | Studio UI | Implemented | Characterization tests; Windows `ui.bat` primary |
 | Optional LLM providers | Implemented | Rules-only (`LLM_PROVIDER=none`) fails closed with clear error |
@@ -31,10 +31,12 @@ historical `FINAL_*` / phase checklist sprawl.
 
 ## Open by design / not claimed
 
-- Crawl and interaction budgets bound coverage (see `docs/31_PERFORMANCE_AND_LIMITS.md`)
+- Crawl and interaction budgets bound coverage (see `docs/31_PERFORMANCE_AND_LIMITS.md`); Thorough raises floors but stays finite
 - Destructive / pay / logout actions stay blocked unless explicitly allowed on staging
+- Closed shadow DOM and cross-origin frames cannot be fully inventoried
 - Live paid providers and third-party MCP clients require local install + user consent
 - Accuracy % unpublished without a labeled live matrix
+- Scripted/observed controls are not business-verified oracles
 
 ## Where to look next
 

@@ -2,6 +2,15 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Thorough mode raises real per-run budgets
+
+- `RunRequest.thorough` raises this-run budgets: repeated controls, ≥80 actions/page (cap 100), ≥60 min crawl,
+  ≥500 test cases, `PATTERN_SAMPLES=0`, `QA_THOROUGH=1` (also when full crawl + `explore_repeated_controls`).
+- Studio defaults intensity to Thorough; coverage gaps show not-tested counts and **Run Thorough again**.
+- MCP `crawl_website` / `start_web_test` default `max_pages=0`, depth 12, and post Thorough fields.
+- Coverage honesty: optional `meaning: scripted` + notes that scripted ≠ business-verified; Excel status values unchanged.
+- Docs: `docs/31_PERFORMANCE_AND_LIMITS.md`, `STATUS.md`. Coverage remains finite — not every component on every site.
+
 ## 2026-11-12 — Live MCP AI-assisted Android test
 
 - Exercised real stdio MCP client against Studio: 11 tools, privacy consent, Sauce MDA Android run.

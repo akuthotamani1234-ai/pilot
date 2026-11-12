@@ -51,16 +51,23 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     css = (FRONTEND / "chat.css").read_text(encoding="utf-8")
     assert 'id="aiIntensity"' in script
     assert 'value="thorough"' in script and 'value="standard"' in script
+    assert 'value="thorough" selected' in script  # Thorough is the Studio default
     assert "function applyExplorationIntensity()" in script
+    assert "function focusThoroughSetup()" in script
     assert "function coverageReminderHtml(" in script
     assert "HARD_PAGE_CAP" in script and "Unvisited pages remain listed" in script
+    assert "≥60 min crawl" in script or "60 min crawl" in script
     assert 'explore_repeated_controls: thorough || fullCrawl' in script
-    assert "thorough ? 50" in script or "thorough ? 50 :" in script
+    assert "thorough: !!thorough" in script
+    assert "thorough ? 80" in script or "thorough ? 80 :" in script
     assert 'crawl_scope: thorough ? "site"' in script
     assert "coverageReminderHtml(s, crawl)" in script
     assert "coverageReminderHtml(s, d.crawl || s.crawl)" in script
     assert "Coverage reminder:" in script
+    assert "Run Thorough again" in script and "thorough-again" in script
+    assert "Observed/scripted controls are not the same as business-verified checks." in script
     assert ".warn.coverage-reminder" in css
+    assert ".coverage-reminder-actions" in css
 
 
 def test_qa_lab_empty_and_progress_copy_without_redesign():
