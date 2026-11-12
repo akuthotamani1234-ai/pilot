@@ -1549,12 +1549,16 @@ CONTRACT_EXAMPLES = {
     'controlled-simulations': ('Blow AI fixture — protected flows and safe previews', 'controlled-sandbox-checks.json'),
     'sauce-cart': ('Sauce Labs demo — add product and verify cart', 'sauce-cart-checks.json'),
     'chrome-dropdown': ('Android Chrome — dropdown selection checks', 'chrome-dropdown-checks.json'),
+    'ecommerce-web': ('E-commerce web — search and cart (Automation Exercise template)', 'ecommerce-web-contract.json'),
 }
+WEB_CONTRACT_EXAMPLE_IDS = {'chrome-dropdown', 'ecommerce-web'}
 
 
 @app.get('/api/contracts/examples')
 def contract_examples():
-    return {'examples': [{'id': key, 'name': name, 'app_mode': 'web' if key == 'chrome-dropdown' else 'native'} for key, (name, filename) in CONTRACT_EXAMPLES.items()
+    return {'examples': [{'id': key, 'name': name,
+                          'app_mode': 'web' if key in WEB_CONTRACT_EXAMPLE_IDS else 'native'}
+                         for key, (name, filename) in CONTRACT_EXAMPLES.items()
                          if (ROOT / 'demo-apps' / filename).is_file()]}
 
 
