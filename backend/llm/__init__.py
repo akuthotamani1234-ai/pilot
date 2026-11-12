@@ -126,6 +126,11 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
     from ..safety import redact
     if runctl.stopping():  # (the agent uses its built-in rules - a long AI call must not hold up the report)
         raise LLMError(f"the run is stopping ({runctl.reason()})")
+    if not llm_enabled():
+        # none / privacy-blocked: fail before any provider routing so callers get a clear rules-fallback signal
+        raise LLMError(
+            "AI is turned off (LLM_PROVIDER=none or privacy blocks it). Built-in rules are used instead."
+        )
     spent = sum(c["cost_usd"] for c in cost._calls)
     if settings.llm_budget_usd and spent >= settings.llm_budget_usd:  # (the agent falls back to its built-in rules)
         raise LLMError(f"AI budget of ${settings.llm_budget_usd} for this run is used up (LLM_BUDGET_USD)")
@@ -301,7 +306,9 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
             "The AI answer could not be read; built-in rules are used if fallback is allowed."
         ) from e
 
-    raise LLMError(f"Unknown LLM_PROVIDER '{p}'. Set LLM_PROVIDER to openai, gemini, anthropic, ollama or none.")
+    raise LLMError(
+        f"Unknown LLM_PROVIDER '{p}'. Supported providers for AI calls: openai, gemini, anthropic, ollama."
+    )
 
 
 def ask_structured(prompt: str, shape, system: str = "", agent: str = "", page: str = "", test: str = "",

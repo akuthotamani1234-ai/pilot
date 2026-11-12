@@ -2,6 +2,10 @@
 
 The Python MCP server lets an MCP-compatible AI client use the same Playwright and Appium services as the Studio UI. The UI owns the workers, one-run lock, Stop control, device validation and reports. No second automation implementation or separate browser tool is required.
 
+## Optional MCP dependencies
+
+Studio (ui.bat) works without the MCP SDK. Optional packages for the MCP stdio server are installed with **setup/install-mcp.bat** or `pip install -r requirements-mcp.txt`. Without them, `import mcp` fails; only the MCP stdio server needs that extra install.
+
 ## Start and connect
 
 1. Double-click **setup/install-mcp.bat** once. Optional dependencies are pinned in requirements-mcp.txt.
