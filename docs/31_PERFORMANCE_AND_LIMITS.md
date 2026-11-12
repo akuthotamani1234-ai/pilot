@@ -84,7 +84,10 @@ Timeouts and missing keys must surface as clear errors / rules fallback — neve
 - Re-measure with unchanged code first; keep evidence under `runs/` or `deep_validation/`.
 - Prefer lowering soft budgets (`MAX_PAGES`, `CRAWL_TIME_LIMIT_MIN`, `TEST_WORKERS`) for large sites over silent scope expansion.
 - Do not publish latency, pages/hour, or accuracy percentages unless counted from that run’s own files
-  (`backend/metrics.py`, reporting honesty in Phases 12–13).
+  (`backend/metrics.py`, `backend/report_clarity.py`, reporting honesty in Phases 12–13).
+- Known-truth benchmark metrics (`backend/qa_benchmark.py`) are labelled as precision / recall / answered
+  expectations for the supplied cases only; `overall_accuracy_percent` stays unset unless a future live
+  measurement fills it from real denominators.
 
 ## Related docs
 

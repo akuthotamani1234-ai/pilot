@@ -1549,14 +1549,17 @@
       reports[run] = s;
       const crawl = d.crawl || s.crawl || {};
       const exploration = crawl.exploration || {};
+      const pagesCov = s.pages_coverage || {};
+      const lim = s.coverage_limitations || {};
       say(`<div class="card exploration-result">
         <span class="section-label">EXPLORATION REPORT</span><h2>Pages and components explored</h2>
-        <p>Functional tests were not generated or run. This report shows what was discovered.</p>
-        <div class="stats"><div class="stat"><b>${esc(crawl.visited ?? s.pages ?? 0)}</b><span>pages inspected</span></div>
+        <p>Functional tests were not generated or run. This report shows what was discovered — not PASS/FAIL evidence for release.</p>
+        <div class="stats"><div class="stat"><b>${esc(pagesCov.discovered ?? ((crawl.visited ?? s.pages ?? 0) + (crawl.not_visited_count ?? 0)))}</b><span>pages discovered</span></div>
+          <div class="stat"><b>${esc(pagesCov.visited ?? crawl.visited ?? s.pages ?? 0)}</b><span>pages visited</span></div>
           ${d.components_count != null ? `<div class="stat"><b>${esc(d.components_count)}</b><span>components observed</span></div>` : ""}
-          <div class="stat"><b>${esc(crawl.not_visited_count ?? 0)}</b><span>discovered routes pending</span></div></div>
-        ${exploration.statement ? `<p>${esc(exploration.statement)}</p>` : ""}
-        <div class="note">${esc(exploration.limitation || "Discovery is not proof that every component state or business workflow was tested.")}</div>
+          <div class="stat"><b>${esc(pagesCov.not_visited ?? crawl.not_visited_count ?? 0)}</b><span>pages not visited</span></div></div>
+        ${lim.statement || exploration.statement ? `<p>${esc(lim.statement || exploration.statement)}</p>` : ""}
+        <div class="note">${esc(lim.limitation || exploration.limitation || "Discovery is not proof that every component state or business workflow was tested. This never claims the entire site was tested.")}</div>
         <div class="actions">${d.components_report ? `<a class="primary" target="_blank" rel="noopener" href="${esc(d.components_report)}">View component inventory</a>` : ""}
           ${d.report_html ? `<a class="secondary" target="_blank" rel="noopener" href="${esc(d.report_html)}">Open exploration report</a>` : ""}</div></div>`, "report");
       if (d.components_report) { $("actComponents").href = d.components_report; $("actComponents").hidden = false; }
@@ -1680,8 +1683,17 @@
           ${s.pass_rate != null ? `<div class="v-rate" title="${esc(M.headline ? M.headline.denominator : "")}"><b>${esc(s.pass_rate)}%</b><span>${M.headline ? `functional test cases passed (${esc(M.headline.passed)} of ${esc(M.headline.of)})` : "passed"}</span></div>` : ""}</div></div>
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
+        ${(s.coverage_limitations && s.coverage_limitations.partial) ? `<div class="warn">${esc(s.coverage_limitations.statement || "Coverage was incomplete; unvisited pages and limits are listed in the full report.")}</div>` : ""}
+        ${s.result_status_counts ? `<div class="stats">
+          ${stat(s.result_status_counts.PASS, "PASS", "good")}
+          ${stat(s.result_status_counts.FAIL, "FAIL", s.result_status_counts.FAIL ? "bad" : "")}
+          ${stat(s.result_status_counts.BLOCKED, "BLOCKED")}
+          ${stat(s.result_status_counts.SKIPPED, "SKIPPED")}
+          ${stat(s.result_status_counts["NOT TESTED"], "NOT TESTED")}
+          ${stat(s.result_status_counts.INCONCLUSIVE, "INCONCLUSIVE", s.result_status_counts.INCONCLUSIVE ? "bad" : "")}</div>` : ""}
         <div class="stats">
-          ${stat(s.pages, "pages inspected")}
+          ${stat(s.pages_visited ?? s.pages, "pages visited")}
+          ${s.pages_not_visited != null ? stat(s.pages_not_visited, "pages not visited", s.pages_not_visited ? "bad" : "") : ""}
           ${TC ? stat(`${TC.passed} / ${TC.planned}`, `test cases passed (${TC.failed} failed, ${TC.blocked} blocked, ${TC.inconclusive + TC.skipped} inconclusive / skipped)`, TC.failed ? "bad" : "good") : stat(s.test_cases, "test cases")}
           ${ST ? stat(`${ST.groups.links.passed} / ${ST.groups.links.total}`, "link checks passed (counted on their own)") : stat(s.passed, "tests passed", "good")}
           ${FD ? stat(FD.application_defects, "application defects", FD.application_defects ? "bad" : "good") : stat(s.bugs ?? 0, "suspected website bugs", s.bugs ? "bad" : "good")}

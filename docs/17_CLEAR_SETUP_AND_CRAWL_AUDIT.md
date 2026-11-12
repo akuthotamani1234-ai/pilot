@@ -23,6 +23,9 @@ bound exploration. All discovered eligible routes processed is a narrower statem
 - Changes to a cart badge or other label are component states, not new opener chains.
 - Visible targets do not replay obsolete openers. Hidden nested targets still replay their ancestor chain with bounds.
 - Report headlines distinguish route exploration, registered feature coverage and functional test pass rate.
+- Report summaries keep PASS / FAIL / BLOCKED / SKIPPED / NOT TESTED / INCONCLUSIVE separate, list pages
+  discovered / visited / not visited, and state coverage limitations when crawl or time limits leave work unvisited.
+  They never invent an overall site accuracy percentage.
 - The HTML response disables caching, and JS/CSS references include content hashes to prevent mixed old/new UI files.
 
 ## Real public-site audit
