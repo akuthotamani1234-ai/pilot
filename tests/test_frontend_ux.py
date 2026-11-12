@@ -224,3 +224,13 @@ def test_accuracy_lab_empty_runs_and_build_guard(browser):
         assert not errors
     finally:
         context.close()
+
+
+def test_chat_js_repo_fix_guides_scan_and_next_steps():
+    script = (FRONTEND / "chat.js").read_text(encoding="utf-8")
+    assert "function looksLikeGithubRepo" in script
+    assert "What you have to do next" in script
+    assert "Prepare changes" in script
+    assert "files_scanned" in script
+    assert "github.com/owner/repo" in script
+    assert 'e.key === "Enter"' in script

@@ -1915,26 +1915,52 @@
   }
 
   // ------------------------------------------------------------ 5) apply the fixes to the website's repo (Pull Request)
+  function looksLikeGithubRepo(url) {
+    return /^https?:\/\/(www\.)?github\.com\/[^/\s]+\/[^/\s]+/i.test((url || "").trim());
+  }
+
+  function repoFixNextStepsHtml(plan, hasAutoFiles) {
+    const steps = [];
+    steps.push("Review the scan summary and any diffs below.");
+    if (hasAutoFiles) {
+      steps.push("Click <b>Create Pull Request on GitHub</b> when the automatic changes look right (or apply them by hand).");
+    } else {
+      steps.push("Apply the listed hand fixes in your repository (nothing matched automatically).");
+    }
+    if ((plan.skipped || []).length || (plan.no_code || []).length) {
+      steps.push("Finish any <b>hand fixes</b> / advice items listed below.");
+    }
+    steps.push("On GitHub: review and merge the PR (if you created one).");
+    steps.push("Come back to Studio and re-run or recheck the website.");
+    return `<div class="card repo-fix-next"><h4>What you have to do next</h4><ol>${
+      steps.map((s) => `<li>${s}</li>`).join("")}</ol></div>`;
+  }
+
   async function offerRepoFix(run) {
     const generation = chainGen;
     let info;
     try { info = await (await fetch(`/api/runs/${encodeURIComponent(run)}/repo-fix`)).json(); } catch (e) { return; }
     if (generation !== chainGen || !info.fixes_with_code) return;
     const id = "repofix-" + run.replace(/\W/g, "");
-    say(`<p>🛠 <b>Want me to apply these fixes to your code?</b> Give me the website's <b>GitHub repository</b>.
-      I'll first show you exactly what would change. Nothing is sent until you press <b>Create Pull Request</b>,
-      and even then your main code stays untouched until you review and merge it on GitHub.</p>
+    say(`<p>🛠 <b>Want me to apply these fixes to your code?</b> Paste the website's <b>GitHub repository</b> link,
+      then press <b>Prepare changes</b>. I will download that repo, match the findings against its source files,
+      and tell you exactly what to do next. Nothing is pushed until you press <b>Create Pull Request</b>;
+      your main branch stays untouched until you review and merge on GitHub.</p>
       <div class="card">
         <div class="fields">
-          <label>GitHub repository <input id="${id}-repo" type="text" spellcheck="false" placeholder="https://github.com/you/your-website"
-            value="${esc(info.repo_url)}"></label>
+          <label>GitHub repository <input id="${id}-repo" type="url" spellcheck="false" placeholder="https://github.com/you/your-website"
+            value="${esc(info.repo_url || "")}"></label>
           <label>GitHub token <input id="${id}-tok" type="password" autocomplete="off"
             placeholder="${info.has_token ? "Saved in .env (leave empty)" : "Token with Contents + Pull requests: write"}"></label>
         </div>
+        <p class="muted small" id="${id}-hint">Paste the link, then Prepare changes (or press Enter in the repository field).</p>
         <div class="actions"><button type="button" class="primary" id="${id}-prep">🔍 Prepare changes</button></div>
         <div id="${id}-out"></div>
       </div>`, id);
     $(`${id}-prep`).addEventListener("click", () => prepareRepoFix(run, id));
+    $(`${id}-repo`).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); prepareRepoFix(run, id); }
+    });
   }
 
   async function postJSON(url, body) {
@@ -1989,31 +2015,63 @@
   }
 
   async function prepareRepoFix(run, id) {
-    const out = $(`${id}-out`), btn = $(`${id}-prep`);
+    const out = $(`${id}-out`), btn = $(`${id}-prep`), hint = $(`${id}-hint`);
     const body = { repo_url: $(`${id}-repo`).value.trim(), token: $(`${id}-tok`).value.trim() };
+    if (!body.repo_url) {
+      out.innerHTML = `<div class="warn">Paste a GitHub repository link first (for example https://github.com/you/your-website).</div>`;
+      if (hint) hint.textContent = "Repository link is required.";
+      $(`${id}-repo`).focus();
+      return;
+    }
+    if (!looksLikeGithubRepo(body.repo_url)) {
+      out.innerHTML = `<div class="warn">That is not a GitHub repository link. Use https://github.com/owner/repo</div>`;
+      if (hint) hint.textContent = "Need a github.com/owner/repo URL.";
+      $(`${id}-repo`).focus();
+      return;
+    }
     btn.disabled = true;
-    out.innerHTML = `<p class="muted">Downloading the repository and finding the code… <span class="typing"><i></i><i></i><i></i></span></p>`;
+    if (hint) hint.textContent = "Scanning the repository against this run’s findings…";
+    out.innerHTML = `<p class="muted">Downloading the repository and matching findings in its source files…
+      <span class="typing"><i></i><i></i><i></i></span></p>`;
     try {
       const plan = await postJSON(`/api/runs/${encodeURIComponent(run)}/repo-fix/prepare`, body);
-      const files = plan.files.map((f) => `<details class="log"><summary><b>${esc(f.path)}</b> · ${esc(f.fixes.join(", "))}</summary>
+      const filesHtml = (plan.files || []).map((f) =>
+        `<details class="log"><summary><b>${esc(f.path)}</b> · ${esc((f.fixes || []).join(", "))}</summary>
           <pre>${esc(f.diff)}</pre></details>`).join("");
       const fullApplied = (plan.applied || []).filter((a) => !a.partial);
       const partialApplied = (plan.applied || []).filter((a) => a.partial);
-      const skipped = plan.skipped.map((s) => `<li>${esc(s.title)} <span class="muted">· ${esc(s.reason)}</span></li>`).join("");
-      const readyLabel = partialApplied.length
-        ? `${plan.files.length} file(s), ${fullApplied.length} fix(es), ${partialApplied.length} partial`
-        : `${plan.files.length} file(s), ${fullApplied.length} fix(es)`;
-      out.innerHTML = files
-        ? `<h4>Changes ready (${readyLabel})</h4>${files}
-           ${skipped ? `<h4>Fix these by hand</h4><ul>${skipped}</ul>` : ""}
+      const skippedHtml = (plan.skipped || []).map((s) =>
+        `<li><b>${esc(s.title)}</b> <span class="muted">· ${esc(s.reason || "")}</span></li>`).join("");
+      const noCodeItems = Array.isArray(plan.no_code) ? plan.no_code : [];
+      const noCodeHtml = noCodeItems.map((item) => {
+        if (typeof item === "string") return `<li>${esc(item)}</li>`;
+        const why = item.why ? ` <span class="muted">· ${esc(item.why)}</span>` : "";
+        return `<li><b>${esc(item.title || "Advice")}</b>${why}</li>`;
+      }).join("");
+      const scanned = plan.files_scanned != null ? plan.files_scanned : "?";
+      const considered = plan.fixes_considered != null
+        ? plan.fixes_considered
+        : (plan.applied || []).length + (plan.skipped || []).length;
+      const summary = `<p class="muted">I looked through <b>${esc(String(scanned))}</b> source file(s) in
+        <b>${esc(plan.repo || body.repo_url)}</b> for <b>${esc(String(considered))}</b> code-bearing fix(es):
+        ${fullApplied.length} matched, ${partialApplied.length} partial,
+        ${(plan.skipped || []).length} need a hand, ${noCodeItems.length} advice-only.</p>`;
+      const handBlock = (skippedHtml || noCodeHtml)
+        ? `<h4>Fix these by hand / advice</h4><ul>${skippedHtml}${noCodeHtml}</ul>` : "";
+      const hasFiles = !!(plan.files || []).length;
+      const next = repoFixNextStepsHtml(plan, hasFiles);
+      out.innerHTML = hasFiles
+        ? `${summary}${next}<h4>Automatic changes ready</h4>${filesHtml}${handBlock}
            <div class="note">Creates a new branch and a Pull Request in <b>${esc(plan.repo)}</b>. Your main branch is not changed.</div>
            <div class="actions"><button type="button" class="primary" id="${id}-pr">⬆ Create Pull Request on GitHub</button></div>
            <div id="${id}-done"></div>`
-        : `<div class="warn">I couldn't find this code in the repository, so nothing can be changed automatically.
-           ${skipped ? `<ul>${skipped}</ul>` : ""}</div>`;
-      if (files) $(`${id}-pr`).addEventListener("click", () => createRepoPr(run, id, body.token));
+        : `${summary}${next}<div class="warn">No automatic code match in this repository.
+           Apply the hand fixes below, then re-test in Studio.</div>${handBlock}`;
+      if (hasFiles) $(`${id}-pr`).addEventListener("click", () => createRepoPr(run, id, body.token));
+      if (hint) hint.textContent = "Scan finished — follow What you have to do next.";
     } catch (e) {
       out.innerHTML = `<div class="warn">${esc(e.message)}</div>`;
+      if (hint) hint.textContent = "Prepare failed — check the link, token, and network, then try again.";
     } finally {
       btn.disabled = false;
     }
