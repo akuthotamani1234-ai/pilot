@@ -742,18 +742,19 @@
       '<section class="setup-section" id="setupScope"><div class="setup-section-title"><span>03</span><div><h3>Choose exploration scope</h3>' +
       '<p>Whole website is the default. Every limit and inaccessible area is reported.</p></div></div>' +
       '<div class="fields"><label>Exploration intensity <select id="aiIntensity" aria-describedby="aiIntensityNote">' +
-      '<option value="standard">Standard — current defaults</option>' +
-      '<option value="thorough">Thorough — full crawl within safety budgets</option></select></label>' +
+      '<option value="thorough" selected>Thorough — raised budgets within safety caps</option>' +
+      '<option value="standard">Standard — current defaults</option></select></label>' +
       '<label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
       '<option value="section">Only the URL section</option><option value="page">Only the supplied page</option></select></label>' +
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
-      '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="50"></label></div>' +
-      '<p class="note" id="aiIntensityNote" hidden>Thorough uses safety budgets (HARD_PAGE_CAP / time limit). ' +
-      'Unvisited pages remain listed if budgets stop the crawl.</p>' +
+      '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80"></label></div>' +
+      '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥60 min crawl time, 80 actions/page (max 100), ' +
+      '≥500 test cases, repeated controls, every URL pattern (PATTERN_SAMPLES=0). Still finite — HARD_PAGE_CAP (' + cap +
+      '), closed shadow DOM, pay/delete/logout, and cross-origin frames stay out of reach. Unvisited pages remain listed.</p>' +
       '<p class="note" id="aiScopeNote">Whole-site route discovery, including menus, nested controls, pagination and logged-in pages when access is available. ' +
-      'Safety budgets: up to ' + cap + ' pages, ' + minutes + ' minutes, and the selected actions per page. ' +
+      'Safety budgets: up to ' + cap + ' pages, ' + minutes + '+ minutes when Thorough, and the selected actions per page. ' +
       'Discovered does not mean functionally verified.</p></section>' +
       '<section class="setup-section" id="setupFeatures"><div class="setup-section-title"><span>04</span><div><h3>Expected behavior and additional checks</h3>' +
       '<p>All existing test, review, recording, business-rule and backend-check settings remain available here.</p></div></div>' +
@@ -891,7 +892,8 @@
     applyProviderPrivacy();
     if (saved.providerChoiceVersion === 2 && chosen === saved.provider &&
         [...$("aiModel").options].some((o) => o.value === saved.model)) $("aiModel").value = saved.model;
-    updateSetupSummary();
+    if ($("aiIntensity").value === "thorough") applyExplorationIntensity();
+    else updateSetupSummary();
   }
 
   function bindProviderCards() {
@@ -918,15 +920,34 @@
     const thorough = $("aiIntensity").value === "thorough";
     $("aiIntensityNote").hidden = !thorough;
     if (thorough) {
-      // Full crawl: max_pages 0 → HARD_PAGE_CAP, site scope, repeated controls, ≥50 actions/page.
+      // Full crawl: max_pages 0 → HARD_PAGE_CAP, site scope, repeated controls, ≥80 actions/page.
       $("aiCrawlMode").value = "full";
       $("aiScope").value = "site";
-      $("aiActions").value = String(Math.max(50, Math.min(100, +$("aiActions").value || 50)));
+      $("aiActions").value = String(Math.max(80, Math.min(100, +$("aiActions").value || 80)));
     }
     updateSetupSummary();
   }
 
-  function coverageReminderHtml(s, crawl) {
+  function focusThoroughSetup() {
+    if (timer) return;
+    const apply = () => {
+      if (!$("aiIntensity")) return;
+      $("m-ai").querySelectorAll("button, input, select, textarea").forEach((x) => { x.disabled = false; });
+      $("aiIntensity").value = "thorough";
+      applyExplorationIntensity();
+      const target = $("setupScope") || $("aiIntensity") || $("m-ai");
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+      $("aiIntensity").focus();
+    };
+    if ($("m-ai") && $("aiIntensity")) {
+      apply();
+      return;
+    }
+    if (!pendingSource) return;
+    askForAi().then(apply);
+  }
+
+  function coverageReminderHtml(s, crawl, controlGaps) {
     const pagesCov = (s && s.pages_coverage) || {};
     const lim = (s && s.coverage_limitations) || {};
     const crawlInfo = crawl || (s && s.crawl) || {};
@@ -937,15 +958,18 @@
       || (lim.limits_hit && lim.limits_hit.length));
     const blocked = +(counts.BLOCKED || 0) || 0;
     const notTested = +(counts["NOT TESTED"] || 0) || 0;
-    if (!notVisited && !limitHit && !blocked && !notTested) return "";
+    const controlMiss = +(controlGaps || 0) || 0;
+    if (!notVisited && !limitHit && !blocked && !notTested && !controlMiss) return "";
     const bits = [];
+    if (controlMiss) bits.push(controlMiss + " control(s) not tested");
     if (notVisited) bits.push(notVisited + " page(s) not visited");
     if (limitHit) bits.push("a safety budget or limit stopped further exploration");
     if (blocked) bits.push(blocked + " blocked");
-    if (notTested) bits.push(notTested + " not tested");
+    if (notTested && !controlMiss) bits.push(notTested + " not tested");
     const detail = lim.statement || ("Coverage gaps remain: " + bits.join("; ")
       + ". Unvisited and untested items stay listed in this report.");
-    return `<div class="warn coverage-reminder" role="status"><b>Coverage reminder:</b> ${esc(detail)}</div>`;
+    return `<div class="warn coverage-reminder" role="status"><b>Coverage reminder:</b> ${esc(detail)}` +
+      `<div class="coverage-reminder-actions"><button type="button" class="secondary thorough-again">Run Thorough again</button></div></div>`;
   }
 
   function updateSetupSummary() {
@@ -1014,11 +1038,12 @@
     const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
     if (thorough) applyExplorationIntensity();
     const fullCrawl = thorough || $("aiCrawlMode").value === "full";
-    const actionsPerPage = Math.min(100, Math.max(thorough ? 50 : 1, +$("aiActions").value || 50));
+    const actionsPerPage = Math.min(100, Math.max(thorough ? 80 : 1, +$("aiActions").value || (thorough ? 80 : 50)));
     const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
                    crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
                    max_interactions_per_page: actionsPerPage,
                    explore_repeated_controls: thorough || fullCrawl,
+                   thorough: !!thorough,
                    allow_rules_fallback: $("aiFallback").checked,
                    show_browser: $("aiWatch").checked, fresh: $("aiFresh").checked,
                    authorized: true, allow_signup: accountMode === "signup" && $("aiSignup").checked, environment: val("advEnv") || "test",
@@ -1393,13 +1418,21 @@
       .map((i) => ({ ...i, page: p.url.replace(/^https?:\/\/[^/]+/, "") || "/" })));
     const rows = missed.slice(0, 40).map((i) => `<tr><td>${esc(i.name)}</td><td class="muted">${esc(i.kind)}</td>
         <td class="muted">${esc(i.page)}</td><td>${esc(i.reason)}</td></tr>`).join("");
+    const gapNote = missed.length
+      ? coverageReminderHtml({ pages_coverage: {}, coverage_limitations: {}, result_status_counts: {} }, {}, missed.length)
+      : "";
     say(`<p>🧭 <b>Coverage:</b> I found <b>${cov.total}</b> controls on ${cov.pages.length} page(s) and
-        <b>${cov.tested}</b> of them get tested${missed.length ? "." : " – that's all of them ✅"}</p>
+        <b>${cov.tested}</b> of them get a generated script${missed.length
+          ? ` — <b class="bad-count">${missed.length} control(s) not tested</b>.`
+          : " – that's all of them ✅"}</p>
+      <p class="muted small">Observed/scripted controls are not the same as business-verified checks.</p>
       ${(cov.notes || []).map((n) => `<div class="warn">⚠ ${esc(n)}</div>`).join("")}
+      ${gapNote}
       ${missed.length ? `<div class="card"><p><b>⛔ Not tested (${missed.length})</b> – and why:</p>
         <div class="scroll"><table class="mini"><tr><th>Control</th><th>Kind</th><th>Page</th><th>Why not</th></tr>${rows}</table></div>
         ${missed.length > 40 ? `<p class="muted small">…and ${missed.length - 40} more in the Excel file (sheet "Coverage").</p>` : ""}
-        <p class="muted small">The full list (tested and not tested) is in the Excel file, sheet "Coverage".</p></div>` : ""}`);
+        <p class="muted small">The full list (tested and not tested) is in the Excel file, sheet "Coverage".</p>
+        <div class="actions"><button type="button" class="secondary thorough-again">Run Thorough again</button></div></div>` : ""}`);
   }
 
   // ------------------------------------------------------------ Excel viewer (the real .xlsx, read-only)
@@ -1606,6 +1639,7 @@
         <span class="section-label">EXPLORATION REPORT</span><h2>Pages and components explored</h2>
         <p>Functional tests were not generated or run. This report shows what was discovered — not PASS/FAIL evidence for release.</p>
         ${coverageReminderHtml(s, crawl)}
+        <p class="muted small">Observed/scripted controls are not the same as business-verified checks.</p>
         <div class="stats"><div class="stat"><b>${esc(pagesCov.discovered ?? ((crawl.visited ?? s.pages ?? 0) + (crawl.not_visited_count ?? 0)))}</b><span>pages discovered</span></div>
           <div class="stat"><b>${esc(pagesCov.visited ?? crawl.visited ?? s.pages ?? 0)}</b><span>pages visited</span></div>
           ${d.components_count != null ? `<div class="stat"><b>${esc(d.components_count)}</b><span>components observed</span></div>` : ""}
@@ -1734,6 +1768,7 @@
           <div class="v-row"><span class="v-emoji">${esc(h.emoji)}</span><div><b>${esc(h.title)}</b><p>${esc(h.text)}</p></div>
           ${s.pass_rate != null ? `<div class="v-rate" title="${esc(M.headline ? M.headline.denominator : "")}"><b>${esc(s.pass_rate)}%</b><span>${M.headline ? `functional test cases passed (${esc(M.headline.passed)} of ${esc(M.headline.of)})` : "passed"}</span></div>` : ""}</div></div>
         ${coverageReminderHtml(s, d.crawl || s.crawl)}
+        <p class="muted small">Observed/scripted controls are not the same as business-verified checks.</p>
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
         ${s.result_status_counts ? `<div class="stats">
@@ -1790,6 +1825,8 @@
   }
 
   $("thread").addEventListener("click", async (e) => {
+    const thoroughBtn = e.target.closest(".thorough-again");
+    if (thoroughBtn) { focusThoroughSetup(); return; }
     const v = e.target.closest(".view-xl");
     if (v) { openExcel(v.dataset.run); return; }
     const again = e.target.closest(".rerun");

@@ -442,9 +442,17 @@ def control_cases(p: dict) -> list[dict]:
 
 # ---------------------------------------------------------------- coverage: what was found, what gets tested
 
+# Honesty note for coverage.json / UI: selector-in-script ≠ a business oracle passed.
+COVERAGE_SCRIPTED_NOTE = (
+    "Observed/scripted controls are not the same as business-verified checks. "
+    "'tested' means a generated script uses the control's selector — not that a product rule was proven."
+)
+
+
 def coverage(p: dict, code: str) -> dict:
     """Every control found on the page, marked tested / not tested (with the reason), so nothing is skipped silently.
-    A control counts as tested when a generated test really uses it (its selector is in the test code)."""
+    A control counts as tested when a generated test really uses it (its selector is in the test code).
+    Status values stay Excel/UI-compatible (tested / not tested); optional `meaning` clarifies scripted reach."""
     def in_code(s: str | None) -> bool:
         return bool(s) and (repr(s) in code or s in code)
 
@@ -459,10 +467,11 @@ def coverage(p: dict, code: str) -> dict:
 
     def add(name, kind, el, earlier):
         s = el.get("selector")
+        meaning = None
         if s and s in used:
-            status, why = "tested", ""
+            status, why, meaning = "tested", "", "scripted"
         elif earlier:
-            status, why = "tested", "same as on an earlier page - tested there"
+            status, why, meaning = "tested", "same as on an earlier page - tested there", "scripted"
         elif UNSAFE_BUTTON.search(name or "") or (s and UNSAFE_BUTTON.search(s)):
             status, why = "not tested", "not used on purpose: it could buy, pay, delete or log out"
         elif el.get("disabled") or el.get("inert"):
@@ -473,8 +482,11 @@ def coverage(p: dict, code: str) -> dict:
             status, why = "not tested", "form submit button: the form is not sent (to avoid creating real data)"
         else:
             status, why = "not tested", "no automatic test for this kind of control yet"
-        items.append({"name": (name or "?").split("\n")[0][:60], "kind": kind, "status": status, "reason": why,
-                      "frame": el.get("frame", ""), "shadow": " > ".join(el.get("shadow_path") or []), "selector": s})
+        row = {"name": (name or "?").split("\n")[0][:60], "kind": kind, "status": status, "reason": why,
+               "frame": el.get("frame", ""), "shadow": " > ".join(el.get("shadow_path") or []), "selector": s}
+        if meaning:
+            row["meaning"] = meaning
+        items.append(row)
 
     for b in p.get("buttons", []):
         kind = {"tab": "tab", "modal": "popup button", "collapse": "show / hide section", "dialog": "alert button",
@@ -496,13 +508,14 @@ def coverage(p: dict, code: str) -> dict:
     links = [l for l in p.get("links", []) if l.get("href", "").startswith("http")]
     if links:
         items.append({"name": f"{len(links)} links", "kind": "links", "status": "tested",
-                      "reason": "each one is opened by the link test"})
+                      "reason": "each one is opened by the link test", "meaning": "scripted"})
     # embedded frames: a same-site frame's controls are listed above (with their frame); other frames say why not
     for fr in p.get("frames") or []:
         if fr.get("status") == "testable":
             items.append({"name": str(fr.get("name"))[:60], "kind": "embedded frame (iframe)", "status": "tested",
                           "reason": f"its {fr.get('buttons', 0)} control(s) and {fr.get('inputs', 0)} box(es) are listed "
-                                    "with this frame", "frame": " > ".join(fr.get("path") or [])})
+                                    "with this frame", "frame": " > ".join(fr.get("path") or []),
+                          "meaning": "scripted"})
         else:
             items.append({"name": str(fr.get("name") or fr.get("url"))[:60], "kind": "embedded frame (iframe)",
                           "status": "not tested", "reason": fr.get("reason") or fr.get("status"),
@@ -516,7 +529,8 @@ def coverage(p: dict, code: str) -> dict:
                       "reason": u.get("reason") or "unsupported", "frame": u.get("frame", ""),
                       "shadow": " > ".join(u.get("shadow_path") or [])})
     tested = sum(1 for x in items if x["status"] == "tested")
-    return {"page": p.get("slug"), "url": p.get("url"), "tested": tested, "total": len(items), "items": items}
+    return {"page": p.get("slug"), "url": p.get("url"), "tested": tested, "total": len(items), "items": items,
+            "notes": [COVERAGE_SCRIPTED_NOTE]}
 
 
 def _page_name(p: dict) -> str:

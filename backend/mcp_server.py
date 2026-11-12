@@ -15,9 +15,10 @@ from .mcp_bridge import BlowAIBridge, BridgeError, local_url, require_permission
 PositiveID = Annotated[int, Field(ge=1)]
 Offset = Annotated[int, Field(ge=0)]
 PageSize = Annotated[int, Field(ge=1, le=100)]
-Pages = Annotated[int, Field(ge=1, le=500)]
+Pages = Annotated[int, Field(ge=0, le=500)]  # 0 = full same-site crawl within HARD_PAGE_CAP
 Depth = Annotated[int, Field(ge=0, le=30)]
 Provider = Literal["ollama", "none", "gemini", "openai", "anthropic"]
+THOROUGH_INTERACTIONS = 80
 
 
 def build_server(ui_url: str | None = None):
@@ -91,11 +92,12 @@ def build_server(ui_url: str | None = None):
     @server.tool(annotations=start)
     @_bridge_as_tool_error
     def crawl_website(
-        url: str, authorized: bool = False, max_pages: Pages = 20, max_depth: Depth = 6,
+        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 12,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
     ) -> dict:
         """Inventory a permitted website with Playwright: DOM controls, menus, nested menus and page states.
-        Opens navigation/toggles within bounded budgets. Skips login submission, form filling,
+        Defaults match Studio Thorough (full crawl within HARD_PAGE_CAP, higher depth/actions). Opens
+        navigation/toggles within bounded budgets. Skips login submission, form filling,
         account/cart changes, generated tests, baseline updates and integrations. Controls with
         undocumented side effects cannot be guaranteed harmless. Protected pages need a separate
         authorized test-account run. No discovered component is counted as functionally passed.
@@ -105,12 +107,14 @@ def build_server(ui_url: str | None = None):
             "source": website_url(url), "website_only": True, "discovery_only": True,
             "authorized": True, "max_pages": max_pages, "max_depth": max_depth, "crawl_scope": scope,
             "show_browser": show_browser, "environment": "test", "llm_provider": "none",
+            "thorough": True, "explore_repeated_controls": True,
+            "max_interactions_per_page": THOROUGH_INTERACTIONS,
         })
 
     @server.tool(annotations=start)
     @_bridge_as_tool_error
     def start_web_test(
-        url: str, authorized: bool = False, max_pages: Pages = 20, max_depth: Depth = 6,
+        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 12,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
         requirements: Annotated[str, Field(max_length=4000)] = "",
         qa_contract: dict | None = None, llm_provider: Provider = "ollama", llm_model: str = "",
@@ -119,6 +123,7 @@ def build_server(ui_url: str | None = None):
         production_confirmed: bool = False, writes_confirmed: bool = False, record_video: bool = False,
     ) -> dict:
         """Start the existing full Playwright QA workflow. Only website URLs, never local code/repositories.
+        Defaults match Studio Thorough budgets (full crawl, repeated controls, 80 actions/page).
         Test environments and configured test accounts may be changed by functional tests.
         Production needs explicit production_confirmed=true; staging form writes require the
         existing UI's checks/confirmation. Cloud providers send page data to that configured provider.
@@ -134,6 +139,8 @@ def build_server(ui_url: str | None = None):
             "llm_model": llm_model, "contract_only": contract_only, "environment": environment,
             "production_confirmed": production_confirmed,
             "writes_confirmed": writes_confirmed, "record_video": record_video,
+            "thorough": True, "explore_repeated_controls": True,
+            "max_interactions_per_page": THOROUGH_INTERACTIONS,
         })
 
     @server.tool(annotations=start)
