@@ -2,7 +2,8 @@
 
 **Initial baseline:** Phase 0 inspection, 2026-11-10 (Windows).  
 **Cloud re-baseline:** 2026-11-12 — documentation-only; see `deep_validation/13_phase0_cloud_rebaseline.md`.  
-“Implemented” means source paths exist. “Verified” requires actual execution evidence. Windows Phase 1–5 results are **historical** and are **not** current Linux-checkout passes.
+**Phases 6–13:** **IMPLEMENTED** with focused offline tests; **not VERIFIED** (full suite / live device / live providers deferred by owner).  
+“Implemented” means source paths exist. “Verified” requires actual execution evidence. Windows Phase 1–5 results are **historical** and are **not** current Linux-checkout passes. Do not upgrade any row to VERIFIED without fresh command evidence.
 
 | Feature/workflow | Principal implementation | Test/evidence | Status |
 |---|---|---|---|
@@ -13,25 +14,31 @@
 | Web forms, multi-step forms, search, filters, pagination, cart journeys | `forms.py`, `form_rules.py`, `items.py`, `features.py`, agents | Local practice sites and corresponding regression modules. | Implemented; current broad test attempt inconclusive |
 | Web test generation/execution | `backend/agents/test_design.py`, `script_generator.py`, `executor.py`, templates | Phase 4 focused safety 2/2; sandbox/browser recovery 5/5; Ruff passed; final serial non-slow suite 756 passed, 65 slow tests deselected. Evidence: `deep_validation/11_phase4_results.md`. | Implemented; Phase 4 verified; live arbitrary-site coverage remains bounded |
 | Web failure classification and healing | `failure_analysis.py`, `self_healing.py`, executor | Phase 5 focused suite 141 passed (8 slow marked deselected); DemoStore repair E2E 1 passed, including real-defect preservation. See `deep_validation/12_phase5_results.md`. | Implemented; Phase 5 verified |
-| Android APK/installed/Chrome target selection | `backend/android.py`, `android_emulator.py`, `android/server routes`, `chat.js` | Historical APK, installed package and Android Chrome runs. | Implemented; historical device verified, fresh device unavailable |
+| Android APK/installed/Chrome target selection | `backend/android.py`, `android_emulator.py`, `android/server routes`, `chat.js` | Historical APK, installed package and Android Chrome runs. Phase 6 clearer readiness errors (offline). | Implemented (Phase 6 slice); historical device verified; fresh device unavailable — not VERIFIED on cloud |
 | Native Android discovery/actions | `android_app.py`, `android_interact.py`, `android_pipeline.py`, runtime/templates | `tests/test_android*.py`; historical 175-pass Android focused suite and controlled app runs. | Implemented; historical verification |
-| Android WebView context and CSS locators | `qa_runtime.py`, `android.py`, `android_web.py`, `qa_contracts.py` | Historical hybrid-device run and WebView boundary tests. CSS is rejected in native context. | Implemented; historical verification |
+| Android WebView context and CSS locators | `qa_runtime.py`, `android.py`, `android_web.py`, `qa_contracts.py` | Phase 6 offline: CSS rejected in native `find_unique`, kept for WebView/Chrome (`tests/test_android_env_locator_safety.py`). Historical hybrid-device run. | Implemented (Phase 6); historical + offline unit evidence; not live-device VERIFIED |
 | Android permissions/forms/approved flows | `android_permissions.py`, QA contracts/runtime | Controlled demo app evidence in dated reports; no fresh connected device. | Implemented; historical partial verification |
-| Outcome reporting and coverage | `reporter.py`, `metrics.py`, `registry.py`, `android_reporting.py`, Excel | Metrics/results tests; historical XML counts; current run had temp/process errors. | Implemented; latest verification incomplete |
+| Outcome reporting and coverage | `reporter.py`, `metrics.py`, `registry.py`, `android_reporting.py`, Excel | Phases 12–13 honesty: counts from run files; incomplete → Insufficient Evidence. Metrics/results tests exist; full export equality not freshly claimed. | Implemented (reporting honesty); not VERIFIED as complete accuracy/export suite |
 | QA business contracts/API/SQLite oracles | `qa_contracts.py`, `qa_runtime.py`, `qa_oracles.py`, `qa_web.py` | 18 focused tests passed; 5 errored at temp fixture setup. Historical local contract pipeline passed. | Implemented; partial current verification |
-| Accuracy benchmark | `qa_benchmark.py`, `accuracy.py`, truth fixtures/UI | Benchmark tests and truth data exist; repeated-device benchmark documented as deferred. | Implemented; general accuracy not established |
-| MCP | `mcp_server.py`, `mcp_bridge.py`, `mcp_api.py`, privacy APIs | Tests prepared; MCP status says protocol round trips/live runs deferred. | Implemented; not protocol-verified in current evidence |
-| GitHub auto-fix/PR | `repo_fix.py`, FastAPI routes, `frontend/chat.js` | No dedicated functional repo-fix test located; no GitHub service contacted. | Implemented; unverified; partial-match reporting risk |
+| Accuracy benchmark | `qa_benchmark.py`, `accuracy.py`, truth fixtures/UI | Phase 12 honesty: measure from run artifacts only; no invented %. Repeated-device benchmark deferred. | Implemented; general accuracy not VERIFIED |
+| Frontend empty/error UX | `frontend/chat.*`, `qa-lab.*`, `contract-builder.js` | Phase 7: `tests/test_frontend_ux.py` (characterization). | Implemented; not live-UI VERIFIED |
+| API job/stop/review error contracts | `backend/server.py` | Phase 8: missing jobs 404; ended workers expose `exit_code`; `tests/test_server.py`. | Implemented; not full-API VERIFIED |
+| MCP | `mcp_server.py`, `mcp_bridge.py`, `mcp_api.py`, privacy APIs | Phase 10 offline BridgeError mapping + corrupt report → 422; protocol round trips/live runs still deferred. | Implemented (error paths); not protocol-VERIFIED |
+| AI provider error paths | `backend/llm/` | Phase 10: clearer LLMError; blank keys refused before outbound; `tests/test_llm_provider_errors.py`. | Implemented; live providers not VERIFIED |
+| GitHub auto-fix/PR | `repo_fix.py`, FastAPI routes, `frontend/chat.js` | Phase 9: partial-match reporting for multi-tag findings (`tests/test_repo_fix.py`). No live GitHub. | Implemented (partial-match fix); live PR not VERIFIED |
+| Security controls (metadata, private artifacts, uploads) | `backend/safety.py`, `server.py` | Phase 11 offline regressions for SSRF/metadata, `.private` serving, APK Content-Length. | Implemented; not full-audit VERIFIED |
 | Slack/Jira/webhook/schedules | `integrations.py`, `server.py`, `config.py` | Source/tests exist; external integrations not contacted. | Implemented; external behavior unverified |
-| Installation/CI/deployment | `setup/`, `ui.bat`, `run.bat`, `.github/workflows/ci.yml`, docs | Ruff/pip checks passed; install scripts and CI not run in Phase 0. | Implemented; partial verification |
+| Installation/CI/deployment | `setup/`, `ui.bat`, `run.bat`, `.github/workflows/ci.yml`, docs | Phase 15 docs: Windows primary; Linux offline/regression only. CI workflow targets `windows-latest`. | Implemented (docs); installers not re-run in this pass |
+| Performance / known limits | `backend/config.py`, `docs/31_PERFORMANCE_AND_LIMITS.md` | Phase 14: config caps documented; measure-before-optimize. No invented benchmarks. | Implemented (docs); no performance VERIFIED claims |
 
 ## Outcome vocabulary
 
-- **Implemented:** source path and caller exist.
+- **Implemented / IMPLEMENTED:** source path and caller exist (and, for Phases 6–13, focused offline tests were added where noted).
+- **Verified / VERIFIED:** successful execution evidence for the claimed scope (command + counts + log path). **Not used** for Phases 6–13 in this update — full suite deferred by owner.
 - **Historical verification:** an earlier report/log records execution; it may predate current changes.
 - **Partial verification:** some test scenarios ran, but full workflow or target environment coverage is missing.
 - **Blocked:** execution could not proceed due a recorded environment prerequisite/error.
-- **Unverified:** no execution evidence found for the behavior in the current baseline.
+- **Unverified / not VERIFIED:** no (or insufficient) execution evidence for the behavior in the current baseline.
 
 Do not summarize this matrix as “all features work.” Scope and test evidence are explicitly limited.
 
@@ -61,3 +68,7 @@ Rule-based failure classification and self-healing passed the focused regression
 ## Cloud Phase 0 verification note - 2026-11-12
 
 No feature row above was upgraded to “Verified” on the Linux cloud agent. Environment blockers for fresh verification: Python 3.12 host vs required 3.13, missing `.venv`/deps confirmation, no ADB/Appium, no live runs directory. Preserve Implemented vs Historical/Partial/Blocked vocabulary until a Phase 1 Linux suite produces new evidence.
+
+## Phases 6–16 documentation note - 2026-11-12
+
+Rows for Phases 6–13 were marked **Implemented** (with offline test pointers) but **not VERIFIED**. Phase 14 adds `docs/31_PERFORMANCE_AND_LIMITS.md` (caps only). Phase 15 notes Windows-primary deployment. Phase 16 is this matrix/status hygiene. Full-suite VERIFIED upgrades require owner-approved evidence runs.

@@ -109,3 +109,26 @@ This version is built for one tester on one Windows PC:
 
 Running it as a shared service would need, at least: a login for the UI with HTTPS, one separate workspace per user,
 a Linux sandbox (a container per test run), a secret store for the API keys, and the full test suite run on Linux.
+
+## Windows primary vs Linux (Phase 15)
+
+**Windows 10/11 is the supported install and day-to-day target** (`ui.bat`, Job Object sandbox, DPAPI accounts).
+GitHub Actions CI (`.github/workflows/ci.yml`) also runs on `windows-latest`.
+
+**Linux** (including Cursor cloud agents) is fine for **offline documentation and some non-Windows-specific unit
+tests**. It is **not** a supported product deployment, shared host, or substitute for the Windows installer. Do not
+assume Job Object memory/process limits or DPAPI account encryption work the same way. Do not run `setup\install.bat`
+(or recreate `.venv`) on a cloud Linux host without a separate owner approval.
+
+Known limits that affect scale and timeouts are listed in [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md)
+(measure a real run before changing defaults).
+
+## Light troubleshooting (install / first run)
+
+| Symptom | What to check |
+|---|---|
+| `ui.bat` fails looking for Python | Install Python 3.13 and ensure `py -3.13` works; re-run `setup\install.bat` only on the tester’s Windows PC. |
+| Packages or Chromium missing after copy | The copy must not include another PC’s `.venv`; let the Windows installer create a new one. |
+| Tests OOM / PC very slow | Lower `TEST_WORKERS` in `.env` (default 4). See performance limits doc. |
+| Run stops early with Insufficient Evidence | A configured time/page/test limit was hit; read the report reasons before raising caps. |
+| Linux-only environment | Use for offline checks only; deploy and live UI/Android verification stay on Windows with Appium/ADB when needed. |
