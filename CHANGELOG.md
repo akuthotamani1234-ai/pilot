@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Phase 0 cloud re-baseline (docs only)
+
+- Re-inspected the Git checkout on the Cursor Linux cloud agent (`/workspace`).
+- Updated `PROJECT_IMPLEMENTATION_STATUS.md`, `MASTER_TODO.md`, and `FEATURE_VERIFICATION_MATRIX.md` to separate Windows historical Phase 0–5 evidence from this host.
+- Added `deep_validation/13_phase0_cloud_rebaseline.md` with environment facts (Python 3.12 present, 3.13 missing, Git present, no ADB/Appium, no `.venv`/`.env`).
+- No application source, tests, APIs, integrations, credentials, baselines, run artifacts or APKs were changed.
+- Later phases remain gated pending owner approval; recommended next gate is a Linux Phase 1 regression re-baseline.
+
 ## 2026-11-10 — Phase 0 baseline documentation
 
 - Added `PROJECT_IMPLEMENTATION_STATUS.md` with the inspected architecture, evidence status, blockers and repo safety state.

@@ -6,13 +6,13 @@
 
 | Phase | Status | Gate |
 |---|---|---|
-| 0 — Project inspection and baseline | **COMPLETE** | Findings and implementation matrix recorded. No app source/test edits. Phase 1 subsequently established the serial non-slow test baseline; Git metadata remains absent. |
-| 1 - Existing test problems and Git baseline | **COMPLETE (test baseline)** | Focused QA contracts: 23 passed. Serial non-slow suite: 751 passed, 65 deselected. Git init remains deferred; see deep_validation/08_phase1_results.md. |
-| 2 — Website discovery | **COMPLETE** | XML-escaped sitemap URLs, sampled page-pattern discovery, and discovery regressions verified; see `deep_validation/09_phase2_results.md`. |
-| 3 — AI test generation | **COMPLETE** | Unsupported exact quoted expected messages are downgraded to exploratory; AI generation regressions and full non-slow suite pass. See `deep_validation/10_phase3_results.md`. |
-| 4 - Playwright/Pytest execution | **COMPLETE** | Fail-closed Windows Job Object handling; focused tests and final keep-awake serial regression passed. See Phase 4 results. |
-| 5 - Failure analysis and self-healing | **COMPLETE** | Classification and end-to-end repair decision verified; the real seeded defect remains a failure. See Phase 5 results. |
-| 6 — Android QA | NOT STARTED | Requires declared emulator/device and controlled fixture availability. |
+| 0 — Project inspection and baseline | **COMPLETE (Windows 2026-11-10; cloud re-inspected 2026-11-12)** | Findings and matrix recorded. Cloud docs-only re-baseline: `deep_validation/13_phase0_cloud_rebaseline.md`. No app source/test edits in Phase 0. |
+| 1 - Existing test problems and Git baseline | **COMPLETE on Windows (historical); Linux cloud re-baseline NOT STARTED** | Windows: QA contracts 23 passed; serial non-slow 751→ later 756. Git now exists on this checkout (`925ae2f`). Fresh Linux suite still required before trusting this host. |
+| 2 — Website discovery | **COMPLETE (Windows historical)** | See `deep_validation/09_phase2_results.md`. Not re-run on Linux cloud. |
+| 3 — AI test generation | **COMPLETE (Windows historical)** | See `deep_validation/10_phase3_results.md`. Not re-run on Linux cloud. |
+| 4 - Playwright/Pytest execution | **COMPLETE (Windows historical)** | Job Object fail-closed; see Phase 4 results. Linux Job Object paths are Windows-specific and must not be assumed identical. |
+| 5 - Failure analysis and self-healing | **COMPLETE (Windows historical)** | See Phase 5 results. Not re-run on Linux cloud. |
+| 6 — Android QA | NOT STARTED | Requires declared emulator/device and controlled fixture availability. Cloud host currently has no ADB/Appium. |
 | 7 — Frontend | NOT STARTED | Characterization tests and API/UI compatibility required. |
 | 8 — API/backend reliability | NOT STARTED | Preserve all current routes and client contracts. |
 | 9 — Repository auto-fix | NOT STARTED | Add isolated tests; GitHub behavior only via mocks/disposable authorized repo. |
@@ -25,6 +25,13 @@
 | 16 — Hygiene/documentation | NOT STARTED | No artifact deletion without explicit approval. |
 | 17 — Final regression/acceptance | NOT STARTED | Requires completed phase gates and real declared-target verification. |
 | 18 — Final delivery reports | NOT STARTED | Produce only after evidence exists; distinguish historical from fresh results. |
+
+## Owner decision needed after this Phase 0
+
+Recommended next approval (see suggestions in the Phase 0 PR summary):
+
+1. **Phase 1 Linux re-baseline** — install Python 3.13 + project deps in this environment, configure writable pytest temp, run focused contracts then serial `-m "not slow"`, record exact counts. Do not weaken tests.
+2. Only after that baseline is green (or failures are classified), approve **Phase 6** if an emulator/device will be available, **or** approve an alternate high-value offline phase (8 API, 9 repo-fix, 11 security) if Android remains blocked.
 
 ## Phase 1 completion record
 
