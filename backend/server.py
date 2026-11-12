@@ -46,12 +46,22 @@ IS_WINDOWS = os.name == "nt"
 UI_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
+# Sensitive run artifacts: never served as public static files even if copied outside .private/
+_PRIVATE_RUN_FILES = frozenset({
+    "auth.json",
+    "contract_inputs.json",
+    "android_config.json",
+    "app.apk",
+    "active_appium_session.json",
+})
+
+
 class RunFiles(StaticFiles):
-    """runs/ as files for the report pages - except the saved login (.private/: session cookies) and hidden files."""
+    """runs/ as files for the report pages - except private inputs, APKs, auth and hidden files."""
 
     async def get_response(self, path: str, scope):
         parts = Path(path).parts
-        if any(p.startswith(".") for p in parts) or (parts and parts[-1] == "auth.json"):
+        if any(p.startswith(".") for p in parts) or (parts and parts[-1].lower() in _PRIVATE_RUN_FILES):
             raise HTTPException(404, "not found")
         return await super().get_response(path, scope)
 

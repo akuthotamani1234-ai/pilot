@@ -83,6 +83,28 @@ def test_saved_login_and_hidden_files_are_never_served(client):
         shutil.rmtree(run, ignore_errors=True)
 
 
+def test_sensitive_run_artifacts_are_never_served_even_outside_private(client):
+    """APK / contract inputs / android config must 404 even if left at the run root by mistake."""
+    run = server.RUNS / "zz_phase11_artifacts_20260101_000000"
+    run.mkdir(parents=True, exist_ok=True)
+    try:
+        (run / "contract_inputs.json").write_text('{"secrets": {"x": "leak-me"}}', encoding="utf-8")
+        (run / "android_config.json").write_text('{"apk_path": "/tmp/app.apk"}', encoding="utf-8")
+        (run / "app.apk").write_bytes(b"PK\x03\x04fake")
+        (run / "active_appium_session.json").write_text('{"session": "s"}', encoding="utf-8")
+        (run / "report.html").write_text("<p>ok</p>", encoding="utf-8")
+        assert client.get(f"/runs/{run.name}/report.html").status_code == 200
+        for name in ("contract_inputs.json", "android_config.json", "app.apk", "active_appium_session.json",
+                     "AUTH.JSON"):
+            if name == "AUTH.JSON":
+                (run / name).write_text("{}", encoding="utf-8")
+            r = client.get(f"/runs/{run.name}/{name}")
+            assert r.status_code == 404, name
+            assert r.json()["detail"] == "not found"
+    finally:
+        shutil.rmtree(run, ignore_errors=True)
+
+
 def test_website_check_refuses_metadata_addresses(client):
     r = client.get("/api/check", params={"source": "http://169.254.169.254/"})
     assert r.status_code == 200 and r.json()["ok"] is False and "metadata" in r.json()["error"]
