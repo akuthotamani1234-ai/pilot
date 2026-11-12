@@ -261,6 +261,8 @@ details.log pre { white-space: pre-wrap; word-break: break-word; font: 11.5px/1.
 .warn { font-size: 13px; background: var(--amber-soft); color: var(--amber); border-radius: 12px; padding: 10px 14px; }
 .warn.coverage-reminder { margin: 10px 0 14px; border: 1px solid var(--amber); font-weight: 500; }
 .warn.coverage-reminder b { font-weight: 700; }
+.coverage-reminder-actions { margin-top: 8px; }
+.bad-count { color: var(--red, #b91c1c); }
 #aiIntensityNote { margin-top: 8px; }
 
 .typing { display: inline-flex; gap: 4px; padding: 10px 0; }
