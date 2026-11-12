@@ -136,6 +136,7 @@ def build(results: list[dict], cases: list[dict], registry: dict | None = None, 
         rates.append(_rate("Page patterns verified", P.get("verified", 0), P.get("discovered", 0),
                            "every page pattern found (a pattern with many pages, e.g. one product page per product, "
                            "counts once)"))
+    from .report_clarity import case_status_counts, feature_status_counts
     out = {
         "single_tests": dict(_outcomes(results), groups=groups),
         "assertions": {"executed": sum(int(r.get("checks") or 0) for r in results),
@@ -148,6 +149,9 @@ def build(results: list[dict], cases: list[dict], registry: dict | None = None, 
         "features": dict(rc.get("features") or {}, untested=untested_features[:400]),
         "rates": rates,
         "headline": rates[0],
+        # Additive clarity buckets for reports/UI - never mix into one "accuracy %"
+        "result_status_counts": case_status_counts(tc),
+        "feature_status_counts": feature_status_counts(rc.get("features") or {}),
     }
     out["consistency"] = consistency(out, results, cases, registry, failures, case_result, case_hits)
     out["consistency"] += more_checks(registry, test_dir)
@@ -283,9 +287,9 @@ def summary_lines(m: dict) -> list[str]:
     lines = [
         f"Functional test cases: {h['passed']} of {h['of']} passed ({h['percent'] if h['percent'] is not None else '-'}%)"
         f" - {h['denominator']}.",
-        f"Test cases: {tc['planned']} planned, {tc['executed']} executed - {tc['passed']} passed, {tc['failed']} failed, "
-        f"{tc['flaky']} flaky, {tc['inconclusive']} inconclusive, {tc['skipped']} skipped, {tc['blocked']} blocked, "
-        f"{tc['not_run'] + tc['pending']} not run.",
+        f"Test cases: {tc['planned']} planned, {tc['executed']} executed - {tc['passed']} PASS, {tc['failed']} FAIL, "
+        f"{tc['flaky']} flaky (counted under FAIL in clarity totals), {tc['inconclusive']} INCONCLUSIVE, "
+        f"{tc['skipped']} SKIPPED, {tc['blocked']} BLOCKED, {tc['not_run'] + tc['pending']} NOT TESTED.",
         f"Single tests: {st['total']} ran ({st['passed']} passed, {st['failed']} failed, {st['skipped']} skipped, "
         f"{st['inconclusive']} inconclusive) - " + ", ".join(f"{x['total']} {k.replace('_', ' ')}" for k, x in g.items())
         + f"; {m['assertions']['executed']} assertions executed.",

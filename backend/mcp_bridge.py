@@ -139,12 +139,20 @@ class BlowAIBridge:
                     try:
                         result = json.loads(b"".join(chunks))
                     except (ValueError, UnicodeError) as error:
-                        raise BridgeError("The UI returned an invalid API reply. Restart the latest ui.bat.") from error
+                        raise BridgeError(
+                            "The UI returned invalid JSON (not a usable MCP reply). Restart the latest ui.bat."
+                        ) from error
                     if not response.ok:
-                        from .safety import redact
-                        detail = redact(str(result.get("detail", "Request rejected"))) if isinstance(result, dict) else "Request rejected"
-                        raise BridgeError(f"Blow AI HTTP {response.status_code}: {detail[:1200]}")
+                        raise BridgeError(_http_bridge_error(response.status_code, result))
                     return result
+        except BridgeError:
+            raise
+        except requests.Timeout as error:
+            suffix = (" A start request may already have reached the UI; use list_runs before retrying."
+                      if method == "POST" else "")
+            raise BridgeError(
+                f"Blow AI at {self.ui_url} timed out.{suffix} Start ui.bat and check its displayed port."
+            ) from error
         except requests.RequestException as error:
             suffix = (" A start request may already have reached the UI; use list_runs before retrying."
                       if method == "POST" else "")
@@ -162,8 +170,12 @@ class BlowAIBridge:
         info = self.verify()
         privacy = info.get("privacy") or {}
         if not privacy.get("mcp_allowed"):
-            raise BridgeError("MCP data access is disabled. Open Privacy settings in the UI and approve your "
-                              "assistant. Local-only access requires confirmation that it processes data locally.")
+            mode = privacy.get("mode") or "local"
+            raise BridgeError(
+                "MCP data access is disabled. Open Privacy settings in the UI and approve your assistant. "
+                f"Current privacy mode is '{mode}'. "
+                "Local-only access also requires confirmation that the assistant processes data locally."
+            )
         return privacy
 
     def get(self, route, **params):
@@ -199,4 +211,33 @@ class BlowAIBridge:
 
 def require_permission(authorized):
     if authorized is not True:
-        raise BridgeError("Confirm ownership or permission with the user before setting authorized=true.")
+        raise BridgeError(
+            "Permission required: confirm ownership or permission with the user before setting authorized=true."
+        )
+
+
+def _http_bridge_error(status_code: int, result) -> str:
+    """Map UI HTTP failures to clear MCP-facing messages without leaking secrets."""
+    from .safety import redact
+    detail = "Request rejected"
+    if isinstance(result, dict):
+        detail = redact(str(result.get("detail", detail)))
+    detail = detail[:1200]
+    lowered = detail.lower()
+    if status_code == 403 and ("mcp data access is disabled" in lowered or "approve your assistant" in lowered
+                               or "privacy" in lowered):
+        return (detail if detail != "Request rejected"
+                else "MCP data access is disabled. Open Privacy settings in the UI and approve your assistant.")
+    if status_code == 403:
+        return f"Blow AI refused access (HTTP 403): {detail}"
+    if status_code == 400:
+        return f"Invalid MCP request (HTTP 400): {detail}"
+    if status_code == 404:
+        return f"Not found (HTTP 404): {detail}"
+    if status_code == 409:
+        return f"Conflict (HTTP 409): {detail}"
+    if status_code == 413:
+        return f"Reply too large for MCP (HTTP 413): {detail}"
+    if status_code >= 500:
+        return f"Blow AI UI error (HTTP {status_code}): {detail}"
+    return f"Blow AI HTTP {status_code}: {detail}"

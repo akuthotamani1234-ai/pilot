@@ -71,9 +71,60 @@ def test_missing_ui_error_does_not_retry_post(monkeypatch):
         calls.append(method)
         raise requests.Timeout("local timeout")
     monkeypatch.setattr(requests.Session, "request", fail_request)
-    with pytest.raises(BridgeError, match="list_runs before retrying"):
+    with pytest.raises(BridgeError, match=r"timed out|list_runs before retrying"):
         bridge._send("POST", "/api/runs", body={"authorized": True})
     assert calls == ["POST"]
+
+
+def test_disabled_mcp_access_message_names_privacy_mode(monkeypatch):
+    bridge = BlowAIBridge()
+    monkeypatch.setattr(bridge, "verify", lambda: {
+        "product": "blow-ai", "bridge_version": 1,
+        "privacy": {"mcp_allowed": False, "mode": "local", "allow_mcp": False},
+    })
+    with pytest.raises(BridgeError, match=r"MCP data access is disabled.*local"):
+        bridge.get("/api/history")
+
+
+@pytest.mark.parametrize("status,detail,needle", [
+    (400, "Use a nonnegative offset", r"Invalid MCP request \(HTTP 400\)"),
+    (403, "MCP data access is disabled. Approve your assistant in Privacy settings.",
+     r"MCP data access is disabled"),
+    (404, "Job not found", r"Not found \(HTTP 404\)"),
+    (413, "too large for MCP", r"too large for MCP \(HTTP 413\)"),
+])
+def test_http_error_mapping_is_actionable_and_redacts_secrets(status, detail, needle, monkeypatch):
+    import requests
+    bridge = BlowAIBridge()
+    monkeypatch.setenv("BLOWAI_SECRET_MCP_ERR", "super-secret-mcp-token")
+
+    class FakeResponse:
+        status_code = status
+        ok = False
+
+        def iter_content(self, _size):
+            payload = json.dumps({"detail": f"{detail} super-secret-mcp-token"}).encode()
+            yield payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_request(self, method, url, **kwargs):
+        return FakeResponse()
+
+    monkeypatch.setattr(requests.Session, "request", fake_request)
+    with pytest.raises(BridgeError, match=needle) as err:
+        bridge._send("GET", "/api/mcp/jobs/1")
+    assert "super-secret-mcp-token" not in str(err.value)
+
+
+def test_permission_helper_rejects_truthy_non_true_values():
+    with pytest.raises(BridgeError, match="Permission required"):
+        require_permission("yes")
+    require_permission(True)  # exact True is the only accepted authorization
 
 
 def test_stdio_tools_register_without_contacting_ui(monkeypatch):
@@ -122,10 +173,14 @@ def test_mcp_views_paginate_logs_and_refuse_private_sections(tmp_path):
     report_dir = tmp_path / "run"
     report_dir.mkdir()
     (report_dir / "results.json").write_text(json.dumps([{"id": n} for n in range(5)]), encoding="utf-8")
+    (report_dir / "failures.json").write_text("{not-json", encoding="utf-8")
     app = FastAPI()
     jobs = {1: {"id": 1, "status": "running", "lines": ["a", "b", "c"], "pages": []}}
     def read_json(path, default):
-        return json.loads(path.read_text()) if path.exists() else default
+        try:
+            return json.loads(path.read_text())
+        except (OSError, ValueError):
+            return default
     register_mcp_api(app, jobs, threading.Lock(), lambda run: report_dir, read_json)
     with TestClient(app) as client:
         response = client.get("/api/mcp/jobs/1?since=1&limit=1").json()
@@ -135,7 +190,11 @@ def test_mcp_views_paginate_logs_and_refuse_private_sections(tmp_path):
         assert result["total"] == 5
         assert client.get("/api/mcp/reports/run?section=.private").status_code == 400
         assert client.get("/api/mcp/jobs/1?since=-1").status_code == 400
+        assert "Invalid request" in client.get("/api/mcp/jobs/1?since=-1").json()["detail"]
         assert client.get("/api/mcp/reports/run?section=summary").json()["available"] is False
+        corrupt = client.get("/api/mcp/reports/run?section=failures")
+        assert corrupt.status_code == 422
+        assert "could not be read as JSON" in corrupt.json()["detail"]
 
 
 def test_generated_client_paths_are_absolute_and_no_credentials_are_embedded(tmp_path):

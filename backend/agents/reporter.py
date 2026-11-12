@@ -753,9 +753,15 @@ def reporter_agent(state: QAState) -> QAState:
           f"({cost['calls']} calls, {cost['tokens_in'] + cost['tokens_out']} tokens) - "
           f"{fmt_usd(cost['avg_cost_per_case_usd'])} per test case")
 
-    story = headline(verdict, fixes, reasons)
-    good = working_well(app_map, results, cases, m)
     limits = limits_hit(state, run_dir)
+    from ..report_clarity import build as clarity_build
+    clarity = clarity_build(
+        crawl=state.get("crawl"), app_map=app_map, limits=limits,
+        incomplete=bool(state.get("incomplete")), discovery_only=False,
+        test_cases=m.get("test_cases"), cases=cases, feature_counts=state.get("feature_counts") or (
+            (reg or {}).get("counts") if reg else None))
+    story = headline(verdict, fixes, reasons, partial_coverage=clarity["coverage_limitations"]["partial"])
+    good = working_well(app_map, results, cases, m)
     confidence = coverage_confidence(cov3, state, limits)
     vis = _visual(run_dir)  # (the visual check: its own section - a change of the look is no failure)
     limits_html = ""
@@ -1157,10 +1163,22 @@ td pre {{ white-space:pre-wrap; font-size:11.5px; color:var(--muted); margin:4px
 </section>
 <div class="box" style="margin-top:16px;border-left:4px solid #7b72c5">
 <h3>Exploration and functional test coverage</h3>
-<p>{_e((state.get('crawl') or {}).get('exploration', {}).get('statement', 'Review the selected scope and recorded limits.'))}</p>
-<p>{len(app_map)} page(s) visited; {(state.get('crawl') or {}).get('not_visited_count', 0)} discovered route(s) unvisited.
-The percentage above covers {head['of']} executed functional test case(s), not every component or the whole website.</p>
+<p>{_e(clarity['coverage_limitations']['statement'])}</p>
+<p>{_e(clarity['coverage_limitations']['limitation'])}</p>
+<p>{clarity['pages_coverage']['visited']} page(s) visited of {clarity['pages_coverage']['discovered']} discovered;
+  {clarity['pages_coverage']['not_visited']} not visited.
+The percentage above covers {head['of']} executed functional test case(s), not every component or the whole website.
+This report never claims the entire site was tested.</p>
 </div>
+<div class="nums">
+  <div class="n ok"><b>{clarity['result_status_counts']['PASS']}</b><span>PASS</span></div>
+  <div class="n bad"><b>{clarity['result_status_counts']['FAIL']}</b><span>FAIL (incl. flaky)</span></div>
+  <div class="n"><b>{clarity['result_status_counts']['BLOCKED']}</b><span>BLOCKED</span></div>
+  <div class="n"><b>{clarity['result_status_counts']['SKIPPED']}</b><span>SKIPPED</span></div>
+  <div class="n"><b>{clarity['result_status_counts']['NOT TESTED']}</b><span>NOT TESTED</span></div>
+  <div class="n"><b>{clarity['result_status_counts']['INCONCLUSIVE']}</b><span>INCONCLUSIVE</span></div>
+</div>
+<p class="muted">Test-case outcomes stay separate: blocked, skipped, not tested and inconclusive are never counted as PASS.</p>
 {limits_html}
 
 <div class="nums">
@@ -1261,11 +1279,19 @@ function copyCode(b) {{
         "stopped_at": state.get("stopped_at", ""), "limits_hit": limits,
         "environment": cfg.environment, "writes": cfg.writes_note, "coverage_card": card, "seen_by_ai": seen_summary,
         "coverage_confidence": confidence,
+        "result_status_counts": clarity["result_status_counts"],
+        "feature_status_counts": clarity["feature_status_counts"],
+        "pages_coverage": clarity["pages_coverage"],
+        "pages_discovered": clarity["pages_coverage"]["discovered"],
+        "pages_visited": clarity["pages_coverage"]["visited"],
+        "pages_not_visited": clarity["pages_coverage"]["not_visited"],
+        "coverage_limitations": clarity["coverage_limitations"],
         "data_created": {k: created[k] for k in ("created", "deleted")} | {"left": len(created["left"])},
         # plain-English story for the web page; pass_rate = the share of FUNCTIONAL test cases that passed (its
-        # denominator: metrics.headline) - every number above comes from metrics (metrics.json)
+        # denominator: metrics.headline) - every number above comes from metrics (metrics.json); never overall accuracy %
         "headline": story, "working_well": good, "pass_rate": pass_rate,
         "metrics": {k: m[k] for k in ("single_tests", "assertions", "test_cases", "workflows", "findings", "rates",
-                                      "headline", "consistency", "consistent")}}, indent=2), encoding="utf-8")
+                                      "headline", "consistency", "consistent", "result_status_counts",
+                                      "feature_status_counts")}}, indent=2), encoding="utf-8")
     log = state.get("log", []) + [f"Report: verdict = {verdict}."]
     return {"verdict": verdict, "report_path": str(report), "log": log}

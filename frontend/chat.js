@@ -741,12 +741,17 @@
       '<span>If the selected AI becomes unavailable, allow a clearly labelled rules-only fallback.</span></label></section>' +
       '<section class="setup-section" id="setupScope"><div class="setup-section-title"><span>03</span><div><h3>Choose exploration scope</h3>' +
       '<p>Whole website is the default. Every limit and inaccessible area is reported.</p></div></div>' +
-      '<div class="fields"><label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
+      '<div class="fields"><label>Exploration intensity <select id="aiIntensity" aria-describedby="aiIntensityNote">' +
+      '<option value="standard">Standard — current defaults</option>' +
+      '<option value="thorough">Thorough — full crawl within safety budgets</option></select></label>' +
+      '<label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
       '<option value="section">Only the URL section</option><option value="page">Only the supplied page</option></select></label>' +
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
       '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="50"></label></div>' +
+      '<p class="note" id="aiIntensityNote" hidden>Thorough uses safety budgets (HARD_PAGE_CAP / time limit). ' +
+      'Unvisited pages remain listed if budgets stop the crawl.</p>' +
       '<p class="note" id="aiScopeNote">Whole-site route discovery, including menus, nested controls, pagination and logged-in pages when access is available. ' +
       'Safety budgets: up to ' + cap + ' pages, ' + minutes + ' minutes, and the selected actions per page. ' +
       'Discovered does not mean functionally verified.</p></section>' +
@@ -867,7 +872,11 @@
       $("aiRefresh").disabled = false;
     });
     $("aiAccountMode").addEventListener("change", refreshAccountFields);
-    ["aiCrawlMode","aiScope"].forEach((id) => $(id).addEventListener("change", updateSetupSummary));
+    $("aiIntensity").addEventListener("change", applyExplorationIntensity);
+    ["aiCrawlMode","aiScope","aiActions"].forEach((id) => $(id).addEventListener("change", () => {
+      if ($("aiIntensity").value === "thorough") applyExplorationIntensity();
+      else updateSetupSummary();
+    }));
     $("advEnv").addEventListener("change", () => {
       $("advProdBox").hidden = $("advEnv").value !== "production";
       $("advStagingBox").hidden = $("advEnv").value !== "staging";
@@ -904,16 +913,54 @@
     updateSetupSummary();
   }
 
+  function applyExplorationIntensity() {
+    if (!$("aiIntensity")) return;
+    const thorough = $("aiIntensity").value === "thorough";
+    $("aiIntensityNote").hidden = !thorough;
+    if (thorough) {
+      // Full crawl: max_pages 0 → HARD_PAGE_CAP, site scope, repeated controls, ≥50 actions/page.
+      $("aiCrawlMode").value = "full";
+      $("aiScope").value = "site";
+      $("aiActions").value = String(Math.max(50, Math.min(100, +$("aiActions").value || 50)));
+    }
+    updateSetupSummary();
+  }
+
+  function coverageReminderHtml(s, crawl) {
+    const pagesCov = (s && s.pages_coverage) || {};
+    const lim = (s && s.coverage_limitations) || {};
+    const crawlInfo = crawl || (s && s.crawl) || {};
+    const counts = (s && s.result_status_counts) || {};
+    const notVisited = +(pagesCov.not_visited ?? crawlInfo.not_visited_count ?? s.pages_not_visited ?? 0) || 0;
+    const limitHit = !!(lim.partial || pagesCov.limit_reached || pagesCov.time_limit_reached
+      || crawlInfo.limit_reached || crawlInfo.time_limit_reached
+      || (lim.limits_hit && lim.limits_hit.length));
+    const blocked = +(counts.BLOCKED || 0) || 0;
+    const notTested = +(counts["NOT TESTED"] || 0) || 0;
+    if (!notVisited && !limitHit && !blocked && !notTested) return "";
+    const bits = [];
+    if (notVisited) bits.push(notVisited + " page(s) not visited");
+    if (limitHit) bits.push("a safety budget or limit stopped further exploration");
+    if (blocked) bits.push(blocked + " blocked");
+    if (notTested) bits.push(notTested + " not tested");
+    const detail = lim.statement || ("Coverage gaps remain: " + bits.join("; ")
+      + ". Unvisited and untested items stay listed in this report.");
+    return `<div class="warn coverage-reminder" role="status"><b>Coverage reminder:</b> ${esc(detail)}</div>`;
+  }
+
   function updateSetupSummary() {
     if (!$("aiRunSummary")) return;
+    const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
     const limited = $("aiCrawlMode").value === "limited";
     $("aiPageBudget").hidden = !limited;
+    if ($("aiIntensityNote")) $("aiIntensityNote").hidden = !thorough;
     const area = $("aiScope").value === "site" ? "Whole website" : $("aiScope").value === "section" ? "URL section" : "One page";
     const account = $("aiAccountMode").selectedOptions[0].textContent;
     const provider = (providers || []).find((p) => p.id === chosen);
     const ai = provider ? (provider.id === "none" ? "Rules only, no AI interpretation" : provider.name + " / " + ($("aiModel").value || "choose a model")) : "Choose an AI engine or Rules only";
-    $("aiRunSummary").textContent = area + " ? " + (limited ? "up to " + $("aiPages").value + " pages" : "all discovered pages within safety budgets") +
-      " ? " + account + " ? " + ai + ". Unvisited pages and untested controls stay visible in the report.";
+    const coverage = limited ? "up to " + $("aiPages").value + " pages" : "all discovered pages within safety budgets";
+    $("aiRunSummary").textContent = (thorough ? "Thorough · " : "Standard · ") + area + " · " + coverage +
+      " · " + account + " · " + ai + ". Unvisited pages and untested controls stay visible in the report.";
     $("aiScopeNote").classList.toggle("limited-scope", limited || $("aiScope").value !== "site" || +$("advDepth").value > 0);
   }
 
@@ -964,10 +1011,14 @@
       $("aiNote").textContent = problems.join(" ");
       return;
     }
-    const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: $("aiCrawlMode").value === "full" ? 0 : Math.max(1, +$("aiPages").value || 10),
-                   crawl_scope: $("aiScope").value, auth_mode: accountMode,
-                   max_interactions_per_page: Math.min(100, Math.max(1, +$("aiActions").value || 50)),
-                   explore_repeated_controls: $("aiCrawlMode").value === "full",
+    const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
+    if (thorough) applyExplorationIntensity();
+    const fullCrawl = thorough || $("aiCrawlMode").value === "full";
+    const actionsPerPage = Math.min(100, Math.max(thorough ? 50 : 1, +$("aiActions").value || 50));
+    const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
+                   crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
+                   max_interactions_per_page: actionsPerPage,
+                   explore_repeated_controls: thorough || fullCrawl,
                    allow_rules_fallback: $("aiFallback").checked,
                    show_browser: $("aiWatch").checked, fresh: $("aiFresh").checked,
                    authorized: true, allow_signup: accountMode === "signup" && $("aiSignup").checked, environment: val("advEnv") || "test",
@@ -1107,6 +1158,9 @@
     $("statusPill").hidden = !text;
     $("statusPill").textContent = text;
     $("statusPill").className = "pill " + (cls || "");
+    const busy = /loading|testing|starting|waiting/i.test(text || "");
+    if (busy) $("statusPill").setAttribute("aria-busy", "true");
+    else $("statusPill").removeAttribute("aria-busy");
   }
 
   function showQualityStatus(summary) {
@@ -1351,19 +1405,26 @@
   // ------------------------------------------------------------ Excel viewer (the real .xlsx, read-only)
   async function openExcel(run) {
     let d;
+    $("excelModal").setAttribute("aria-busy", "true");
     try {
       const res = await fetch(`/api/excel/${encodeURIComponent(run)}`);
       if (!res.ok) throw new Error();
       d = await res.json();
-    } catch (e) { alert("The Excel file is not ready yet."); return; }
+    } catch (e) {
+      $("excelModal").setAttribute("aria-busy", "false");
+      alert("The Excel file is not ready yet. Wait until test design finishes, then try again.");
+      return;
+    }
     excelData = d; excelSheet = 0;
     $("excelFile").textContent = `${d.name || "test_cases.xlsx"} · ${run}`;
     $("excelDl").href = `/api/excel/${encodeURIComponent(run)}/download`;
-    $("sheetTabs").innerHTML = d.sheets.map((s, i) => `<button type="button" data-i="${i}">${esc(s.name)} (${s.rows.length})</button>`).join("");
+    $("sheetTabs").innerHTML = d.sheets.map((s, i) =>
+      `<button type="button" data-i="${i}" aria-label="Show sheet ${esc(s.name)}">${esc(s.name)} (${s.rows.length})</button>`).join("");
     $("excelSearch").value = "";
     fillFilter();
     renderSheet();
     $("excelModal").hidden = false;
+    $("excelModal").setAttribute("aria-busy", "false");
     $("excelSearch").focus();
   }
 
@@ -1539,14 +1600,18 @@
       reports[run] = s;
       const crawl = d.crawl || s.crawl || {};
       const exploration = crawl.exploration || {};
+      const pagesCov = s.pages_coverage || {};
+      const lim = s.coverage_limitations || {};
       say(`<div class="card exploration-result">
         <span class="section-label">EXPLORATION REPORT</span><h2>Pages and components explored</h2>
-        <p>Functional tests were not generated or run. This report shows what was discovered.</p>
-        <div class="stats"><div class="stat"><b>${esc(crawl.visited ?? s.pages ?? 0)}</b><span>pages inspected</span></div>
+        <p>Functional tests were not generated or run. This report shows what was discovered — not PASS/FAIL evidence for release.</p>
+        ${coverageReminderHtml(s, crawl)}
+        <div class="stats"><div class="stat"><b>${esc(pagesCov.discovered ?? ((crawl.visited ?? s.pages ?? 0) + (crawl.not_visited_count ?? 0)))}</b><span>pages discovered</span></div>
+          <div class="stat"><b>${esc(pagesCov.visited ?? crawl.visited ?? s.pages ?? 0)}</b><span>pages visited</span></div>
           ${d.components_count != null ? `<div class="stat"><b>${esc(d.components_count)}</b><span>components observed</span></div>` : ""}
-          <div class="stat"><b>${esc(crawl.not_visited_count ?? 0)}</b><span>discovered routes pending</span></div></div>
-        ${exploration.statement ? `<p>${esc(exploration.statement)}</p>` : ""}
-        <div class="note">${esc(exploration.limitation || "Discovery is not proof that every component state or business workflow was tested.")}</div>
+          <div class="stat"><b>${esc(pagesCov.not_visited ?? crawl.not_visited_count ?? 0)}</b><span>pages not visited</span></div></div>
+        ${lim.statement || exploration.statement ? `<p>${esc(lim.statement || exploration.statement)}</p>` : ""}
+        <div class="note">${esc(lim.limitation || exploration.limitation || "Discovery is not proof that every component state or business workflow was tested. This never claims the entire site was tested.")}</div>
         <div class="actions">${d.components_report ? `<a class="primary" target="_blank" rel="noopener" href="${esc(d.components_report)}">View component inventory</a>` : ""}
           ${d.report_html ? `<a class="secondary" target="_blank" rel="noopener" href="${esc(d.report_html)}">Open exploration report</a>` : ""}</div></div>`, "report");
       if (d.components_report) { $("actComponents").href = d.components_report; $("actComponents").hidden = false; }
@@ -1668,10 +1733,19 @@
         <div class="verdict" style="--vc:${VERDICT_COLOR[s.verdict] || "#64748b"}">
           <div class="v-row"><span class="v-emoji">${esc(h.emoji)}</span><div><b>${esc(h.title)}</b><p>${esc(h.text)}</p></div>
           ${s.pass_rate != null ? `<div class="v-rate" title="${esc(M.headline ? M.headline.denominator : "")}"><b>${esc(s.pass_rate)}%</b><span>${M.headline ? `functional test cases passed (${esc(M.headline.passed)} of ${esc(M.headline.of)})` : "passed"}</span></div>` : ""}</div></div>
+        ${coverageReminderHtml(s, d.crawl || s.crawl)}
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
+        ${s.result_status_counts ? `<div class="stats">
+          ${stat(s.result_status_counts.PASS, "PASS", "good")}
+          ${stat(s.result_status_counts.FAIL, "FAIL", s.result_status_counts.FAIL ? "bad" : "")}
+          ${stat(s.result_status_counts.BLOCKED, "BLOCKED")}
+          ${stat(s.result_status_counts.SKIPPED, "SKIPPED")}
+          ${stat(s.result_status_counts["NOT TESTED"], "NOT TESTED")}
+          ${stat(s.result_status_counts.INCONCLUSIVE, "INCONCLUSIVE", s.result_status_counts.INCONCLUSIVE ? "bad" : "")}</div>` : ""}
         <div class="stats">
-          ${stat(s.pages, "pages inspected")}
+          ${stat(s.pages_visited ?? s.pages, "pages visited")}
+          ${s.pages_not_visited != null ? stat(s.pages_not_visited, "pages not visited", s.pages_not_visited ? "bad" : "") : ""}
           ${TC ? stat(`${TC.passed} / ${TC.planned}`, `test cases passed (${TC.failed} failed, ${TC.blocked} blocked, ${TC.inconclusive + TC.skipped} inconclusive / skipped)`, TC.failed ? "bad" : "good") : stat(s.test_cases, "test cases")}
           ${ST ? stat(`${ST.groups.links.passed} / ${ST.groups.links.total}`, "link checks passed (counted on their own)") : stat(s.passed, "tests passed", "good")}
           ${FD ? stat(FD.application_defects, "application defects", FD.application_defects ? "bad" : "good") : stat(s.bugs ?? 0, "suspected website bugs", s.bugs ? "bad" : "good")}
@@ -1870,9 +1944,14 @@
       const plan = await postJSON(`/api/runs/${encodeURIComponent(run)}/repo-fix/prepare`, body);
       const files = plan.files.map((f) => `<details class="log"><summary><b>${esc(f.path)}</b> · ${esc(f.fixes.join(", "))}</summary>
           <pre>${esc(f.diff)}</pre></details>`).join("");
+      const fullApplied = (plan.applied || []).filter((a) => !a.partial);
+      const partialApplied = (plan.applied || []).filter((a) => a.partial);
       const skipped = plan.skipped.map((s) => `<li>${esc(s.title)} <span class="muted">· ${esc(s.reason)}</span></li>`).join("");
+      const readyLabel = partialApplied.length
+        ? `${plan.files.length} file(s), ${fullApplied.length} fix(es), ${partialApplied.length} partial`
+        : `${plan.files.length} file(s), ${fullApplied.length} fix(es)`;
       out.innerHTML = files
-        ? `<h4>Changes ready (${plan.files.length} file(s), ${plan.applied.length} fix(es))</h4>${files}
+        ? `<h4>Changes ready (${readyLabel})</h4>${files}
            ${skipped ? `<h4>Fix these by hand</h4><ul>${skipped}</ul>` : ""}
            <div class="note">Creates a new branch and a Pull Request in <b>${esc(plan.repo)}</b>. Your main branch is not changed.</div>
            <div class="actions"><button type="button" class="primary" id="${id}-pr">⬆ Create Pull Request on GitHub</button></div>
@@ -1925,21 +2004,32 @@
   let shownPast = null;  // the previous test open in the chat right now
 
   async function loadHistory() {
+    $("recent").setAttribute("aria-busy", "true");
+    $("recent").innerHTML = '<span class="muted small" role="status">Loading recent runs…</span>';
     try {
-      const runs = await (await fetch("/api/history")).json();
-      if (!runs.length) {
-        $("recent").innerHTML = '<span class="muted small">No tests yet</span>';
-        return;
-      }
-      $("recent").innerHTML = runs.map((r) => `<div class="item${r.run === shownPast ? " on" : ""}">
-        <button type="button" class="open" data-run="${esc(r.run)}">
-          <span class="r-url">${esc((r.url || r.run).replace(/^https?:\/\//, ""))}</span>
+      const response = await fetch("/api/history");
+      if (!response.ok) throw new Error("Could not load recent runs.");
+      const runs = await response.json();
+      if (!Array.isArray(runs) || !runs.length) {
+        $("recent").innerHTML = '<span class="muted small" role="status">No tests yet. Configure a website or Android app to see runs here.</span>';
+      } else {
+        $("recent").innerHTML = runs.map((r) => {
+          const label = (r.url || r.run || "").replace(/^https?:\/\//, "");
+          return `<div class="item${r.run === shownPast ? " on" : ""}">
+        <button type="button" class="open" data-run="${esc(r.run)}" aria-label="Open run ${esc(label)}">
+          <span class="r-url">${esc(label)}</span>
           <span class="r-meta">${esc(r.date)} · ${esc(r.verdict)}</span></button>
-        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete this test">🗑</button>
-      </div>`).join("");
-      $("recent").querySelectorAll(".open").forEach((b) => b.addEventListener("click", () => openPast(b)));
-      $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", () => deleteTest(b)));
-    } catch (e) {}
+        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete run ${esc(label)}">🗑</button>
+      </div>`;
+        }).join("");
+        $("recent").querySelectorAll(".open").forEach((b) => b.addEventListener("click", () => openPast(b)));
+        $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", () => deleteTest(b)));
+      }
+    } catch (e) {
+      $("recent").innerHTML = `<span class="muted small" role="alert">Could not load recent runs. ${esc(e.message || "Check that the UI server is running.")}</span>`;
+    } finally {
+      $("recent").removeAttribute("aria-busy");
+    }
     loadSchedules();
   }
 
@@ -1949,19 +2039,27 @@
     return s.every === "hourly" ? `every hour at :${s.at.slice(3)}` : s.every === "weekly" ? `every ${DAYS[s.day]} ${s.at}` : `every day ${s.at}`;
   }
   async function loadSchedules() {
+    $("schedules").setAttribute("aria-busy", "true");
+    $("schedules").innerHTML = '<span class="muted small" role="status">Loading schedules…</span>';
     try {
-      const items = await (await fetch("/api/schedules")).json();
-      $("schedules").innerHTML = items.length ? items.map((s) => `<div class="item">
+      const response = await fetch("/api/schedules");
+      if (!response.ok) throw new Error("Could not load schedules.");
+      const items = await response.json();
+      $("schedules").innerHTML = Array.isArray(items) && items.length ? items.map((s) => `<div class="item">
         <span class="open"><span class="r-url">🕒 ${esc(s.source.replace(/^https?:\/\//, ""))}</span>
           <span class="r-meta">${esc(scheduleWhen(s))} · next ${esc(s.next.replace("T", " "))}${s.missed ? ` · ${esc(s.missed)} missed (window closed)` : ""}${s.last_error ? ` · ⚠ ${esc(s.last_error)}` : ""}</span></span>
-        <button type="button" class="del sched-del" data-id="${esc(s.id)}" title="Delete this schedule" aria-label="Delete this schedule">✕</button>
-      </div>`).join("") : '<span class="muted small">None yet - open a report and press ⏰</span>';
+        <button type="button" class="del sched-del" data-id="${esc(s.id)}" title="Delete this schedule" aria-label="Delete schedule for ${esc((s.source || "").replace(/^https?:\/\//, ""))}">✕</button>
+      </div>`).join("") : '<span class="muted small" role="status">None yet — open a completed report and press ⏰ Repeat this test.</span>';
       $("schedules").querySelectorAll(".sched-del").forEach((b) => b.addEventListener("click", async () => {
         if (!confirm("Delete this scheduled test? (Its past reports stay.)")) return;
         await fetch(`/api/schedules/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE", headers: { "X-Agentic-QA": "1" } });
         loadSchedules();
       }));
-    } catch (e) {}
+    } catch (e) {
+      $("schedules").innerHTML = `<span class="muted small" role="alert">Could not load schedules. ${esc(e.message || "Try refreshing the page.")}</span>`;
+    } finally {
+      $("schedules").removeAttribute("aria-busy");
+    }
   }
 
   // "⏰ Repeat this test": every hour / day / week, with this run's website and settings

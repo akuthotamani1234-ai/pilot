@@ -30,6 +30,68 @@ class LLMError(Exception):
     pass
 
 
+# Cloud providers need a key before any outbound call; never contact the vendor without one.
+_PROVIDER_KEYS = {
+    "openai": ("openai_api_key", "OPENAI_API_KEY", "OpenAI"),
+    "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY", "Anthropic"),
+    "gemini": ("gemini_api_key", "GEMINI_API_KEY", "Gemini"),
+}
+
+
+def _require_api_key(provider: str) -> None:
+    """Raise a clear LLMError when a cloud provider has no key - without contacting that provider."""
+    info = _PROVIDER_KEYS.get(provider)
+    if info is None:
+        return
+    attr, env_name, label = info
+    if not (getattr(settings, attr, "") or "").strip():
+        raise LLMError(
+            f"{label} API key is missing. Set {env_name} or enter an API key for this run in the UI "
+            "(built-in rules are used when AI is unavailable)."
+        )
+
+
+def _classify_provider_failure(provider: str, error: BaseException, timeout_s: float) -> LLMError:
+    """Turn low-level request failures into actionable LLMError messages (no secrets, no stack dumps)."""
+    from ..privacy import PrivacyError
+    if isinstance(error, PrivacyError):
+        return LLMError(str(error))
+    if isinstance(error, requests.Timeout):
+        return LLMError(
+            f"{provider} timed out after {timeout_s:.0f}s. "
+            "The agent will use built-in rules if fallback is allowed."
+        )
+    if isinstance(error, requests.ConnectionError):
+        return LLMError(
+            f"{provider} could not be reached ({error.__class__.__name__}). "
+            "Check the network or local Ollama address; built-in rules are used if fallback is allowed."
+        )
+    if isinstance(error, requests.HTTPError):
+        status = error.response.status_code if error.response is not None else None
+        # Message may already include the provider's reason from _raise_with_reason; never echo Authorization headers.
+        detail = str(error)
+        if status == 401:
+            return LLMError(
+                f"{provider} rejected the API key (HTTP 401). Check the key for this run or in settings."
+            )
+        if status == 403:
+            return LLMError(f"{provider} refused the request (HTTP 403). {detail[:200]}")
+        if status == 404:
+            return LLMError(
+                f"{provider} model or endpoint was not found (HTTP 404). Check LLM_MODEL. {detail[:160]}"
+            )
+        if status == 429:
+            return LLMError(f"{provider} is rate-limited (HTTP 429). {detail[:200]}")
+        if status is not None and status >= 500:
+            return LLMError(f"{provider} is temporarily unavailable (HTTP {status}). {detail[:200]}")
+        return LLMError(f"{provider} request failed (HTTP {status}): {detail[:240]}")
+    if isinstance(error, requests.exceptions.JSONDecodeError):
+        return LLMError(f"{provider} returned invalid JSON (not a usable AI response).")
+    if isinstance(error, requests.RequestException):
+        return LLMError(f"{provider} request failed: {error}")
+    return LLMError(f"{provider} request failed: {error}")
+
+
 def llm_enabled() -> bool:
     from ..privacy import PrivacyError, guard_provider
     try:
@@ -141,6 +203,7 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
         guard_provider(p, settings.ollama_url)
     except PrivacyError as error:
         raise LLMError(str(error)) from error
+    _require_api_key(p)  # fail closed before any outbound cloud call when the key is blank
     model = settings.llm_model
     request_timeout = settings.llm_timeout if timeout_s is None else min(settings.llm_timeout, timeout_s)
     try:
@@ -228,12 +291,17 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
             _raise_with_reason(r)
             d = r.json()
             return d["message"]["content"], d.get("prompt_eval_count", 0), d.get("eval_count", 0)
+    except LLMError:
+        raise
     except (requests.RequestException, PrivacyError) as e:
-        raise LLMError(f"{p} request failed: {e}") from e
-    except (KeyError, IndexError) as e:
-        raise LLMError(f"Unexpected {p} response format: {e}") from e
+        raise _classify_provider_failure(p, e, request_timeout) from e
+    except (KeyError, IndexError, TypeError) as e:
+        raise LLMError(
+            f"Unexpected {p} response format ({e}). "
+            "The AI answer could not be read; built-in rules are used if fallback is allowed."
+        ) from e
 
-    raise LLMError(f"Unknown LLM_PROVIDER '{p}'")
+    raise LLMError(f"Unknown LLM_PROVIDER '{p}'. Set LLM_PROVIDER to openai, gemini, anthropic, ollama or none.")
 
 
 def ask_structured(prompt: str, shape, system: str = "", agent: str = "", page: str = "", test: str = "",
@@ -273,9 +341,17 @@ def ask_structured(prompt: str, shape, system: str = "", agent: str = "", page: 
             return kept
         except (ValidationError, LLMError, ValueError) as e:
             problem = " | ".join(str(e).splitlines()[:8])[:600]
+            json_problem = isinstance(e, LLMError) and ("JSON" in str(e) or "No JSON" in str(e))
             if attempt:
-                raise LLMError(f"the AI's answer did not match the expected structure: {problem}") from e
-            print(f"  [llm] the AI's answer did not match the expected structure ({problem[:120]}) - asking once more")
+                if json_problem:
+                    raise LLMError(
+                        f"the AI's answer was not valid JSON after a corrective retry: {problem}"
+                    ) from e
+                raise LLMError(
+                    f"the AI's answer failed structured-response validation after a corrective retry: {problem}"
+                ) from e
+            kind = "was not valid JSON" if json_problem else "did not match the expected structure"
+            print(f"  [llm] the AI's answer {kind} ({problem[:120]}) - asking once more")
             if deadline is not None:
                 schema_args["timeout_s"] = max(0, deadline - time.monotonic())
             text = ask_llm(f"{prompt}\n\nYOUR PREVIOUS ANSWER WAS NOT VALID: {problem}\nReturn ONLY the JSON, exactly in "
@@ -290,7 +366,10 @@ def extract_json(text: str):
     start = min([i for i in (text.find("{"), text.find("[")) if i != -1], default=-1)
     if start == -1:
         raise LLMError("No JSON found in LLM answer")
-    obj, _ = json.JSONDecoder().raw_decode(text[start:])
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError as e:
+        raise LLMError(f"Invalid JSON in LLM answer: {e.msg}") from e
     return obj
 
 

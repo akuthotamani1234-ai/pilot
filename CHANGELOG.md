@@ -2,6 +2,56 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Thorough exploration preset + ecommerce contract example
+
+- Website setup: **Exploration intensity** Standard / Thorough. Thorough sets full crawl (`max_pages` 0), site scope,
+  repeated-control exploration, and at least 50 actions per page; helper text names HARD_PAGE_CAP / time budgets.
+- Finished chat reports show a short **Coverage reminder** when not-visited, limit-reached, blocked, or not-tested gaps appear.
+- Added `project-docs/examples/ecommerce-web-contract.json` (search → product → add to cart; flows unapproved templates).
+- Docs: `docs/17_CLEAR_SETUP_AND_CRAWL_AUDIT.md`, `project-docs/13_ADVANCED_QA.md`. Existing APIs/workflows unchanged.
+
+## 2026-11-12 — Phases 14–16 documentation / hygiene
+
+- Added `docs/31_PERFORMANCE_AND_LIMITS.md`: known config caps (`MAX_PAGES`, `HARD_PAGE_CAP`, workers, timeouts, sandbox) and **measure before optimize**. No invented benchmarks.
+- Updated `DEPLOYMENT.md`: Windows remains the primary install/CI target; Linux noted for offline/regression exploration only; light install troubleshooting table.
+- Updated `PROJECT_IMPLEMENTATION_STATUS.md`, `MASTER_TODO.md`, and `FEATURE_VERIFICATION_MATRIX.md`: Phases 6–13 marked **IMPLEMENTED**, **not VERIFIED** (full suite deferred by owner), covering Phase 6 env/locator, Phase 7 UX, Phase 8 API, Phase 9 repo-fix partial-match, Phase 10 LLM/MCP errors, Phase 11 security, Phases 12–13 reporting honesty.
+- Status vocabulary used: **IMPLEMENTED** / **not VERIFIED** (plus existing historical/partial language). No row claimed **VERIFIED** without test evidence.
+- No application logic rewrites; no `.venv` recreated; no runtime artifacts deleted.
+
+## 2026-11-12 — Phases 6–13 implementation slices (code; recorded for status hygiene)
+
+Prior commits on this branch (not re-verified as a full suite here):
+
+- Phase 6: Android environment readiness and native/WebView locator boundary messages.
+- Phase 7: Frontend empty/error states and basic a11y.
+- Phase 8: API 404s for missing stop/review; `exit_code` on ended jobs.
+- Phase 9: Repo-fix partial-match reporting for multi-tag findings.
+- Phase 10: Offline AI provider and MCP error-message hardening.
+- Phase 11: Safety controls for metadata, private artifacts, and uploads.
+- Phases 12–13: Reporting honesty remains code policy (counts from run files; Incomplete → Insufficient Evidence); not a fresh accuracy VERIFIED claim.
+
+## 2026-11-12 — Thorough exploration + ecommerce contract
+
+- UI: Standard/Thorough exploration intensity; Thorough forces full crawl budgets, repeated-control exploration, and ≥50 actions/page; coverage reminder when pages/features were not visited/blocked/not tested.
+- Added `project-docs/examples/ecommerce-web-contract.json` template and `demo-apps/ecommerce-web-contract.json` (Automation Exercise search/cart) exposed via `/api/contracts/examples`.
+- Documented Thorough crawl knobs in `.env.example`.
+- Live thorough run on automationexercise.com: 19 pages visited (pattern sampling), 0 not-visited within limits, 204 tests, 171 passed, verdict Not Ready (no login account; protected actions still blocked).
+
+## 2026-11-12 — Phases 6–18 implementation + Linux Phase 17
+
+- Implemented Phases 6–16 (Android env/locator, frontend UX, API contracts, repo-fix partial match, LLM/MCP errors, security, report clarity, performance/deploy docs).
+- Phase 17 Linux non-slow regression: first run 6 failed / 810 passed; after fixes **816 passed**, 2 skipped, 65 deselected; ruff clean.
+- Phase 18 delivery reports added: `FINAL_IMPLEMENTATION_REPORT.md`, `FINAL_TEST_REPORT.md`, `FINAL_SECURITY_REPORT.md`, `FINAL_COVERAGE_REPORT.md`, `FINAL_BENCHMARK_REPORT.md`, `FINAL_CHANGELOG.md`, `REMAINING_ISSUES.md`.
+- Live Android/cloud LLM/GitHub/MCP sessions remain unverified on this host.
+
+## 2026-11-12 — Phase 0 cloud re-baseline (docs only)
+
+- Re-inspected the Git checkout on the Cursor Linux cloud agent (`/workspace`).
+- Updated `PROJECT_IMPLEMENTATION_STATUS.md`, `MASTER_TODO.md`, and `FEATURE_VERIFICATION_MATRIX.md` to separate Windows historical Phase 0–5 evidence from this host.
+- Added `deep_validation/13_phase0_cloud_rebaseline.md` with environment facts (Python 3.12 present, 3.13 missing, Git present, no ADB/Appium, no `.venv`/`.env`).
+- No application source, tests, APIs, integrations, credentials, baselines, run artifacts or APKs were changed.
+- Later phases remain gated pending owner approval; recommended next gate is a Linux Phase 1 regression re-baseline.
+
 ## 2026-11-10 — Phase 0 baseline documentation
 
 - Added `PROJECT_IMPLEMENTATION_STATUS.md` with the inspected architecture, evidence status, blockers and repo safety state.

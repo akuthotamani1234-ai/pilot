@@ -199,7 +199,7 @@
   }
 
   async function copyConfig() {
-    $("mcpPanelMessage").textContent = "Preparing configuration?";
+    $("mcpPanelMessage").textContent = "Preparing configuration…";
     try {
       const text = JSON.stringify(await api("/api/mcp/config"), null, 2);
       $("mcpConfigText").textContent = text;

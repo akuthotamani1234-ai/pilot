@@ -102,25 +102,35 @@ def measure(run_dir, truth: dict | None = None, bugs: bool = False, visited: lis
     registry = _read(run_dir / "registry.json", None)
     status = Counter(c.get("execution_status") for c in cases)
     outcome = Counter(r.get("outcome") for r in results)
+    from .report_clarity import case_status_counts, coverage_limitations, pages_coverage
+    tc = {"planned": len(cases), **{k.lower().replace(" ", "_"): status.get(k, 0)
+                                    for k in ("Passed", "Failed", "Flaky", "Skipped", "Blocked",
+                                              "Inconclusive", "Not run")}}
     out = {
         "run": run_dir.name,
         "pages": {"discovered": len(app_map), "logged_in": sum(1 for p in app_map if p.get("auth")),
                   "failed": sum(1 for p in app_map if p.get("error") or (p.get("status") or 0) >= 400),
                   "not_visited": crawl.get("not_visited_count", 0), "sampled": crawl.get("sampled", 0)},
-        "test_cases": {"planned": len(cases), **{k.lower().replace(" ", "_"): status.get(k, 0)
-                                                for k in ("Passed", "Failed", "Flaky", "Skipped", "Blocked",
-                                                          "Inconclusive", "Not run")},
+        "pages_coverage": pages_coverage(crawl, app_map),
+        "test_cases": {**tc,
                        "click_only": sum(1 for c in cases if CLICK_ONLY.search(c.get("title", ""))
                                          or any(CLICK_ONLY.search(str(s)) for s in c.get("steps") or [])),
                        "exploratory": sum(1 for c in cases if c.get("oracle") == "observed")},
+        "result_status_counts": case_status_counts(dict(tc, pending=status.get("Pending", 0))),
         "pytest_tests": {"total": len(results), **{k: outcome.get(k, 0) for k in
                                                   ("passed", "failed", "error", "skipped", "inconclusive")}},
         "coverage_claimed": {"tested": cov.get("tested"), "total": cov.get("total")},
+        "coverage_limitations": coverage_limitations(
+            crawl=crawl, limits=[], incomplete=False, discovery_only=False,
+            feature_counts=(registry or {}).get("counts")),
         "actions": crawl.get("actions") or None,  # (recorded by the explorer: attempted / blocked / skipped ...)
+        "overall_accuracy_percent": None,  # only a known-truth manifest can measure correctness; never invent it
     }
     if registry:
         out["registry"] = registry.get("counts")
     if not truth:
+        out["note"] = ("Run-local counts only. No known-truth manifest was supplied, so overall accuracy "
+                       "is not measured.")
         return out
 
     by_slug = {p.get("slug"): _path(p) for p in app_map}

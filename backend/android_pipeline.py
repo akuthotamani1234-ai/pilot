@@ -27,7 +27,7 @@ from .android import (
     validate_mobile_config,
 )
 from .android_design import normalize_screens, validate_mobile_script
-from .safety import clean_env, redact
+from .safety import clean_env, redact, redact_json
 from .state import QAState
 
 AndroidState = QAState
@@ -40,7 +40,8 @@ def _run_dir(state):
 
 
 def _save_json(path, data):
-    path.write_text(redact(json.dumps(data, indent=2, ensure_ascii=False)), encoding="utf-8")
+    # Keep package_name / app package ids valid; substring username redaction must not break them.
+    path.write_text(redact_json(data), encoding="utf-8")
 
 
 def setup_agent(state):
@@ -718,13 +719,22 @@ def discovery_agent(state):
                 initial = inspect_driver(driver, config)
             config["package_name"] = initial["package_name"]
             stored = run_dir / ".private" / "android_config.json"
-            if config.get("app_mode") == "apk" and stored.is_file():
-                # An uploaded APK's package is known only now: store it so the report and the config agree.
+            if stored.is_file():
+                # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
                 try:
                     saved = json.loads(stored.read_text(encoding="utf-8"))
-                    if not saved.get("package_name"):
-                        stored.write_text(json.dumps({**saved, "package_name": config["package_name"]}, indent=2),
-                                          encoding="utf-8")
+                    changed = False
+                    if config.get("app_mode") == "apk" and not saved.get("package_name"):
+                        saved["package_name"] = config["package_name"]
+                        changed = True
+                    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
+                        saved["package_name"] = config["package_name"]
+                        changed = True
+                    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
+                        saved["app_activity"] = config["app_activity"]
+                        changed = True
+                    if changed:
+                        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
                 except (OSError, ValueError):
                     pass
             bound_package = config.get('qa_contract', {}).get('android_package')
@@ -819,8 +829,12 @@ def discovery_agent(state):
         auto_flows = interaction.pop("flows", []) if contract else []
         if contract:
             # Private copy for the trusted runtime; a public copy the person can reuse as approved flows.
+            # Do not redact the private contract: assert_text / accessibility_id values often contain the
+            # test username (e.g. "Welcome demo user"); redacting them makes execution look for [REDACTED].
             (run_dir / ".private").mkdir(exist_ok=True)
-            _save_json(run_dir / ".private" / "auto_contract.json", contract)
+            (run_dir / ".private" / "auto_contract.json").write_text(
+                json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
             _save_json(run_dir / "auto_flows.json", contract)
         _save_json(run_dir / "android_interaction.json", {**interaction, "kept": len(auto_flows)})
         log.append(f"Test-build mode: kept {len(auto_flows)} replay-verified user-like tests from "
