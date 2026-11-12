@@ -3,19 +3,22 @@ and "why it matters" for every problem. No technical words, so anyone can read t
 import re
 
 VERDICT_STORY = {
-    "Ready": ("🎉", "Ready to release", "Everything we tested works. Your website is in good shape."),
+    "Ready": ("🎉", "Ready to release",
+              "Everything that ran in this test passed. That is not a claim that every page or feature of the site was tested."),
     "Ready with Risks": ("⚠️", "Almost ready",
-                         "Most things work. We found {fixes} thing(s) worth fixing, but nothing that stops a release."),
+                         "Most things that ran work. We found {fixes} thing(s) worth fixing, but nothing that stops a release."),
     "Not Ready": ("🛑", "Not ready yet",
                   "We found {blockers} serious problem(s) that visitors will notice. Please fix those first."),
     "Insufficient Evidence": ("❔", "We couldn't test enough", "{reason}"),
 }
 
 
-def headline(verdict: str, fixes: list[dict], reasons: list[str]) -> dict:
+def headline(verdict: str, fixes: list[dict], reasons: list[str], *, partial_coverage: bool = False) -> dict:
     emoji, title, text = VERDICT_STORY.get(verdict, ("ℹ️", verdict, ""))
     blockers = sum(1 for x in fixes if x.get("priority") in ("critical", "high"))
     text = text.format(fixes=len(fixes), blockers=blockers or "some", reason=(reasons or ["Not enough could be tested."])[0])
+    if partial_coverage and verdict != "Insufficient Evidence":
+        text += " Coverage was incomplete: unvisited pages, blocked or skipped checks, and limits are listed in the report."
     return {"emoji": emoji, "title": title, "text": text}
 
 
