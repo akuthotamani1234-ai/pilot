@@ -1,0 +1,158 @@
+Source: Android app com.blowai.demo
+Output: /workspace/runs/android_live_20261112_091845
+::stage::setup::start
+::stage::setup::done
+::stage::discovery::start
+::page::{"url": "android://com.blowai.demo/screen_3e49fa18aec0", "slug": "screen_3e49fa18aec0", "title": "Home", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_3e49fa18aec0.png", "elements": 20}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_96d493d5fc5c", "slug": "screen_96d493d5fc5c", "title": "Login", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": null, "elements": 12}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_d8f7188ed21b", "slug": "screen_d8f7188ed21b", "title": "About", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_d8f7188ed21b.png", "elements": 9}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_e28ba258d4bd", "slug": "screen_e28ba258d4bd", "title": "Registration", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": null, "elements": 11}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_a596813fcf96", "slug": "screen_a596813fcf96", "title": "Dashboard", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_a596813fcf96.png", "elements": 11}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_897e1df3d7ee", "slug": "screen_897e1df3d7ee", "title": "Products", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_897e1df3d7ee.png", "elements": 11}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_60ac82f1a108", "slug": "screen_60ac82f1a108", "title": "Cart", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_60ac82f1a108.png", "elements": 11}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_8ef1f44065bf", "slug": "screen_8ef1f44065bf", "title": "Form validation", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": null, "elements": 11}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_4d320f2438f2", "slug": "screen_4d320f2438f2", "title": "Settings", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_4d320f2438f2.png", "elements": 13}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_c0d57d831cc4", "slug": "screen_c0d57d831cc4", "title": "Broken scenario", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_c0d57d831cc4.png", "elements": 9}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_f02b68fd6fef", "slug": "screen_f02b68fd6fef", "title": "Login required", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_f02b68fd6fef.png", "elements": 10}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_a3246259cc68", "slug": "screen_a3246259cc68", "title": "Test simulations", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_a3246259cc68.png", "elements": 12}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+::page::{"url": "android://com.blowai.demo/screen_b180cc6d3f6b", "slug": "screen_b180cc6d3f6b", "title": "Product details", "status": 200, "platform": "android", "activity": ".MainActivity", "screenshot": "screenshots/screen_b180cc6d3f6b.png", "elements": 10}
+[android] Inspecting additional content on a discovered screen.
+[android] Screen inspection finished; 0 discovered item(s) remain to visit.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+[android] Exploring a safe navigation control.
+[android] Navigation result: observed.
+::stage::test_build::start
+[android] Test-build mode: exercising discovered controls, forms and phone behavior.
+[android] Check 1 started: Login form on Login
+[android] Check 1 finished: 1 could not be tried, 2 inconclusive.
+[android] Check 2 started: Signup form on Registration
+[android] Check 2 finished: 1 intentionally excluded.
+[android] Check 3 started: Form form on Form validation
+[android] Check 3 finished: 0 replay-verified flow(s), 1 repeatable assertion failure(s) retained for execution.
+[android] Check 4 started: Tap 'ABOUT' on Home
+[android] Check 4 finished: 1 replay-verified flow(s).
+[android] Check 5 started: Tap 'HYBRID DEMO' on Home
+[android] Check 5 finished: 1 inconclusive.
+[android] Check 6 started: Tap 'OPEN LOGIN SCREEN' on Home
+[android] Check 6 finished: 1 replay-verified flow(s).
+[android] Check 7 started: Tap 'REGISTRATION' on Home
+[android] Check 7 finished: 1 replay-verified flow(s).
+[android] Check 8 started: Tap 'DASHBOARD' on Home
+[android] Check 8 finished: 1 replay-verified flow(s).
+[android] Check 9 started: Tap 'PROTECTED DASHBOARD' on Home
+[android] Check 9 finished: 1 replay-verified flow(s).
+[android] Check 10 started: Tap 'SIMULATION DASHBOARD' on Home
+[android] Check 10 finished: 1 replay-verified flow(s).
+[android] Check 11 started: Tap 'PRODUCTS' on Home
+[android] Check 11 finished: 1 replay-verified flow(s).
+[android] Check 12 started: Tap 'CART' on Home
+[android] Check 12 finished: 1 replay-verified flow(s).
+[android] Check 13 started: Tap 'FORM VALIDATION' on Home
+[android] Check 13 finished: 1 replay-verified flow(s).
+[android] Check 14 started: Tap 'SETTINGS' on Home
+[android] Check 14 finished: 1 replay-verified flow(s).
+[android] Check 15 started: Tap 'BROKEN SCENARIO' on Home
+[android] Check 15 finished: 1 replay-verified flow(s).
+[android] Check 16 started: Tap 'HOME' on Login
+[android] Check 16 finished: 1 could not be tried.
+[android] Check 17 started: Tap 'ADD TO CART' on Product details
+[android] Check 17 finished: 1 replay-verified flow(s).
+[android] Check 18 started: Rotation, background and Back checks
+[android] Check 18 finished: 5 replay-verified flow(s).
+[android] Test mode kept 18 flow(s): 17 replay-verified, 1 repeatable assertion failure(s), from 42 interaction tries.
+::stage::test_build::done
+::stage::discovery::done
+::stage::test_design::start
+::stage::test_design::done
+::stage::script_generator::start
+  [excel] wrote /workspace/runs/android_live_20261112_091845/test_cases.xlsx
+::stage::script_generator::done
+::stage::execution::start
+::stage::execution::done
+::stage::failure_analysis::start
+::stage::failure_analysis::done
+::stage::self_healing::start
+::stage::self_healing::done
+::stage::report::start
+  [excel] wrote /workspace/runs/android_live_20261112_091845/test_cases.xlsx
+::stage::report::done
+Verdict: Not Ready
