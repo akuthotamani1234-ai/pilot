@@ -2,6 +2,26 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Phases 14–16 documentation / hygiene
+
+- Added `docs/31_PERFORMANCE_AND_LIMITS.md`: known config caps (`MAX_PAGES`, `HARD_PAGE_CAP`, workers, timeouts, sandbox) and **measure before optimize**. No invented benchmarks.
+- Updated `DEPLOYMENT.md`: Windows remains the primary install/CI target; Linux noted for offline/regression exploration only; light install troubleshooting table.
+- Updated `PROJECT_IMPLEMENTATION_STATUS.md`, `MASTER_TODO.md`, and `FEATURE_VERIFICATION_MATRIX.md`: Phases 6–13 marked **IMPLEMENTED**, **not VERIFIED** (full suite deferred by owner), covering Phase 6 env/locator, Phase 7 UX, Phase 8 API, Phase 9 repo-fix partial-match, Phase 10 LLM/MCP errors, Phase 11 security, Phases 12–13 reporting honesty.
+- Status vocabulary used: **IMPLEMENTED** / **not VERIFIED** (plus existing historical/partial language). No row claimed **VERIFIED** without test evidence.
+- No application logic rewrites; no `.venv` recreated; no runtime artifacts deleted.
+
+## 2026-11-12 — Phases 6–13 implementation slices (code; recorded for status hygiene)
+
+Prior commits on this branch (not re-verified as a full suite here):
+
+- Phase 6: Android environment readiness and native/WebView locator boundary messages.
+- Phase 7: Frontend empty/error states and basic a11y.
+- Phase 8: API 404s for missing stop/review; `exit_code` on ended jobs.
+- Phase 9: Repo-fix partial-match reporting for multi-tag findings.
+- Phase 10: Offline AI provider and MCP error-message hardening.
+- Phase 11: Safety controls for metadata, private artifacts, and uploads.
+- Phases 12–13: Reporting honesty remains code policy (counts from run files; Incomplete → Insufficient Evidence); not a fresh accuracy VERIFIED claim.
+
 ## 2026-11-12 — Phase 0 cloud re-baseline (docs only)
 
 - Re-inspected the Git checkout on the Cursor Linux cloud agent (`/workspace`).

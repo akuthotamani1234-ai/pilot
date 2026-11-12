@@ -12,26 +12,28 @@
 | 3 — AI test generation | **COMPLETE (Windows historical)** | See `deep_validation/10_phase3_results.md`. Not re-run on Linux cloud. |
 | 4 - Playwright/Pytest execution | **COMPLETE (Windows historical)** | Job Object fail-closed; see Phase 4 results. Linux Job Object paths are Windows-specific and must not be assumed identical. |
 | 5 - Failure analysis and self-healing | **COMPLETE (Windows historical)** | See Phase 5 results. Not re-run on Linux cloud. |
-| 6 — Android QA | NOT STARTED | Requires declared emulator/device and controlled fixture availability. Cloud host currently has no ADB/Appium. |
-| 7 — Frontend | NOT STARTED | Characterization tests and API/UI compatibility required. |
-| 8 — API/backend reliability | NOT STARTED | Preserve all current routes and client contracts. |
-| 9 — Repository auto-fix | NOT STARTED | Add isolated tests; GitHub behavior only via mocks/disposable authorized repo. |
-| 10 — AI providers and MCP | NOT STARTED | External providers only with explicit cost/privacy authorization; MCP protocol round trips required. |
-| 11 — Security | NOT STARTED | Safe static/dependency review first; no destructive tests. |
-| 12 — Accuracy/benchmarks | NOT STARTED | Use labeled, reproducible clean/seeded cases; no assumed accuracy figures. |
-| 13 — Coverage/reporting | NOT STARTED | Compare report counts/exports with execution records. |
-| 14 — Performance/scalability | NOT STARTED | Measure before optimization; retain local architecture unless requirements change. |
-| 15 — DevOps/deployment | NOT STARTED | Do not run installers that can recreate `.venv` without separate approval. |
-| 16 — Hygiene/documentation | NOT STARTED | No artifact deletion without explicit approval. |
+| 6 — Android QA | **IMPLEMENTED** (env/locator offline slice); **not VERIFIED** on device | Clearer ADB/Appium/device unreadiness; CSS blocked in native find, kept for WebView. Full live Android suite deferred. |
+| 7 — Frontend | **IMPLEMENTED** (UX hardening); **not VERIFIED** live UI E2E | Empty/error states, basic a11y, escaping; `tests/test_frontend_ux.py`. |
+| 8 — API/backend reliability | **IMPLEMENTED**; **not VERIFIED** full surface | Missing stop/review → 404; ended workers expose `exit_code`; successful shapes preserved. |
+| 9 — Repository auto-fix | **IMPLEMENTED** (partial-match fix); **not VERIFIED** live GitHub | Multi-tag findings report matched/unmatched; partial ≠ full success. Mocks only. |
+| 10 — AI providers and MCP | **IMPLEMENTED** (error-path offline slice); **not VERIFIED** live | Clearer LLMError/BridgeError; blank keys refused; no live provider/MCP round trip claimed. |
+| 11 — Security | **IMPLEMENTED** (targeted hardening); **not VERIFIED** as full audit | Metadata SSRF, private artifact serving, APK size limits, redaction tests. |
+| 12 — Accuracy/benchmarks | **IMPLEMENTED** (honesty rules in code); **not VERIFIED** full accuracy suite | Accuracy helpers measure from run files; no invented percentages. Labeled clean/seeded live matrix deferred. |
+| 13 — Coverage/reporting | **IMPLEMENTED** (count-from-files); **not VERIFIED** export equality suite | Metrics/reporter count from run artifacts; incomplete → Insufficient Evidence. Full export cross-check deferred. |
+| 14 — Performance/scalability | **IMPLEMENTED** (docs); measure before any optimization | `docs/31_PERFORMANCE_AND_LIMITS.md` lists config caps only — no fake benchmarks. |
+| 15 — DevOps/deployment | **IMPLEMENTED** (docs note); Windows remains primary | `DEPLOYMENT.md`: Linux = offline/regression exploration only; do not recreate `.venv` without approval. |
+| 16 — Hygiene/documentation | **IMPLEMENTED** (this pass) | Status/TODO/matrix/changelog updated; no artifact deletion. |
 | 17 — Final regression/acceptance | NOT STARTED | Requires completed phase gates and real declared-target verification. |
 | 18 — Final delivery reports | NOT STARTED | Produce only after evidence exists; distinguish historical from fresh results. |
 
-## Owner decision needed after this Phase 0
+## Owner decision needed after Phases 6–16 docs
 
-Recommended next approval (see suggestions in the Phase 0 PR summary):
+Phases 6–13 are **IMPLEMENTED** with focused offline tests; they are **not VERIFIED**. Recommended next approvals:
 
-1. **Phase 1 Linux re-baseline** — install Python 3.13 + project deps in this environment, configure writable pytest temp, run focused contracts then serial `-m "not slow"`, record exact counts. Do not weaken tests.
-2. Only after that baseline is green (or failures are classified), approve **Phase 6** if an emulator/device will be available, **or** approve an alternate high-value offline phase (8 API, 9 repo-fix, 11 security) if Android remains blocked.
+1. **Full-suite VERIFICATION** (Windows preferred) — serial `-m "not slow"` with exact counts, then mark rows VERIFIED only where evidence exists.
+2. **Live Android** when an emulator/device is available (Phase 6 remaining gate).
+3. **Live providers / MCP protocol** only with explicit cost/privacy authorization (Phase 10 remaining gate).
+4. Any performance change only after measuring against `docs/31_PERFORMANCE_AND_LIMITS.md` caps (Phase 14).
 
 ## Phase 1 completion record
 
@@ -94,4 +96,8 @@ The earlier full run had one Android mock timeout and recorded that case as 22,6
 
 ## Phase 5 completion update - 2026-11-11
 
-Phase 5 is COMPLETE. Classification/healing regressions passed 141 tests (8 slow-marked tests deselected), and the controlled DemoStore self-healing end-to-end test passed. The initial test attempt exposed an invalid premise: the learned-test helper fell back from the stale selector to the unchanged control name, so the script reached the feature and correctly produced an `assertion_failure`; self-healing correctly refused to rewrite behavior. The regression fixture now disables that fallback only for the saved test under examination, so it exercises the locator-repair path without changing its business assertion. The rerun changed `#notify` to `#notify-me`, kept the pre-repair backup, reran the test and related tests, and classified the seeded missing-message behavior as `assertion_failure` (`repaired`, not healed). Ruff passed. No failure classifier or self-healing production logic needed changing. See `deep_validation/12_phase5_results.md`. Phase 6 remains NOT STARTED pending owner approval.
+Phase 5 is COMPLETE. Classification/healing regressions passed 141 tests (8 slow-marked tests deselected), and the controlled DemoStore self-healing end-to-end test passed. The initial test attempt exposed an invalid premise: the learned-test helper fell back from the stale selector to the unchanged control name, so the script reached the feature and correctly produced an `assertion_failure`; self-healing correctly refused to rewrite behavior. The regression fixture now disables that fallback only for the saved test under examination, so it exercises the locator-repair path without changing its business assertion. The rerun changed `#notify` to `#notify-me`, kept the pre-repair backup, reran the test and related tests, and classified the seeded missing-message behavior as `assertion_failure` (`repaired`, not healed). Ruff passed. No failure classifier or self-healing production logic needed changing. See `deep_validation/12_phase5_results.md`.
+
+## Phases 6–16 update - 2026-11-12
+
+Phases 6–13 are **IMPLEMENTED** (not VERIFIED; full suite deferred by owner): Phase 6 Android env/locator; Phase 7 frontend UX; Phase 8 API error contracts; Phase 9 repo-fix partial-match; Phase 10 LLM/MCP error messages; Phase 11 security hardening; Phases 12–13 reporting honesty (count from run files, no invented numbers). Phases 14–16 documentation/hygiene: performance limits doc, Windows-primary deployment note, and this status pass.
