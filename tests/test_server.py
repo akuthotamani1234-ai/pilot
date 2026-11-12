@@ -358,4 +358,17 @@ def test_delete_run_removes_runs_folder(client, tmp_path, monkeypatch, isolated_
     response = client.delete("/api/runs/zz_delete_me_20260101_000003", headers=H)
     assert response.status_code == 200, response.text
     assert response.json()["ok"] is True
+    assert response.json().get("removed") == "zz_delete_me_20260101_000003"
     assert not run.exists()
+
+
+def test_home_and_static_are_not_cached_and_show_build_stamp(client):
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "no-store" in (home.headers.get("cache-control") or "").lower()
+    assert "build " in home.text
+    assert "chat.js?v=" in home.text
+    build = client.get("/api/ui-build")
+    assert build.status_code == 200
+    assert build.json()["build"]
+    assert build.json()["assets"]["chat.js"] == build.json()["build"]

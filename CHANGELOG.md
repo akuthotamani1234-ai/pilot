@@ -2,6 +2,12 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Studio UI refresh + delete harden
+
+- Static JS/CSS served with `Cache-Control: no-store`; home page shows a visible **build** fingerprint.
+- `GET /api/ui-build` returns frontend digests so you can confirm `git pull` + `ui.bat` restart worked.
+- Recent **Delete** is always labeled; click does not open the run; server retries folder removal (Windows locks).
+
 ## 2026-11-12 — Repo-fix: scan summary and “what you have to do next”
 
 - After a web report, **Apply fixes** still appears when code-bearing findings exist.

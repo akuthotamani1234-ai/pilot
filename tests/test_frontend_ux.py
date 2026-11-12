@@ -234,3 +234,10 @@ def test_chat_js_repo_fix_guides_scan_and_next_steps():
     assert "files_scanned" in script
     assert "github.com/owner/repo" in script
     assert 'e.key === "Enter"' in script
+
+
+def test_chat_js_delete_button_is_labeled_and_stops_propagation():
+    script = (FRONTEND / "chat.js").read_text(encoding="utf-8")
+    assert "🗑</span> Delete" in script or "> Delete</button>" in script
+    assert "ev.stopPropagation()" in script
+    assert "Delete this test and its folder under runs/" in script
