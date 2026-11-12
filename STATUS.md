@@ -13,7 +13,7 @@ historical `FINAL_*` / phase checklist sprawl.
 | Android Appium pipeline | Implemented | Offline + live emulator demos recorded |
 | Studio UI | Implemented | Characterization tests; Windows `ui.bat` primary |
 | Optional LLM providers | Implemented | Rules-only (`LLM_PROVIDER=none`) fails closed with clear error |
-| Optional MCP bridge | Implemented | Install `requirements-mcp.txt`; offline suite green; **11 tools** register via `build_server()` |
+| Optional MCP bridge | Implemented | Install `requirements-mcp.txt`; offline suite green; **11 tools** register via `build_server()`; `BridgeError` → `ToolError` so clients see actionable text |
 | Release gates / reports | Implemented | Counts from run files only |
 
 ## Verification
