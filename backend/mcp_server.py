@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 from contextlib import asynccontextmanager
+from functools import wraps
 from typing import Annotated, Literal
 
 from pydantic import Field
@@ -22,7 +23,18 @@ Provider = Literal["ollama", "none", "gemini", "openai", "anthropic"]
 def build_server(ui_url: str | None = None):
     # Optional dependency: importing the normal UI never requires the MCP SDK.
     from mcp.server import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
     from mcp.types import ToolAnnotations
+
+    def _bridge_as_tool_error(fn):
+        # MCP wraps anything except ToolError as UnexpectedToolError with a useless client message.
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except BridgeError as err:
+                raise ToolError(str(err)) from err
+        return wrapped
 
     bridge = BlowAIBridge(ui_url or os.getenv("BLOWAI_UI_URL", "http://127.0.0.1:8000"))
     @asynccontextmanager
@@ -58,22 +70,26 @@ def build_server(ui_url: str | None = None):
                             open_world_hint=True)
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def get_connection_info() -> dict:
         """Check the local Blow AI UI bridge and return its address; never start automation."""
         return {"ui_url": bridge.ui_url, **bridge.verify()}
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def list_runs(offset: Offset = 0, limit: PageSize = 20) -> dict:
         """List this UI session's active/recent jobs and the 30 most recent saved reports."""
         return {"jobs": bridge.get("/api/mcp/jobs", offset=offset, limit=limit),
                 "saved_reports": bridge.get("/api/history")}
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def get_android_environment(appium_url: str = "http://127.0.0.1:4723") -> dict:
         """Read Android SDK/device/Appium readiness. Does not install tools or start an emulator/session."""
         return bridge.get("/api/android/environment", appium_url=local_url(appium_url, "Appium"))
 
     @server.tool(annotations=start)
+    @_bridge_as_tool_error
     def crawl_website(
         url: str, authorized: bool = False, max_pages: Pages = 20, max_depth: Depth = 6,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
@@ -92,6 +108,7 @@ def build_server(ui_url: str | None = None):
         })
 
     @server.tool(annotations=start)
+    @_bridge_as_tool_error
     def start_web_test(
         url: str, authorized: bool = False, max_pages: Pages = 20, max_depth: Depth = 6,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
@@ -120,6 +137,7 @@ def build_server(ui_url: str | None = None):
         })
 
     @server.tool(annotations=start)
+    @_bridge_as_tool_error
     def start_android_test(
         device_id: str, app_mode: Literal["installed", "apk", "web"] = "installed",
         package_name: str = "", app_activity: str = "", apk_path: str | None = None,
@@ -167,6 +185,7 @@ def build_server(ui_url: str | None = None):
         }, apk_path)
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def get_run_status(job_id: PositiveID, since: Offset = 0, psince: Offset = 0, limit: PageSize = 50) -> dict:
         """Poll a job without waiting for completion. Pass returned next/pnext as since/psince on the next poll.
         Completed jobs return a run folder name for report/component tools. Logs are paginated.
@@ -174,6 +193,7 @@ def build_server(ui_url: str | None = None):
         return bridge.get(f"/api/mcp/jobs/{job_id}", since=since, psince=psince, limit=limit)
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def list_page_components(run: str, page: str | None = None, offset: Offset = 0,
                              limit: PageSize = 50) -> dict:
         """No page: list page slugs/counts/limits. With page slug: paginate its observed DOM components.
@@ -186,6 +206,7 @@ def build_server(ui_url: str | None = None):
         return bridge.get("/api/components/" + run_name(run), **params)
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def get_run_report(
         run: str, section: Literal["summary", "results", "failures", "cases", "pages", "screens", "crawl",
                                    "coverage"] = "summary",
@@ -198,12 +219,14 @@ def build_server(ui_url: str | None = None):
         return bridge.get("/api/mcp/reports/" + run_name(run), section=section, offset=offset, limit=limit)
 
     @server.tool(annotations=read)
+    @_bridge_as_tool_error
     def get_qa_contract_schema() -> dict:
         """Get the project's validated contract schema before defining explicit expected behavior."""
         return bridge.get("/api/contracts/schema")
 
     @server.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                               idempotent_hint=False, open_world_hint=False))
+    @_bridge_as_tool_error
     def stop_run(job_id: PositiveID, confirmed: bool = False) -> dict:
         """Request graceful stop of the specified UI/MCP job, preserving available partial evidence.
         Only set confirmed=true when the user asks to stop that run.
