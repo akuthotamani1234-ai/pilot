@@ -716,7 +716,11 @@ def start_run(req: RunRequest):
         if (req.test_totp_secret or "").strip():
             env["TEST_TOTP_SECRET"] = req.test_totp_secret.strip()
         privacy = _worker_privacy(env, req.llm_provider, req.privacy_mode)
-        kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS else {"start_new_session": True}
+        kwargs = (
+            {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+            if IS_WINDOWS
+            else {"start_new_session": True}
+        )
         proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, encoding="utf-8", errors="replace", **kwargs)
         job_id = len(jobs) + 1
@@ -935,7 +939,11 @@ async def start_mobile_run(
             shutil.rmtree(run_dir)
         raise HTTPException(400, str(error)) from error
     env.update({"PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
-    kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WINDOWS else {"start_new_session": True}
+    kwargs = (
+        {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+        if IS_WINDOWS
+        else {"start_new_session": True}
+    )
     with lock:
         if any(job["status"] == "running" for job in jobs.values()):
             shutil.rmtree(run_dir, ignore_errors=True)

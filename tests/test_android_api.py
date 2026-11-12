@@ -182,6 +182,8 @@ def test_mobile_provider_switch_uses_existing_shared_default_model(client, monke
     monkeypatch.setattr(server.threading, "Thread", FakeThread)
     monkeypatch.setattr(server.subprocess, "Popen", start)
     monkeypatch.setattr(android, "android_environment", lambda *_a: DEVICE_ENVIRONMENT)
+    from backend.privacy import PrivacyPolicy
+    monkeypatch.setattr("backend.privacy.load_policy", lambda: PrivacyPolicy(mode="cloud", cloud_consent=True))
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     monkeypatch.setenv("LLM_MODEL", "qwen2.5:3b")
     response = client.post(

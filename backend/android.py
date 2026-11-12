@@ -411,8 +411,8 @@ def validate_mobile_config(config: dict) -> dict:
         package = "com.android.chrome"
     if mode == "installed" and not PACKAGE_NAME.fullmatch(package):
         raise AndroidEnvironmentError("Enter a valid Android package name, for example com.example.myapp.")
-    if mode == "apk" and not (config.get("apk_path") or "").strip():
-        raise AndroidEnvironmentError("Upload an Android APK before starting the test.")
+    # APK upload mode: the server requires the UploadFile and validate_apk checks the saved path after write.
+    # Do not require apk_path here — start_mobile_run validates config before the upload is stored.
     if mode == "apk" and package and not PACKAGE_NAME.fullmatch(package):
         raise AndroidEnvironmentError(
             "The APK package name is invalid. Leave it blank for upload mode, or use a name like com.example.myapp."

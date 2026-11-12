@@ -137,9 +137,13 @@ def test_validate_apk_rejects_empty_and_dex_less_archives(tmp_path):
     assert validate_apk(multi) == multi.resolve()
 
 
-def test_apk_mode_config_requires_apk_path():
-    with pytest.raises(AndroidEnvironmentError, match="Upload an Android APK"):
-        validate_mobile_config({"app_mode": "apk", "device_id": "emulator-5554"})
+def test_apk_mode_config_defers_apk_path_to_upload_layer():
+    # validate_mobile_config runs before the server saves the UploadFile; apk_path is set after validate_apk.
+    cfg = validate_mobile_config({"app_mode": "apk", "device_id": "emulator-5554"})
+    assert cfg["app_mode"] == "apk"
+    assert not (cfg.get("apk_path") or "").strip()
+    with pytest.raises(AndroidEnvironmentError, match="valid Android package name"):
+        validate_mobile_config({"app_mode": "installed", "device_id": "emulator-5554"})
 
 
 def test_find_unique_rejects_css_in_native_context_and_keeps_it_for_webview():
