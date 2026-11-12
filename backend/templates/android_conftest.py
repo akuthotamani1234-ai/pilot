@@ -150,10 +150,29 @@ def mobile(request, appium_driver):
         # A test-build flow changes app data: it starts from a freshly reset app, like its discovery replay did.
         reset_app_data(driver, _app_package())
     elif activity:
-        driver.execute_script(
-            "mobile: startActivity",
-            {"component": _app_package() + "/" + activity, "wait": True, "stop": True},
-        )
+        # Prefer the configured activity, but many apps expose only a Splash LAUNCHER activity.
+        # Falling back to activate_app avoids Permission Denial on non-exported MainActivity.
+        try:
+            driver.execute_script(
+                "mobile: startActivity",
+                {"component": _app_package() + "/" + activity, "wait": True, "stop": True},
+            )
+        except Exception as error:
+            message = str(error)
+            if "not exported" in message or "Permission Denial" in message:
+                from backend.android import launchable_activity
+
+                launcher = launchable_activity(CONFIG["device_id"], _app_package())
+                if launcher and launcher != activity:
+                    driver.execute_script(
+                        "mobile: startActivity",
+                        {"component": _app_package() + "/" + launcher, "wait": True, "stop": True},
+                    )
+                else:
+                    driver.terminate_app(_app_package())
+                    driver.activate_app(_app_package())
+            else:
+                raise
     else:
         driver.terminate_app(_app_package())
         driver.activate_app(_app_package())

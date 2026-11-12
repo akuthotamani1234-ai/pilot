@@ -654,8 +654,45 @@ class _LockedDriver:
             self.device_lock.__exit__()
 
 
+def _normalize_resolved_activity(package: str, component_line: str) -> str | None:
+    """Turn `com.app/.Splash` or `com.app/com.app.Splash` into an Appium appActivity value."""
+    if "/" not in component_line:
+        return None
+    activity = component_line.split("/", 1)[1].strip()
+    if not activity:
+        return None
+    if activity.startswith("."):
+        return activity
+    if activity.startswith(package):
+        return activity
+    return activity
+
+
+def launchable_activity(device_id: str, package: str) -> str | None:
+    """Resolve the LAUNCHER activity for an installed package (SplashActivity, not a non-exported MainActivity)."""
+    if not device_id or not PACKAGE_NAME.fullmatch(package or ""):
+        return None
+    adb = shutil.which("adb")
+    if not adb:
+        return None
+    try:
+        completed = subprocess.run(
+            [adb, "-s", device_id, "shell", "cmd", "package", "resolve-activity", "--brief",
+             "-c", "android.intent.category.LAUNCHER", package],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for line in (completed.stdout or "").splitlines():
+        line = line.strip()
+        if package in line and "/" in line:
+            return _normalize_resolved_activity(package, line)
+    return None
+
+
 def create_session(config: dict):
     """One bounded UiAutomator2 session; all callers share the same device lock."""
+    original = config
     config = validate_mobile_config(config)
     try:
         from appium import webdriver
@@ -664,12 +701,11 @@ def create_session(config: dict):
         from appium.webdriver.client_config import AppiumClientConfig
     except ImportError as e:
         raise AndroidEnvironmentError("Appium Python Client is missing. Install requirements.txt.") from e
-    options = UiAutomator2Options().load_capabilities(build_capabilities(config))
-    device_lock = DeviceLock(config["device_id"])
-    device_lock.__enter__()
-    try:
+
+    def _connect(cfg):
+        options = UiAutomator2Options().load_capabilities(build_capabilities(cfg))
         # Chrome/UiAutomator startup can exceed an ordinary element-command timeout.
-        client = AppiumClientConfig(remote_server_addr=config["appium_url"], timeout=config["session_timeout_s"])
+        client = AppiumClientConfig(remote_server_addr=cfg["appium_url"], timeout=cfg["session_timeout_s"])
         # AppiumConnection owns a separate class-level header dictionary, which
         # can shadow Selenium ClientConfig.extra_headers. Use an isolated class
         # so every request carries masking intent without changing other clients.
@@ -678,13 +714,44 @@ def create_session(config: dict):
 
         connection = SensitiveConnection(client_config=client)
         driver = webdriver.Remote(connection, options=options, client_config=client)
-        client.timeout = config["command_timeout_s"]
-        if config["app_mode"] == "web":
+        client.timeout = cfg["command_timeout_s"]
+        if cfg["app_mode"] == "web":
             try:
                 driver.set_page_load_timeout(45)
-                driver.get(config["start_url"])
+                driver.get(cfg["start_url"])
             except BaseException:
                 close_session(driver)
+                raise
+        return driver
+
+    device_lock = DeviceLock(config["device_id"])
+    device_lock.__enter__()
+    try:
+        try:
+            driver = _connect(config)
+        except BaseException as first:
+            # MainActivity is often not exported; retry with the real LAUNCHER activity (SplashActivity).
+            detail = str(first)
+            if (
+                config.get("app_mode") in ("installed", "apk")
+                and config.get("package_name")
+                and ("not exported" in detail or "Permission Denial" in detail)
+            ):
+                launcher = launchable_activity(config["device_id"], config["package_name"])
+                current = (config.get("app_activity") or "").strip()
+                aliases = {current, current.lstrip(".")}
+                if current.startswith("."):
+                    aliases.add(config["package_name"] + current)
+                if launcher and launcher not in aliases:
+                    retry = dict(config)
+                    retry["app_activity"] = launcher
+                    driver = _connect(retry)
+                    # Persist onto both the validated config and the caller dict used by discovery/pytest.
+                    config["app_activity"] = launcher
+                    original["app_activity"] = launcher
+                else:
+                    raise
+            else:
                 raise
         return _LockedDriver(driver, device_lock)
     except BaseException as e:
@@ -693,8 +760,14 @@ def create_session(config: dict):
             raise
         from .safety import redact
 
+        hint = ""
+        if "not exported" in str(e) or "Permission Denial" in str(e):
+            hint = (
+                " The configured activity is not exported; use the LAUNCHER/splash activity "
+                "(leave activity blank or pick the app's launchable activity)."
+            )
         raise AndroidEnvironmentError(
-            f"Could not create an Appium session or launch the app: {redact(str(e))[:300]}"
+            f"Could not create an Appium session or launch the app: {redact(str(e))[:300]}{hint}"
         ) from e
 
 

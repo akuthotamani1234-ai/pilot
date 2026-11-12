@@ -4,10 +4,13 @@ These files are kept outside `runs` so clearing history does not remove them.
 
 - `android.wdio.native.app.v2.2.0.apk`: official WebdriverIO demo app.
   Package: `com.wdiodemoapp`.
-- `mda-2.3.0-27.apk`: Sauce Labs Android demo app.
-  Package: `com.saucelabs.mydemoapp.android`.
+- `mda-2.3.0-27.apk`: Sauce Labs Android demo app (real ecommerce catalog/cart/login).
+  Package: `com.saucelabs.mydemoapp.android`. Launchable activity is
+  `.view.activities.SplashActivity` (MainActivity is not exported).
 - `sauce-cart-checks.json`: approved native flow for adding the Sauce Labs
   Backpack and verifying its name and price in the cart. It does not submit an order.
+- `sauce-ecommerce-thorough-checks.json`: catalog visibility + cart verification
+  contract used for live ecommerce Android runs.
 - `webdriverio-functional-checks.json`: the three approved native functional
   checks used in the successful live demonstration. These checks apply to
   WebdriverIO, not the Sauce Labs app.
