@@ -27,7 +27,7 @@ from .android import (
     validate_mobile_config,
 )
 from .android_design import normalize_screens, validate_mobile_script
-from .safety import clean_env, redact
+from .safety import clean_env, redact, redact_json
 from .state import QAState
 
 AndroidState = QAState
@@ -40,7 +40,8 @@ def _run_dir(state):
 
 
 def _save_json(path, data):
-    path.write_text(redact(json.dumps(data, indent=2, ensure_ascii=False)), encoding="utf-8")
+    # Keep package_name / app package ids valid; substring username redaction must not break them.
+    path.write_text(redact_json(data), encoding="utf-8")
 
 
 def setup_agent(state):

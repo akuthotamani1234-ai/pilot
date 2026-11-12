@@ -767,7 +767,13 @@ def reset_app_data(driver, package: str) -> None:
     state. Runtime permissions the app already had are given back, so clearing does not add a permission prompt
     the app never showed before."""
     if not PACKAGE_NAME.fullmatch(package or ""):
-        raise AndroidEnvironmentError("A valid app package is required before resetting its data.")
+        hint = (
+            " The package looks corrupted by secret redaction; machine-readable Android artifacts must keep "
+            "package identifiers intact."
+            if package and "[REDACTED]" in package
+            else ""
+        )
+        raise AndroidEnvironmentError("A valid app package is required before resetting its data." + hint)
     granted = []
     try:
         granted = [p for p in driver.execute_script("mobile: getPermissions", {"appPackage": package, "type": "granted"})
