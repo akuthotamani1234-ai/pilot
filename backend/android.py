@@ -172,6 +172,13 @@ def _uiautomator_installation() -> str | None:
     return None
 
 
+# Soft environment errors: the setup UI may still offer "start emulator" when these are the only failures.
+DEVICE_ABSENCE_ERRORS = (
+    "No Android device is connected.",
+    "No authorized Android device is ready",
+)
+
+
 def android_environment(server_url: str = DEFAULT_APPIUM_URL) -> dict:
     """Return prerequisite status; missing components are explicit, not treated as success."""
     url = _local_appium_url(server_url)
@@ -181,30 +188,49 @@ def android_environment(server_url: str = DEFAULT_APPIUM_URL) -> dict:
     java = _java_path()
     errors = []
     if not sdk or not Path(sdk).is_dir():
-        errors.append("Android SDK not found. Set ANDROID_HOME or ANDROID_SDK_ROOT to its installed directory.")
+        errors.append(
+            "Android SDK not found. Set ANDROID_HOME or ANDROID_SDK_ROOT to the SDK root "
+            "(the folder that contains platform-tools/), then restart the UI."
+        )
     if not adb:
-        errors.append("ADB not found. Install Android SDK Platform-Tools and add platform-tools to PATH.")
+        errors.append(
+            "ADB not found. Install Android SDK Platform-Tools, ensure platform-tools is on PATH "
+            "(or under ANDROID_HOME), then restart the UI."
+        )
     if not java:
-        errors.append("Java not found. Install JDK 17 or newer and set JAVA_HOME.")
+        errors.append(
+            "Java not found. Install JDK 17 or newer, set JAVA_HOME to that JDK, and ensure java is on PATH."
+        )
     elif java:
         try:
             result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=10, check=False)
             version_text = result.stdout + result.stderr
             match = re.search(r'version "?(?:1\.)?(\d+)', version_text)
             if result.returncode or (match and int(match.group(1)) < 17):
-                errors.append("Appium requires JDK 17 or newer. Check JAVA_HOME and the selected Java version.")
+                errors.append(
+                    "Appium requires JDK 17 or newer. Check JAVA_HOME points at JDK 17+ "
+                    f"(current probe: {java})."
+                )
+            elif not match:
+                errors.append(
+                    "Could not read the Java version string. Check JAVA_HOME points at a JDK 17+ installation."
+                )
         except (OSError, subprocess.TimeoutExpired) as e:
-            errors.append(f"Could not check the Java version: {e}")
+            errors.append(f"Could not check the Java version ({java}): {e}")
 
     devices = []
     if adb:
         try:
             result = _run_cli(adb, ["devices", "-l"], timeout=10)
         except (OSError, subprocess.TimeoutExpired) as e:
-            errors.append(f"Could not query Android devices: {e}")
+            errors.append(
+                f"Could not query Android devices via ADB ({adb}): {e}. "
+                "Confirm the Android SDK Platform-Tools install and retry."
+            )
         else:
             if result.returncode:
-                errors.append(f"ADB device query failed: {result.stderr.strip()[:300]}")
+                detail = (result.stderr or result.stdout or "").strip()[:300] or f"exit code {result.returncode}"
+                errors.append(f"ADB device query failed ({adb}): {detail}")
             else:
                 devices = parse_devices(result.stdout)
 
@@ -217,11 +243,17 @@ def android_environment(server_url: str = DEFAULT_APPIUM_URL) -> dict:
             payload = response.json()
         server["available"] = payload.get("value", {}).get("ready") is True
         if not server["available"]:
-            errors.append("Appium answered but is not ready to create a session.")
+            errors.append(
+                f"Appium answered at {url} but is not ready to create a session. "
+                "Wait for the server to finish starting, or restart Appium."
+            )
         server["message"] = payload.get("value", {}).get("message", "")
     except (requests.RequestException, ValueError) as e:
         server["error"] = str(e).splitlines()[0][:200]
-        errors.append(f"Appium server is not running at {url}. Start it with `appium --address 127.0.0.1`.")
+        errors.append(
+            f"Appium server is not running at {url}. Start it with "
+            "`appium --address 127.0.0.1 --port 4723`, then refresh environment status."
+        )
 
     driver_installed = False
     driver_output = ""
@@ -240,14 +272,37 @@ def android_environment(server_url: str = DEFAULT_APPIUM_URL) -> dict:
                 driver_output = str(e)[:300]
                 driver_probe_failed = True
     else:
-        errors.append("Appium CLI not found. Install Node.js, then install Appium 2/3 using `npm install -g appium`.")
-    if appium and not driver_installed:
-        errors.append("Could not verify UiAutomator2 installation. Check Appium home and retry the driver-status check."
-                      if driver_probe_failed else "UiAutomator2 driver is not installed. Run `appium driver install uiautomator2`.")
-    if adb and not devices:
         errors.append(
-            "No Android device is connected. Start an emulator or enable USB debugging, then run `adb devices`."
+            "Appium CLI not found. Install Node.js, then install Appium 2/3 with "
+            "`npm install -g appium`, and ensure the appium command is on PATH."
         )
+    if appium and not driver_installed:
+        appium_home = os.environ.get("APPIUM_HOME") or str(Path.home() / ".appium")
+        if driver_probe_failed:
+            errors.append(
+                "Could not verify UiAutomator2 installation. "
+                f"Check APPIUM_HOME ({appium_home}), then run `appium driver list --installed`."
+            )
+        else:
+            errors.append(
+                "UiAutomator2 driver is not installed. "
+                f"With APPIUM_HOME={appium_home}, run `appium driver install uiautomator2`."
+            )
+    if adb:
+        ready = [d for d in devices if d.get("status") == "device"]
+        if not ready:
+            if devices:
+                seen = ", ".join(f"{d['device_id']} ({d['status']})" for d in devices[:8])
+                errors.append(
+                    "No authorized Android device is ready for testing. "
+                    f"Seen: {seen}. Unlock the device, accept the USB debugging prompt, "
+                    "or wait for the emulator home screen, then run `adb devices`."
+                )
+            else:
+                errors.append(
+                    "No Android device is connected. Start an emulator or enable USB debugging, "
+                    "then run `adb devices`."
+                )
 
     return {
         "ok": not errors,
@@ -266,22 +321,41 @@ def android_environment(server_url: str = DEFAULT_APPIUM_URL) -> dict:
 def require_device(device_id: str, devices: list[dict]) -> None:
     selected = next((d for d in devices if d["device_id"] == device_id), None)
     if selected is None:
-        raise AndroidEnvironmentError(f"Android device '{device_id}' is not connected.")
-    if selected["status"] != "device":
         raise AndroidEnvironmentError(
-            f"Android device '{device_id}' is {selected['status']}; reconnect or authorize it."
+            f"Android device '{device_id}' is not connected. Refresh with `adb devices`, "
+            "or select an installed emulator to start automatically."
         )
+    status = selected["status"]
+    if status == "device":
+        return
+    if status == "unauthorized":
+        raise AndroidEnvironmentError(
+            f"Android device '{device_id}' is unauthorized. Unlock it, accept the USB debugging prompt, "
+            "then run `adb devices` and retry."
+        )
+    if status == "offline":
+        raise AndroidEnvironmentError(
+            f"Android device '{device_id}' is offline. Wait for the emulator to finish booting "
+            "or reconnect the phone, then retry."
+        )
+    raise AndroidEnvironmentError(
+        f"Android device '{device_id}' is {status}; reconnect or authorize it before testing."
+    )
 
 
 def validate_apk(path: Path) -> Path:
     """Validate an APK from controlled storage, including archive structure and size."""
     path = path.resolve()
     if path.suffix.lower() != ".apk":
-        raise AndroidEnvironmentError("Upload an Android .apk file.")
+        raise AndroidEnvironmentError("Upload an Android .apk file (filename must end with .apk).")
     if not path.is_file():
-        raise AndroidEnvironmentError("The uploaded APK could not be found.")
+        raise AndroidEnvironmentError(
+            f"The uploaded APK could not be found at {path}. Re-upload the file and retry."
+        )
     size = path.stat().st_size
-    if not size or size > MAX_APK_BYTES:
+    if not size:
+        raise AndroidEnvironmentError("The uploaded APK is empty (0 bytes). Choose a real Android package file.")
+    if size > MAX_APK_BYTES:
         raise AndroidEnvironmentError(f"APK must be between 1 byte and {MAX_APK_BYTES // (1024 * 1024)} MB.")
     try:
         with zipfile.ZipFile(path) as apk:
@@ -290,6 +364,11 @@ def validate_apk(path: Path) -> Path:
                 raise AndroidEnvironmentError("The APK archive exceeds safe content limits.")
             if "AndroidManifest.xml" not in names:
                 raise AndroidEnvironmentError("This ZIP file is not a valid Android APK (manifest missing).")
+            if not any(name == "classes.dex" or re.fullmatch(r"classes\d+\.dex", name) for name in names):
+                raise AndroidEnvironmentError(
+                    "This ZIP file is not a valid Android APK (DEX bytecode missing). "
+                    "Upload a complete app package, not a stripped or corrupted archive."
+                )
             if any(
                 name.startswith(("/", "\\"))
                 or re.match(r"^[A-Za-z]:", name)
@@ -298,7 +377,9 @@ def validate_apk(path: Path) -> Path:
             ):
                 raise AndroidEnvironmentError("The APK contains an unsafe archive path.")
     except zipfile.BadZipFile as e:
-        raise AndroidEnvironmentError("The uploaded file is not a valid APK archive.") from e
+        raise AndroidEnvironmentError(
+            "The uploaded file is not a valid APK archive (it must be a ZIP-based Android package)."
+        ) from e
     return path
 
 
@@ -330,6 +411,12 @@ def validate_mobile_config(config: dict) -> dict:
         package = "com.android.chrome"
     if mode == "installed" and not PACKAGE_NAME.fullmatch(package):
         raise AndroidEnvironmentError("Enter a valid Android package name, for example com.example.myapp.")
+    if mode == "apk" and not (config.get("apk_path") or "").strip():
+        raise AndroidEnvironmentError("Upload an Android APK before starting the test.")
+    if mode == "apk" and package and not PACKAGE_NAME.fullmatch(package):
+        raise AndroidEnvironmentError(
+            "The APK package name is invalid. Leave it blank for upload mode, or use a name like com.example.myapp."
+        )
     activity = (config.get("app_activity") or "").strip()
     if activity and not re.fullmatch(r"[A-Za-z0-9_.$]+", activity):
         raise AndroidEnvironmentError("The Android activity name contains unsupported characters.")
@@ -611,10 +698,30 @@ def create_session(config: dict):
         ) from e
 
 
+def _driver_context(driver) -> str:
+    """Appium context name; missing context is treated as native UI."""
+    context = getattr(driver, "current_context", None)
+    return context if isinstance(context, str) and context else "NATIVE_APP"
+
+
+def native_ui_context(driver) -> bool:
+    """True when CSS selectors must not be used (native UiAutomator hierarchy)."""
+    context = _driver_context(driver)
+    return context == "NATIVE_APP" or context.startswith("NATIVE")
+
+
 def find_unique(driver, locator: dict):
     """A locator must select exactly one displayed element before it is usable."""
     from appium.webdriver.common.appiumby import AppiumBy
 
+    if not isinstance(locator, dict) or "strategy" not in locator or "value" not in locator:
+        raise ValueError("A locator needs strategy and value.")
+    strategy = locator["strategy"]
+    if strategy == "css" and native_ui_context(driver):
+        raise ValueError(
+            "CSS selectors belong to WebView or Android Chrome contexts, not native UI. "
+            "Use accessibility_id, resource_id, text or xpath, or switch to a WebView context first."
+        )
     strategies = {
         "accessibility_id": AppiumBy.ACCESSIBILITY_ID,
         "resource_id": AppiumBy.ID,
@@ -622,15 +729,22 @@ def find_unique(driver, locator: dict):
         "xpath": AppiumBy.XPATH,
         "css": AppiumBy.CSS_SELECTOR,
     }
+    if strategy not in strategies:
+        raise ValueError(
+            f"Unsupported locator strategy '{strategy}'. "
+            "Native UI uses accessibility_id, resource_id, text or xpath; CSS is for WebView/Chrome only."
+        )
     value = locator["value"]
-    if locator["strategy"] == "text":
+    if strategy == "text":
         value = f"new UiSelector().text({json.dumps(value)})"
-    found = [element for element in driver.find_elements(strategies[locator["strategy"]], value)
+    found = [element for element in driver.find_elements(strategies[strategy], value)
              if element.is_displayed()]
     if len(found) != 1:
         from selenium.common.exceptions import NoSuchElementException
 
-        raise NoSuchElementException("The discovered locator does not select one visible element.")
+        raise NoSuchElementException(
+            f"The discovered {strategy} locator does not select one visible element."
+        )
     return found[0]
 
 
