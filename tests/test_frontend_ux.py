@@ -56,11 +56,15 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "function focusThoroughSetup()" in script
     assert "function coverageReminderHtml(" in script
     assert "HARD_PAGE_CAP" in script and "Unvisited pages remain listed" in script
-    assert "≥60 min crawl" in script or "60 min crawl" in script
-    assert 'explore_repeated_controls: thorough || fullCrawl' in script
+    assert "thoroughCrawlMin" in script and "Math.max(60," in script
+    # Switching to Standard must reset Thorough-forced full/site/80.
+    assert 'providerMeta.default_actions || 15' in script
+    assert '$("aiCrawlMode").value = "limited"' in script
+    assert 'explore_repeated_controls: !!thorough || !!($("aiExploreRepeated")' in script
     assert "thorough: !!thorough" in script
     assert "thorough ? 80" in script or "thorough ? 80 :" in script
     assert 'crawl_scope: thorough ? "site"' in script
+    assert "thorough && depthRaw === 0 ? 12" in script
     assert "coverageReminderHtml(s, crawl)" in script
     assert "coverageReminderHtml(s, d.crawl || s.crawl)" in script
     assert "Coverage reminder:" in script
@@ -68,6 +72,41 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "Observed/scripted controls are not the same as business-verified checks." in script
     assert ".warn.coverage-reminder" in css
     assert ".coverage-reminder-actions" in css
+    assert "opacity: .55" in css or "opacity:.55" in css.replace(" ", "")
+
+
+def test_mcp_android_settings_mirror_standard_essentials():
+    """Android MCP panel must expose device/Appium/test-build controls and prepare start_android_test text."""
+    html = (FRONTEND / "chat.html").read_text(encoding="utf-8")
+    script = (FRONTEND / "workflow.js").read_text(encoding="utf-8")
+    assert 'id="mcpAndroidControls"' in html
+    assert 'id="mcpAndroidDevice"' in html
+    assert 'id="mcpAndroidEnvRefresh"' in html
+    assert 'id="mcpAndroidAppiumUrl"' in html
+    assert 'value="http://127.0.0.1:4723"' in html
+    assert 'id="mcpAndroidActivity"' in html
+    assert 'id="mcpAndroidTestBuild"' in html
+    assert 'id="mcpAndroidAuthorized"' in html
+    assert 'id="mcpHelpBlurb"' in html
+    assert "MCP does not replace Studio" in html
+    assert 'option value="apk"' in html.split('id="mcpAndroidSource"')[1].split("</select>")[0]
+    assert 'option value="installed"' in html.split('id="mcpAndroidSource"')[1].split("</select>")[0]
+    assert 'option value="web"' in html.split('id="mcpAndroidSource"')[1].split("</select>")[0]
+    # Default source aligns with Standard (apk first).
+    source_block = html.split('id="mcpAndroidSource"')[1].split("</select>")[0]
+    assert source_block.find('value="apk"') < source_block.find('value="installed"')
+    assert 'id="mcpTargetLabel">Target<' in html or 'id="mcpTargetLabel">Target</label>' in html
+    assert "updateMcpTargetLabel" in script
+    assert "/path/to/app.apk" in script
+    assert "get_android_environment" in script
+    assert "start_android_test" in script
+    assert "authorized=true" in script
+    assert "test_build=" in script
+    assert "apk_path=" in script
+    assert "package_name=" in script
+    assert "syncFromStandard" in script and "syncToStandard" in script
+    assert "function refreshMcpAndroidEnvironment" in script
+    assert "/api/android/environment" in script
 
 
 def test_qa_lab_empty_and_progress_copy_without_redesign():

@@ -725,6 +725,8 @@
 
   function aiPickerHtml(saved) {
     const cap = providerMeta.hard_page_cap || 500, minutes = providerMeta.time_limit_min || 30;
+    const thoroughCrawlMin = Math.max(60, minutes);
+    const standardActions = providerMeta.default_actions || 15;
     return '<div class="test-setup"><div class="setup-heading"><div><span class="section-label">WEBSITE SETUP</span>' +
       '<h2>Choose how to explore and test</h2><p class="setup-target">' + esc(pendingSource) + '</p></div>' +
       '<button type="button" class="secondary" id="aiChangeTarget">Change URL</button></div>' +
@@ -749,13 +751,14 @@
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
-      '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80"></label></div>' +
-      '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥60 min crawl time, 80 actions/page (max 100), ' +
+      '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80" data-standard-default="' + standardActions + '"></label></div>' +
+      '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥' + thoroughCrawlMin +
+      ' min crawl time (max of 60 and your CRAWL_TIME_LIMIT_MIN), 80 actions/page (max 100), ' +
       '≥500 test cases, repeated controls, every URL pattern (PATTERN_SAMPLES=0). Still finite — HARD_PAGE_CAP (' + cap +
       '), closed shadow DOM, pay/delete/logout, and cross-origin frames stay out of reach. Unvisited pages remain listed.</p>' +
       '<p class="note" id="aiScopeNote">Whole-site route discovery, including menus, nested controls, pagination and logged-in pages when access is available. ' +
-      'Safety budgets: up to ' + cap + ' pages, ' + minutes + '+ minutes when Thorough, and the selected actions per page. ' +
-      'Discovered does not mean functionally verified.</p></section>' +
+      'Safety budgets: up to ' + cap + ' pages, ≥' + thoroughCrawlMin + ' minutes when Thorough, and the selected actions per page. ' +
+      'Discovered does not mean functionally verified. Standard uses about ' + standardActions + ' actions/page unless you raise it.</p></section>' +
       '<section class="setup-section" id="setupFeatures"><div class="setup-section-title"><span>04</span><div><h3>Expected behavior and additional checks</h3>' +
       '<p>All existing test, review, recording, business-rule and backend-check settings remain available here.</p></div></div>' +
       myTestsHtml(lastCheck) + advancedHtml(saved) +
@@ -924,6 +927,13 @@
       $("aiCrawlMode").value = "full";
       $("aiScope").value = "site";
       $("aiActions").value = String(Math.max(80, Math.min(100, +$("aiActions").value || 80)));
+    } else {
+      // Leaving Thorough must drop Thorough-forced full/site/80 — Standard defaults only.
+      const defaults = providerMeta.default_actions || 15;
+      $("aiCrawlMode").value = "limited";
+      $("aiScope").value = "site";
+      $("aiActions").value = String(Math.min(100, Math.max(1, +defaults || 15)));
+      if ($("aiPages")) $("aiPages").value = String(Math.max(1, +$("aiPages").value || 10));
     }
     updateSetupSummary();
   }
@@ -1038,16 +1048,22 @@
     const thorough = $("aiIntensity") && $("aiIntensity").value === "thorough";
     if (thorough) applyExplorationIntensity();
     const fullCrawl = thorough || $("aiCrawlMode").value === "full";
-    const actionsPerPage = Math.min(100, Math.max(thorough ? 80 : 1, +$("aiActions").value || (thorough ? 80 : 50)));
+    const standardActions = providerMeta.default_actions || 15;
+    const actionsPerPage = Math.min(100, Math.max(thorough ? 80 : 1,
+      +$("aiActions").value || (thorough ? 80 : standardActions)));
+    const depthRaw = Math.max(0, +val("advDepth") || 0);
+    // Thorough + unset depth → 12 for MCP parity; Standard keeps the advanced value (incl. 0).
+    const maxDepth = thorough && depthRaw === 0 ? 12 : depthRaw;
     const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
                    crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
                    max_interactions_per_page: actionsPerPage,
-                   explore_repeated_controls: thorough || fullCrawl,
+                   // Full crawl alone must not imply Thorough; only Thorough (or an explicit checkbox) sets this.
+                   explore_repeated_controls: !!thorough || !!($("aiExploreRepeated") && $("aiExploreRepeated").checked),
                    thorough: !!thorough,
                    allow_rules_fallback: $("aiFallback").checked,
                    show_browser: $("aiWatch").checked, fresh: $("aiFresh").checked,
                    authorized: true, allow_signup: accountMode === "signup" && $("aiSignup").checked, environment: val("advEnv") || "test",
-                   production_confirmed: $("advProd").checked, max_depth: Math.max(0, +val("advDepth") || 0),
+                   production_confirmed: $("advProd").checked, max_depth: maxDepth,
                    writes_confirmed: val("advEnv") === "staging" && $("advWrites").checked,
                    allow_actions: val("advEnv") === "staging" ? val("advAllow") : "",
                    test_payment: val("advEnv") === "staging" && $("advPay").checked,
@@ -2052,10 +2068,12 @@
       } else {
         $("recent").innerHTML = runs.map((r) => {
           const label = (r.url || r.run || "").replace(/^https?:\/\//, "");
-          return `<div class="item${r.run === shownPast ? " on" : ""}">
+          const verdict = r.incomplete || r.verdict === "incomplete" ? "incomplete" : (r.verdict || "—");
+          const incomplete = r.incomplete || verdict === "incomplete";
+          return `<div class="item${r.run === shownPast ? " on" : ""}${incomplete ? " incomplete" : ""}" data-run="${esc(r.run)}">
         <button type="button" class="open" data-run="${esc(r.run)}" aria-label="Open run ${esc(label)}">
           <span class="r-url">${esc(label)}</span>
-          <span class="r-meta">${esc(r.date)} · ${esc(r.verdict)}</span></button>
+          <span class="r-meta">${esc(r.date)} · ${esc(verdict)}</span></button>
         <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete run ${esc(label)}">🗑</button>
       </div>`;
         }).join("");
@@ -2127,16 +2145,24 @@
 
   async function deleteTest(btn) {
     const run = btn.dataset.run;
-    const name = btn.parentElement.querySelector(".r-url").textContent;
-    const when = btn.parentElement.querySelector(".r-meta").textContent;
+    const row = btn.closest(".item") || btn.parentElement;
+    const name = row.querySelector(".r-url").textContent;
+    const when = row.querySelector(".r-meta").textContent;
     if (!confirm(`Delete this test?\n\n${name}\n${when}\n\nIts report, Excel file, screenshots and test scripts ` +
                  "will be deleted for good. This cannot be undone.")) return;
     btn.disabled = true;
     try {
       const res = await fetch(`/api/runs/${encodeURIComponent(run)}`, { method: "DELETE", headers: { "X-Agentic-QA": "1" } });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-      if (shownPast === run) newTest();  // the deleted test was open -> back to a new chat
+      if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error((data.detail || "This test cannot be deleted right now.") +
+            " Stop the run if it is still going, close any open Excel/report files from this run, then try again.");
+        }
+        throw new Error(data.detail || `HTTP ${res.status}`);
+      }
+      row.remove();  // drop from Recent immediately; folder is gone on the server
+      if (shownPast === run) { shownPast = null; newTest(); }  // viewing that run → clear chat
       await loadHistory();
     } catch (e) {
       btn.disabled = false;
@@ -2167,4 +2193,6 @@
       if (generation === chainGen) say(`<div class="warn" role="alert">Could not load this report. Reopen it from Recent runs to try again.</div>`);
     }
   }
+
+  window.BlowAIChat = { updateAndroidFields };
 })();

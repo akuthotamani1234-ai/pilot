@@ -59,6 +59,13 @@
     <section class="mcp-panel" id="mcpPanel" hidden aria-labelledby="mcpPanelTitle">
       <div class="mcp-panel-head"><div><span class="section-label">CONNECTED WORKFLOW</span><h2 id="mcpPanelTitle">Your assistant. Your testing tools.</h2></div><span class="mcp-state" id="mcpConnectionStatus" role="status" aria-live="polite">Checking connection…</span></div>
       <p class="mcp-panel-copy">Describe the task in your MCP assistant. Blow AI uses the same scripts, test engines and reports, and shows the run here.</p>
+      <div class="mcp-help" id="mcpHelpBlurb" role="note">
+        <table><caption>Where to configure, chat and test</caption><tbody>
+          <tr><th scope="row">Studio Standard</th><td>Composer / Android form in Blow AI — configure and run tests here.</td></tr>
+          <tr><th scope="row">MCP</th><td>External MCP client (Cursor/Claude) + Privacy approve — prepare the request in Studio, paste or ask in the assistant; Studio shows the run.</td></tr>
+          <tr><th scope="row">Testing always</th><td>Local <b>ui.bat</b> Studio — MCP does not replace Studio.</td></tr>
+        </tbody></table>
+      </div>
       <p class="note" id="mcpConnectionNote" role="status"></p>
       <details class="mcp-setup"><summary>Connect your assistant</summary>
         <ol><li>Run <b>setup/install-mcp.bat</b> once.</li><li>Add the Blow AI server configuration to your MCP client.</li><li>Approve the assistant in <button type="button" class="inline-button" id="mcpPrivacyBtn">Privacy settings</button>, then ask it to check the connection.</li></ol>
@@ -67,11 +74,31 @@
       </details>
       <div class="mcp-request">
         <label for="mcpAndroidSource" id="mcpAndroidSourceLabel" hidden>Android app source</label>
-        <select id="mcpAndroidSource" hidden><option value="installed">Installed app package</option><option value="apk">APK path on this computer</option><option value="web">Website in Android Chrome</option></select>
-        <label for="mcpTarget" id="mcpTargetLabel">Website URL</label><input id="mcpTarget" type="text" spellcheck="false" placeholder="https://your-test-site.example">
+        <select id="mcpAndroidSource" hidden>
+          <option value="apk">APK path on this computer</option>
+          <option value="installed">Installed app package</option>
+          <option value="web">Website in Android Chrome</option>
+        </select>
+        <div id="mcpAndroidControls" hidden>
+          <div class="note" id="mcpAndroidEnvNote" role="status" aria-live="polite">Checking Android tools and connected devices…</div>
+          <div class="row mcp-android-env-row">
+            <label class="mcp-device-label" for="mcpAndroidDevice">Android device
+              <select id="mcpAndroidDevice"><option value="">Refresh device status first</option></select>
+            </label>
+            <button class="secondary" id="mcpAndroidEnvRefresh" type="button">Refresh</button>
+          </div>
+          <label for="mcpAndroidAppiumUrl">Appium server URL</label>
+          <input id="mcpAndroidAppiumUrl" type="url" value="http://127.0.0.1:4723" spellcheck="false">
+          <label for="mcpAndroidActivity" id="mcpAndroidActivityLabel">Launch activity (optional)</label>
+          <input id="mcpAndroidActivity" type="text" spellcheck="false" placeholder=".MainActivity">
+          <label class="tick"><input type="checkbox" id="mcpAndroidTestBuild"><span><b>This is a test build</b> — test it like a real user (menus, forms, cart; never pay/delete/logout).</span></label>
+          <label class="tick"><input type="checkbox" id="mcpAndroidAuthorized"><span>I own this app or have permission to test it, and trust the APK.</span></label>
+        </div>
+        <label for="mcpTarget" id="mcpTargetLabel">Target</label>
+        <input id="mcpTarget" type="text" spellcheck="false" placeholder="https://your-test-site.example">
         <label for="mcpTask">What would you like to check?</label><textarea id="mcpTask" rows="2" maxlength="4000" placeholder="List dashboard menus and dropdowns, then test the approved login flow."></textarea>
         <div class="row"><button class="primary" id="copyMcpRequest" type="button">Prepare assistant request</button><span class="muted small">Review it, then paste it into your assistant.</span></div>
-        <textarea class="mcp-prepared" id="mcpRequestPreview" rows="5" readonly hidden aria-label="Prepared assistant request"></textarea>
+        <textarea class="mcp-prepared" id="mcpRequestPreview" rows="8" readonly hidden aria-label="Prepared assistant request"></textarea>
       </div>
       <p class="muted small" id="mcpPanelMessage" role="status" aria-live="polite"></p>
     </section>
