@@ -126,9 +126,18 @@ def test_provider_failure_still_allows_rules_fallback_path(monkeypatch, quiet_co
     assert fallback["used"] is True
 
 
+def test_ask_llm_provider_none_is_turned_off_not_unknown(monkeypatch, quiet_cost):
+    """LLM_PROVIDER=none must not reach provider routing or claim 'none' is an unknown provider."""
+    monkeypatch.setattr(llm.settings, "llm_provider", "none")
+    monkeypatch.setattr(llm.requests, "post", lambda *a, **k: pytest.fail("must not contact any provider"))
+    with pytest.raises(llm.LLMError, match=r"(?i)turned off|rules") as err:
+        llm.ask_llm("probe", max_attempts=1)
+    assert "Unknown LLM_PROVIDER" not in str(err.value)
+
+
 def test_unknown_provider_and_unexpected_shape_are_llmerror(monkeypatch, quiet_cost):
     monkeypatch.setattr(llm.settings, "llm_provider", "not-a-provider")
-    with pytest.raises(llm.LLMError, match="Unknown LLM_PROVIDER|supported AI provider"):
+    with pytest.raises(llm.LLMError, match="Unknown LLM_PROVIDER|Supported providers for AI calls"):
         llm._ask_once("x", "", 0)
 
     monkeypatch.setattr(llm.settings, "llm_provider", "openai")
