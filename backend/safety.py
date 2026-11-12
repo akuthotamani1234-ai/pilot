@@ -306,6 +306,44 @@ def redact(text, values: list[str] | None = None, include_username: bool = False
     return URL_USERINFO.sub(r"\1" + REDACTED + "@", text)
 
 
+# App package ids often contain a short test username (com.blowai.demo + username "demo").
+# Machine-readable Android artifacts still need a valid package for reset/activate/terminate.
+ANDROID_PACKAGE_KEYS = frozenset({"package_name", "appPackage", "app_package", "package"})
+_ANDROID_PACKAGE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+
+
+def android_package_identifiers(data) -> list[str]:
+    """Collect dotted Android package ids from known keys (longest first)."""
+    found: set[str] = set()
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in ANDROID_PACKAGE_KEYS and isinstance(value, str) and _ANDROID_PACKAGE_ID.fullmatch(value):
+                    found.add(value)
+                walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+
+    walk(data)
+    return sorted(found, key=len, reverse=True)
+
+
+def redact_json(data, values: list[str] | None = None, include_username: bool = False) -> str:
+    """JSON dump with secrets removed, but valid Android package identifiers left intact."""
+    text = json.dumps(data, indent=2, ensure_ascii=False)
+    packages = android_package_identifiers(data)
+    if values is None:
+        values = secret_values(include_username)
+    out = redact(text, values=values, include_username=include_username)
+    for package in packages:
+        corrupted = redact(package, values=values, include_username=include_username)
+        if corrupted != package and corrupted in out:
+            out = out.replace(corrupted, package)
+    return out
+
+
 def clean_env(env: dict, keep_test_account: bool = False) -> dict:
     """A copy of the environment without API keys / tokens (and without the test account unless needed).
     Used for the generated tests and for apps started from a GitHub repo or folder."""
