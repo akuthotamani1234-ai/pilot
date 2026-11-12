@@ -1,8 +1,27 @@
 # Blow AI — Project Implementation Status
 
-**Baseline date:** 2026-11-10  
-**Status:** Phases 0-5 are complete. Phase 6 has not started.  
-**Evidence:** `PROJECT_AUDIT.md`, `deep_validation/06_test_evidence_index.md`, and phase result reports 08–10 under `deep_validation/`.
+**Baseline date:** 2026-11-10 (Windows workstation)  
+**Cloud re-baseline:** 2026-11-12 (Cursor Linux agent at `/workspace`)  
+**Status:** Windows Phases 0–5 are **historically documented as complete**. On this cloud checkout they are **not freshly re-verified**. Phase 6 has not started.  
+**Evidence:** `PROJECT_AUDIT.md`, `deep_validation/06_test_evidence_index.md`, phase reports 08–12, and `deep_validation/13_phase0_cloud_rebaseline.md`.
+
+## Cloud agent Phase 0 re-inspection (2026-11-12)
+
+Documentation-only. No application code or tests were changed in this re-inspection.
+
+| Fact | Observation |
+|---|---|
+| Intended product root | `/workspace` (contains `main.py`, `backend/`, `frontend/`, `tests/`, docs) |
+| Git | Initialized; `main` @ `925ae2f` “Initial commit: Blow AI”; clean before docs update |
+| Python | Host `3.12.3`; product `requires-python >=3.13`; no 3.13 binary found on PATH |
+| Install state | No `.venv`; no `.env`; dependencies/Playwright not confirmed installed for this host |
+| Android tools | Java 21 present; ADB/Appium absent from PATH; no connected device |
+| Browser | Google Chrome present at `/usr/local/bin/google-chrome` |
+| Runtime data | No `runs/`, `accounts/`, or `logs/`; placeholders only under `baseline/` and `workspace/` |
+| Prior phase evidence | Windows Phase 1–5 logs under `deep_validation/` retained; treat as historical, not Linux-verified |
+| Secrets | `.env` absent here; `.env.example` present; secrets not opened |
+
+**Implication:** Do not treat Windows Phase 1–5 “COMPLETE” marks as verified on this Linux cloud agent. Re-run a Phase 1-style non-slow baseline after installing Python 3.13 + deps before advancing.
 
 ## Product and architecture
 

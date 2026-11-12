@@ -1,6 +1,8 @@
 # Blow AI — Feature Verification Matrix
 
-**Initial baseline:** Phase 0 inspection, 2026-11-10. “Implemented” means source paths exist. “Verified” requires actual execution evidence. Historical results are labeled; they are not current-checkout passes. See Phase 1–3 updates below for newer regression evidence.
+**Initial baseline:** Phase 0 inspection, 2026-11-10 (Windows).  
+**Cloud re-baseline:** 2026-11-12 — documentation-only; see `deep_validation/13_phase0_cloud_rebaseline.md`.  
+“Implemented” means source paths exist. “Verified” requires actual execution evidence. Windows Phase 1–5 results are **historical** and are **not** current Linux-checkout passes.
 
 | Feature/workflow | Principal implementation | Test/evidence | Status |
 |---|---|---|---|
@@ -55,3 +57,7 @@ Generated-test execution fails closed when Windows Job Object limits cannot be e
 ## Phase 5 completion verification - 2026-11-11
 
 Rule-based failure classification and self-healing passed the focused regression set. The local DemoStore end-to-end test confirmed a stale selector is repaired and rerun while the seeded missing-message behavior remains a reported `assertion_failure`. The test fixture explicitly prevents the learned helper's name fallback for that one stale-selector case; its expected behavior assertion remains intact. See `deep_validation/12_phase5_results.md`.
+
+## Cloud Phase 0 verification note - 2026-11-12
+
+No feature row above was upgraded to “Verified” on the Linux cloud agent. Environment blockers for fresh verification: Python 3.12 host vs required 3.13, missing `.venv`/deps confirmation, no ADB/Appium, no live runs directory. Preserve Implemented vs Historical/Partial/Blocked vocabulary until a Phase 1 Linux suite produces new evidence.
