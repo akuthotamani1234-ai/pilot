@@ -141,7 +141,14 @@ async def local_only(request: Request, call_next):
             return JSONResponse({"detail": "Invalid upload Content-Length."}, status_code=400)
         if size < 0 or size > 501 * 1024 * 1024:
             return JSONResponse({"detail": "APK request exceeds the 500 MB upload limit."}, status_code=413)
-    return await call_next(request)
+    response = await call_next(request)
+    # Studio JS/CSS must never stick on an old build after git pull (Windows browsers are aggressive).
+    if request.url.path.startswith("/static/") and request.url.path.rsplit(".", 1)[-1].lower() in {
+        "js", "css", "html",
+    }:
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _audit(action: str, **details) -> None:
@@ -448,13 +455,33 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
 
 # ------------------------------------------------------------------ API
 
+def _ui_asset_digests() -> dict[str, str]:
+    names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css")
+    return {name: hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12] for name in names}
+
+
+@app.get("/api/ui-build")
+def ui_build():
+    """Fingerprint of Studio frontend files — use to confirm git pull + ui.bat restart picked up changes."""
+    digests = _ui_asset_digests()
+    return {"ok": True, "build": digests.get("chat.js", ""), "assets": digests}
+
+
 @app.get("/")
 def home():
     """Chat page: type a URL, pick the AI, follow the to-do list as each step gets its tick."""
     html = (STATIC / "chat.html").read_text(encoding="utf-8")
-    for name in ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css"):
-        digest = hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12]
+    digests = _ui_asset_digests()
+    for name, digest in digests.items():
         html = html.replace("/static/" + name, "/static/" + name + "?v=" + digest)
+    # Visible stamp so operators can confirm they are not on a stale Windows copy.
+    stamp = digests.get("chat.js", "")[:8]
+    html = html.replace(
+        "<!--UI_BUILD-->",
+        f'<br><span class="ui-build" title="Frontend fingerprint — must change after git pull + ui.bat restart">'
+        f'build {stamp}</span>',
+        1,
+    )
     return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
@@ -1247,15 +1274,51 @@ def delete_run(run: str, x_agentic_qa: str | None = Header(default=None)):
         if (_read_json(meta, {}) or {}).get("run_id") == run:
             shutil.rmtree(meta.parent, ignore_errors=True)
             baseline_removed = True
+
+    def _rmtree_force(path: Path) -> None:
+        """Delete a run folder; clear read-only bits and retry (common on Windows when Excel held a file)."""
+        import stat
+        import time as _time
+
+        def _clear(func, p, _exc=None):
+            try:
+                os.chmod(p, stat.S_IWRITE | stat.S_IREAD)
+                func(p)
+            except OSError:
+                pass
+
+        last: Exception | None = None
+        for attempt in range(5):
+            try:
+                if not path.exists():
+                    return
+                # Python 3.12+: onexc; older: onerror
+                try:
+                    shutil.rmtree(path, onexc=_clear)
+                except TypeError:
+                    shutil.rmtree(path, onerror=lambda f, p, e: _clear(f, p, e))
+                if not path.exists():
+                    return
+            except Exception as e:
+                last = e
+            _time.sleep(0.35 * (attempt + 1))
+        if last:
+            raise last
+        raise OSError(f"Could not remove {path}")
+
     try:
-        shutil.rmtree(d)
+        _rmtree_force(d)
     except PermissionError as e:
         raise HTTPException(409, "A file of this test is open in another program (e.g. the Excel file in Excel). "
                                  "Close it and try again.") from e
     except OSError as e:
-        raise HTTPException(500, f"Could not delete the test: {str(e)[:200]}") from e
+        raise HTTPException(409 if getattr(e, "winerror", None) in {5, 32} else 500,
+                            "Could not delete the test folder. Close Excel/report viewers for this run, "
+                            f"then try again. ({str(e)[:160]})") from e
+    if d.exists():
+        raise HTTPException(409, "The test folder is still on disk after delete. Close any open files from this run and retry.")
     _audit("delete_test", run=run, baseline_removed=baseline_removed)
-    return {"ok": True, "baseline_removed": baseline_removed}
+    return {"ok": True, "baseline_removed": baseline_removed, "removed": run}
 
 
 class RepoFixRequest(BaseModel):
