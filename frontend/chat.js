@@ -2132,11 +2132,16 @@
         <button type="button" class="open" data-run="${esc(r.run)}" aria-label="Open run ${esc(label)}">
           <span class="r-url">${esc(label)}</span>
           <span class="r-meta">${esc(r.date)} · ${esc(verdict)}</span></button>
-        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test" aria-label="Delete run ${esc(label)}">🗑</button>
+        <button type="button" class="del" data-run="${esc(r.run)}" title="Delete this test and its runs folder"
+          aria-label="Delete run ${esc(label)}"><span aria-hidden="true">🗑</span> Delete</button>
       </div>`;
         }).join("");
         $("recent").querySelectorAll(".open").forEach((b) => b.addEventListener("click", () => openPast(b)));
-        $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", () => deleteTest(b)));
+        $("recent").querySelectorAll(".del").forEach((b) => b.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          deleteTest(b);
+        }));
       }
     } catch (e) {
       $("recent").innerHTML = `<span class="muted small" role="alert">Could not load recent runs. ${esc(e.message || "Check that the UI server is running.")}</span>`;
@@ -2204,11 +2209,12 @@
   async function deleteTest(btn) {
     const run = btn.dataset.run;
     const row = btn.closest(".item") || btn.parentElement;
-    const name = row.querySelector(".r-url").textContent;
-    const when = row.querySelector(".r-meta").textContent;
-    if (!confirm(`Delete this test?\n\n${name}\n${when}\n\nIts report, Excel file, screenshots and test scripts ` +
-                 "will be deleted for good. This cannot be undone.")) return;
+    const name = (row.querySelector(".r-url") || {}).textContent || run;
+    const when = (row.querySelector(".r-meta") || {}).textContent || "";
+    if (!confirm(`Delete this test and its folder under runs/?\n\n${name}\n${when}\n\n` +
+                 "Report, Excel, screenshots and scripts are removed permanently. This cannot be undone.")) return;
     btn.disabled = true;
+    btn.textContent = "Deleting…";
     try {
       const res = await fetch(`/api/runs/${encodeURIComponent(run)}`, { method: "DELETE", headers: { "X-Agentic-QA": "1" } });
       const data = await res.json().catch(() => ({}));
@@ -2222,9 +2228,16 @@
       row.remove();  // drop from Recent immediately; folder is gone on the server
       if (shownPast === run) { shownPast = null; newTest(); }  // viewing that run → clear chat
       await loadHistory();
+      // Confirm it did not reappear (folder truly gone).
+      const still = [...document.querySelectorAll("#recent .item")].some((el) => el.dataset.run === run);
+      if (still) {
+        throw new Error("The run is still listed after delete. Refresh the page, then try Delete again.");
+      }
     } catch (e) {
       btn.disabled = false;
+      btn.innerHTML = '<span aria-hidden="true">🗑</span> Delete';
       alert("Could not delete the test: " + e.message);
+      await loadHistory();
     }
   }
 
