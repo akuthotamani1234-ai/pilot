@@ -673,9 +673,9 @@ def start_run(req: RunRequest):
         env["EXPLORE_REPEATED_CONTROLS"] = "true" if req.explore_repeated_controls else "false"
         if req.max_interactions_per_page is not None:
             env["MAX_INTERACTIONS_PER_PAGE"] = str(req.max_interactions_per_page)
-        # Thorough (or Studio full-crawl + repeated controls): raise this-run budgets only; never invent infinite coverage.
-        full_crawl = req.max_pages == 0
-        apply_thorough = bool(req.thorough or (req.explore_repeated_controls and full_crawl))
+        # Thorough budgets only when the client sets thorough=true explicitly (Studio Thorough / MCP).
+        # explore_repeated_controls stays independent and must not imply Thorough by itself.
+        apply_thorough = bool(req.thorough)
         if apply_thorough:
             env["EXPLORE_REPEATED_CONTROLS"] = "true"
             actions = max(80, req.max_interactions_per_page or 0)
@@ -1115,9 +1115,22 @@ def history():
     out = []
     for d in sorted((p for p in RUNS.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
         s = _read_json(d / "summary.json", None)
+        date = time.strftime("%d %b %H:%M", time.localtime(d.stat().st_mtime))
         if s:
             out.append({"run": d.name, "url": s.get("source") or s.get("url"), "verdict": s.get("verdict"),
-                        "date": time.strftime("%d %b %H:%M", time.localtime(d.stat().st_mtime))})
+                        "date": date, "incomplete": False})
+        else:
+            # Incomplete / aborted runs still appear so they can be opened or deleted from Studio.
+            label = d.name
+            cfg = _read_json(d / ".private" / "android_config.json", None) or {}
+            if cfg.get("start_url"):
+                label = f"Android Chrome {cfg['start_url']}"
+            elif cfg.get("package_name"):
+                label = f"Android app {cfg['package_name']}"
+            elif cfg.get("apk_path") or cfg.get("app_mode") == "apk":
+                label = "Uploaded Android APK"
+            out.append({"run": d.name, "url": label, "verdict": "incomplete",
+                        "date": date, "incomplete": True})
     return out
 
 

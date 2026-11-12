@@ -89,3 +89,13 @@ Prepared regression command (not executed yet):
 ## Workflow and privacy controls
 
 Choose Standard testing or AI assistant through MCP after selecting the engine. Local-only processing is the default; cloud assistance and assistant data access require separate UI approvals. An assistant cannot approve its own access. Restart the UI and reconnect the client after updates. See [Workflow and privacy guide](16_WORKFLOWS_AND_PRIVACY.md) for policy scope, connection statuses and verification limits.
+
+## Where to configure, chat and test
+
+| Mode | Where | What |
+| --- | --- | --- |
+| Studio Standard | Composer / Android form in Blow AI | Configure and run tests here |
+| MCP | External MCP client (Cursor/Claude) + Privacy approve | Prepare the request in Studio, paste or ask in the assistant; Studio shows the run |
+| Testing always | Local `ui.bat` Studio | MCP does not replace Studio |
+
+For Android MCP, Studio mirrors the Standard essentials (device + Refresh, Appium URL, optional launch activity, test-build and ownership checkboxes, apk / installed / web). **Prepare assistant request** drafts `get_android_environment` then `start_android_test` with those fields. APK for MCP is a local path string (for example `/path/to/app.apk`), not a file upload.
