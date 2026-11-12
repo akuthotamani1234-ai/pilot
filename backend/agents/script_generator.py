@@ -2928,14 +2928,15 @@ def script_generator_agent(state: QAState) -> QAState:
 
     # 5) coverage: every control found, and whether a generated test really uses it (chat, Excel, report)
     all_code = "\n".join(f.read_text(encoding="utf-8") for f in out_dir.glob("*.py") if f.name != "conftest.py")
-    from .test_design import coverage
+    from .test_design import COVERAGE_SCRIPTED_NOTE, coverage
     cov = [coverage(p, all_code) for p in pages.values()]
     tested, total = sum(x["tested"] for x in cov), sum(x["total"] for x in cov)
     login = state.get("login") or {}
+    honesty = [COVERAGE_SCRIPTED_NOTE]
     Path(run_dir, "coverage.json").write_text(json.dumps(
         {"tested": tested, "total": total, "pages": cov,
          # (not logged in -> say why; logged in with an account the tester created -> say which one)
-         "notes": ([login["note"]] if login.get("found") and (not login.get("logged_in") or
+         "notes": honesty + ([login["note"]] if login.get("found") and (not login.get("logged_in") or
                                                               (login.get("account") or {}).get("how") != "given")
                    else []) + notes},
         indent=2), encoding="utf-8")

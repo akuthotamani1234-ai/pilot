@@ -170,6 +170,7 @@ class RunRequest(BaseModel):
     allow_rules_fallback: bool = True  # legacy callers retain fallback; guided setup asks explicitly
     max_interactions_per_page: int | None = None
     explore_repeated_controls: bool = False
+    thorough: bool = False  # raise this-run crawl/test budgets (Studio Thorough / MCP parity)
     test_username: str | None = None  # test account for websites with a login (this run only, never saved)
     test_password: str | None = None
     test_totp_secret: str | None = None  # the test account's authenticator key (2-step login; this run only, never saved)
@@ -424,6 +425,7 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "target_type": job.get("target_type", "web"),
         "workflow": job.get("workflow", "standard"), "privacy_mode": job.get("privacy_mode", "local"),
         "discovery_only": bool(job.get("discovery_only")),
+        "thorough": bool(job.get("thorough")),
         "llm": job.get("llm"),
         "cost": _live_cost(d),
         "pages": _count(d / "app_map.json") if d else None,
@@ -671,6 +673,25 @@ def start_run(req: RunRequest):
         env["EXPLORE_REPEATED_CONTROLS"] = "true" if req.explore_repeated_controls else "false"
         if req.max_interactions_per_page is not None:
             env["MAX_INTERACTIONS_PER_PAGE"] = str(req.max_interactions_per_page)
+        # Thorough (or Studio full-crawl + repeated controls): raise this-run budgets only; never invent infinite coverage.
+        full_crawl = req.max_pages == 0
+        apply_thorough = bool(req.thorough or (req.explore_repeated_controls and full_crawl))
+        if apply_thorough:
+            env["EXPLORE_REPEATED_CONTROLS"] = "true"
+            actions = max(80, req.max_interactions_per_page or 0)
+            env["MAX_INTERACTIONS_PER_PAGE"] = str(min(100, actions))
+            try:
+                crawl_min = float(env.get("CRAWL_TIME_LIMIT_MIN") or "0")
+            except ValueError:
+                crawl_min = 0.0
+            env["CRAWL_TIME_LIMIT_MIN"] = str(max(60.0, crawl_min))
+            try:
+                cases_cap = int(float(env.get("MAX_TEST_CASES") or "0"))
+            except ValueError:
+                cases_cap = 0
+            env["MAX_TEST_CASES"] = str(max(500, cases_cap))
+            env["PATTERN_SAMPLES"] = "0"
+            env["QA_THOROUGH"] = "1"
         if req.auth_mode in ("public", "signup", "existing"):
             env.update({"TEST_USERNAME": "", "TEST_PASSWORD": "", "TEST_TOTP_SECRET": "", "TEST_ACCOUNTS": ""})
         env.update({"QA_EVENTS": "1", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
@@ -726,9 +747,13 @@ def start_run(req: RunRequest):
         job_id = len(jobs) + 1
         secrets = [v for v in [req.test_password, (req.api_key or "").strip()] + [env.get(k) for k in API_KEY_ENV]
                    if v and len(v) >= 4]
-        jobs[job_id] = {"id": job_id, "source": source, "status": "running", "proc": proc, "lines": [], "pages": [],
-                        "stages": {}, "current": None, "run": None, "started": time.time(), "llm": llm,
+        start_lines = (["Thorough budgets active for this run "
+                        "(repeated controls, ≥80 actions/page, ≥60 min crawl, ≥500 test cases, every URL pattern)."]
+                       if apply_thorough else [])
+        jobs[job_id] = {"id": job_id, "source": source, "status": "running", "proc": proc, "lines": start_lines,
+                        "pages": [], "stages": {}, "current": None, "run": None, "started": time.time(), "llm": llm,
                         "secrets": secrets, "discovery_only": req.discovery_only,
+                        "thorough": apply_thorough,
                         "workflow": req.workflow, "privacy_mode": privacy["mode"]}  # (kept in memory only, to hide them in the live log)
     _audit("start_test", job=job_id, source=safe_url_for_display(source), environment=req.environment,
            authorized=True, allow_signup=req.allow_signup, test_account=bool(req.test_username),

@@ -215,3 +215,78 @@ def test_hidden_run_files_keep_explicit_not_found_detail(client):
         assert r.json()["detail"] == "not found"
     finally:
         shutil.rmtree(run, ignore_errors=True)
+
+
+class _FakeProcess:
+    pid = 4242
+
+    def __init__(self):
+        import io
+        self.stdout = io.StringIO("")
+
+
+class _FakeThread:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def start(self):
+        pass
+
+
+def test_thorough_run_raises_this_run_budget_env(client, isolated_jobs, monkeypatch):
+    """Thorough (or full crawl + repeated controls) must raise per-run budgets without starting a real worker."""
+    captured = {}
+
+    def fake_popen(cmd, cwd=None, env=None, **kwargs):
+        captured["cmd"] = cmd
+        captured["env"] = dict(env or {})
+        return _FakeProcess()
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(server.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(server, "_audit", lambda *a, **k: None)
+    monkeypatch.setenv("CRAWL_TIME_LIMIT_MIN", "30")
+    monkeypatch.setenv("MAX_TEST_CASES", "300")
+    monkeypatch.setenv("PATTERN_SAMPLES", "3")
+
+    response = client.post("/api/runs", headers=H, json={
+        "source": "https://shop.example.test", "authorized": True, "thorough": True,
+        "max_pages": 0, "llm_provider": "none",
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["thorough"] is True
+    assert any("Thorough budgets active" in line for line in body["lines"])
+    env = captured["env"]
+    assert env["QA_THOROUGH"] == "1"
+    assert env["EXPLORE_REPEATED_CONTROLS"] == "true"
+    assert env["MAX_INTERACTIONS_PER_PAGE"] == "80"
+    assert float(env["CRAWL_TIME_LIMIT_MIN"]) >= 60
+    assert int(env["MAX_TEST_CASES"]) >= 500
+    assert env["PATTERN_SAMPLES"] == "0"
+    assert "--max-pages" in captured["cmd"] and captured["cmd"][captured["cmd"].index("--max-pages") + 1] == "0"
+
+
+def test_thorough_does_not_lower_higher_crawl_time_env(client, isolated_jobs, monkeypatch):
+    captured = {}
+
+    def fake_popen(cmd, cwd=None, env=None, **kwargs):
+        captured["env"] = dict(env or {})
+        return _FakeProcess()
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(server.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(server, "_audit", lambda *a, **k: None)
+    monkeypatch.setenv("CRAWL_TIME_LIMIT_MIN", "90")
+    monkeypatch.setenv("MAX_TEST_CASES", "800")
+
+    response = client.post("/api/runs", headers=H, json={
+        "source": "https://shop.example.test", "authorized": True,
+        "explore_repeated_controls": True, "max_pages": 0, "max_interactions_per_page": 95,
+        "llm_provider": "none",
+    })
+    assert response.status_code == 200, response.text
+    env = captured["env"]
+    assert env["MAX_INTERACTIONS_PER_PAGE"] == "95"
+    assert float(env["CRAWL_TIME_LIMIT_MIN"]) == 90.0
+    assert env["MAX_TEST_CASES"] == "800"
