@@ -7,6 +7,9 @@ username ``demo`` (BLOWAI_SECRET_TEST_USERNAME) turned ``com.blowai.demo`` into
 
 Live run: runs/android_live_20261112_085209 — the same username still corrupted QA contracts
 (``android_package``) and coverage URLs that only embed the package as ``android://...``.
+
+Live run: runs/android_live_20261112_090634 — private ``auto_contract.json`` redacted UI labels that
+embed the username (``Welcome demo user`` → ``Welcome [REDACTED] user``), so replay assertions failed.
 """
 
 from __future__ import annotations
@@ -105,7 +108,7 @@ def test_redact_json_restores_package_keys_used_by_reporting(demo_username_secre
 
 
 def test_save_json_keeps_contract_android_package_valid(tmp_path, demo_username_secret):
-    """QA contracts use android_package; that key must survive redact_json (live 085209)."""
+    """Public auto_flows.json uses redact_json; android_package must still stay valid (live 085209)."""
     package = "com.blowai.demo"
     assert demo_username_secret in package
     contract = {
@@ -122,8 +125,7 @@ def test_save_json_keeps_contract_android_package_valid(tmp_path, demo_username_
             }
         ],
     }
-    path = tmp_path / ".private" / "auto_contract.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = tmp_path / "auto_flows.json"
     _save_json(path, contract)
 
     saved_text = path.read_text(encoding="utf-8")
@@ -135,6 +137,59 @@ def test_save_json_keeps_contract_android_package_valid(tmp_path, demo_username_
     assert PACKAGE_NAME.fullmatch(loaded["android_package"])
     parsed = parse_contract(loaded)
     assert parsed.android_package == package
+
+
+def test_private_auto_contract_keeps_username_ui_assertions(tmp_path, demo_username_secret):
+    """Private auto_contract.json must keep UI text that embeds the test username (live 090634).
+
+    Observed labels like 'Welcome demo user' become assert_text locators; redacting the private
+    contract made execution look for 'Welcome [REDACTED] user' and fail.
+    """
+    package = "com.blowai.demo"
+    welcome = f"Welcome {demo_username_secret} user"
+    contract = {
+        "version": 1,
+        "test_environment": True,
+        "test_mode": True,
+        "android_package": package,
+        "flows": [
+            {
+                "id": "auto_action_008",
+                "title": f"Dashboard shows {welcome}",
+                "approved": True,
+                "steps": [
+                    {
+                        "action": "assert_text",
+                        "locator": {"strategy": "accessibility_id", "value": welcome},
+                        "value": welcome,
+                    }
+                ],
+            }
+        ],
+    }
+    private = tmp_path / ".private" / "auto_contract.json"
+    public = tmp_path / "auto_flows.json"
+    private.parent.mkdir(parents=True, exist_ok=True)
+    # Match android_pipeline discovery finish: private raw, public redacted.
+    private.write_text(json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8")
+    _save_json(public, contract)
+
+    private_loaded = json.loads(private.read_text(encoding="utf-8"))
+    assert private_loaded["flows"][0]["steps"][0]["value"] == welcome
+    assert private_loaded["flows"][0]["steps"][0]["locator"]["value"] == welcome
+    assert REDACTED not in private.read_text(encoding="utf-8")
+    assert parse_contract(private_loaded).android_package == package
+
+    public_text = public.read_text(encoding="utf-8")
+    assert json.loads(public_text)["android_package"] == package
+    assert f"Welcome {REDACTED} user" in public_text
+    assert "secret-password-never-print" not in public_text
+
+    pipeline = (
+        Path(__file__).resolve().parents[1] / "backend" / "android_pipeline.py"
+    ).read_text(encoding="utf-8")
+    assert '".private" / "auto_contract.json"' in pipeline
+    assert "json.dumps(contract, indent=2, ensure_ascii=False)" in pipeline
 
 
 def test_redact_json_keeps_package_inside_android_urls_without_package_key(demo_username_secret):
