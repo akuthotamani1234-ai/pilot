@@ -52,7 +52,7 @@ class RunFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         parts = Path(path).parts
         if any(p.startswith(".") for p in parts) or (parts and parts[-1] == "auth.json"):
-            raise HTTPException(404)
+            raise HTTPException(404, "not found")
         return await super().get_response(path, scope)
 
 
@@ -226,6 +226,14 @@ def _run_dir(run: str) -> Path:
     return d
 
 
+def _job_or_404(job_id: int) -> dict:
+    """In-memory job by id, or a consistent 404 for missing / unknown job ids."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "job not found")
+    return job
+
+
 def _read_json(path: Path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -276,6 +284,7 @@ def _reader(job: dict) -> None:
             job["run"] = Path(line.split(":", 1)[1].strip()).name
         job["lines"].append(line)
     proc.wait()
+    job["exit_code"] = proc.returncode
     job["status"] = "stopped" if job.get("stopping") else ("done" if proc.returncode == 0 else "failed")
     job["current"] = None
     job["ended"] = time.time()
@@ -411,6 +420,8 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "cases": _count(d / "test_cases.json") if d else None,
         "scripts": len(list((d / "generated_tests").glob("test_*.py"))) if d and (d / "generated_tests").is_dir() else None,
         "id": job["id"], "source": job["source"], "status": job["status"], "run": run,
+        # exit_code is set when the worker process ends (None while still running)
+        "exit_code": job.get("exit_code"),
         "stages": job["stages"], "current": job["current"], "human": job.get("human"),
         "lines": job["lines"][since:], "next": len(job["lines"]),
         "live_pages": job.get("pages", [])[psince:], "pnext": len(job.get("pages", [])),
@@ -950,9 +961,7 @@ def latest_run():
 
 @app.get("/api/runs/{job_id}")
 def run_status(job_id: int, since: int = 0, psince: int = 0):
-    if job_id not in jobs:
-        raise HTTPException(404, "job not found")
-    return _public(jobs[job_id], since, psince)
+    return _public(_job_or_404(job_id), since, psince)
 
 
 @app.get("/api/pages/{run}")
@@ -1003,7 +1012,9 @@ def get_review(job_id: int):
 @app.post("/api/runs/{job_id}/review")
 def post_review(job_id: int, body: ReviewAnswers):
     job = jobs.get(job_id)
-    if not job or not job.get("run") or job["status"] != "running":
+    if not job:
+        raise HTTPException(404, "no such test")
+    if not job.get("run") or job["status"] != "running":
         raise HTTPException(400, "this test is not waiting for a review")
     allowed = {"correct", "should be", "skip", "allowed", "not allowed"}
     clean = {str(k)[:20]: {"answer": v.get("answer"), "text": str(v.get("text") or "")[:300]}
@@ -1019,8 +1030,8 @@ def post_review(job_id: int, body: ReviewAnswers):
 
 @app.post("/api/runs/{job_id}/stop")
 def stop_run(job_id: int):
-    job = jobs.get(job_id)
-    if not job or job["status"] != "running":
+    job = _job_or_404(job_id)
+    if job["status"] != "running":
         raise HTTPException(400, "not running")
     job["stopping"] = True
     _audit("stop_test", job=job_id, run=job.get("run"))
