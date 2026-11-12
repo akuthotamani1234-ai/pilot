@@ -38,6 +38,7 @@ playwright-report/
 .vscode/
 .idea/
 *.swp
+*~
 Thumbs.db
 desktop.ini
 .DS_Store
@@ -54,3 +55,32 @@ mcp-config.local.json
 # Downloaded demo applications and browser-driver binaries
 demo-apps/*.apk
 tools/chromedriver/*.exe
+tools/chromedriver/chromedriver
+
+# Local Android / Gradle machine state
+tests/android_demo/local.properties
+tests/android_demo/.gradle/
+tests/android_demo/**/build/
+*.iml
+
+# Local scratch / agent artifacts (never ship)
+artifacts/
+/opt/cursor/
+.claude/
+.cursor/
+*.log
+!deep_validation/**/*.md
+
+# Node (if a demo or tooling adds it later)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# OS / packaging leftovers
+*.tmp
+*.temp
+*.bak
+*.orig
+.Python
+deep_validation/live_runs/*.txt
+deep_validation/phase1-linux-pytest-nonslow-serial.txt

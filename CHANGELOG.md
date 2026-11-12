@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Production Git governance
+
+- Expanded `.gitignore` (Android/Gradle locals, artifacts, tool caches, `.claude/`).
+- Removed tracked Claude agent metadata (`.claude/agents/*`); guardrails live in `ARCHITECTURE.md`, `.cursorrules`, and `.github/copilot-instructions.md`.
+- Updated `README.md` (features, stack, repo tree) and `CONTRIBUTING.md` (branching, Conventional Commits, PR checklist).
+- Confirmed `.env` remains untracked; secrets stay in local `.env` / `.env.example` placeholders only.
+- No mass split of oversized pipeline modules in this pass (documented for follow-up).
+
 ## 2026-11-12 — Thorough exploration preset + ecommerce contract example
 
 - Website setup: **Exploration intensity** Standard / Thorough. Thorough sets full crawl (`max_pages` 0), site scope,
