@@ -97,6 +97,35 @@ def test_fully_unmatched_finding_is_skipped_with_unmatched_list(tmp_path, monkey
     assert plan["skipped"][0]["code"] == plan["skipped"][0]["unmatched"][0]
 
 
+def test_prepare_returns_scan_counts_and_advice_only_no_code(tmp_path, monkeypatch):
+    """Prepare response includes files_scanned / fixes_considered and structured no_code advice."""
+    html = '<form><input id="email" type="text" name="email"></form>\n'
+    fixes = [
+        {
+            "title": "Require email",
+            "why": "Missing required.",
+            "code": {
+                "before": '<input id="email" type="text" name="email">',
+                "after": '<input id="email" type="text" name="email" required>',
+            },
+        },
+        {
+            "title": "Explain CAPTCHA to users",
+            "why": "No automatic code change; document the login step.",
+            "fix": "Add help text near login.",
+        },
+    ]
+    plan = _run_with_repo(tmp_path, monkeypatch, html, fixes)
+
+    assert plan["files_scanned"] == 1
+    assert plan["fixes_considered"] == 1
+    assert plan["fixes_total"] == 2
+    assert plan["files"] and "required" in plan["files"][0]["diff"]
+    assert len(plan["no_code"]) == 1
+    assert plan["no_code"][0]["title"] == "Explain CAPTCHA to users"
+    assert "document the login" in plan["no_code"][0]["why"].lower() or "help text" in plan["no_code"][0]["why"].lower()
+
+
 def test_create_pr_body_does_not_count_partial_as_full_success(tmp_path, monkeypatch):
     """PR title/body list partial repairs separately from fully applied fixes."""
     plan = {
