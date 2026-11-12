@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 
-from .android import AndroidEnvironmentError, _adb_path, _run_cli, _sdk_path, parse_devices
+from .android import DEVICE_ABSENCE_ERRORS, AndroidEnvironmentError, _adb_path, _run_cli, _sdk_path, parse_devices
 
 ROOT = Path(__file__).resolve().parent.parent
 AVD_NAME = re.compile(r"[A-Za-z0-9_.-]{1,160}\Z")
@@ -51,10 +51,11 @@ def startup_choices(environment):
     for device in environment["devices"]:
         if device["status"] == "device":
             device["avd_name"] = connected_avd_name(environment.get("adb"), device["device_id"])
+    # Device absence/unreadiness alone must not block the Start Emulator affordance.
     can_start = bool(emulators and environment.get("android_sdk") and environment.get("adb")
                      and environment.get("java") and environment.get("uiautomator2")
                      and environment.get("appium", {}).get("available")
-                     and not any(not error.startswith("No Android device is connected.")
+                     and not any(not error.startswith(DEVICE_ABSENCE_ERRORS)
                                  for error in environment.get("errors", [])))
     return {**environment, "emulators": emulators, "can_start_emulator": can_start}
 
@@ -105,7 +106,14 @@ def ensure_device_ready(device_id, avd_name="", timeout_s=240):
         raise AndroidEnvironmentError("Select an Android device or an installed emulator.")
     sdk, adb = _sdk_path(), _adb_path()
     if not sdk or not adb:
-        raise AndroidEnvironmentError("Android SDK and ADB are required to start an emulator.")
+        missing = []
+        if not sdk:
+            missing.append("Android SDK (set ANDROID_HOME or ANDROID_SDK_ROOT)")
+        if not adb:
+            missing.append("ADB (install Platform-Tools and add platform-tools to PATH)")
+        raise AndroidEnvironmentError(
+            "Cannot start an emulator until these tools are available: " + "; ".join(missing) + "."
+        )
     if device_id.startswith("avd:"):
         selected_name = device_id[4:]
         if not selected_name:
