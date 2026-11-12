@@ -301,13 +301,21 @@ class MobileRuntime:
         """A replay-verified test-build flow (android_interact.py), run by the same trusted contract runtime."""
         import json
 
+        from .android import PACKAGE_NAME
         from .qa_contracts import parse_contract
         from .qa_runtime import AndroidContractAdapter, ContractRuntime, private_inputs
 
         path = self.run_dir / ".private" / "auto_contract.json"
         if not path.is_file():
             raise ValueError("The test-build flows of this run are missing")
-        contract = parse_contract(json.loads(path.read_text(encoding="utf-8")))
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        # Older runs may have android_package corrupted by username substring redaction.
+        package = self.config.get("package_name")
+        current = raw.get("android_package") if isinstance(raw, dict) else None
+        if isinstance(raw, dict) and isinstance(package, str) and PACKAGE_NAME.fullmatch(package):
+            if not isinstance(current, str) or "[REDACTED]" in current or not PACKAGE_NAME.fullmatch(current):
+                raw["android_package"] = package
+        contract = parse_contract(raw)
         if flow_id not in {flow.id for flow in contract.flows}:
             raise ValueError("Unknown test-build flow")
         runtime = ContractRuntime(AndroidContractAdapter(self.driver, self.config, contract, stop_path=self.run_dir / "STOP"),
