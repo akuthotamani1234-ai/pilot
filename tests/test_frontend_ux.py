@@ -45,6 +45,24 @@ def test_chat_js_escapes_history_and_surfaces_load_failures():
     assert "Preparing configuration?" not in (FRONTEND / "workflow.js").read_text(encoding="utf-8")
 
 
+def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
+    """Standard/Thorough intensity must drive crawl options and surface missed coverage."""
+    script = (FRONTEND / "chat.js").read_text(encoding="utf-8")
+    css = (FRONTEND / "chat.css").read_text(encoding="utf-8")
+    assert 'id="aiIntensity"' in script
+    assert 'value="thorough"' in script and 'value="standard"' in script
+    assert "function applyExplorationIntensity()" in script
+    assert "function coverageReminderHtml(" in script
+    assert "HARD_PAGE_CAP" in script and "Unvisited pages remain listed" in script
+    assert 'explore_repeated_controls: thorough || fullCrawl' in script
+    assert "thorough ? 50" in script or "thorough ? 50 :" in script
+    assert 'crawl_scope: thorough ? "site"' in script
+    assert "coverageReminderHtml(s, crawl)" in script
+    assert "coverageReminderHtml(s, d.crawl || s.crawl)" in script
+    assert "Coverage reminder:" in script
+    assert ".warn.coverage-reminder" in css
+
+
 def test_qa_lab_empty_and_progress_copy_without_redesign():
     page = (FRONTEND / "qa-lab.html").read_text(encoding="utf-8")
     script = (FRONTEND / "qa-lab.js").read_text(encoding="utf-8")

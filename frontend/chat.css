@@ -259,6 +259,9 @@ details.log summary { cursor: pointer; color: var(--muted); }
 details.log pre { white-space: pre-wrap; word-break: break-word; font: 11.5px/1.5 var(--mono); background: var(--soft); border-radius: 10px;
   padding: 10px; max-height: 300px; overflow: auto; }
 .warn { font-size: 13px; background: var(--amber-soft); color: var(--amber); border-radius: 12px; padding: 10px 14px; }
+.warn.coverage-reminder { margin: 10px 0 14px; border: 1px solid var(--amber); font-weight: 500; }
+.warn.coverage-reminder b { font-weight: 700; }
+#aiIntensityNote { margin-top: 8px; }
 
 .typing { display: inline-flex; gap: 4px; padding: 10px 0; }
 .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }

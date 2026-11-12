@@ -14,6 +14,11 @@ Whole-site scope and all discovered pages are the defaults. An old saved two-pag
 The page count, per-page action budget, hard safety cap, time budget, exclusions, protected actions and login barriers still
 bound exploration. All discovered eligible routes processed is a narrower statement than every possible business state tested.
 
+Exploration intensity offers **Standard** (current defaults) and **Thorough**. Thorough sets full crawl (`max_pages` 0,
+bounded by `HARD_PAGE_CAP`), whole-site scope, `explore_repeated_controls`, and at least 50 actions per page. Helper text
+states that safety budgets may still stop the crawl and that unvisited pages remain listed. Finished reports show a short
+coverage reminder when not-visited, limit-reached, blocked or not-tested gaps appear.
+
 ## Crawl fixes
 
 - HTTP 404 routes with positive client-rendered application evidence remain eligible for UI exploration and test generation.
