@@ -87,3 +87,7 @@ yarn-error.log*
 .Python
 deep_validation/live_runs/*.txt
 deep_validation/phase1-linux-pytest-nonslow-serial.txt
+
+# ephemeral validation scratch
+deep_validation/**/pytest-tmp/
+deep_validation/**/*-pytest-tmp/

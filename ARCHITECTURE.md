@@ -33,7 +33,7 @@ Blow AI is a **local QA product** (primary target: Windows) with:
 | Unit / regression tests | `tests/test_*.py` mirroring the module under test | Embedding heavy live network tests without `@pytest.mark.slow` |
 | Operator guides | `docs/` or `project-docs/` | Long essays inside source comments |
 | Demo contracts / sample APKs metadata | `demo-apps/` (APKs remain gitignored) | Committing binary APKs or real credentials |
-| Validation evidence | `deep_validation/**/*.md` (prefer markdown summaries over huge logs) | Committing `.env`, `runs/`, screenshots dumps |
+| Validation evidence | `STATUS.md` + `deep_validation/live_runs/*.md` | Committing `.env`, `runs/`, raw pytest dumps |
 
 ## 3. Coding constraints
 
