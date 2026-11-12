@@ -8,7 +8,9 @@
 How an element is found in the source: by its id or name attribute (e.g. <input name="email">), and the
 attribute changes (add required, type="email", remove novalidate...) are applied to that tag - this works
 for HTML, JSX (React), Vue, Angular templates, PHP... AI-written changes are applied only when the exact
-"Code now" text exists in exactly one file. Anything that can't be found safely is listed as "do it by hand".
+"Code now" text exists in exactly one file. Each change is tracked as matched or unmatched: a finding with
+only some tags found is recorded as partial (applied + skipped), never as a full success. Anything that
+can't be found safely is listed as "do it by hand".
 
 Needs a GitHub token with "Contents: write" and "Pull requests: write" (GITHUB_TOKEN in .env, or pasted in
 the web page for this action only).
@@ -140,7 +142,7 @@ def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
     for x in with_code:
         before, after = x["code"]["before"], x["code"]["after"]
         b_lines, a_lines = before.split("\n"), after.split("\n")
-        done, missing = 0, []
+        matched, unmatched = [], []
         if len(b_lines) == len(a_lines) and all(l.strip().startswith("<") for l in b_lines + a_lines):
             # tag by tag: find the same element in the source and apply the attribute changes to it
             for b, a in zip(b_lines, a_lines):
@@ -153,34 +155,50 @@ def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
                     if len(hits) == 1:
                         where = (p, hits[0])
                         break
+                snippet = b.strip()[:80]
                 if not where:
-                    missing.append(b.strip()[:80])
+                    unmatched.append(snippet)
                     continue
                 p, hit = where
                 new_tag = _apply_ops(hit.group(0), ops)
                 if new_tag != hit.group(0):
                     texts[p] = texts[p][:hit.start()] + new_tag + texts[p][hit.end():]
                     changed_by.setdefault(p, []).append(x["title"])
-                    done += 1
+                    matched.append(snippet)
+                # Found but already matching the "Change to" attributes: neither matched nor unmatched
         elif "…" not in before:
             # AI-written change: only when the exact current code is in exactly one file
             hits = [p for p in files if texts[p].count(before.strip()) == 1]
+            snippet = before.strip()[:80]
             if len(hits) == 1:
                 p = hits[0]
                 texts[p] = texts[p].replace(before.strip(), after.strip(), 1)
                 changed_by.setdefault(p, []).append(x["title"])
-                done += 1
+                matched.append(snippet)
             else:
-                missing.append(before.strip()[:80])
+                unmatched.append(snippet)
         else:
-            missing.append(before.strip()[:80])
+            unmatched.append(before.strip()[:80])
 
-        if done:
-            applied.append({"title": x["title"], "priority": x.get("priority"), "why": x.get("why", "")})
-        if missing and not done:
+        entry = {"title": x["title"], "priority": x.get("priority"), "why": x.get("why", "")}
+        if matched and not unmatched:
+            applied.append(entry)
+        elif matched and unmatched:
+            # Partial: some tags applied, the rest must stay visible as skipped — never as full success
+            applied.append({**entry, "partial": True, "matched": matched, "unmatched": unmatched})
+            skipped.append({
+                "title": x["title"],
+                "reason": (f"Only some of this finding's changes were found in the repository "
+                           f"({len(matched)} applied, {len(unmatched)} not found) - finish the rest by hand."),
+                "code": unmatched[0],
+                "matched": matched,
+                "unmatched": unmatched,
+                "partial": True,
+            })
+        elif unmatched:
             skipped.append({"title": x["title"], "reason": "This code was not found in the repository (the page may be built "
                                                             "by a framework or a server template) - change it by hand.",
-                            "code": missing[0]})
+                            "code": unmatched[0], "unmatched": unmatched})
 
     out_files = []
     for p, titles in changed_by.items():
@@ -240,17 +258,28 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
     if not sent:
         raise RepoFixError("Every file changed on GitHub since it was downloaded - press 'Prepare changes' again.")
 
+    full = [a for a in plan["applied"] if not a.get("partial")]
+    partial = [a for a in plan["applied"] if a.get("partial")]
     lines = ["Automated fixes from a **Blow AI** website test.", ""]
     if summary:
         lines += [f"Test result: **{summary.get('verdict', '')}** - {summary.get('passed', 0)} passed, "
                   f"{summary.get('failed', 0)} failed.", ""]
-    lines += ["### What this changes"] + [f"- **{a['title']}** - {a['why']}" for a in plan["applied"]]
-    if plan["skipped"]:
-        lines += ["", "### Not changed here (please fix by hand)"] + [f"- {s['title']}" for s in plan["skipped"]]
+    if full:
+        lines += ["### What this changes"] + [f"- **{a['title']}** - {a['why']}" for a in full]
+    if partial:
+        lines += ["", "### Partially applied (please finish by hand)"] + [
+            f"- **{a['title']}** - {a['why']} (not found: {', '.join(a.get('unmatched') or [])})" for a in partial]
+    # Fully skipped only (partials already listed above); keep titles unique for the hand-fix section
+    hand = [s for s in plan["skipped"] if not s.get("partial")]
+    if hand:
+        lines += ["", "### Not changed here (please fix by hand)"] + [f"- {s['title']}" for s in hand]
     if stale:
         lines += ["", "### Skipped (changed on GitHub meanwhile)"] + [f"- `{p}`" for p in stale]
     lines += ["", "Please review every change before merging. Re-run the test after merging to confirm the fixes."]
+    title = f"Blow AI: {len(full)} website fix(es)"
+    if partial:
+        title += f", {len(partial)} partial"
     pr = _gh("POST", f"/repos/{repo}/pulls", token, json={
-        "title": f"Blow AI: {len(plan['applied'])} website fix(es)", "head": branch, "base": base,
+        "title": title, "head": branch, "base": base,
         "body": "\n".join(lines)})
     return {"pr_url": pr.get("html_url"), "branch": branch, "files": sent, "stale": stale}
