@@ -88,6 +88,9 @@ button, input, select { font: inherit; color: inherit; }
 .msg.user .bubble { background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 18px 18px 4px 18px; max-width: 80%; word-break: break-all; }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); margin-top: 8px; }
+.repo-fix-next { margin-top: 10px; }
+.repo-fix-next ol { margin: 8px 0 0 1.2em; padding: 0; }
+.repo-fix-next li { margin: 4px 0; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .check { display: flex; gap: 12px; align-items: center; }
 .check .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; flex: none; background: var(--soft); }
