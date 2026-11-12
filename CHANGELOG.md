@@ -2,6 +2,13 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-12 — Live MCP AI-assisted Android test
+
+- Exercised real stdio MCP client against Studio: 11 tools, privacy consent, Sauce MDA Android run.
+- Run `android_20261112_105018_1e0c72`: 38 passed, verdict Insufficient Evidence (honest gates).
+- Mapped MCP `BridgeError` → `ToolError` so assistants see actionable errors.
+- Evidence: `deep_validation/live_runs/mcp_ai_assisted_test_20261112.md`.
+
 ## 2026-11-12 — Keep main only; trim deep_validation archive
 
 - Keep production docs: `CHANGELOG.md`, `CONTRIBUTING.md`, `STATUS.md`.

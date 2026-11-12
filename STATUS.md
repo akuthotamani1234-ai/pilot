@@ -25,7 +25,8 @@ historical `FINAL_*` / phase checklist sprawl.
 | MCP + LLM + privacy offline | **60 passed** (`test_mcp_integration`, `test_llm_provider_errors`, `test_privacy_workflow`) |
 | `LLM_PROVIDER=none` | Fails closed with explicit rules-fallback message |
 | Live Android ecommerce (Sauce MDA) | Documented under `deep_validation/live_runs/` |
-| Live cloud LLM / live MCP client IDE session | Not claimed on this host |
+| Live MCP AI client (stdio → Android) | **Verified** — job done, run `android_20261112_105018_1e0c72` (see `deep_validation/live_runs/mcp_ai_assisted_test_20261112.md`) |
+| Live cloud LLM / third-party IDE MCP host | Not claimed (Cursor/Claude Desktop config is local) |
 | Windows Job Object / DPAPI | Production target; unit-covered |
 
 ## Open by design / not claimed
