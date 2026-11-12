@@ -1,6 +1,6 @@
 """Repo-fix prepare: every tag change is matched or unmatched; partial findings are not full success.
 
-PROJECT_AUDIT.md / P1-5: when one finding has several tag changes and only some are found, the preview
+When one finding has several tag changes and only some are found, the preview
 used to list the finding as fully applied and drop the missing subset.
 """
 import json

@@ -69,7 +69,10 @@ artifacts/
 .claude/
 .cursor/
 *.log
+deep_validation/**/*.txt
+deep_validation/**/*.log
 !deep_validation/**/*.md
+!deep_validation/README.md
 
 # Node (if a demo or tooling adds it later)
 node_modules/
