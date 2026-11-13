@@ -1754,7 +1754,14 @@ def discovery_agent(state: QAState) -> QAState:
         if mode != "page":
             try:
                 from ..scrape_seed import seed_urls
-                scraped = seed_urls(contexts[False].request, start_url)
+                start_html = ""
+                try:
+                    r0 = contexts[False].request.get(start_url, timeout=15000)
+                    if getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400:
+                        start_html = r0.text() if callable(getattr(r0, "text", None)) else (r0.text or "")
+                except Exception:
+                    start_html = ""
+                scraped = seed_urls(contexts[False].request, start_url, html=start_html or None)
                 extra_found = [(u, "scrape") for u in scraped]
                 if extra_found:
                     print(f"  [discovery] scrape seeder found {len(extra_found)} address(es) "
@@ -2445,17 +2452,25 @@ def discovery_agent(state: QAState) -> QAState:
                 for u in routes_seen[:120]:
                     if _normalize(u) != url:
                         enqueue(u, how="history")
-                # the results page of the website's search box (a search with a word of its items - safe, read only;
-                # once per search form: the header's is on every page)
+                # the results page of the website's search box (safe, read-only GET). Probe item words plus a
+                # small deterministic seed list so admin/list pages surface without submitting pay/checkout.
+                from ..observe import SEARCH_SEED_WORDS
                 names = [l.get("text") or "" for p in app_map + [entry] for l in (p.get("itemLinks") or {}).get("links") or []]
-                found = _search_url(entry, url, _probe_word(names))
-                if found and not widen and not _in_scope(_normalize(urljoin(url, found)), section):
-                    skipped.setdefault(_normalize(urljoin(url, found)),  # (the header's search box: the whole site)
-                                       "the site-wide search's results page, outside the section")
-                    found = None
-                if found and found.split("?")[0] not in searched and enqueue(found, how="search"):
-                    searched.add(found.split("?")[0])
-                    print(f"  [discovery] the search box leads to its results page: {_normalize(found)}")
+                probe_words = [_probe_word(names)]
+                for w in SEARCH_SEED_WORDS:
+                    if w not in probe_words:
+                        probe_words.append(w)
+                for word in probe_words[:6]:  # bounded: item word + a few seeds
+                    found = _search_url(entry, url, word)
+                    if found and not widen and not _in_scope(_normalize(urljoin(url, found)), section):
+                        skipped.setdefault(_normalize(urljoin(url, found)),
+                                           "the site-wide search's results page, outside the section")
+                        continue
+                    if found and found.split("?")[0] not in searched and enqueue(found, how="search"):
+                        searched.add(found.split("?")[0])
+                        print(f"  [discovery] the search box leads to its results page "
+                              f"(word={word!r}): {_normalize(found)}")
+                        break  # one new results-page pattern is enough per form path
                 # learn what every control does, one action at a time: pages only a button (or an action, e.g.
                 # 'Add to cart' -> the cart link) leads to are queued, controls revealed by an action are added,
                 # and a page an action changed (the menu says 'Cart (1)' now) is read again.
