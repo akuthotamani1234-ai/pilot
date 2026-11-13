@@ -513,6 +513,14 @@ EXTRACT_JS = r"""
       if (lab && !lab.contains(i)) return /\*\s*$/.test(lab.innerText || '') || /required/i.test(lab.className || '');
     }
     return false; };
+  // Site chrome (sidebar / header / nav) and table row selectors: used to keep form schemas to the form itself.
+  const chromeShell = i => !!(inFrame(i) || i.closest(
+    'aside, nav, header, [role=complementary], [role=navigation], [role=banner], [class*=sidebar i], [id*=sidebar i], [class*=side-bar i], [class*=topbar i]'));
+  const inTableRow = i => !!(i.closest('table tbody tr, tbody [role=row], [role=rowgroup] [role=row]')
+    && /^(checkbox|radio)$/i.test(i.type || ''));
+  const searchHint = i => `${i.placeholder || ''} ${i.id || ''} ${i.name || ''} ${i.getAttribute('aria-label') || ''} ${labelFor(i)}`;
+  const isChromeSearch = i => chromeShell(i) && (i.type === 'search'
+    || /search|filter|find|keywords?/i.test(searchHint(i)));
   const inputs = deepAll('input, textarea, select')
     .filter(i => !['hidden', 'submit', 'button'].includes(i.type)).filter(visible).slice(0, 60).map(i => ({ ...shadowOf(i),
       tag: i.tagName.toLowerCase(), type: i.type || '', name: i.name || '', id: i.id || '',
@@ -522,19 +530,31 @@ EXTRACT_JS = r"""
       minlength: i.minLength > 0 ? i.minLength : null, maxlength: i.maxLength > 0 ? i.maxLength : null,
       pattern: i.getAttribute('pattern') || null, html: tag(i),
       readonly: !!i.readOnly, disabled: !!i.disabled, opener: isOpener(i), suggests: suggests(i),
-      checked: !!i.checked,
+      checked: !!i.checked, chrome: chromeShell(i), in_table: inTableRow(i),
+      region: chromeShell(i) ? (i.closest('aside, [role=complementary], [class*=sidebar i], [id*=sidebar i]') ? 'sidebar'
+        : i.closest('nav, [role=navigation]') ? 'nav'
+        : i.closest('header, [role=banner], [class*=topbar i]') ? 'header' : 'chrome') : '',
       options: i.tagName === 'SELECT' ? [...i.options].filter(o => !o.disabled && o.value !== '')
         .map(o => ({ value: o.value, text: o.text.trim().slice(0, 40) })).slice(0, 15) : null
     }));
 
   // Framework dialogs often use labelled inputs and a footer button without a <form>.
+  // Labeled sections (Emergency Contacts style) are treated like dialogs when they hold fields + a Save/Add button
+  // and are not already a native/form/dialog container.
   const fieldNodes = root => [...(root.elements || root.querySelectorAll('input, textarea, select'))]
     .filter(i => /^(INPUT|TEXTAREA|SELECT)$/.test(i.tagName)
-      && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i));
+      && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i)
+      && !isChromeSearch(i) && !inTableRow(i));
   const nativeForms = deepAll('form, [role=form]').filter(f => visible(f) || fieldNodes(f).length);
   const dialogForms = deepAll('dialog, [role=dialog], .modal').filter(d => visible(d)
     && fieldNodes(d).some(i => !i.closest('form, [role=form]')));
-  const forms = [...new Set([...nativeForms, ...dialogForms])].slice(0, 20).map((f, idx) => {
+  const sectionForms = deepAll('section, [role=region], fieldset').filter(s => visible(s)
+    && !s.closest('form, [role=form], dialog, [role=dialog], .modal')
+    && !chromeShell(s)
+    && fieldNodes(s).some(i => !i.closest('form, [role=form]'))
+    && [...s.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')]
+      .some(b => visible(b) && /^(send|submit|save|create|add|register|update|confirm|apply)\b/i.test(accName(b))));
+  const forms = [...new Set([...nativeForms, ...dialogForms, ...sectionForms])].slice(0, 20).map((f, idx) => {
     const native = f.tagName === 'FORM';
     const fields = fieldNodes(f).filter(i => native || f.matches('[role=form]')
       ? i.form === f || i.closest('form, [role=form]') === f : !i.closest('form, [role=form]'));
@@ -546,7 +566,7 @@ EXTRACT_JS = r"""
         && b.type !== 'reset' && !/^(close|cancel|dismiss|back|previous|x|\u00d7)$/i.test(accName(b)));
     const submit = candidates.find(b => (b.form === f || f.contains(b))
       && (b.type === 'submit' || b.getAttribute('type') === null))
-      || candidates.find(b => /^(send|submit|save|create|register|sign ?up|log ?in|sign ?in|continue|next|search|apply|confirm)\b/i.test(accName(b)));
+      || candidates.find(b => /^(send|submit|save|create|register|sign ?up|log ?in|sign ?in|continue|next|search|apply|confirm|add|update)\b/i.test(accName(b)));
     return {
       index: idx, selector: !f.id && dialog && dialog !== f
         ? sel(dialog) + ' ' + (native ? 'form' : '[role=form]') + ' >> nth='
@@ -557,8 +577,9 @@ EXTRACT_JS = r"""
       hidden: [...f.querySelectorAll('input[type=hidden]')].filter(i => i.name && !/csrf|token|nonce|key|secret|auth|session/i.test(i.name))
         .map(i => [i.name, String(i.value).slice(0, 100)]).slice(0, 10),
       fields: fields.map(i => ({name: i.name || '', id: i.id || '', type: i.type || '', tag: i.tagName.toLowerCase(),
-        selector: sel(i), required: reqOf(i), label: labelFor(i).slice(0, 80),
-        placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i)})),
+        selector: sel(i), required: reqOf(i), label: labelFor(i).slice(0, 80), accname: accName(i), role: roleOf(i),
+        placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i),
+        chrome: chromeShell(i), in_table: inTableRow(i)})),
       submit: submit ? {text: accName(submit), selector: sel(submit)} : null
     };
   }).filter(f => f.selector);

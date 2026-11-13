@@ -754,12 +754,12 @@ class Explorer:
         if settings.discovery_only:
             return []
         from .actions import DELETE, PAY, writes_allowed
-        from .forms import SEARCHY, is_login_form
+        from .forms import SEARCHY, is_login_form, keep_form_field
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
-            fields = [x for x in f.get("fields", []) if x.get("selector")]
+            fields = [x for x in f.get("fields", []) if keep_form_field(x)]
             if not fields or is_login_form(f) or PAY.search(said) or DELETE.search(said) or READING_SUBMIT.match(said) \
                     or any((x.get("type") or "") == "search" or SEARCHY.search(f"{x.get('name')} {x.get('label')}")
                            for x in fields):
@@ -786,12 +786,25 @@ class Explorer:
                 new_urls.append(rec["next_url"])
         return new_urls
 
-    def _fill_box(self, page, x: dict, box: dict, tag: str):
+    def _fill_box(self, page, x: dict, box: dict, tag: str, scope=None):
         """A valid value in one box, the way a person gives it - None when the box is left as it is (hidden, greyed
-        out, already filled in: an existing record's form keeps its values, nothing is sent from it)."""
+        out, already filled in: an existing record's form keeps its values, nothing is sent from it).
+
+        Resolution is scoped to the form/dialog/section container and refuses ambiguous matches (no silent .first).
+        """
+        from .forms import FormTargetProblem, keep_form_field, unique_field
         from .testdata import valid_value
-        el = page.locator(x["selector"]).first
-        if not el.is_visible() or not el.is_enabled():
+        if not keep_form_field(dict(box, **x)):
+            return None
+        try:
+            el = unique_field(page, scope or page.locator("body"), dict(box, **x))
+        except FormTargetProblem as e:
+            if e.kind == "ambiguous":
+                raise
+            if x.get("required") or box.get("required"):
+                raise ValueError(f"required field missing/invisible inside the form: {e}") from e
+            return None
+        if not el.is_enabled():
             return None
         t, tag_name = (box.get("type") or x.get("type") or "").lower(), box.get("tag") or ""
         if t == "checkbox":
@@ -801,7 +814,8 @@ class Explorer:
             return None
         if t == "radio":
             name = el.get_attribute("name") or ""
-            if name and not page.locator(f'input[type=radio][name="{name}"]:checked').count():
+            root = scope if scope is not None else page
+            if name and not root.locator(f'input[type=radio][name="{name}"]:checked').count():
                 el.check(timeout=3000)
                 return "chosen"
             return None
@@ -827,14 +841,22 @@ class Explorer:
         tag = f"qa-{self.tag_base}-f{self._tags}"
         known = {i.get("selector"): i for i in entry.get("inputs", []) if i.get("selector")}
         self._fresh(page, url, bool(entry.get("lazy")))
+        from .forms import FormTargetProblem, form_scope, keep_form_field
         from .navigation import open_path, opener_path
+        fields = [x for x in fields if keep_form_field(dict(known.get(x.get("selector"), {}), **x))]
+        if not fields:
+            return {"form": f.get("selector"), "name": ((f.get("submit") or {}).get("text") or "the form").strip()[:60],
+                    "page": url, "tag": tag, "filled": [], "not_sent": "no in-form fill targets after chrome/table filter"}
         open_path(page, opener_path(entry, f["selector"], f.get("revealed_by")), fields[0]["selector"])
-        form = page.locator(f["selector"]).first
+        try:
+            form = form_scope(page, {"form": f["selector"]})
+        except FormTargetProblem:
+            raise
         start = snapshot(page)
         boxes0 = form.evaluate(BOX_STATE_JS)
         filled = []
         for x in fields:
-            v = self._fill_box(page, x, known.get(x["selector"], {}), tag)
+            v = self._fill_box(page, x, known.get(x["selector"], {}), tag, scope=form)
             if v is not None:
                 filled.append({"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
                                "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v})
@@ -851,10 +873,13 @@ class Explorer:
                 now = []
         for i in now[:8]:
             i = dict(i, revealed_by=f["selector"], revealed_by_name="filling the form")
+            if not keep_form_field(i):
+                continue
             entry.setdefault("inputs", []).append(i)
             f["fields"].append({k: i.get(k) for k in ("name", "id", "type", "selector", "required", "label",
-                                                      "placeholder", "autocomplete")})
-            v = self._fill_box(page, i, i, tag)
+                                                      "placeholder", "autocomplete", "accname", "role", "chrome",
+                                                      "in_table")})
+            v = self._fill_box(page, i, i, tag, scope=form)
             if v is not None:
                 filled.append({"box": (i.get("label") or i.get("placeholder") or "box")[:60], "value": v})
         changes = _box_changes(boxes0, form.evaluate(BOX_STATE_JS))
@@ -869,7 +894,17 @@ class Explorer:
         if not any(tag in str(x["value"]) for x in filled):  # (an existing record's form - its boxes were filled in
             rec["not_sent"] = "nothing of this run's own was typed in (an existing record's form): not sent"
             return rec  # already: sending it would only save that record again - its own tests check it)
-        btn = page.locator(f["submit"]["selector"]).first
+        from .forms import _visible_matches
+        btn_hits = _visible_matches(form.locator(f["submit"]["selector"]))
+        if not btn_hits:
+            btn_hits = _visible_matches(page.locator(f["submit"]["selector"]))
+        if len(btn_hits) != 1:
+            from .forms import form_target_problem
+            raise form_target_problem(
+                "ambiguous" if len(btn_hits) > 1 else "missing_required",
+                f"form submit matched {len(btn_hits)} visible controls - not clicking",
+            )
+        btn = btn_hits[0]
         before = snapshot(page)
         btn.click(timeout=5000)
         page.wait_for_timeout(1200)

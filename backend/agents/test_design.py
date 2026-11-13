@@ -1010,12 +1010,20 @@ HONEYPOT = re.compile(r"leave (this )?(field |box )?(blank|empty)|do not (fill|e
 
 
 def _form_fields(p: dict, f: dict | None) -> list[dict]:
-    """Every box / choice of a form, with the value a person would enter (the form is never sent)."""
+    """Every box / choice of a form, with the value a person would enter (the form is never sent).
+
+    Sidebar/global search and unrelated table row checkboxes are excluded. Each typed box carries field_kind so
+    journeys fill email/phone with fitting values.
+    """
+    from ..forms import keep_form_field
+    from ..testdata import field_kind as kind_of
     by_sel = {i.get("selector"): i for i in p.get("inputs", []) if i.get("selector")}
     fields = f["fields"] if f else p.get("inputs", [])
     out, radio_groups = [], set()
     for x in fields:
         i = by_sel.get(x.get("selector")) or x
+        if not keep_form_field(i):
+            continue
         sel, t = i.get("selector"), (i.get("type") or "").lower()
         if not sel or i.get("disabled") or i.get("readonly") or HONEYPOT.search(
                 f"{i.get('label')} {i.get('name')} {i.get('id')} {i.get('placeholder')}"):
@@ -1024,7 +1032,9 @@ def _form_fields(p: dict, f: dict | None) -> list[dict]:
             opts = i.get("options") or []
             if opts:
                 out.append({"selector": sel, "kind": "select", "value": opts[0]["value"], "name": _box_name(i),
-                            "shown": opts[0].get("text") or opts[0]["value"]})
+                            "shown": opts[0].get("text") or opts[0]["value"],
+                            "required": bool(i.get("required")), "label": i.get("label") or "",
+                            "role": i.get("role") or "", "field_kind": ""})
         elif t == "radio":
             group = i.get("name") or sel
             if group not in radio_groups:
@@ -1034,13 +1044,19 @@ def _form_fields(p: dict, f: dict | None) -> list[dict]:
                              and (by_sel.get(r.get("selector")) or r).get("name") == i.get("name")), None)
                 if made and i.get("name"):
                     i, sel = by_sel.get(made.get("selector")) or made, made.get("selector")
-                out.append({"selector": sel, "kind": "radio", "value": "", "name": _box_name(i), "shown": "picked"})
+                out.append({"selector": sel, "kind": "radio", "value": "", "name": _box_name(i), "shown": "picked",
+                            "required": bool(i.get("required")), "label": i.get("label") or "",
+                            "role": i.get("role") or "", "field_kind": ""})
         elif t == "checkbox":
-            out.append({"selector": sel, "kind": "checkbox", "value": "", "name": _box_name(i), "shown": "ticked"})
+            out.append({"selector": sel, "kind": "checkbox", "value": "", "name": _box_name(i), "shown": "ticked",
+                        "required": bool(i.get("required")), "label": i.get("label") or "",
+                        "role": i.get("role") or "", "field_kind": ""})
         else:
             v = _value_for(i)
             if v is not None:
-                out.append({"selector": sel, "kind": "type", "value": v, "name": _box_name(i), "shown": v})
+                out.append({"selector": sel, "kind": "type", "value": v, "name": _box_name(i), "shown": v,
+                            "required": bool(i.get("required")), "label": i.get("label") or "",
+                            "role": i.get("role") or "", "field_kind": kind_of(i), "type": t})
     return out
 
 
@@ -1187,14 +1203,19 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
                 continue
             seen_forms.add(key)
             name = ((f or {}).get("submit") or {}).get("text") or _short(p)
+            openers = opener_path(p, f["selector"], f.get("revealed_by")) if f else []
+            required_fields = [{"selector": x["selector"], "name": x["name"], "kind": x.get("field_kind") or x["kind"]}
+                               for x in fields if x.get("required")]
             out.append(_journey(
                 len(out) + 1, "form", f"Fill the whole '{name.strip()[:30]}' form like a user ({len(fields)} boxes) - not sent",
-                [f"Open {_page_name(p)}"] + [f"'{x['name']}': " + (f"type '{x['shown']}'" if x["kind"] == "type" else
-                                                                   f"choose '{x['shown']}'" if x["kind"] == "select" else x["shown"])
-                                             for x in fields] + ["Do NOT send the form"],
+                [f"Open {_page_name(p)}"]
+                + [f"Open via '{step.get('name') or step['selector']}'" for step in openers]
+                + [f"'{x['name']}': " + (f"type '{x['shown']}'" if x["kind"] == "type" else
+                                         f"choose '{x['shown']}'" if x["kind"] == "select" else x["shown"])
+                   for x in fields] + ["Do NOT send the form"],
                 "Every box accepts a normal value - no box shows an error", [p],
                 {"url": p["url"], "form": (f or {}).get("selector") or "", "fields": fields,
-                 "openers": opener_path(p, f["selector"], f.get("revealed_by")) if f else []},
+                 "required_fields": required_fields, "openers": openers},
                 guest=not p.get("auth"), test_data=", ".join(x["shown"] for x in fields if x["kind"] == "type")[:120]))
 
     # 4) move through the website by clicking its menu like a person (visitor, and logged in)

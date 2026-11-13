@@ -16,6 +16,7 @@ from pprint import pformat
 from ..ai_grounding import grounding_problem
 from ..config import settings
 from ..excel import write_workbook
+from ..forms import FIELD_TARGET_HELPERS
 from ..llm import LLMError, ask_llm, extract_code, load_prompt
 from ..navigation import OPEN_PATH_HELPER, opener_path
 from ..observe import PICTURES_JS, REGION_JS
@@ -977,7 +978,7 @@ def checks_script(checks: list[dict], modules: dict[str, str]) -> tuple[str, lis
     return "\n".join(out).rstrip() + "\n", missing
 
 
-JOURNEY_HELPERS = OPEN_PATH_HELPER + r'''
+JOURNEY_HELPERS = OPEN_PATH_HELPER + FIELD_TARGET_HELPERS + r'''
 def _settle(page):
     try:
         page.wait_for_load_state("networkidle", timeout=5000)
@@ -1505,14 +1506,31 @@ def _journey_test(c: dict) -> list[str]:
         body = [
             "    page.goto(J['url'])",
             "    _settle(page)",
+            "    target = J['fields'][0]['selector'] if J.get('fields') else J.get('form')",
             "    if J.get('openers'):",
-            "        open_path(page, J['openers'], J['fields'][0]['selector'])",
+            "        open_path(page, J['openers'], target)",
             "    errors_before = len(console_errors)",
-            "    problems, filled = [], 0",
+            "    problems, filled, filled_required = [], 0, set()",
+            "    try:",
+            "        scope = form_scope(page, J)",
+            "    except FormTargetProblem as e:",
+            "        if e.kind == 'ambiguous':",
+            "            _inconclusive(str(e))",
+            "            return",
+            "        raise AssertionError(str(e)) from e",
             "    for f in J['fields']:",
-            "        el = page.locator(f['selector']).first",
-            "        if not el.is_visible():",
-            "            continue  # a box a person can't see (e.g. an anti-spam trap) is never filled",
+            "        try:",
+            "            el = unique_field(page, scope, f)",
+            "        except FormTargetProblem as e:",
+            "            if e.kind == 'ambiguous':",
+            "                _inconclusive(str(e))",
+            "                return",
+            "            if f.get('required') or e.kind == 'missing_required':",
+            "                raise AssertionError(",
+            "                    f\"required field '{f.get('name') or f.get('selector')}' is missing or invisible - \"",
+            "                    f\"whole-form check cannot pass ({e})\") from e",
+            "            _step_ok(f\"skipped optional '{f.get('name') or f.get('selector')}': {e}\")",
+            "            continue",
             "        filled += 1",
             "        try:",
             "            if f['kind'] == 'select':",
@@ -1528,12 +1546,22 @@ def _journey_test(c: dict) -> list[str]:
             "            else:",
             "                el.fill(f['value'], timeout=5000)",
             "                el.dispatch_event('blur')",
+            "                expect(el, 'The input must retain its intended test value').to_have_value(f['value'])",
             "        except Exception as e:",
-            "            problems.append(f\"could not fill '{f['name']}': {str(e).splitlines()[0][:150]}\")",
+            "            if f.get('required'):",
+            "                problems.append(f\"required '{f['name']}' could not be filled: {str(e).splitlines()[0][:150]}\")",
+            "            else:",
+            "                problems.append(f\"could not fill '{f['name']}': {str(e).splitlines()[0][:150]}\")",
             "            continue",
-            "        if not el.evaluate('e => e.checkValidity()'):",
+            "        if f.get('required'):",
+            "            filled_required.add(f['selector'])",
+            "        if f['kind'] == 'type' and not el.evaluate('e => e.checkValidity()'):",
             "            problems.append(f\"'{f['name']}' rejects a normal value {f['shown']!r}: \"",
             "                            + el.evaluate('e => e.validationMessage'))",
+            "    intended = J.get('required_fields') or [x for x in J['fields'] if x.get('required')]",
+            "    missing = [r.get('name') or r.get('selector') for r in intended if r.get('selector') not in filled_required]",
+            "    if missing:",
+            "        raise AssertionError('required field(s) not filled - whole-form check cannot pass: ' + ', '.join(missing))",
             "    assert filled, f\"None of the form's {len(J['fields'])} boxes is on the page - nothing could be filled\"",
             "    assert not problems, 'Filling the form like a user:\\n' + '\\n'.join(problems)",
             "    # (the form is NOT sent - no account is created, no message is sent)",
