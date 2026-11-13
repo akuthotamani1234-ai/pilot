@@ -13,7 +13,7 @@ from backend.qa_contracts import Flow
 PACKAGE = "com.example.formfixture"
 
 
-def screen(kind="products", filled=False):
+def screen(kind="products", filled=False, matching_fields=False):
     def node(cls, *, text="", resource="", hint="", password=False, clickable=False, children=""):
         attrs = {"class": cls, "package": PACKAGE, "text": text, "resource-id": resource,
                  "hint": hint, "password": str(password).lower(), "clickable": str(clickable).lower(),
@@ -22,7 +22,7 @@ def screen(kind="products", filled=False):
         return "<node " + " ".join(k + "=" + quoteattr(v) for k, v in attrs.items()) + ">" + children + "</node>"
 
     body = node("android.widget.TextView", text="Products" if kind == "products" else "Welcome")
-    fields = ["Username", "Password"] if kind == "login" else ["Username", "Email", "Password", "Confirm Password"]
+    fields = ["Username", "Password"] if kind == "login" or matching_fields else ["Username", "Email", "Password", "Confirm Password"]
     if kind != "products":
         for label in fields:
             body += node("android.widget.EditText", resource=PACKAGE + ":id/" + label.replace(" ", "").lower(),
@@ -43,6 +43,12 @@ def test_login_is_distinct_from_products_with_the_same_scroller():
 def test_signup_and_login_are_distinct_under_the_same_heading():
     login, signup = screen("login"), screen("signup")
     assert find_form(signup)["kind"] == "signup"
+    assert not same_screen(login, signup)
+    assert screen_key(login) != screen_key(signup)
+
+
+def test_signup_with_the_same_fields_uses_its_observed_submit_label():
+    login, signup = screen("login"), screen("signup", matching_fields=True)
     assert not same_screen(login, signup)
     assert screen_key(login) != screen_key(signup)
 

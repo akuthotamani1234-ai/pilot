@@ -12,8 +12,8 @@ The actual app's Login screen has an activity/scroller identity shared with a pr
 additional discriminator, discovery and test-build exploration can reuse the product screen instead of recording
 Login, so its fields never reach the form-testing phase.
 
-Screen identity now includes a digest of the native input schema, based on stable control identifiers and password
-metadata. It excludes entered text. Typing into a form preserves its identity; Login, Signup and product screens
+Screen identity now includes a digest of the native input schema and observed submit labels, based on stable control
+identifiers and password metadata. It excludes entered text. Typing preserves its identity; Login, Signup and product screens
 under the same shell remain distinct. Drawer identity and embedded WebView handling retain their separate paths.
 
 In an authorized test-build run, Signup now receives empty-form and invalid-input checks before valid registration.
