@@ -112,12 +112,27 @@ def _quality_gates(state: QAState) -> list[dict]:
                        f"{len(results)} single test(s) ran ({by_group['functional']} functional, {by_group['links']} "
                        f"link checks, {by_group['page_checks']} page checks, {by_group['input_checks']} input value "
                        f"checks): {len(answered)} gave a result, {len(results) - len(answered)} skipped."))
-    no_answer = [f for f in failures if f["source"] == "test" and f["category"] in NOT_ANSWERED]
-    share = len(no_answer) / max(1, len(answered))
-    gates.append(_gate("automation", "Tests produced reliable answers",
-                       "missing" if no_answer and share >= settings.gate_max_automation_errors else "risk" if no_answer else "pass",
-                       f"{len(no_answer)} of {len(answered)} test(s) could not tell whether the website works "
-                       f"(script, network, time limit or no check) - limit {settings.gate_max_automation_errors:.0%}."))
+    from .failure_analysis import covered_result_nodeids
+    covered = covered_result_nodeids(failures)
+    bad_results = [r for r in results if r.get("outcome") in ("failed", "error", "inconclusive")]
+    unlinked = [r for r in bad_results if r.get("nodeid") and r["nodeid"] not in covered]
+    no_answer = [f for f in failures if f.get("source") == "test" and f.get("category") in NOT_ANSWERED]
+    # Failed/inconclusive results with no finding cannot claim "0 unreliable" - treat as unanswered.
+    unreliable = len(no_answer) + len(unlinked)
+    share = unreliable / max(1, len(answered))
+    if unlinked and not no_answer and not any(f.get("source") == "test" for f in failures):
+        auto_status = "missing"  # empty findings while failures remain → Insufficient Evidence
+    elif unreliable and share >= settings.gate_max_automation_errors:
+        auto_status = "missing"
+    elif unreliable:
+        auto_status = "risk"
+    else:
+        auto_status = "pass"
+    auto_detail = (f"{unreliable} of {len(answered)} test(s) could not tell whether the website works "
+                   f"(script, network, time limit or no check) - limit {settings.gate_max_automation_errors:.0%}.")
+    if unlinked:
+        auto_detail += f" {len(unlinked)} failed/inconclusive result(s) have no linked finding yet."
+    gates.append(_gate("automation", "Tests produced reliable answers", auto_status, auto_detail))
     timed_out = "THE RUN WAS STOPPED BY ITS TIME LIMIT" in " ".join(state.get("log", []))
     if timed_out:
         gates.append(_gate("time_limit", "All tests finished in time", "risk",
@@ -127,10 +142,18 @@ def _quality_gates(state: QAState) -> list[dict]:
     limit = SEV_RANK.get(settings.gate_block_severity, 1)
     blockers = [f for f in failures if f["category"] == "product_defect" and SEV_RANK.get(f["severity"], 9) <= limit
                 and f.get("confidence") != "low"]
+    if blockers:
+        block_status, block_detail = "fail", (
+            f"{len(blockers)} blocking problem(s): "
+            + "; ".join(sorted({f['explanation'][:80] for f in blockers}))[:400])
+    elif unlinked:
+        # Empty/unlinked findings must never clear a "no bugs" gate while failures remain.
+        block_status, block_detail = "missing", (
+            f"Cannot confirm absence of blockers: {len(unlinked)} failed/inconclusive test(s) have no finding yet.")
+    else:
+        block_status, block_detail = "pass", "None found."
     gates.append(_gate("blockers", f"No website bug of severity '{settings.gate_block_severity}' or higher",
-                       "fail" if blockers else "pass",
-                       f"{len(blockers)} blocking problem(s): " + "; ".join(sorted({f['explanation'][:80] for f in blockers}))[:400]
-                       if blockers else "None found."))
+                       block_status, block_detail))
     # critical user journeys (log in, shopping, orders ...) must all pass
     from ..excel import case_result
     journeys = [(c, case_result(c, results)[0]) for c in state.get("test_cases", [])
@@ -167,6 +190,8 @@ def _quality_gates(state: QAState) -> list[dict]:
                      "problems).")
     if healed:
         risks.append(f"{len(healed)} test script(s) were repaired automatically - please review them.")
+    if unlinked:
+        risks.append(f"{len(unlinked)} failed/inconclusive result(s) still have no linked finding.")
     gates.append(_gate("findings", "No other findings", "risk" if risks else "pass",
                        " ".join(risks) or "None.", mandatory=False))
     return gates
@@ -720,9 +745,25 @@ def reporter_agent(state: QAState) -> QAState:
         from ..android_reporting import report
         return report(state)
     run_dir = Path(state["run_dir"])
-    app_map, results = state.get("app_map", []), state.get("results", [])
-    failures = sorted(state.get("failures", []), key=lambda f: SEV_ORDER.get(f["severity"], 9))
+    from .failure_analysis import ensure_findings_from_results, load_saved_results
+    app_map = state.get("app_map", [])
+    results = list(state.get("results") or [])
+    disk_results = load_saved_results(run_dir)
+    if len(disk_results) > len(results):
+        results = disk_results  # interrupt/timeout: jsonl may be ahead of in-memory state
     cases = state.get("test_cases", [])
+    if not cases and (run_dir / "test_cases.json").exists():
+        try:
+            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
+            cases = loaded if isinstance(loaded, list) else []
+        except (OSError, ValueError, TypeError):
+            cases = []
+    # Gates/metrics must see a finding for every failed/inconclusive result (LLM optional).
+    failures = ensure_findings_from_results(
+        run_dir, results, cases=cases, app_map=app_map,
+        unhealable=state.get("unhealable"), healing_log=state.get("healing_log"))
+    state = dict(state, results=results, failures=failures, test_cases=cases)
+    failures = sorted(failures, key=lambda f: SEV_ORDER.get(f.get("severity"), 9))
     fill_case_results(cases, results, failures, run_dir / "generated_tests")  # results + evidence of every case
     from .. import registry  # every feature's final status (verified / failed / ... + why) and the counts
     reg = registry.load(run_dir)
