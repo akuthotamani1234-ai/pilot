@@ -92,7 +92,7 @@ def build_server(ui_url: str | None = None):
     @server.tool(annotations=start)
     @_bridge_as_tool_error
     def crawl_website(
-        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 12,
+        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 0,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
     ) -> dict:
         """Inventory a permitted website with Playwright: DOM controls, menus, nested menus and page states.
@@ -114,7 +114,7 @@ def build_server(ui_url: str | None = None):
     @server.tool(annotations=start)
     @_bridge_as_tool_error
     def start_web_test(
-        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 12,
+        url: str, authorized: bool = False, max_pages: Pages = 0, max_depth: Depth = 0,
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
         requirements: Annotated[str, Field(max_length=4000)] = "",
         qa_contract: dict | None = None, llm_provider: Provider = "ollama", llm_model: str = "",

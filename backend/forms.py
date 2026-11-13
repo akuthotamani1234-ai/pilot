@@ -26,7 +26,7 @@ import re
 from pprint import pformat
 from urllib.parse import urlparse
 
-from .actions import DELETE, PAY, action_risk, writes_allowed
+from .actions import DELETE, action_risk, writes_allowed
 from .navigation import OPEN_PATH_HELPER, opener_path
 from .testdata import field_kind, valid_value, values
 
@@ -177,7 +177,11 @@ def data_forms(pages: list[dict]) -> list[dict]:
         for f in p.get("forms", []):
             submit = f.get("submit") or {}
             said = submit.get("text") or ""
-            if not submit.get("selector") or PAY.search(said) or DELETE.search(said):
+            from .actions import action_class as _action_class
+            submit_cls = _action_class(said, submit.get("selector") or "",
+                                       role="button", kind="button", tag="button")
+            if not submit.get("selector") or submit_cls == "pay" or submit_cls == "delete" \
+                    or DELETE.search(said):
                 continue  # (never a form that pays or deletes - not even with wrong values)
             fields = [dict(known.get(x["selector"], {}), **x) for x in f.get("fields", []) if x.get("selector")]
             fields = [x for x in fields if keep_form_field(x)]
@@ -236,7 +240,11 @@ def form_scope(page, F: dict):
     """The form / dialog / labeled section that owns the fields (never the whole page chrome)."""
     sel = (F or {}).get("form") or (F or {}).get("selector") or ""
     if not sel:
-        return page.locator("body")
+        # No silent whole-page fallback when a form case forgot its container — fail closed.
+        raise form_target_problem(
+            "missing_required",
+            "form container is missing from the case - not interacting with the whole page",
+        )
     loc = page.locator(sel)
     count = loc.count()
     if count == 1:
@@ -317,7 +325,11 @@ def unique_field(page, scope, box: dict):
                 raise
             except Exception:
                 pass
-            return page_hits[0]
+            # Field only found outside the declared container — never grab page.first / off-scope hits.
+            raise form_target_problem(
+                "missing_required" if box.get("required") else "missing_optional",
+                f"recorded field '{name or sel}' is visible on the page but not inside the form container",
+            )
         if len(page_hits) > 1:
             raise form_target_problem(
                 "ambiguous",
@@ -503,7 +515,9 @@ def _form_scope(page, F):
     """The form / dialog / labeled section that owns the fields (never page chrome)."""
     sel = (F or {}).get('form') or (F or {}).get('selector') or ''
     if not sel:
-        return page.locator('body')
+        raise _form_target_problem(
+            'missing_required',
+            'form container is missing from the case - not interacting with the whole page')
     loc = page.locator(sel)
     count = loc.count()
     if count == 1:
@@ -553,7 +567,9 @@ def _unique_field(page, scope, box):
             inside = scope.locator(sel)
             if inside.count() == 1 and inside.nth(0).is_visible():
                 return inside.nth(0)
-            return page_hits[0]
+            raise _form_target_problem(
+                'missing_required' if box.get('required') else 'missing_optional',
+                f"recorded field '{name or sel}' is visible on the page but not inside the form container")
         if len(page_hits) > 1:
             raise _form_target_problem(
                 'ambiguous',

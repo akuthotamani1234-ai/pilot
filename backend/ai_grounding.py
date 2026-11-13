@@ -143,12 +143,13 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                 if not count_only:
                     return ("Bare heading selectors are ambiguous and the document title is not a heading. "
                             "Use observed heading names or expect(page).to_have_title")
-            # Long CSS ids/classes that look recorded but never appeared in observation.
+            # Long CSS ids/classes that look recorded but never appeared in observation — reject (hard).
             if (observed_sels and selector.strip() not in observed_sels
-                    and re.search(r"[#.\[]", selector) and len(selector) > 8
+                    and re.search(r"[#.\[]", selector) and len(selector.strip()) > 3
                     and not selector.strip().startswith(("text=", "xpath=", "internal:"))):
-                # Soft: only reject clearly person-record lookups already handled; keep flexible for dynamic paths.
-                pass
+                return (f"Selector {selector.strip()!r} was not observed on the page. "
+                        "Use get_by_role / get_by_label against an observed control — "
+                        "unsupported locator, not a product defect")
         if node.func.attr == "get_by_text":
             if not any(k.arg == "exact" and isinstance(k.value, ast.Constant) and k.value.value is True
                        for k in node.keywords):

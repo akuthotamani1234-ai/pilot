@@ -1749,12 +1749,21 @@ def discovery_agent(state: QAState) -> QAState:
             return c
 
         contexts = {False: new_context()}
-        # more ways to find pages: the website's own sitemap (robots.txt / sitemap.xml) - queued from the start page
+        # Non-MCP HTTP scrape seeder + sitemap: more same-host URLs before Playwright observe (no pay/checkout seeds).
         extra_found = []
         if mode != "page":
-            extra_found = [(u, "sitemap") for u in _sitemap_urls(contexts[False], start_url)]
-            if extra_found:
-                print(f"  [discovery] the sitemap lists {len(extra_found)} address(es)", flush=True)
+            try:
+                from ..scrape_seed import seed_urls
+                scraped = seed_urls(contexts[False].request, start_url)
+                extra_found = [(u, "scrape") for u in scraped]
+                if extra_found:
+                    print(f"  [discovery] scrape seeder found {len(extra_found)} address(es) "
+                          f"(sitemap/HTML/openapi; checkout/payment URLs dropped)", flush=True)
+            except Exception as e:
+                print(f"  [discovery] scrape seeder skipped: {str(e).splitlines()[0][:120]}", flush=True)
+                extra_found = [(u, "sitemap") for u in _sitemap_urls(contexts[False], start_url)]
+                if extra_found:
+                    print(f"  [discovery] the sitemap lists {len(extra_found)} address(es)", flush=True)
 
         # ONE tab per session for the whole crawl: it moves from page to page instead of opening/closing tabs.
         # `current` holds the error lists of the page being visited right now.
@@ -2433,7 +2442,7 @@ def discovery_agent(state: QAState) -> QAState:
                     routes_seen = page.evaluate("() => window.__qaRoutes || []")
                 except Exception:
                     routes_seen = []
-                for u in routes_seen[:30]:
+                for u in routes_seen[:120]:
                     if _normalize(u) != url:
                         enqueue(u, how="history")
                 # the results page of the website's search box (a search with a word of its items - safe, read only;

@@ -24,10 +24,24 @@ import re
 
 from .config import settings
 
-# `\bpay\b` alone would treat admin config nav like "Pay Grades" as payment - exclude that config name.
-# Real payment verbs (pay now, payment, checkout, buy, ...) still match.
-PAY = re.compile(r"\bpay\b(?![\s_-]*grades?\b)|payment|\bbuy\b|purchase|check ?out|place (your )?order|order now|"
-                 r"confirm( order| purchase| payment)?\b|transfer|send money|\bdonate\b|book now|reserve now", re.I)
+# Payment *intent* only (checkout / pay now / place order / confirm payment / buy).
+# Admin nav like "Pay Grades", "Payment Methods", bare "Confirm", HR "Transfer Employee" are carved out in
+# action_class via nav-aware helpers — not every word containing pay/transfer/confirm.
+PAY = re.compile(
+    r"\bpay\s*now\b|\bpay\b(?![\s_-]*(grades?|methods?|grade|period|scale)\b)|"
+    r"\bpayments?\b(?![\s_-]*methods?\b)|billing|"
+    r"\bbuy\b|\bpurchase\b|check[\s-]?out|place (your )?order|order now|"
+    r"confirm (order|purchase|payment)\b|send money|"
+    r"\bdonate\b(?!\s+(blood|organ|time)\b)|book now|reserve now",
+    re.I,
+)
+# Labels that look like pay keywords but are admin/nav config (not checkout submits).
+ADMIN_PAY_NAV = re.compile(
+    r"^\s*(pay[\s_-]*grades?|payment[\s_-]*methods?|pay[\s_-]*periods?|pay[\s_-]*scales?)\s*$",
+    re.I,
+)
+BARE_CONFIRM = re.compile(r"^\s*confirm\s*$", re.I)
+HR_TRANSFER = re.compile(r"^\s*transfer(\s+\w+){0,3}\s*$", re.I)
 LOGOUT = re.compile(r"log ?out|sign ?out|log ?off", re.I)
 PASSWORD = re.compile(r"change (my )?(password|email)|reset password", re.I)
 # (\btrash: a button that only shows a trash-can icon - 'bi trash', 'fa trash alt' - deletes)
@@ -56,8 +70,8 @@ SAFE_TEXT = re.compile(r"^\s*(search|find|go|filter|apply filters?|sort|log ?in|
 # (automationexercise.com: id="submit_search") must not make it a 'submit' that is never pressed
 SEARCH_ICON = re.compile(r"\bsearch\b|magnif", re.I)
 
-# Admin config navigation named "Pay Grade(s)" is not a payment/checkout submit.
-PAY_GRADE_LABEL = re.compile(r"^\s*pay[\s_-]*grades?\s*$", re.I)
+# Back-compat alias used by tests / callers.
+PAY_GRADE_LABEL = ADMIN_PAY_NAV
 NAV_ROLES = frozenset({
     "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "navigation", "menu", "treeitem",
 })
@@ -93,17 +107,33 @@ def _nav_context(*, role: str | None = None, kind: str | None = None, tag: str |
 def is_pay_grade_navigation(text: str | None, selector: str | None = "", *,
                             role: str | None = None, kind: str | None = None, tag: str | None = None,
                             purpose: str | None = None, href: str | None = None) -> bool:
-    """Link/menuitem/tab to an admin config page named Pay Grade(s) is not a payment action."""
+    """Link/menuitem/tab to admin pay-config pages (Pay Grades / Payment Methods / …) is not payment."""
     label = (text or "").split("\n")[0].strip()
-    if not PAY_GRADE_LABEL.match(label):
+    if not ADMIN_PAY_NAV.match(label):
         return False
     return _nav_context(role=role, kind=kind, tag=tag, purpose=purpose, href=href, selector=selector)
+
+
+def is_safe_admin_nav(text: str | None, selector: str | None = "", *,
+                      role: str | None = None, kind: str | None = None, tag: str | None = None,
+                      purpose: str | None = None, href: str | None = None) -> bool:
+    """Nav that must never be treated as checkout/payment: pay-config, bare Confirm, HR Transfer…"""
+    label = (text or "").split("\n")[0].strip()
+    if not label:
+        return False
+    if not _nav_context(role=role, kind=kind, tag=tag, purpose=purpose, href=href, selector=selector):
+        return False
+    if ADMIN_PAY_NAV.match(label) or BARE_CONFIRM.match(label) or HR_TRANSFER.match(label):
+        return True
+    return False
 
 
 def action_class(text: str | None, selector: str | None = "", *,
                  role: str | None = None, kind: str | None = None, tag: str | None = None,
                  purpose: str | None = None, href: str | None = None) -> str:
     """'safe' | 'test_account' | 'write' | 'delete' | 'pay' | 'logout' | 'password' - what the control would do."""
+    if is_safe_admin_nav(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href):
+        return "safe"
     if is_pay_grade_navigation(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href):
         return "safe"
     t = f"{text or ''} {selector or ''}"

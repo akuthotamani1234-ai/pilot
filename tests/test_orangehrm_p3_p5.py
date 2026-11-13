@@ -115,8 +115,16 @@ def test_search_filter_sort_cases_keep_business_credit_when_outcomes_defined():
     assert business_outcome_requires_oracle(search) == ""
 
 
+def test_unknown_case_defaults_to_interaction_not_business():
+    assert verification_credit(None) == "interaction"
+    assert verification_credit({"id": "mystery", "title": "Something vague"}) == "interaction"
+    assert verification_credit({"id": "site_input_values", "title": "Input boxes"}) == "business"
+
+
 def test_ai_proposal_with_absent_record_or_selector_is_unsupported_not_product_defect():
-    pages = [{"title": "Users", "headings": [{"text": "System Users"}], "buttons": [], "inputs": [],
+    pages = [{"title": "Users", "headings": [{"text": "System Users"}], "buttons": [
+                {"selector": "button[type=submit]", "text": "Search"}],
+              "inputs": [{"selector": "#username", "label": "Username"}],
               "forms": [], "links": [], "behaviour": [], "itemNames": ["Alice Admin"]}]
     people = invented_record_problem("Open the record for John Doe and click Edit", pages)
     assert people and "John Doe" in people and "not a product defect" in people.lower()
@@ -132,6 +140,13 @@ def test_ai_proposal_with_absent_record_or_selector_is_unsupported_not_product_d
     assert problem
     reason = unsupported_reason(problem)
     assert "Unsupported" in reason or "unsupported" in reason.lower()
+
+    invented_css = (
+        'def test_ai_flow_2(page):\n'
+        '    page.locator("#never-observed-widget-xyz").click()\n'
+    )
+    css_problem = grounding_problem(invented_css, pages)
+    assert css_problem and "not observed" in css_problem.lower()
     assert "product defect" in reason.lower()
 
     # Observed person is allowed; role-based table without native <table> is fine.

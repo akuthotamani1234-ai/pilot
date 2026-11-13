@@ -313,7 +313,10 @@ READING_SUBMIT = re.compile(r"^\s*(search|filter|find|apply( filters?)?|show|vie
 # what the AI saw in a page's picture that the page's controls don't stand for: tried too (up to SEEN_MAX per page).
 # Boxes, lists and tables are left to the form / data / table tests; the menu and plain content are not controls.
 SEEN_MAX = 3
+SEEN_MAX_THOROUGH = 8
 SEEN_SKIP = {"navigation", "content", "media", "list", "table", "search", "form", "filter", "sort"}
+# Deterministic search words to expand catalog/list URLs (never submitted as pay/checkout).
+SEARCH_SEED_WORDS = ("admin", "employee", "leave", "report", "settings", "user", "pim", "job")
 # what a control found by its words really is: its clickable element, its form, its icon, its address
 SEEN_CONTROL_JS = """e => {
   const c = e.closest('button, a[href], [role=button], [role=tab], [role=link], [role=menuitem], input, summary, label')
@@ -649,7 +652,8 @@ class Explorer:
 
     def _explore(self, page, url: str, entry: dict) -> tuple[list[str], list[str]]:
         host, budget, new_urls, changed = urlparse(url).hostname, settings.max_interactions_per_page, [], []
-        seen_left = SEEN_MAX  # (what the AI saw has its own small budget: it never pushes the page's controls out)
+        seen_cap = SEEN_MAX_THOROUGH if settings.explore_repeated_controls else SEEN_MAX
+        seen_left = seen_cap  # (what the AI saw has its own small budget: it never pushes the page's controls out)
         self._untouched = url if _same_page(page.url, url) else None  # (the crawl has just opened it)
         behaviour = entry.setdefault("behaviour", [])
         queue = self._targets(entry)
@@ -658,10 +662,14 @@ class Explorer:
         while queue:
             # Discover routes and root controls before spending the budget on revealed widgets,
             # global chrome, or repeated table-row toggles (KIND_CAP / explore_repeated already bound samples).
+            # Menu/chrome navigation first under budget so sections are reached before widgets burn the quota.
+            # Repeated table-row toggles stay last; pay/checkout remain skipped via _eligible protected risk.
             queue.sort(key=lambda target: (
-                3 if target.get("chrome") or target.get("in_table") or target.get("kind") == "repeated" else
+                0 if target.get("kind") in {"menu", "hover", "tab"} and not target.get("in_table") else
+                1 if target.get("kind") in {"next", "filter", "select"} else
+                3 if target.get("in_table") or target.get("kind") == "repeated" else
                 2 if target.get("revealed_by") else
-                0 if target.get("kind") in {"next", "menu", "tab", "filter", "select", "hover"} else 1
+                4 if target.get("chrome") and target.get("kind") not in {"menu", "hover", "tab"} else 2
             ))
             t = queue.pop(0)
             key = (t["name"], t["selector"])
@@ -761,14 +769,17 @@ class Explorer:
         Never: a login form, a form that pays or deletes, a search / filter form (its own tests)."""
         if settings.discovery_only:
             return []
-        from .actions import DELETE, PAY, writes_allowed
+        from .actions import DELETE, action_class, writes_allowed
         from .forms import SEARCHY, is_login_form, keep_form_field
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
             fields = [x for x in f.get("fields", []) if keep_form_field(x)]
-            if not fields or is_login_form(f) or PAY.search(said) or DELETE.search(said) or READING_SUBMIT.match(said) \
+            submit_sel = ((f.get("submit") or {}).get("selector") or "")
+            submit_cls = action_class(said, submit_sel, role="button", kind="button", tag="button")
+            if not fields or is_login_form(f) or submit_cls in ("pay", "delete") or DELETE.search(said) \
+                    or READING_SUBMIT.match(said) \
                     or any((x.get("type") or "") == "search" or SEARCHY.search(f"{x.get('name')} {x.get('label')}")
                            for x in fields):
                 continue
