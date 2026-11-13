@@ -24,6 +24,15 @@ def test_pay_grades_link_or_menu_is_not_pay():
     assert not PROTECTED.search("Pay Grades")
 
 
+def test_admin_nav_payment_methods_transfer_and_bare_confirm_are_not_pay():
+    for role in ("link", "menuitem", "tab"):
+        assert action_class("Payment Methods", role=role) == "safe"
+        assert action_class("Transfer Employee", role=role) == "safe"
+        assert action_class("Confirm", role=role) == "safe"
+    assert action_class("Payment Methods", href="/admin/paymentMethods", tag="a") == "safe"
+    assert action_class("Transfer", kind="menu", tag="a") == "safe"
+
+
 def test_real_payment_buttons_still_pay_and_blocked_reason_names_permission():
     for label in ("Pay now", "Proceed to payment", "Confirm payment", "Checkout"):
         assert action_class(label) == "pay", label
@@ -31,6 +40,7 @@ def test_real_payment_buttons_still_pay_and_blocked_reason_names_permission():
     reason = blocked_reason("pay")
     assert "ALLOW_ACTIONS" in reason and "pay" in reason and "TEST_PAYMENT" in reason
     assert "payment" in reason.lower() or "checkout" in reason.lower()
-    # Keyword guards stay tight: unrelated "pay" verbs still match; only pay-grade nav is carved out.
+    # Real checkout/payment intent still matches; admin/nav carve-outs do not loosen submits.
     assert action_class("Buy now") == "pay"
     assert action_class("Place order") == "pay"
+    assert action_class("Confirm payment", role="button") == "pay"

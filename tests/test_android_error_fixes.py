@@ -134,6 +134,7 @@ def test_short_provider_probe_never_retries_or_changes_global_timeout(monkeypatc
     monkeypatch.setattr(runctl, "stopping", lambda: False)
     monkeypatch.setattr(cost, "record", lambda *args: None)
     monkeypatch.setattr(llm.settings, "llm_timeout", 240)
+    monkeypatch.setattr(llm, "llm_enabled", lambda: True)  # probe path even when env LLM_PROVIDER=none
     calls = []
 
     def timeout(*args, **kwargs):

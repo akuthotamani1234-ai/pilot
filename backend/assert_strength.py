@@ -39,9 +39,10 @@ def verification_credit(case: dict | None) -> str:
 
     Explicit `case['verification']` wins. Otherwise inferred from kind / journey / type — never from environment=test.
     Unsubmitted Save/input-only checks stay interaction: they cannot prove Save, creation, update, search or persistence.
+    Unknown / untagged cases default to interaction (fail-closed) — never silent business-verified.
     """
     if not case:
-        return "business"
+        return "interaction"
     explicit = (case.get("verification") or "").strip().lower()
     if explicit in ("business", "interaction", "smoke"):
         return explicit
@@ -50,19 +51,23 @@ def verification_credit(case: dict | None) -> str:
         return "smoke"
     if case.get("id") in INTERACTION_IDS or case.get("journey") in INTERACTION_JOURNEYS:
         return "interaction"
+    # Per-box valid/invalid/sql value asserts prove that box's handling.
+    # Site-wide link checks prove each link destination when strong.
+    if case.get("id") in ("site_input_values", "site_links"):
+        return "business"
     # Feature cases that assert search/filter/pagination/sort outcomes are business when designed as such.
     if case.get("kind") == "feature" and case.get("feature_kind") in BUSINESS_FEATURE_KINDS:
         return "business"
-    if case.get("kind") in ("sort", "table_search", "page_size", "filter", "pagination"):
+    if case.get("kind") in ("sort", "table_search", "page_size", "filter", "pagination", "search"):
         return "business"
     if case.get("kind") in BUSINESS_CASE_KINDS:
         # Guarded form_valid still checks "would send" — a defined outcome under the write guard.
         return "business"
-    if case.get("kind") in ("check", "learned") and case.get("type") == "exploratory":
+    if case.get("kind") in ("check", "learned", "flow") and case.get("type") == "exploratory":
         return "interaction"
     if case.get("blocked") or case.get("kind") in ("blocked", "unsupported"):
         return "interaction"
-    return "business"
+    return "interaction"
 
 
 def counts_as_business_proof(case: dict | None, strength: str) -> bool:

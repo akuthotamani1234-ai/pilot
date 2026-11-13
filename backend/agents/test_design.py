@@ -2073,9 +2073,22 @@ def test_design_agent(state: QAState) -> QAState:
     # (your own tests first: MAX_TEST_CASES never cuts them)
     designed = mine + journeys + feats + learned + checks + ai + crud + forms + pairs + items_ + roles_ + mobile_
     small = small + cleanup_case(crud)  # (never cut by MAX_TEST_CASES: what a staging run created must be removed)
+
+    def _completion_rank(c: dict) -> int:
+        """Prefer finishing non-pay work; cut exploratory / checkout-ish titles first when over budget."""
+        blob = f"{c.get('title', '')} {c.get('id', '')} {c.get('expected', '')}".lower()
+        if any(w in blob for w in ("checkout", "check-out", "pay now", "place order", "confirm payment",
+                                   "/payment", "/checkout")):
+            return 2
+        if c.get("ai") and c.get("type") == "exploratory":
+            return 1
+        return 0
+
+    designed = sorted(designed, key=_completion_rank)
     room = max(0, settings.max_test_cases - len(small) - len(blocked))
     if len(designed) > room:
-        print(f"  [test-design] {len(designed) - room} test case(s) left out: MAX_TEST_CASES={settings.max_test_cases}")
+        print(f"  [test-design] {len(designed) - room} test case(s) left out: MAX_TEST_CASES={settings.max_test_cases} "
+              f"(non-pay work kept ahead of exploratory/checkout-ish titles)")
     cases = finalize_cases(designed[:room] + small + blocked, state)
     bad = {c["tc_id"]: validate_case(c) for c in cases if validate_case(c)}
     if bad:  # (should never happen - a case without its fields can't be reported correctly)
