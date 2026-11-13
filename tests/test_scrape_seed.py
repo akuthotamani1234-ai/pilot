@@ -63,3 +63,10 @@ def test_seed_urls_drops_checkout_and_keeps_admin(monkeypatch):
     assert not any(is_pay_checkout_url(u) for u in out)
     assert "https://hr.test/checkout" not in out
     assert "https://hr.test/payment" not in out
+
+    from backend.scrape_seed import seed_entries
+    entries = dict(seed_entries(fetcher, "https://hr.test/",
+                                html='<a href="/recruitment/viewCandidates">Candidates</a>'))
+    assert entries.get("https://hr.test/pim/viewEmployeeList") == "sitemap"
+    assert entries.get("https://hr.test/recruitment/viewCandidates") == "scrape"
+    assert entries.get("https://hr.test/leave/viewLeaveList") == "scrape"

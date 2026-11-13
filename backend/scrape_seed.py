@@ -112,12 +112,15 @@ def harvest_html_links(html: str, base_url: str) -> list[str]:
     return out
 
 
-def harvest_json_paths(text: str, base_url: str) -> list[str]:
+def harvest_json_paths(text: str, base_url: str, *, embedded_only: bool = False) -> list[str]:
+    """Pull path-like strings from JSON. Default: full text. embedded_only: __NEXT_DATA__ only
+    (avoids treating history.pushState('/spa-route') strings as scrape seeds)."""
     out = []
-    for raw in JSON_PATHISH.findall(text or ""):
-        u = _normalize(raw, base_url)
-        if u:
-            out.append(u)
+    if not embedded_only:
+        for raw in JSON_PATHISH.findall(text or ""):
+            u = _normalize(raw, base_url)
+            if u:
+                out.append(u)
     for m in re.finditer(r"__NEXT_DATA__\s*=\s*(\{.*?\})\s*;?\s*</script>", text or "", re.I | re.S):
         try:
             blob = json.dumps(json.loads(m.group(1)))
@@ -155,22 +158,30 @@ def harvest_openapi_paths(fetcher, start_url: str) -> list[str]:
     return out
 
 
-def seed_urls(fetcher, start_url: str, *, html: str | None = None, limit: int = 50000) -> list[str]:
-    """Union of sitemap + optional start HTML + openapi hints; same-host; no pay/checkout."""
+def seed_entries(fetcher, start_url: str, *, html: str | None = None, limit: int = 50000) -> list[tuple[str, str]]:
+    """Same-host seeds with provenance: sitemap vs scrape (HTML/openapi). No pay/checkout."""
     host = urlparse(start_url).hostname or ""
-    found: list[str] = []
-    found.extend(harvest_sitemaps(fetcher, start_url, limit=limit))
+    tagged: list[tuple[str, str]] = []
+    for u in harvest_sitemaps(fetcher, start_url, limit=limit):
+        tagged.append((u, "sitemap"))
     if html:
-        found.extend(harvest_html_links(html, start_url))
-        found.extend(harvest_json_paths(html, start_url))
-    found.extend(harvest_openapi_paths(fetcher, start_url))
-    out = []
-    seen = set()
-    for u in found:
+        # Real <a href> plus __NEXT_DATA__ only — not every quoted path in inline scripts (SPA history).
+        for u in harvest_html_links(html, start_url) + harvest_json_paths(html, start_url, embedded_only=True):
+            tagged.append((u, "scrape"))
+    for u in harvest_openapi_paths(fetcher, start_url):
+        tagged.append((u, "scrape"))
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for u, how in tagged:
         if u in seen or not _same_host(u, host) or is_pay_checkout_url(u):
             continue
         seen.add(u)
-        out.append(u)
+        out.append((u, how))
         if len(out) >= limit:
             break
     return out
+
+
+def seed_urls(fetcher, start_url: str, *, html: str | None = None, limit: int = 50000) -> list[str]:
+    """Union of sitemap + HTML + openapi hints; same-host; no pay/checkout."""
+    return [u for u, _how in seed_entries(fetcher, start_url, html=html, limit=limit)]

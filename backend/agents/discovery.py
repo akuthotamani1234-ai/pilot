@@ -1753,7 +1753,7 @@ def discovery_agent(state: QAState) -> QAState:
         extra_found = []
         if mode != "page":
             try:
-                from ..scrape_seed import seed_urls
+                from ..scrape_seed import seed_entries
                 start_html = ""
                 try:
                     r0 = contexts[False].request.get(start_url, timeout=15000)
@@ -1761,11 +1761,13 @@ def discovery_agent(state: QAState) -> QAState:
                         start_html = r0.text() if callable(getattr(r0, "text", None)) else (r0.text or "")
                 except Exception:
                     start_html = ""
-                scraped = seed_urls(contexts[False].request, start_url, html=start_html or None)
-                extra_found = [(u, "scrape") for u in scraped]
+                # Preserve provenance: sitemap stays "sitemap"; HTML/openapi are "scrape".
+                extra_found = seed_entries(contexts[False].request, start_url, html=start_html or None)
                 if extra_found:
+                    n_sm = sum(1 for _u, how in extra_found if how == "sitemap")
+                    n_sc = sum(1 for _u, how in extra_found if how == "scrape")
                     print(f"  [discovery] scrape seeder found {len(extra_found)} address(es) "
-                          f"(sitemap/HTML/openapi; checkout/payment URLs dropped)", flush=True)
+                          f"({n_sm} sitemap, {n_sc} scrape/HTML/openapi; checkout/payment dropped)", flush=True)
             except Exception as e:
                 print(f"  [discovery] scrape seeder skipped: {str(e).splitlines()[0][:120]}", flush=True)
                 extra_found = [(u, "sitemap") for u in _sitemap_urls(contexts[False], start_url)]
@@ -2374,10 +2376,11 @@ def discovery_agent(state: QAState) -> QAState:
                         nxt = start_scheme + nxt.split(":", 1)[1]
                     if (nxt, auth) in seen or not _is_crawlable(nxt, base_host):
                         return False
-                    # (the sitemap lists the WHOLE website: like the site-wide menu, it never leaves the section)
-                    out = _leaves_section(nxt, section, widen, from_folder, chrome or how == "sitemap")
-                    if out == MENU_OUTSIDE and how == "sitemap":
-                        out = "listed in the sitemap, outside the section"
+                    # Sitemap / scrape seed the WHOLE host: like the site-wide menu, they never leave the section.
+                    seed_wide = how in ("sitemap", "scrape")
+                    out = _leaves_section(nxt, section, widen, from_folder, chrome or seed_wide)
+                    if out == MENU_OUTSIDE and seed_wide:
+                        out = (f"listed in the {how}, outside the section")
                     if out:  # (not "seen": the same address in another page's content may still be followed)
                         if (nxt, False) not in seen and (nxt, True) not in seen:
                             skipped.setdefault(nxt, out)
