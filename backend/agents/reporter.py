@@ -1177,7 +1177,7 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Test report — {_e(state.get('source') or state['url'])}</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap">
 <style>
 :root {{ --bg:#f6f7fb; --fg:#171a2b; --card:#fff; --muted:#6b7084; --line:#e6e8f0; --soft:#f2f3f8;
   --ok:#16a34a; --okbg:#e8f7ee; --bad:#dc2626; --badbg:#fdecec; --warn:#d97706; --warnbg:#fff4e0; --accent:#5b5bf0;
@@ -1185,7 +1185,7 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#0f1117; --fg:#e9ebf5; --card:#171a23; --muted:#9298ad; --line:#262a37;
   --soft:#1d2130; --okbg:#12301f; --badbg:#3a1717; --warnbg:#352710; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; }} }}
 * {{ box-sizing:border-box }}
-body {{ margin:0; font:15px/1.6 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--fg); }}
+body {{ margin:0; font:15px/1.6 "Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--fg); }}
 main {{ max-width:1080px; margin:0 auto; padding:28px 18px 80px; }}
 a {{ color:var(--accent) }} .muted {{ color:var(--muted) }} .url {{ word-break:break-all; font-size:12.5px }}
 .brand {{ font-size:13px; color:var(--muted); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px }}
