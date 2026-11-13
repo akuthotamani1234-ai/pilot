@@ -96,8 +96,8 @@ def build_server(ui_url: str | None = None):
         scope: Literal["site", "section", "page"] = "site", show_browser: bool = False,
     ) -> dict:
         """Inventory a permitted website with Playwright: DOM controls, menus, nested menus and page states.
-        Defaults match Studio Thorough (full crawl within HARD_PAGE_CAP, higher depth/actions). Opens
-        navigation/toggles within bounded budgets. Skips login submission, form filling,
+        Defaults: max_pages/max_depth 0 = until exhausted within HARD_PAGE_CAP (Thorough floors for actions).
+        Opens navigation/toggles. Skips login submission, form filling,
         account/cart changes, generated tests, baseline updates and integrations. Controls with
         undocumented side effects cannot be guaranteed harmless. Protected pages need a separate
         authorized test-account run. No discovered component is counted as functionally passed.
@@ -123,7 +123,7 @@ def build_server(ui_url: str | None = None):
         production_confirmed: bool = False, writes_confirmed: bool = False, record_video: bool = False,
     ) -> dict:
         """Start the existing full Playwright QA workflow. Only website URLs, never local code/repositories.
-        Defaults match Studio Thorough budgets (full crawl, repeated controls, 80 actions/page).
+        Defaults: max_pages/max_depth 0 = until exhausted within HARD_PAGE_CAP; Thorough action floors apply.
         Test environments and configured test accounts may be changed by functional tests.
         Production needs explicit production_confirmed=true; staging form writes require the
         existing UI's checks/confirmation. Cloud providers send page data to that configured provider.
@@ -150,12 +150,12 @@ def build_server(ui_url: str | None = None):
         package_name: str = "", app_activity: str = "", apk_path: str | None = None,
         start_url: str = "",
         authorized: bool = False, appium_url: str = "http://127.0.0.1:4723",
-        max_screens: Annotated[int, Field(ge=1, le=100)] = 40,
-        max_actions: Annotated[int, Field(ge=0, le=200)] = 60,
-        max_depth: Annotated[int, Field(ge=0, le=10)] = 5,
-        discovery_timeout_s: Annotated[int, Field(ge=10, le=900)] = 600,
-        max_interactions: Annotated[int, Field(ge=0, le=500)] = 300,
-        interaction_timeout_s: Annotated[int, Field(ge=30, le=3600)] = 2700,
+        max_screens: Annotated[int, Field(ge=0, le=100)] = 0,
+        max_actions: Annotated[int, Field(ge=0, le=200)] = 0,
+        max_depth: Annotated[int, Field(ge=0, le=10)] = 0,
+        discovery_timeout_s: Annotated[int, Field(ge=0, le=900)] = 0,
+        max_interactions: Annotated[int, Field(ge=0, le=500)] = 0,
+        interaction_timeout_s: Annotated[int, Field(ge=0, le=3600)] = 0,
         requirements: Annotated[str, Field(max_length=4000)] = "",
         qa_contract: dict | None = None, contract_only: bool = False,
         llm_provider: Provider = "ollama", llm_model: str = "",

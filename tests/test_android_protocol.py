@@ -124,7 +124,7 @@ class AppiumFixture:
     def controls(self, screen):
         if screen == "Home":
             return {"title": "Home", "settings": "Settings", "about": "About"}
-        return {"title": screen, "home": "Home", "delete": "Delete account"}
+        return {"title": screen, "home": "Home", "checkout": "Checkout"}
 
     def xml(self, screen):
         nodes = []
@@ -188,7 +188,7 @@ def test_mobile_generated_pipeline_with_real_pytest_and_mock_appium_transport(tm
         results = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
         assert any(r["outcome"] == "passed" and r.get("checks", 0) > 0 for r in results)
         assert any(r["outcome"] == "blocked" for r in results)
-        assert "Delete account" not in fixture.clicked
+        assert "Checkout" not in fixture.clicked
         assert (tmp_path / "test_cases.xlsx").is_file()
         assert (tmp_path / "report.html").is_file()
         assert len(final["screens"]) >= 2

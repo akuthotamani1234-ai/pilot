@@ -29,9 +29,11 @@ def _virtual_clock(monkeypatch):
 # ------------------------------------------------------------------ 1. what is never pressed, in every mode
 
 NEVER = ["Checkout", "Proceed To Checkout", "Place order", "Place Order", "Confirm order", "Buy now", "Pay now",
-         "Purchase", "Payment", "Delete account", "Crash app", "Force close", "Share"]
+         "Purchase", "Payment", "Apple Pay", "Google Pay"]
+# Exhaustive explore: former never-press labels (delete/crash/share) may be exercised; only pay stays blocked.
 ALLOWED_IN_TEST_MODE = ["Remove", "Remove from cart", "Log out", "Sort by", "My orders", "Orders", "Subscribe",
-                        "Add to cart", "Update shopping cart", "Contact us", "Send message", "Email a friend"]
+                        "Add to cart", "Update shopping cart", "Contact us", "Send message", "Email a friend",
+                        "Delete account", "Crash app", "Force close", "Share", "Reset App State"]
 
 
 @pytest.mark.parametrize("words", NEVER)
@@ -51,19 +53,20 @@ def test_undoable_shop_actions_are_allowed_only_in_test_mode(words):
 
 def test_the_never_reason_is_specific():
     assert "checkout" in never_in_test_mode("Proceed To Checkout")
-    assert "account" in never_in_test_mode("Delete my account")
-    assert "crash" in never_in_test_mode("Crash app (debug)")
-    assert "password" in never_in_test_mode("Change password")
-    assert never_in_test_mode("Call us") and never_in_test_mode("Send SMS")
-    # A native app's camera / contacts are other apps; a website's "Contact us" is its own page
+    assert "checkout" in never_in_test_mode("Pay now") or "payment" in never_in_test_mode("Pay now")
+    assert never_in_test_mode("Delete my account") == ""
+    assert never_in_test_mode("Crash app (debug)") == ""
+    assert never_in_test_mode("Change password") == ""
+    assert never_in_test_mode("Call us") == "" and never_in_test_mode("Send SMS") == ""
+    # A native app's camera / contacts leave the app; a website's "Contact us" is its own page
     assert never_in_test_mode("Contact us", native=True) and not never_in_test_mode("Contact us", native=False)
 
 
-def test_crash_and_force_close_buttons_are_never_user_like_candidates():
+def test_checkout_stays_out_of_user_like_candidates_but_crash_may_be_tried():
     screen = {"elements": [{"id": f"e{i}", "visible": True, "enabled": True, "clickable": True, "text": text,
                             "locators": [{"strategy": "text", "value": text}]}
-                           for i, text in enumerate(["Crash app (debug)", "Force close", "Add To Cart"])]}
-    assert [e["text"] for e in android_interact.reversible_candidates(screen)] == ["Add To Cart"]
+                           for i, text in enumerate(["Crash app (debug)", "Checkout", "Add To Cart"])]}
+    assert [e["text"] for e in android_interact.reversible_candidates(screen)] == ["Crash app (debug)", "Add To Cart"]
 
 
 # ------------------------------------------------------------------ 2. flows made in test mode
@@ -77,9 +80,9 @@ REMOVE = [{"action": "tap", "locator": {"strategy": "css", "value": "button.remo
           {"action": "assert_visible", "locator": {"strategy": "css", "value": "div.empty"}}]
 
 
-def test_a_remove_tap_is_valid_only_in_a_test_mode_contract():
-    with pytest.raises(ValueError):
-        parse_contract(_flow(REMOVE))
+def test_a_remove_tap_is_allowed_and_checkout_stays_blocked():
+    # Pay-only never-press: cart Remove may be approved; checkout may not.
+    assert parse_contract(_flow(REMOVE))
     assert parse_contract(_flow(REMOVE, test_mode=True)).test_mode
     with pytest.raises(ValueError):  # test mode needs an approved test environment
         parse_contract({**_flow(REMOVE, test_mode=True), "test_environment": False})
@@ -106,9 +109,9 @@ def test_test_mode_flows_run_only_when_the_run_is_in_test_mode_again():
     assert validate_mobile_config({**config, "interaction_testing": True})["qa_contract"]["test_mode"]
 
 
-def test_the_limits_cover_a_demo_shop_and_stay_finite():
+def test_the_limits_default_to_exhaustive_and_stay_finite():
     config = validate_mobile_config({"app_mode": "web", "device_id": "emulator-5554", "start_url": BASE + "/"})
-    assert (config["max_interactions"], config["interaction_timeout_s"]) == (300, 2700)
+    assert (config["max_interactions"], config["interaction_timeout_s"]) == (0, 0)
     assert (config["bot_check_wait_s"], config["human_wait_s"]) == (30, 180)
     with pytest.raises(AndroidEnvironmentError):
         validate_mobile_config({**config, "max_interactions": 501})

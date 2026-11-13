@@ -171,8 +171,8 @@
           <label class="tick android-scope"><input type="checkbox" id="androidWholeApp" checked><span><b>Whole app</b><small>Explore reachable screens; check every unique discovered control.</small></span></label>
           <div id="androidFlowToolsSlot"></div>
         </div>
-        <p class="muted small android-scope-note">Whole-app mode checks visible text, control visibility and enabled state, and safe navigation within the limits below. Build a test flow for actions that change app data. This never proves every feature was tested.</p>
-        <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>Raise discovery and user-like budgets for this run (still within safety caps). Use for larger apps; still not whole-app certification.</small></span></label>
+        <p class="muted small android-scope-note">Whole-app mode explores until no new screens/controls remain (or you hit Stop). Checkout and payment stay blocked. Optional numbers below are soft caps; leave at 0 for until-exhausted.</p>
+        <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>When you set soft caps above 0, raise them for this run. With 0, exploration already continues until exhausted.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
         <div class="fields">
@@ -182,14 +182,14 @@
         <p class="muted small">Test-build mode uses these only when it discovers a login form. Flows can reference <code>secret:BLOWAI_SECRET_TEST_USERNAME</code> and <code>secret:BLOWAI_SECRET_TEST_PASSWORD</code>. Values are cleared after submission and excluded from reports and AI prompts.</p>
         <div class="fields">
           <label>Appium server URL<input id="androidAppiumUrl" type="url" value="http://127.0.0.1:4723" required></label>
-          <label>Maximum exploration depth<input id="androidDepth" type="number" min="0" max="10" value="5"></label>
-          <label>Exploration timeout (seconds)<input id="androidDiscoveryTimeout" type="number" min="10" max="900" value="600"></label>
-          <label>Maximum screens<input id="androidMaxScreens" type="number" min="1" max="100" value="40"></label>
-          <label>Maximum safe navigation actions<input id="androidMaxActions" type="number" min="0" max="200" value="60"></label>
-          <label>Maximum discovery scrolls<input id="androidMaxScrolls" type="number" min="0" max="100" value="30"></label>
+          <label>Maximum exploration depth (0 = until exhausted)<input id="androidDepth" type="number" min="0" max="10" value="0"></label>
+          <label>Exploration timeout seconds (0 = until exhausted)<input id="androidDiscoveryTimeout" type="number" min="0" max="900" value="0"></label>
+          <label>Maximum screens (0 = until exhausted)<input id="androidMaxScreens" type="number" min="0" max="100" value="0"></label>
+          <label>Maximum navigation actions (0 = until exhausted)<input id="androidMaxActions" type="number" min="0" max="200" value="0"></label>
+          <label>Maximum discovery scrolls (0 = until exhausted)<input id="androidMaxScrolls" type="number" min="0" max="100" value="0"></label>
           <label>Maximum test cases<input id="androidMaxCases" type="number" min="1" max="300" value="300"></label>
-          <label>Test mode: user-like tries<input id="androidMaxInteractions" type="number" min="0" max="500" value="300"></label>
-          <label>Test mode: time limit (seconds)<input id="androidInteractionTimeout" type="number" min="30" max="3600" value="2700"></label>
+          <label>Test mode: user-like tries (0 = until exhausted)<input id="androidMaxInteractions" type="number" min="0" max="500" value="0"></label>
+          <label>Test mode: time limit seconds (0 = until exhausted)<input id="androidInteractionTimeout" type="number" min="0" max="3600" value="0"></label>
           <label>Navigation expectations<textarea id="androidExpectations" rows="3" placeholder="One per line, for example: About = About"></textarea></label>
           <label>Expected displayed values<textarea id="androidExpectedValues" rows="2" placeholder="One per line, for example: Cart total = Total: $0.00"></textarea></label>
           <label class="wide">Requirements<textarea id="androidRequirements" rows="3" maxlength="12000" placeholder="Describe the behavior you expect. Unknown behavior stays marked for review."></textarea></label>
@@ -209,7 +209,7 @@
       </details>
       <label class="tick mobile-authorize">
         <input id="androidTestBuild" type="checkbox">
-        <span><b>This is a test build or a test / demo website I may test: test it like a real user.</b> Opens every menu and page, then uses every feature: forms with valid and wrong data, sign-up with test data (example.com), login with your test account or the one it registered, search, sort, the cart (add, quantity, remove), wishlist, contact and log out. Never pressed: checkout, payment, placing an order, paid plans, deleting an account, crash buttons, sharing, calls and SMS. Each test starts fresh (app data cleared, or for a website only that site's cookies and storage) and is replayed before it is kept. An app installed on a physical phone is not reset, so use an emulator or an APK.</span>
+        <span><b>This is a test build or a test / demo website I may test: test it like a real user.</b> Explores until no new screens/controls remain. Uses forms, sign-up, login, search, sort, cart, and other in-app actions. Never pressed: checkout, payment, placing an order, and paid plans. Each check starts fresh when possible (emulator/APK preferred). An app installed on a physical phone is not reset.</span>
       </label>
       <label class="tick mobile-authorize">
         <input id="androidAuthorized" type="checkbox" required>
