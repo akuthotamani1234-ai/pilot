@@ -2,6 +2,17 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-13 — Coverage gate honesty + Pay Grades vs payment
+
+- Route/feature gates no longer claim exhaustive reachability when exploration is partial
+  (`not_tried_limit`, pending URLs, crawl/time limits); prose keeps URLs / route patterns /
+  controls / interaction checks / features / workflows and PASS–INCONCLUSIVE denominators separate.
+- `metrics.consistent` failures lead summary reasons and the HTML report; provisional/untriaged
+  findings keep Insufficient Evidence instead of “zero bugs / none found”.
+- Admin config navigation named “Pay Grades” / “Pay Grade” (link/menuitem/tab) is not classified
+  as `pay`; real Pay now / Proceed to payment / checkout submits stay blocked, with reasons that
+  name `ALLOW_ACTIONS` / `TEST_PAYMENT`.
+
 ## 2026-11-13 — Findings finalize on interrupt / empty failures
 
 - `ensure_findings_from_results` builds a rule-based finding for every failed/inconclusive result

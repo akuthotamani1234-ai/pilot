@@ -130,36 +130,53 @@ def coverage_limitations(*, crawl: dict | None = None, limits: list[dict] | None
     crawl = crawl or {}
     limits = limits or []
     exploration = crawl.get("exploration") or {}
+    actions = crawl.get("actions") or {}
     pages = pages_coverage(crawl)
     feats = feature_status_counts(feature_counts)
     not_tested_features = (feats.get("NOT TESTED", 0) + feats.get("BLOCKED", 0) + feats.get("SKIPPED", 0)
                            + feats.get("INCONCLUSIVE", 0))
+    not_tried_limit = int(actions.get("not_tried_limit") or 0)
+    actions_limited = bool(not_tried_limit or exploration.get("actions_limited"))
     partial = bool(
         discovery_only or incomplete or limits or pages["not_visited"] > 0
+        or pages.get("limit_reached") or pages.get("time_limit_reached")
+        or actions_limited
         or exploration.get("status") == "partial"
         or not exploration.get("within_selected_scope", pages["not_visited"] == 0)
     )
+    denom_note = ("Denominators stay separate: visited URLs ≠ route patterns ≠ controls ≠ interaction checks ≠ "
+                  "registry features ≠ business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE "
+                  "and case vs single-test counts are never mixed into one accuracy %.")
     if discovery_only:
         statement = ("Discovery only: pages and components were observed, but functionality was not tested. "
                      "A separate test run is required for PASS/FAIL evidence.")
     elif incomplete:
-        statement = ("This run did not finish. What was not reached is not tested and is not counted as passed.")
-    elif pages["not_visited"] > 0 or limits:
+        statement = ("This run did not finish. What was not reached is not tested and is not counted as passed. "
+                     "Insufficient Evidence — do not treat missing results as zero bugs.")
+    elif partial:
         bits = []
         if pages["not_visited"] > 0:
-            bits.append(f"{pages['not_visited']} discovered page(s) were not visited")
+            bits.append(f"{pages['not_visited']} discovered URL(s) were not visited")
+        if pages.get("limit_reached"):
+            bits.append("page/crawl limit reached")
+        if pages.get("time_limit_reached"):
+            bits.append("crawl time limit reached")
+        if not_tried_limit:
+            bits.append(f"{not_tried_limit} control interaction(s) not tried (per-page limit)")
         if limits:
-            bits.append(f"{len(limits)} limit(s) shortened the run")
-        statement = ("Coverage is incomplete: " + "; ".join(bits)
-                     + ". This report does not claim the entire site or app was tested.")
-    elif exploration.get("status") == "partial":
-        statement = (exploration.get("statement")
-                     or "Exploration is partial; inspect unvisited routes and recorded limits.")
+            bits.append(f"{len(limits)} run limit(s) shortened execution")
+        statement = ("Coverage is incomplete / exploration is partial: "
+                     + ("; ".join(bits) if bits else "limits or pending work remain")
+                     + ". This report does not claim exhaustive reachability of the site or app.")
     else:
         statement = (exploration.get("statement")
-                     or "All discovered routes were processed within the selected scope and exploration budgets.")
+                     or "Discovered routes were processed within the selected scope and exploration budgets "
+                        "(not a claim that every control, feature or business workflow was tested).")
     limitation = (exploration.get("limitation")
-                  or "Route discovery is not proof that every component state or business workflow was tested.")
+                  or ("Route / URL discovery is not proof that every control, interaction check, "
+                      "registry feature or business workflow was tested. " + denom_note))
+    if denom_note not in limitation:
+        limitation = limitation.rstrip(".") + ". " + denom_note
     return {
         "partial": partial,
         "claims_complete_product_coverage": False,
@@ -167,10 +184,12 @@ def coverage_limitations(*, crawl: dict | None = None, limits: list[dict] | None
         "incomplete": bool(incomplete),
         "pages": pages,
         "features_not_pass": not_tested_features,
+        "actions_not_tried_limit": not_tried_limit,
         "limits_hit": [{"id": x.get("id"), "limit": x.get("limit")} for x in limits],
-        "exploration_status": exploration.get("status"),
+        "exploration_status": exploration.get("status") or ("partial" if partial else "routes_processed"),
         "statement": statement,
         "limitation": limitation,
+        "denominators": denom_note,
     }
 
 
