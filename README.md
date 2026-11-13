@@ -443,6 +443,10 @@ emulator automatically, then waits for both to be ready before uploading the APK
 panel shows the current preparation step and elapsed time. Selecting Android or refreshing device status only checks
 the environment. Missing SDK, Java, Appium or UiAutomator2 installations still need setup; a USB phone must be connected
 and authorized. An already running Appium server or emulator is reused.
+Form screens are kept distinct from pages sharing the same native scroll-view shell. In authorized test-build mode,
+Signup validation runs before registration, and empty checks clear password fields privately. See
+[Android form validation, Inspector and readiness](docs/32_ANDROID_FORM_VALIDATION_AND_READINESS.md) for current
+coverage limits and recommended improvements.
 See [Android setup, safety, AI generation and live demos](project-docs/12_ANDROID.md) and the
 [controlled Android fixture](tests/android_demo/README.md). Real device tests are opt-in.
 
