@@ -12,6 +12,8 @@
 (visual_check: optional, VISUAL_CHECK; integrations: Slack / Jira, only when set in .env)
 """
 import os
+import time
+from pathlib import Path
 
 from langgraph.graph import END, START, StateGraph
 
@@ -86,7 +88,14 @@ def _traced(name, agent):
         CURRENT["stage"] = name
         if events:
             print(f"::stage::{name}::start", flush=True)
-        out = agent(state)
+        from .scheduling import record_phase
+        started, status = time.monotonic(), "interrupted"
+        try:
+            out = agent(state)
+            status = "completed"
+        finally:
+            if state.get("run_dir"):
+                record_phase(Path(state["run_dir"]), name, started, status)
         if events:
             print(f"::stage::{name}::done", flush=True)
         return out

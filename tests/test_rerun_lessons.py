@@ -243,7 +243,7 @@ def test_a_form_workflow_that_finds_none_of_its_boxes_fails_instead_of_passing(s
     ns = {}
     exec(journeys_script([case]), ns)
     page = site({"/index.php?rt=checkout/cart": "<h1>Shopping Cart</h1><p>Your shopping cart is empty!</p>"})
-    with pytest.raises(AssertionError, match="None of the form's 2 boxes is on the page"):
+    with pytest.raises(AssertionError, match="Automation form container must resolve once; found 0"):
         ns["test_journey_9"](page, [])
     page = site({"/index.php?rt=checkout/cart": '<h1>Shopping Cart</h1><form id="cart"><input id="coupon_coupon">'
                                                 '<input id="estimate_postcode"></form>'})

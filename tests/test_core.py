@@ -179,7 +179,7 @@ def test_every_step_is_its_own_focused_test_case():
              "buttons": [], "forms": [{"index": 0, "selector": "#f", "submit": {"text": "Sign in", "selector": "#go"},
                                        "fields": [{"type": "email", "selector": "#user", "label": "Email"},
                                                   {"type": "password", "selector": "#pw", "label": "Password"}]}]}
-    assert login_form(login) == {"user": "#user", "password": "#pw", "submit": "#go"}
+    assert login_form(login) == {"user": "#user", "password": "#pw", "submit": "#go", "form": "#f", "openers": []}
     menu = {"text": "Account", "name": "Account", "selector": 'li.dropdown:has-text("Account")'}  # (a header menu)
     pages = [dict(GREENKART, auth=True, hovers=[menu]), dict(FLIGHTS, auth=True, hovers=[menu]), login]
     checks = builtin_checks(pages)

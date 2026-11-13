@@ -30,13 +30,14 @@ def open_path(page, path: list[dict], target: str | None = None) -> None:
         raise ValueError("Observed opener path exceeds eight steps")
     seen = set()
     for step in path:
-        if target and page.locator(target).first.is_visible():
+        if target and page.locator(target).count() == 1 and page.locator(target).is_visible():
             break
         selector = step["selector"]
         if selector in seen:
             raise ValueError("Observed opener path contains a cycle")
         seen.add(selector)
-        el = page.locator(selector).first
+        el = page.locator(selector)
+        expect(el, "The recorded opener must resolve uniquely").to_have_count(1)
         expect(el, "The recorded opener must be visible before using its child").to_be_visible()
         action = step.get("action") or "click"
         if action == "hover":
@@ -51,7 +52,8 @@ def open_path(page, path: list[dict], target: str | None = None) -> None:
             raise ValueError("Unsupported opener action: " + action)
         page.wait_for_timeout(300)
     if target:
-        expect(page.locator(target).first, "The recorded path must reveal the target").to_be_visible()
+        expect(page.locator(target), "The recorded path must reveal one target").to_have_count(1)
+        expect(page.locator(target), "The recorded path must reveal the target").to_be_visible()
 
 
 OPEN_PATH_HELPER = inspect.getsource(open_path)

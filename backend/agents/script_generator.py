@@ -16,6 +16,7 @@ from pprint import pformat
 from ..ai_grounding import grounding_problem
 from ..config import settings
 from ..excel import write_workbook
+from ..form_targets import FORM_TARGET_HELPER
 from ..llm import LLMError, ask_llm, extract_code, load_prompt
 from ..navigation import OPEN_PATH_HELPER, opener_path
 from ..observe import PICTURES_JS, REGION_JS
@@ -170,13 +171,10 @@ def _checkbox_test(cid: str, title: str, c: dict) -> list[str]:
         f'    """{title}"""',
         "    page.goto(URL)",
         "    _settle(page)",
-        f"    box = page.locator({c['selector']!r}).first",
+        f"    box = page.locator({c['selector']!r})",
         "    _pick(box)",
         "    expect(box, 'it should be ticked').to_be_checked()",
-        "    try:",
-        "        box.uncheck(timeout=5000)",
-        "    except Exception:",
-        "        box.uncheck(force=True)",
+        "    set_user_checked(box, False)",
         "    expect(box, 'it should be unticked').not_to_be_checked()",
         "",
     ]
@@ -462,19 +460,31 @@ def _shows(page, selector):
 
 def _sign_in(page, form, user, password):
     """Fill the login form and send it. False = the password box never appeared (the user name was refused)."""
-    page.locator(form["user"]).first.fill(user)
-    pw = page.locator(form["password"]).first
+    if form.get('openers'):
+        open_path(page, form['openers'], form.get('form') or form['user'])
+    scope = page.locator(form['form']) if form.get('form') else page
+    if form.get('form'):
+        expect(scope, 'The login container must be unique').to_have_count(1)
+    user_box = scope.locator(form["user"])
+    expect(user_box, 'The observed login user field must be unique').to_have_count(1)
+    expect(user_box, 'The login opener must reveal the user field').to_be_visible()
+    user_box.fill(user)
+    pw = scope.locator(form["password"])
     if form.get("two_step") or not _shows(page, form["password"]):
         if form.get("submit"):
-            page.locator(form["submit"]).first.click(timeout=5000)
+            submit = page.locator(form["submit"])
+            expect(submit, 'The recorded login submit must be unique').to_have_count(1)
+            submit.click(timeout=5000)
         else:
-            page.locator(form["user"]).first.press("Enter")
+            user_box.press("Enter")
         try:
             pw.wait_for(state="visible", timeout=8000)
         except Exception:
             return False
         pw.fill(password)
-        button = page.get_by_role("button", name=re.compile(r"\b(log ?in|sign ?in|submit|continue)\b", re.I)).first
+        button = scope.get_by_role("button", name=re.compile(r"\b(log ?in|sign ?in|submit|continue)\b", re.I))
+        if button.count() > 1:
+            raise AssertionError('Automation target ambiguous: login continuation button')
         if button.count() and button.is_visible():
             button.click(timeout=5000)
         else:
@@ -482,7 +492,9 @@ def _sign_in(page, form, user, password):
     else:
         pw.fill(password)
         if form.get("submit"):
-            page.locator(form["submit"]).first.click(timeout=5000)
+            submit = page.locator(form["submit"])
+            expect(submit, 'The recorded login submit must be unique').to_have_count(1)
+            submit.click(timeout=5000)
         else:
             pw.press("Enter")
     page.wait_for_timeout(1500)
@@ -656,6 +668,7 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
         f"BUTTONS = {pformat(buttons, width=110)}",
         f"FEATURES = {pformat(feat, width=110)}",
         OPEN_PATH_HELPER,
+        FORM_TARGET_HELPER,
         "",
         "",
         "def _settle(page):",
@@ -680,13 +693,7 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
         "",
         "",
         "def _pick(box):",
-        "    try:",
-        "        box.check(timeout=5000)",
-        "    except Exception:",
-        "        try:",
-        "            box.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-        "        except Exception:",
-        "            box.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top of it",
+        "    set_user_checked(box, True)",
         "",
         "",
         "def _search(page, words):",
@@ -977,7 +984,7 @@ def checks_script(checks: list[dict], modules: dict[str, str]) -> tuple[str, lis
     return "\n".join(out).rstrip() + "\n", missing
 
 
-JOURNEY_HELPERS = OPEN_PATH_HELPER + r'''
+JOURNEY_HELPERS = OPEN_PATH_HELPER + '\n' + FORM_TARGET_HELPER + r'''
 def _settle(page):
     try:
         page.wait_for_load_state("networkidle", timeout=5000)
@@ -1506,36 +1513,9 @@ def _journey_test(c: dict) -> list[str]:
             "    page.goto(J['url'])",
             "    _settle(page)",
             "    if J.get('openers'):",
-            "        open_path(page, J['openers'], J['fields'][0]['selector'])",
+            "        open_path(page, J['openers'], J.get('form'))",
             "    errors_before = len(console_errors)",
-            "    problems, filled = [], 0",
-            "    for f in J['fields']:",
-            "        el = page.locator(f['selector']).first",
-            "        if not el.is_visible():",
-            "            continue  # a box a person can't see (e.g. an anti-spam trap) is never filled",
-            "        filled += 1",
-            "        try:",
-            "            if f['kind'] == 'select':",
-            "                el.select_option(f['value'], timeout=5000)",
-            "            elif f['kind'] in ('radio', 'checkbox'):",
-            "                try:",
-            "                    el.check(timeout=3000)",
-            "                except Exception:",
-            "                    try:",
-            "                        el.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-            "                    except Exception:",
-            "                        el.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top",
-            "            else:",
-            "                el.fill(f['value'], timeout=5000)",
-            "                el.dispatch_event('blur')",
-            "        except Exception as e:",
-            "            problems.append(f\"could not fill '{f['name']}': {str(e).splitlines()[0][:150]}\")",
-            "            continue",
-            "        if not el.evaluate('e => e.checkValidity()'):",
-            "            problems.append(f\"'{f['name']}' rejects a normal value {f['shown']!r}: \"",
-            "                            + el.evaluate('e => e.validationMessage'))",
-            "    assert filled, f\"None of the form's {len(J['fields'])} boxes is on the page - nothing could be filled\"",
-            "    assert not problems, 'Filling the form like a user:\\n' + '\\n'.join(problems)",
+            "    fill_input_check(page, J)",
             "    # (the form is NOT sent - no account is created, no message is sent)",
             "    _no_new_errors(console_errors, errors_before, 'Filling the form')",
         ]
@@ -1937,22 +1917,19 @@ FEATURE_BODY = {
         "    else:  # tick the boxes one by one: the first can be the list already shown (e.g. the page's own category)",
         "        after = before",
         "        for sel in F.get('boxes') or [F['box']]:",
-        "            box = page.locator(sel).first",
-        "            try:",
-        "                box.check(timeout=5000)",
-        "            except Exception:",
-        "                box.evaluate('e => e.checked || e.click()')  # (a styled box drawn over the real one)",
+        "            box = page.locator(sel)",
+        "            set_user_checked(box, True)",
         "            page.wait_for_timeout(1000)",
         "            _settle(page)",
         "            after = _items(page, F['items'])",
         "            if after != before:",
         "                break",
-        "            box.evaluate('e => e.checked && e.click()')  # untick it again, then try the next one",
+        "            set_user_checked(box, False)",
         "            page.wait_for_timeout(800)",
         "            _settle(page)",
         "    assert after != before, f\"Using the filter '{F['name']}' did not change the list\"",
         "    if not F['href']:  # clearing the filter (untick) shows the full list again",
-        "        box.evaluate('e => e.checked && e.click()')",
+        "        set_user_checked(box, False)",
         "        page.wait_for_timeout(1000)",
         "        _settle(page)",
         "        assert sorted(_items(page, F['items'])) == sorted(before), (",
@@ -2096,7 +2073,7 @@ def features_script(cases: list[dict]) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
-LEARNED_HELPERS = OPEN_PATH_HELPER + r'''
+LEARNED_HELPERS = OPEN_PATH_HELPER + '\n' + FORM_TARGET_HELPER + r'''
 # (the page and its open shadow roots - a web component's boxes and text are what a person sees too)
 ROOTS_JS = """const roots = [document];
   for (let i = 0; i < roots.length && roots.length < 40; i++)
@@ -2143,19 +2120,8 @@ LOOK_JS = ("e => [String(e.className && e.className.baseVal !== undefined ? e.cl
 
 
 def _action_locator(page, selector, name=''):
-    el = page.locator(selector).first
-    try:
-        el.scroll_into_view_if_needed(timeout=3000)
-        return el
-    except Exception:
-        pass
-    if name:
-        for candidate in (page.get_by_label(name).first, page.get_by_text(name, exact=True).first):
-            try:
-                candidate.scroll_into_view_if_needed(timeout=3000)
-                return candidate
-            except Exception:
-                pass
+    el = page.locator(selector)
+    expect(el, 'Automation target must be unique in the observed state').to_have_count(1)
     return el
 
 
@@ -2163,17 +2129,9 @@ def _act(page, selector, action, value=None, name=''):
     el = _action_locator(page, selector, name)
     if action == 'select':
         el.select_option(value)
+        expect(el).to_have_value(value)
     elif action == 'tick':
-        try:
-            el.check(timeout=3000, force=True)
-        except Exception:
-            if name:
-                try:
-                    page.get_by_label(name).first.check(timeout=3000, force=True)
-                    return
-                except Exception:
-                    pass
-            el.evaluate('e => e.checked || e.click()')  # (a styled box drawn over the real one)
+        set_user_checked(el, True)
     else:
         el.click(timeout=5000)
 
@@ -2202,8 +2160,9 @@ def _check_learned(page, console_errors, L):
     if path:
         open_path(page, path, L['selector'])
     el = _action_locator(page, L['selector'], L.get('name') or '')
-    expect(el, f"'{L['name']}' should be visible").to_be_visible()
-    el.scroll_into_view_if_needed(timeout=5000)  # (what loads while scrolling to it is not its effect)
+    if L['action'] != 'tick':
+        expect(el, f"'{L['name']}' should be visible").to_be_visible()
+        el.scroll_into_view_if_needed(timeout=5000)
     page.wait_for_timeout(300)
     said, url0, text0, values0 = _messages(page), page.url, _all_text(page), _all_values(page)
     y0 = page.evaluate('() => window.scrollY')
@@ -2731,11 +2690,11 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
             rejected.append({"page": "site", "error": why})
             notes.append(f"The AI could not write working code for {len(lost)} of its {len(ai)} journeys; the other "
                          "test cases run.")
-            # (your own tests stay in the list - not automated, with the reason - the AI's own extra ones go)
+            # Unsupported proposals remain in the denominator with their rejection reason.
             gone = set(lost)
-            cases = [dict(c, kind="mine", ai=False, files=[], tests=[], skip_reason="Not automated: the AI could not "
-                          "write working code for it this time") if c.get("my_test") and c["id"] in gone else c
-                     for c in cases if not (c.get("ai") and c.get("id") in gone) or c.get("my_test")]
+            cases = [dict(c, ai=False, files=[], tests=[], unsupported=True,
+                          skip_reason="Unsupported AI proposal: " + why[:400]) if c.get("id") in gone else c
+                     for c in cases]
 
     # 1b) the feature tests (filter, sort, next page, wishlist, long search): test_features.py
     feats = [c for c in cases if c.get("kind") == "feature"]

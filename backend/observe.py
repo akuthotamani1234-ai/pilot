@@ -393,6 +393,7 @@ class Explorer:
             kind = "repeated" if (b.get("count") or 1) > 1 else (b.get("kind") or "")
             out.append({"name": (b.get("accname") or b.get("text") or "control").split("\n")[0].strip()[:60],
                         "text": b.get("text") or "", "selector": b["selector"], "action": "click", "kind": kind,
+                        "tag": b.get("tag"), "role": b.get("role"), "in_form": b.get("in_form"), "href": b.get("href"),
                         "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by")})
         for i in entry.get("inputs", []):
             s = i.get("selector")
@@ -419,7 +420,7 @@ class Explorer:
 
     def _eligible(self, t: dict) -> tuple[str, str]:
         """(risk, why not) - why not = '' when the action may be performed."""
-        risk = action_risk(t["text"] or t["name"], t["selector"])
+        risk = action_risk(t["text"] or t["name"], t["selector"], t)
         if t.get("disabled"):
             return risk, "disabled on the page"
         if settings.discovery_only and risk == "test_account":
@@ -451,17 +452,18 @@ class Explorer:
             autoscroll(page)
 
     def _act(self, page, t: dict) -> None:
-        loc = page.locator(t["selector"]).first
-        loc.scroll_into_view_if_needed(timeout=3000)
+        loc = page.locator(t["selector"])
+        if loc.count() != 1:
+            raise ValueError("Automation target must resolve uniquely before discovery interaction")
+        if t['action'] != 'tick':
+            loc.scroll_into_view_if_needed(timeout=3000)
         if t["action"] == "hover":
             loc.hover(timeout=4000)
         elif t["action"] == "select":
             loc.select_option(t["value"], timeout=4000)
         elif t["action"] == "tick":
-            try:
-                loc.check(timeout=3000)
-            except Exception:
-                loc.evaluate("e => e.checked || e.click()")
+            from .form_targets import set_user_checked
+            set_user_checked(loc, True)
         else:
             loc.click(timeout=4000)
 
@@ -746,7 +748,7 @@ class Explorer:
         Never: a login form, a form that pays or deletes, a search / filter form (its own tests)."""
         if settings.discovery_only:
             return []
-        from .actions import DELETE, PAY, writes_allowed
+        from .actions import DELETE, PAY
         from .forms import SEARCHY, is_login_form
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
@@ -766,7 +768,7 @@ class Explorer:
                 fills.append({"form": f["selector"], "not_sent": "Form inspection limit reached; not filled"})
                 continue
             forms_considered += 1
-            send = writes_allowed() and f.get("method") != "get" and bool((f.get("submit") or {}).get("selector"))
+            send = False  # discovery has no outcome oracle; authorized writes belong to planned, run-owned tests
             try:
                 rec = self._fill_one(page, url, entry, f, fields, send)
             except Exception as e:
@@ -779,23 +781,28 @@ class Explorer:
                 new_urls.append(rec["next_url"])
         return new_urls
 
-    def _fill_box(self, page, x: dict, box: dict, tag: str):
+    def _fill_box(self, page, x: dict, box: dict, tag: str, scope=None):
         """A valid value in one box, the way a person gives it - None when the box is left as it is (hidden, greyed
         out, already filled in: an existing record's form keeps its values, nothing is sent from it)."""
+        from .form_targets import check_user_control, unique_control
         from .testdata import valid_value
-        el = page.locator(x["selector"]).first
+        scope = page if scope is None else scope
+        metadata = dict(box, **x)
+        el = unique_control(scope, metadata)
         if not el.is_visible() or not el.is_enabled():
+            if metadata.get("required"):
+                raise ValueError("Required field is not reachable in the intended form")
             return None
         t, tag_name = (box.get("type") or x.get("type") or "").lower(), box.get("tag") or ""
         if t == "checkbox":
             if box.get("required") or x.get("required"):
-                el.check(timeout=3000)
+                check_user_control(scope, metadata, True)
                 return "ticked"
             return None
         if t == "radio":
             name = el.get_attribute("name") or ""
             if name and not page.locator(f'input[type=radio][name="{name}"]:checked').count():
-                el.check(timeout=3000)
+                check_user_control(scope, metadata, True)
                 return "chosen"
             return None
         if tag_name == "select" or t.startswith("select"):
@@ -807,7 +814,12 @@ class Explorer:
         if t in ("file", "image", "range", "color", "hidden") or el.input_value():
             return None
         value = valid_value(dict(box, **x), tag) or (f"QA test {tag}" if t in ("", "text", "textarea") else "")
+        if re.search(r"\bdate\b|\bbirth|\bdob\b", str(metadata.get("label") or ""), re.I) or t in ("date", "datetime-local", "time", "month"):
+            from .agents.test_design import _value_for
+            value = _value_for(metadata)
         if not value:
+            if metadata.get("required"):
+                raise ValueError("Required field has no grounded input value")
             return None
         el.fill(value, timeout=3000)
         el.evaluate("e => e.blur && e.blur()")
@@ -821,13 +833,14 @@ class Explorer:
         known = {i.get("selector"): i for i in entry.get("inputs", []) if i.get("selector")}
         self._fresh(page, url, bool(entry.get("lazy")))
         from .navigation import open_path, opener_path
-        open_path(page, opener_path(entry, f["selector"], f.get("revealed_by")), fields[0]["selector"])
-        form = page.locator(f["selector"]).first
+        open_path(page, opener_path(entry, f["selector"], f.get("revealed_by")), f["selector"])
+        from .form_targets import form_scope
+        form = form_scope(page, f["selector"])
         start = snapshot(page)
         boxes0 = form.evaluate(BOX_STATE_JS)
         filled = []
         for x in fields:
-            v = self._fill_box(page, x, known.get(x["selector"], {}), tag)
+            v = self._fill_box(page, x, known.get(x["selector"], {}), tag, form)
             if v is not None:
                 filled.append({"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
                                "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v})
@@ -847,7 +860,7 @@ class Explorer:
             entry.setdefault("inputs", []).append(i)
             f["fields"].append({k: i.get(k) for k in ("name", "id", "type", "selector", "required", "label",
                                                       "placeholder", "autocomplete")})
-            v = self._fill_box(page, i, i, tag)
+            v = self._fill_box(page, i, i, tag, form)
             if v is not None:
                 filled.append({"box": (i.get("label") or i.get("placeholder") or "box")[:60], "value": v})
         changes = _box_changes(boxes0, form.evaluate(BOX_STATE_JS))
@@ -857,7 +870,7 @@ class Explorer:
                "said": [a for a in ev["added"] if len(a) < 160][:6], "choices": self._other_choices(page, form),
                "sent": False}
         if not send:
-            rec["not_sent"] = "a test site: forms are filled and watched, never sent (staging sends them)"
+            rec["not_sent"] = "Discovery input check only; forms are never sent here. Authorized submissions require a planned outcome check."
             return rec
         if not any(tag in str(x["value"]) for x in filled):  # (an existing record's form - its boxes were filled in
             rec["not_sent"] = "nothing of this run's own was typed in (an existing record's form): not sent"

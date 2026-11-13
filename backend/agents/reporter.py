@@ -31,7 +31,7 @@ PRIORITY_WORDS = {"critical": "Must fix", "high": "Fix first", "medium": "Should
 
 SEV_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 # gave no answer about the website (a test mistake the AI saw on screen too: the test, not the website, was wrong)
-NOT_ANSWERED = ("test_defect", "locator", "infrastructure", "timeout", "inconclusive", "test_data", "test_mistake")
+NOT_ANSWERED = ("test_defect", "locator", "infrastructure", "timeout", "inconclusive", "test_data", "test_mistake", "untriaged")
 # (an "assertion_failure" - an exploratory expectation not met - is a finding to review, never a release blocker)
 
 
@@ -93,13 +93,15 @@ def _quality_gates(state: QAState) -> list[dict]:
     # route coverage
     if len(ok_pages) < 1:
         gates.append(_gate("routes", "Pages could be visited", "missing", "No page could be opened."))
-    elif crawl.get("limit_reached"):
-        gates.append(_gate("routes", "Every reachable page was visited", "risk",
-                           f"Stopped at the page limit of {crawl.get('limit')}: {crawl.get('not_visited_count', 0)} "
-                           "more pages were found but not visited.", mandatory=False))
+    elif crawl.get("limit_reached") or (crawl.get("exploration") or {}).get("status") == "partial":
+        gates.append(_gate("routes", "Discovered URL coverage", "risk",
+                           f"Partial exploration: {len(ok_pages)} URLs visited; "
+                           f"{crawl.get('not_visited_count', 0)} known URLs remain. "
+                           + (crawl.get("stopped") or "Exploration budgets or interaction limits were reached."), mandatory=False))
     else:
-        gates.append(_gate("routes", "Every reachable page was visited", "pass",
-                           f"{len(ok_pages)} page(s) visited within the limits.", mandatory=False))
+        gates.append(_gate("routes", "Discovered URL coverage", "pass",
+                           f"{len(ok_pages)} discovered URLs visited within the selected scope; "
+                           "this does not establish exhaustive state or workflow coverage.", mandatory=False))
 
     # execution evidence
     answered = [r for r in results if r["outcome"] in ("passed", "failed", "error", "inconclusive")]
@@ -112,7 +114,13 @@ def _quality_gates(state: QAState) -> list[dict]:
                        f"{len(results)} single test(s) ran ({by_group['functional']} functional, {by_group['links']} "
                        f"link checks, {by_group['page_checks']} page checks, {by_group['input_checks']} input value "
                        f"checks): {len(answered)} gave a result, {len(results) - len(answered)} skipped."))
-    no_answer = [f for f in failures if f["source"] == "test" and f["category"] in NOT_ANSWERED]
+    from ..finalization import finding_nodes
+    represented = set().union(*(finding_nodes(f) for f in failures)) if failures else set()
+    unreliable = set().union(*(finding_nodes(f) for f in failures
+                              if f.get("source") == "test" and f.get("category") in NOT_ANSWERED)) if failures else set()
+    unresolved = {r["nodeid"] for r in answered if r.get("outcome") in ("failed", "error", "inconclusive")
+                  and r["nodeid"] not in represented}
+    no_answer = unreliable | unresolved | {r["nodeid"] for r in answered if r.get("outcome") == "inconclusive"}
     share = len(no_answer) / max(1, len(answered))
     gates.append(_gate("automation", "Tests produced reliable answers",
                        "missing" if no_answer and share >= settings.gate_max_automation_errors else "risk" if no_answer else "pass",
@@ -128,13 +136,14 @@ def _quality_gates(state: QAState) -> list[dict]:
     blockers = [f for f in failures if f["category"] == "product_defect" and SEV_RANK.get(f["severity"], 9) <= limit
                 and f.get("confidence") != "low"]
     gates.append(_gate("blockers", f"No website bug of severity '{settings.gate_block_severity}' or higher",
-                       "fail" if blockers else "pass",
+                       "fail" if blockers else "missing" if unresolved or any(f.get("category") == "untriaged" for f in failures) else "pass",
                        f"{len(blockers)} blocking problem(s): " + "; ".join(sorted({f['explanation'][:80] for f in blockers}))[:400]
-                       if blockers else "None found."))
+                       if blockers else "Unresolved results require triage; absence of a confirmed defect is not proof of absence."
+                       if unresolved or any(f.get("category") == "untriaged" for f in failures) else "None confirmed in the available evidence."))
     # critical user journeys (log in, shopping, orders ...) must all pass
     from ..excel import case_result
     journeys = [(c, case_result(c, results)[0]) for c in state.get("test_cases", [])
-                if c.get("kind") == "journey" and c.get("priority") == "high"]
+                if c.get("kind") == "journey" and c.get("priority") == "high" and c.get("journey") != "form"]
     if journeys:  # (a journey that failed because of OUR script is "not proven", not a website failure)
         cat = {f.get("tc_id"): f["category"] for f in failures if f.get("tc_id")}
         bad = [c["title"] for c, s in journeys if s in ("Failed", "Flaky") and cat.get(c.get("tc_id")) == "product_defect"]
@@ -149,13 +158,16 @@ def _quality_gates(state: QAState) -> list[dict]:
     fc = state.get("feature_counts")  # (the registry, after the results: set by reporter_agent)
     if fc:
         F, P = fc["features"], fc["pages"]
-        gaps = F["unresolved"] + F["clicked_only"] + P.get("not_reached", 0)
+        from ..report_clarity import feature_status_counts
+        canonical = feature_status_counts(F)
+        gaps = canonical["NOT TESTED"] + P.get("not_reached", 0)
         gates.append(_gate(
             "feature_coverage", "Every feature found was tested (or says why not)", "risk" if gaps else "pass",
             ("Not complete - " if gaps else "")
             + f"{F['discovered']} feature(s) found: {F['verified']} verified, {F['failed']} failed, {F['blocked']} "
               f"blocked (protected), {F['needs_login']} need a test account, {F['inconclusive']} inconclusive, "
-              f"{F['clicked_only']} only clicked, {F['skipped']} skipped, {F['unresolved']} not tested; "
+              f"{F['clicked_only']} only clicked, {F['skipped']} skipped, {canonical['NOT TESTED']} NOT TESTED "
+              "(includes generated but unexecuted tests); "
               f"{P.get('not_reached', 0)} page(s) not reached (limits), {P.get('sampled_out', 0)} more page(s) of "
               "sampled address patterns.", mandatory=False))
     # (another website's blocked tracker / ad is listed, never a risk of THIS website's release)
@@ -719,6 +731,8 @@ def reporter_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_reporting import report
         return report(state)
+    from ..finalization import reconcile
+    state = reconcile(state)
     run_dir = Path(state["run_dir"])
     app_map, results = state.get("app_map", []), state.get("results", [])
     failures = sorted(state.get("failures", []), key=lambda f: SEV_ORDER.get(f["severity"], 9))
@@ -732,14 +746,18 @@ def reporter_agent(state: QAState) -> QAState:
         registry.record_outcomes(reg, cases, state.get("crawl"), results, strength)
         registry.save(reg, run_dir)
         state = dict(state, feature_counts=reg["counts"])
-    verdict, reasons, gates = decide_verdict(state)
     # ONE calculation of every number the report, the summary, the chat and Excel show - checked against each other
     from .. import metrics as metrics_mod
     m = metrics_mod.build(results, cases, reg, failures, state.get("crawl"), run_dir / "generated_tests")
+    verdict, reasons, gates = decide_verdict(state)
+    if not m["consistent"]:
+        detail = "Result consistency checks failed; review the recorded mismatches."
+        gates.append(_gate("consistency", "Result counts and evidence agree", "missing", detail))
+        verdict, reasons = "Insufficient Evidence", reasons + [detail]
     (run_dir / "metrics.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
     st = m["single_tests"]
     passed, skipped, unclear, failed = st["passed"], st["skipped"], st["inconclusive"], st["failed"]
-    fixes = build_fixes(state)
+    fixes = build_fixes(state, enrich=False)  # report finalization never waits on optional AI
     comparison = compare_with_previous(state, run_dir, cases)
     (run_dir / "comparison.json").write_text(json.dumps(comparison, indent=2), encoding="utf-8")
     (run_dir / "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
@@ -1039,9 +1057,11 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
                        for b in bugs)
 
     finding_rows = "".join(f"""
-      <tr><td><span class="pill {'bad' if f['severity'] in ('critical', 'high') else 'warn'}">{_e(f['severity'])}</span>
+      <tr id="{_e(f.get('finding_id') or '')}"><td><span class="pill {'bad' if f['severity'] in ('critical', 'high') else 'warn'}">{_e(f['severity'])}</span>
           <br><span class="muted">confidence {_e(f.get('confidence', '-'))}</span></td>
         <td><b>{_e(f.get('category_name') or f['category'].replace('_', ' '))}</b><br><span class="muted">{_e(f['source'])}: {_e(f['test'])}</span>
+          <br><span class="muted">{_e(f.get('triage_status') or 'analyzed')} · {_e(f.get('finding_id') or '')}</span>
+          <br><span class="muted">Cases: {_e(', '.join(f.get('case_ids') or []))}</span>
           {f'<br><span class="muted">AI suggests: {_e(f["ai_suggested_category"])}</span>' if f.get('ai_suggested_category') else ''}</td>
         <td class="url">{_e(f['page_url'])}</td><td>{_e(f['explanation'])}<pre>{_e(f['error'])}</pre>
           {' '.join(f'<a href="{_e(x)}" target="_blank">{"trace" if str(x).endswith(".zip") else "screenshot"}</a>' for x in (f.get('screenshot'), f.get('trace')) if x)}</td></tr>""" for f in failures)
@@ -1149,7 +1169,7 @@ td pre {{ white-space:pre-wrap; font-size:11.5px; color:var(--muted); margin:4px
   .fix {{ grid-template-columns:34px 1fr }} .fshot {{ grid-column:2; width:100% }} .hero h1 {{ font-size:28px }} }}
 </style></head><body><main>
 
-<div class="brand"><span><b>Blow AI</b> · Website test report</span>
+<div class="brand"><span><b>Qpilot</b> · Website test report</span>
   <span>{datetime.now():%d %B %Y, %H:%M}</span></div>
 
 <section class="hero">
@@ -1233,7 +1253,7 @@ This report never claims the entire site was tested.</p>
   {sum(1 for h in heals if h['status'] in ('reverted', 'still failing', 'could not heal'))} not repaired (every repair was run again before it was kept)</summary>
   {_table(["Result", "Script", "Repair"], heal_rows, "No test scripts needed repairing.")}</details>
 <details><summary>AI cost of this run</summary>{cost_html}</details>
-<details><summary>Bug reports - suspected website bugs ({len(bugs)})</summary>{bug_html or '<p class="muted">No suspected website bugs.</p>'}</details>
+<details><summary>Bug reports - suspected website bugs ({len(bugs)})</summary>{bug_html or '<p class="muted">No confirmed bug report in the available evidence. Review provisional and untriaged results separately.</p>'}</details>
 <details><summary>All findings ({len(failures)})</summary>{_table(["Severity", "Type", "Page", "What went wrong"], finding_rows, "No findings.")}</details>
 <details><summary>All test results ({len(results)})</summary>{_table(["", "Script", "Test", "Result", "Checks", "Time", "Evidence"], result_rows, "No tests ran.")}</details>
 <details><summary>Agent log</summary><ol>{log_items}</ol></details>
@@ -1294,4 +1314,5 @@ function copyCode(b) {{
                                       "headline", "consistency", "consistent", "result_status_counts",
                                       "feature_status_counts")}}, indent=2), encoding="utf-8")
     log = state.get("log", []) + [f"Report: verdict = {verdict}."]
-    return {"verdict": verdict, "report_path": str(report), "log": log}
+    return {"verdict": verdict, "report_path": str(report), "log": log,
+            "results": results, "failures": failures, "test_cases": cases}

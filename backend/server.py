@@ -22,10 +22,10 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urljoin, urlparse
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -66,7 +66,7 @@ class RunFiles(StaticFiles):
         return await super().get_response(path, scope)
 
 
-app = FastAPI(title="Blow AI")
+app = FastAPI(title="Qpilot")
 app.mount("/runs", RunFiles(directory=RUNS), name="runs")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -119,14 +119,14 @@ async def local_only(request: Request, call_next):
     if mcp_request:
         control = request.url.path in {"/api/mcp/info", "/api/mcp/heartbeat"}
         if request.url.path.startswith("/api/settings/"):
-            return JSONResponse({"detail": "Change privacy settings in the Blow AI UI."}, status_code=403)
+            return JSONResponse({"detail": "Change privacy settings in the Qpilot UI."}, status_code=403)
         if not control and not load_policy().allow_mcp:
             return JSONResponse({"detail": "MCP data access is disabled. Approve your assistant in Privacy settings."},
                                 status_code=403)
     host = request.headers.get("host", "")
     host = host[:host.index("]") + 1] if host.startswith("[") and "]" in host else host.split(":")[0]
     if host.lower() not in UI_HOSTS:
-        return JSONResponse({"detail": "The Blow AI UI only answers on 127.0.0.1 / localhost."}, status_code=400)
+        return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
     # (a webhook proves itself with its own token instead - /api/hooks/run)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.headers.get("x-agentic-qa") != "1" \
             and request.url.path != "/api/hooks/run":
@@ -169,6 +169,8 @@ class RunRequest(BaseModel):
     source: str                      # website URL, GitHub link or local folder
     max_pages: int = 0               # 0 = full same-site crawl, bounded by HARD_PAGE_CAP
     show_browser: bool = False
+    execution_mode: Literal["watch", "fast"] | None = None
+    action_delay_ms: int = Field(default=1000, ge=0, le=3000)
     fresh: bool = False
     llm_provider: str | None = None  # ollama | gemini | openai | anthropic | none   (None = use .env)
     llm_model: str | None = None
@@ -579,6 +581,8 @@ def providers():
 def _validate(req: RunRequest, source: str) -> None:
     """Setup checks with a plain-English message for each problem (HTTP 400)."""
     from backend.agents.setup_agent import is_github, is_local_project
+    if req.execution_mode:
+        req.show_browser = req.execution_mode == "watch"
     if not req.authorized:
         raise HTTPException(400, "Please confirm that you own this website or have written permission to test it.")
     if req.environment not in ("test", "staging", "production"):
@@ -742,10 +746,12 @@ def start_run(req: RunRequest):
                          "EXCLUDE_PATHS": req.exclude_paths, "QA_REQUIREMENTS": req.requirements}.items():
             if (val or "").strip():
                 env[key] = val.strip()
-        if not req.show_browser:
-            env["HEADLESS"] = "true"
-        elif not env.get("SLOW_MO_MS") or env["SLOW_MO_MS"] == "0":
-            env["SLOW_MO_MS"] = "800"  # watching in Chrome: readable click/type captions by default
+        if req.execution_mode:
+            req.show_browser = req.execution_mode == "watch"
+            env["SLOW_MO_MS"] = str(req.action_delay_ms if req.show_browser else 0)
+        env["HEADLESS"] = "false" if req.show_browser else "true"
+        if req.show_browser and not req.execution_mode and (not env.get("SLOW_MO_MS") or env["SLOW_MO_MS"] == "0"):
+            env["SLOW_MO_MS"] = "1000"
         llm = None
         if req.llm_provider:
             prov = req.llm_provider.lower()
@@ -808,15 +814,17 @@ class AndroidPrepareRequest(BaseModel):
     avd_name: str = ""
     appium_url: str = "http://127.0.0.1:4723"
     authorized: bool = False
+    stage: Literal["all", "appium", "device"] = "all"
 
 
 @app.post("/api/android/prepare")
 async def prepare_android_device(request: AndroidPrepareRequest):
-    """Boot the selected installed emulator before uploading/running a test."""
+    """Start local Appium and boot the selected emulator before uploading/running a test."""
     from starlette.concurrency import run_in_threadpool
 
     from backend.android import AndroidEnvironmentError, android_environment
     from backend.android_emulator import ensure_device_ready, startup_choices
+    from backend.android_service import ensure_appium_ready
 
     if not request.authorized:
         raise HTTPException(400, "Confirm that you have permission to test this application.")
@@ -826,8 +834,12 @@ async def prepare_android_device(request: AndroidPrepareRequest):
     try:
         environment = await run_in_threadpool(android_environment, request.appium_url)
         choices = await run_in_threadpool(startup_choices, environment)
-        if not environment["ok"] and not choices["can_start_emulator"]:
+        if not environment["ok"] and not choices["can_prepare"]:
             raise AndroidEnvironmentError("Android tools are not ready: " + "; ".join(environment["errors"]))
+        appium = ({"url": request.appium_url, "started": False} if environment.get("appium", {}).get("available")
+                  else await run_in_threadpool(ensure_appium_ready, request.appium_url))
+        if request.stage == "appium":
+            return {"appium": appium}
         return await run_in_threadpool(ensure_device_ready, request.device_id, request.avd_name)
     except AndroidEnvironmentError as error:
         raise HTTPException(409, str(error)) from error
@@ -1065,6 +1077,18 @@ class ReviewAnswers(BaseModel):
     answers: dict = {}  # tc_id -> {"answer": "correct" | "should be" | "skip" | "allowed" | "not allowed", "text": ".."}
     leave_out: list[str] = []   # test cases you unticked (this run only)
     add_tests: list[str] = []   # your own tests in plain English (kept for the website)
+
+
+@app.get("/api/runs/{job_id}/events")
+def run_events(job_id: int, after: str = "", limit: int = Query(default=150, ge=1, le=500)):
+    from backend.execution_events import read_events
+    job = _job_or_404(job_id)
+    if not job.get("run"):
+        return {"events": [], "cursor": after}
+    try:
+        return read_events(_run_dir(job["run"]), after, limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get("/api/runs/{job_id}/review")
@@ -1324,6 +1348,8 @@ def delete_run(run: str, x_agentic_qa: str | None = Header(default=None)):
 class RepoFixRequest(BaseModel):
     repo_url: str | None = None   # GitHub repo of the website (default: the repo that was tested)
     token: str | None = None      # GitHub token for this action only (default: GITHUB_TOKEN in .env), never saved
+    selected_findings: list[str] = Field(default_factory=list, max_length=5)
+    proposal_id: str = ""
 
 
 def _repo_token(req: RepoFixRequest) -> str:
@@ -1334,19 +1360,25 @@ def _repo_token(req: RepoFixRequest) -> str:
 def repo_fix_info(run: str):
     """What the 'Apply fixes to my code' card needs: is there a token in .env, which repo was tested."""
     from backend.agents.setup_agent import is_github
+    from backend.config import settings
     d = _run_dir(run)
     summary = _read_json(d / "summary.json", {}) or {}
     fixes = _read_json(d / "fixes.json", [])
     src = summary.get("source") or ""
+    from backend.repo_jobs import status
+    from backend.repo_proposals import candidates
     return {"has_token": bool(os.environ.get("GITHUB_TOKEN")), "repo_url": src if is_github(src) else "",
             "fixes_with_code": sum(1 for x in fixes if (x.get("code") or {}).get("after")),
-            "plan": _read_json(d / "repo_fix_plan.json", None) and True}
+            "plan": _read_json(d / "repo_fix_plan.json", None) and True,
+            "candidates": [{k: v for k, v in item.items() if k != "finding"} for item in candidates(d)],
+            "preparation": status(d), "provider": settings.llm_provider}
 
 
 @app.post("/api/runs/{run}/repo-fix/prepare")
 def repo_fix_prepare(run: str, req: RepoFixRequest, x_agentic_qa: str | None = Header(default=None)):
     """Step 1: download the repo and preview the changes (nothing is sent to GitHub)."""
-    from backend.repo_fix import RepoFixError, prepare
+    from backend.repo_fix import RepoFixError
+    from backend.repo_jobs import start
     if x_agentic_qa != "1":
         raise HTTPException(403, "forbidden")
     d = _run_dir(run)
@@ -1354,8 +1386,8 @@ def repo_fix_prepare(run: str, req: RepoFixRequest, x_agentic_qa: str | None = H
     if not repo:
         raise HTTPException(400, "Enter the GitHub repository of this website.")
     try:
-        return prepare(d, repo, _repo_token(req))
-    except RepoFixError as e:
+        return start(d, repo, _repo_token(req), req.selected_findings)
+    except (RepoFixError, ValueError) as e:
         raise HTTPException(400, str(e)) from e
 
 
@@ -1367,7 +1399,9 @@ def repo_fix_create(run: str, req: RepoFixRequest, x_agentic_qa: str | None = He
         raise HTTPException(403, "forbidden")
     d = _run_dir(run)
     try:
-        result = create_pr(d, _repo_token(req), run, _read_json(d / "summary.json", None))
+        if not req.proposal_id or not (d / ".private" / "repo_fix_plan.json").exists():
+            raise RepoFixError("Prepare and review a proposal before creating a pull request.")
+        result = create_pr(d, _repo_token(req), run, _read_json(d / "summary.json", None), req.proposal_id)
         _audit("create_pull_request", run=run, pr=result.get("pr_url"))
         return result
     except RepoFixError as e:
@@ -1647,7 +1681,7 @@ def qa_contract_schema():
 CONTRACT_EXAMPLES = {
     'wdio-basic': ('WebdriverIO v2.2 — 10 functional checks', 'webdriverio-expanded-checks.json'),
     'wdio-complete': ('WebdriverIO v2.2 — 33 configured flows', 'webdriverio-complete-checks.json'),
-    'controlled-simulations': ('Blow AI fixture — protected flows and safe previews', 'controlled-sandbox-checks.json'),
+    'controlled-simulations': ('Qpilot fixture — protected flows and safe previews', 'controlled-sandbox-checks.json'),
     'sauce-cart': ('Sauce Labs demo — add product and verify cart', 'sauce-cart-checks.json'),
     'chrome-dropdown': ('Android Chrome — dropdown selection checks', 'chrome-dropdown-checks.json'),
     'ecommerce-web': ('E-commerce web — search and cart (Automation Exercise template)', 'ecommerce-web-contract.json'),
@@ -1759,7 +1793,7 @@ if __name__ == "__main__":
             port = next((p for p in range(port + 1, port + 20) if not _port_in_use(p)), port + 20)
             print(f"Port {old} is used by another program (or an old UI window - you can close it). Using port {port}.")
     url = f"http://127.0.0.1:{port}"
-    print(f"\n  Blow AI UI running at {url}   (close this window to stop it)\n")
+    print(f"\n  Qpilot UI running at {url}   (close this window to stop it)\n")
     if _schedules():
         print(f"  {len(_schedules())} scheduled test(s): they run while this window is open\n")
     threading.Thread(target=_scheduler, daemon=True).start()  # (scheduled tests: checked every 30 s)

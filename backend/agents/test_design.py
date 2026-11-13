@@ -979,11 +979,26 @@ def _value_for(i: dict) -> str | None:
     hint = f"{i.get('label')} {i.get('name')} {i.get('placeholder')} {i.get('id')}".lower()
     if i.get("readonly") or i.get("disabled") or t in ("file", "range", "hidden", "submit", "button", "image", "color"):
         return None
+    if field_kind(i) == "date" or re.search(r"\bdate\b|\bbirth|\bdob\b", hint) or t in ("date", "datetime-local", "time", "month"):
+        from datetime import date, timedelta
+        value = date(1995, 6, 15) if re.search(r"birth|dob|born", hint) else date.today() + timedelta(days=7)
+        if t == "time":
+            return "10:30"
+        if t == "datetime-local":
+            return value.isoformat() + "T10:30"
+        if t == "month":
+            return value.strftime("%Y-%m")
+        if t == "date":
+            return value.isoformat()
+        placeholder = (i.get("placeholder") or "").lower()
+        formats = {"yyyy-mm-dd": "%Y-%m-%d", "yyyy-dd-mm": "%Y-%d-%m", "dd/mm/yyyy": "%d/%m/%Y",
+                   "mm/dd/yyyy": "%m/%d/%Y", "dd-mm-yyyy": "%d-%m-%Y", "mm-dd-yyyy": "%m-%d-%Y"}
+        return value.strftime(formats[placeholder]) if placeholder in formats else None
     if t == "email" or re.search(r"e-?mail", hint):
         return "qa.tester@example.com"
     if t == "password":
         return "Passw0rd!2024"
-    if t == "tel" or re.search(r"phone|mobile|contact no|your number|\bnumber\b", hint):
+    if t == "tel" or field_kind(i) == "phone":
         return "9876543210"
     if t == "number":  # (inside the box's own limits: 'Passengers' 1-9 gets 9, not 30)
         lo, hi = _number(i.get("min")), _number(i.get("max"))
@@ -1007,13 +1022,15 @@ HONEYPOT = re.compile(r"leave (this )?(field |box )?(blank|empty)|do not (fill|e
 
 def _form_fields(p: dict, f: dict | None) -> list[dict]:
     """Every box / choice of a form, with the value a person would enter (the form is never sent)."""
-    by_sel = {i.get("selector"): i for i in p.get("inputs", []) if i.get("selector")}
+    from collections import Counter
+    counts = Counter(i.get("selector") for i in p.get("inputs", []))
+    by_sel = {i.get("selector"): i for i in p.get("inputs", []) if counts[i.get("selector")] == 1}
     fields = f["fields"] if f else p.get("inputs", [])
     out, radio_groups = [], set()
     for x in fields:
-        i = by_sel.get(x.get("selector")) or x
+        i = dict(by_sel.get(x.get("selector")) or {}, **x)
         sel, t = i.get("selector"), (i.get("type") or "").lower()
-        if not sel or i.get("disabled") or i.get("readonly") or HONEYPOT.search(
+        if not sel or t == "hidden" or i.get("global") or i.get("region") in ("navigation", "sidebar", "search") or HONEYPOT.search(
                 f"{i.get('label')} {i.get('name')} {i.get('id')} {i.get('placeholder')}"):
             continue
         if i.get("tag") == "select" or t.startswith("select"):
@@ -1021,6 +1038,8 @@ def _form_fields(p: dict, f: dict | None) -> list[dict]:
             if opts:
                 out.append({"selector": sel, "kind": "select", "value": opts[0]["value"], "name": _box_name(i),
                             "shown": opts[0].get("text") or opts[0]["value"]})
+            elif i.get("required"):
+                out.append({"selector": sel, "kind": "unsupported", "name": _box_name(i), "shown": "no observed options"})
         elif t == "radio":
             group = i.get("name") or sel
             if group not in radio_groups:
@@ -1037,6 +1056,11 @@ def _form_fields(p: dict, f: dict | None) -> list[dict]:
             v = _value_for(i)
             if v is not None:
                 out.append({"selector": sel, "kind": "type", "value": v, "name": _box_name(i), "shown": v})
+            elif i.get("required"):
+                out.append({"selector": sel, "kind": "unsupported", "name": _box_name(i), "shown": "unsupported"})
+        if out and out[-1].get("selector") == sel:
+            out[-1].update(required=bool(i.get("required")), label=i.get("label") or "",
+                           local_selector=i.get("local_selector"))
     return out
 
 
@@ -1176,7 +1200,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             continue  # (its forms are only there while the cart holds an item: see CART_STATE)
         lf = login_form(p)
         forms = [f for f in p.get("forms", []) if not (lf and (f.get("submit") or {}).get("selector") == lf["submit"])]
-        candidates = [(f, _form_fields(p, f)) for f in forms] or ([(None, _form_fields(p, None))] if not lf else [])
+        candidates = [(f, _form_fields(p, f)) for f in forms]
         for f, fields in candidates:
             key = tuple(sorted(x["name"] for x in fields))
             if len(fields) < 3 or key in seen_forms or len(out) >= limit:
@@ -1184,7 +1208,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             seen_forms.add(key)
             name = ((f or {}).get("submit") or {}).get("text") or _short(p)
             out.append(_journey(
-                len(out) + 1, "form", f"Fill the whole '{name.strip()[:30]}' form like a user ({len(fields)} boxes) - not sent",
+                len(out) + 1, "form", f"Input check: '{name.strip()[:30]}' ({len(fields)} fields; not submitted)",
                 [f"Open {_page_name(p)}"] + [f"'{x['name']}': " + (f"type '{x['shown']}'" if x["kind"] == "type" else
                                                                    f"choose '{x['shown']}'" if x["kind"] == "select" else x["shown"])
                                              for x in fields] + ["Do NOT send the form"],
@@ -1862,6 +1886,8 @@ def learned_cases(pages: list[dict]) -> list[dict]:
             covered |= {lf.get("submit")}
         by_sel ={b.get("selector"): b for b in p.get("buttons", []) + p.get("inputs", [])}
         for b in p.get("behaviour", []):
+            if re.search(r"\bloaded\s*:|\b\d+(?:\.\d+)?\s*%|video player is loading|remaining time", b.get("control") or "", re.I):
+                continue  # progress/timer text is not a stable action or a business oracle
             key = (b.get("control"), b.get("selector"))
             if b.get("effect") in ("error", None) or b.get("selector") in covered or key in done \
                     or b.get("risk") == "protected" or len(out) >= 80:
@@ -1909,7 +1935,7 @@ def learned_cases(pages: list[dict]) -> list[dict]:
                          "openers": opener_path(p, b["selector"], opener), "guest": not p.get("auth"),
                          # what it showed while exploring ('Total users: 23') - not a clock / a date, which change
                          "added": [a for a in (b.get("added") or []) if a and len(a) < 120
-                                   and not re.search(r"\d{1,2}:\d{2}|\b(19|20)\d\d\b", a)][:3]
+                                   and not re.search(r"\d{1,2}:\d{2}|\b(19|20)\d\d\b|\bloaded\s*:|\d+(?:\.\d+)?\s*%|video player is loading", a, re.I)][:3]
                          if eff in ("text", "list") else []},
                 "files": ["test_learned.py"], "tests": [f"test_learned_{n}"]})
     return out

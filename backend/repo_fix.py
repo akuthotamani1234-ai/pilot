@@ -26,12 +26,13 @@ from pathlib import Path
 import requests
 
 from .codefix import del_attr, set_attr
-from .config import settings
 
 GH = "https://api.github.com"
 SOURCE_EXT = {".html", ".htm", ".jsx", ".tsx", ".js", ".ts", ".vue", ".svelte", ".php", ".erb", ".hbs", ".ejs",
-              ".njk", ".liquid", ".cshtml", ".twig", ".astro", ".jinja", ".j2"}
-SKIP_DIRS = {"node_modules", ".git", ".next", ".nuxt", "vendor", ".venv", "venv", "__pycache__", "coverage", ".cache"}
+              ".njk", ".liquid", ".cshtml", ".twig", ".astro", ".jinja", ".j2", ".css", ".scss",
+              ".py", ".java", ".cs", ".go", ".rb", ".json", ".mjs", ".cjs"}
+SKIP_DIRS = {"node_modules", ".git", ".next", ".nuxt", "vendor", ".venv", "venv", "__pycache__", "coverage", ".cache",
+             ".private", ".aws", ".ssh", "accounts"}
 BUILD_DIRS = {"dist", "build", "out", ".output"}
 MAX_FILE = 1_000_000
 ATTR_RE = re.compile(r"""\s([^\s=/>"']+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s>]+))?""")
@@ -98,23 +99,20 @@ def parse_repo(url: str) -> tuple[str, str]:
 
 
 def _local_copy(repo_url: str, token: str, run_dir: Path) -> Path:
-    """Download the repo (git clone, or a zip if git is not installed) into workspace/."""
-    from .agents import setup_agent
-    old = settings.github_token
-    settings.github_token = token or old
+    """Download a pinned isolated snapshot; never change shared token settings or an existing checkout."""
+    from .repo_source import snapshot
     try:
-        return setup_agent._clone(repo_url, run_dir / "repo_fix.log")
+        return snapshot(repo_url, token, run_dir)
     except Exception as e:
         raise RepoFixError(f"Could not download the repository: {str(e)[:200]}") from e
-    finally:
-        settings.github_token = old
 
 
 def _source_files(root: Path) -> list[Path]:
     files = []
     for p in root.rglob("*"):
         rel = p.relative_to(root).parts
-        if p.is_file() and p.suffix.lower() in SOURCE_EXT and not SKIP_DIRS.intersection(rel) \
+        if p.is_file() and not p.is_symlink() and p.resolve().is_relative_to(root.resolve()) \
+                and p.suffix.lower() in SOURCE_EXT and not SKIP_DIRS.intersection(rel) \
                 and p.stat().st_size <= MAX_FILE:
             files.append(p)
     # real source files first, built copies (dist/, build/) last
@@ -149,12 +147,8 @@ def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
                 if b.strip() == a.strip():
                     continue
                 ops = _ops(b, a)
-                where = None
-                for p in files:
-                    hits = _find_tags(texts[p], b)
-                    if len(hits) == 1:
-                        where = (p, hits[0])
-                        break
+                matches = [(p, hit) for p in files for hit in _find_tags(texts[p], b)]
+                where = matches[0] if len(matches) == 1 else None
                 snippet = b.strip()[:80]
                 if not where:
                     unmatched.append(snippet)
@@ -240,7 +234,10 @@ def _gh(method: str, path: str, token: str, **kw) -> dict:
     return r.json() if r.content else {}
 
 
-def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = None) -> dict:
+def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = None, proposal_id: str = "") -> dict:
+    if (run_dir / ".private" / "repo_fix_plan.json").exists():
+        from .repo_publication import publish
+        return publish(run_dir, token, proposal_id)
     plan_file = run_dir / "repo_fix_plan.json"
     if not plan_file.exists():
         raise RepoFixError("Press 'Prepare changes' first.")

@@ -595,7 +595,7 @@ def render_mobile_report(summary, cases, results, failures, screens, healing):
     bot = summary.get("bot_check") or {}
     if bot.get("blocked"):
         bot_section = ('<section class="scope stop"><b>Stopped at the website\'s bot check</b><p>'
-                       + esc(bot.get("message")) + "</p><p>Blow AI never solves, hides from or tricks a bot check. "
+                       + esc(bot.get("message")) + "</p><p>Qpilot never solves, hides from or tricks a bot check. "
                        "No test was made from the check page.</p></section>")
     elif bot.get("events"):
         bot_section = ('<section class="scope"><b>The website showed a bot check</b><p>'
@@ -684,7 +684,7 @@ def render_mobile_report(summary, cases, results, failures, screens, healing):
                           + '</p><p>Passing checks do not mean the whole app was tested.</p></section>'
                           if summary.get("incomplete") else '')
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Blow AI ? Android evidence report</title><style>
+<title>Qpilot ? Android evidence report</title><style>
 *{{box-sizing:border-box}}body{{margin:0;background:#f5f7fb;color:#18223a;font:15px/1.6 system-ui,sans-serif}}
 main{{max-width:1200px;margin:auto;padding:32px}}header{{padding:28px;border-radius:20px;background:#121d39;color:white}}
 header p{{color:#d7def0}}h1{{font-size:30px;margin:4px 0}}h2{{margin-top:28px}}.brand{{letter-spacing:3px;font-size:12px;color:#b7b5ff}}

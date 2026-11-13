@@ -19,6 +19,7 @@ GRACE_S = 60
 _stop = threading.Event()
 _why = {"kind": "", "reason": ""}
 _timers: list[threading.Timer] = []
+_watchers: list[threading.Event] = []
 
 
 def request_stop(kind: str, reason: str) -> None:
@@ -64,15 +65,21 @@ def start_watchers(run_dir: Path, limit_min: float) -> None:
     """The run time limit (a timer) and the STOP file of the web UI (a thread that looks for it every second)."""
     _keep_awake(True)
     if limit_min and limit_min > 0:
-        t = threading.Timer(limit_min * 60, request_stop,
-                            args=("run_time_limit", f"the run hit its time limit of {limit_min:g} min (RUN_TIME_LIMIT_MIN)"))
+        from .config import settings
+        from .scheduling import work_seconds
+        work = work_seconds(limit_min, settings.finalization_reserve_s)
+        t = threading.Timer(work, request_stop,
+                            args=("run_time_limit", f"the execution budget ended within the {limit_min:g} min overall limit (RUN_TIME_LIMIT_MIN); "
+                                  f"{limit_min * 60 - work:g}s reserved for finalization"))
         t.daemon = True
         t.start()
         _timers.append(t)
     stop_file = Path(run_dir) / "STOP"
+    done = threading.Event()
+    _watchers.append(done)
 
     def watch():
-        while not _stop.wait(1):
+        while not done.wait(1) and not _stop.is_set():
             if stop_file.exists():
                 request_stop("user_stop", "you stopped the test")
                 return
@@ -84,6 +91,9 @@ def finished() -> None:
     for t in _timers:
         t.cancel()
     _timers.clear()
+    for watcher in _watchers:
+        watcher.set()
+    _watchers.clear()
     _keep_awake(False)
 
 

@@ -116,7 +116,7 @@ class BrowserContractAdapter:
         return element.is_visible()
 
 
-def run_contracts(run_dir, url, contract_value, headless=True):
+def run_contracts(run_dir, url, contract_value, headless=True, completed=None):
     from playwright.sync_api import sync_playwright
 
     contract = parse_contract(contract_value)
@@ -143,6 +143,8 @@ def run_contracts(run_dir, url, contract_value, headless=True):
         browser = playwright.chromium.launch(headless=headless)
         try:
             for case in cases:
+                if "qa_contracts.json::test_" + case["id"] in (completed or set()):
+                    continue
                 started = time.monotonic()
                 record = {
                     "id": case["id"],
@@ -210,7 +212,14 @@ def execute_pipeline_contracts(state):
         return {"test_cases": [], "results": []}
     # This is maintained framework code; arbitrary generated Python is never executed here.
     try:
-        return run_contracts(state["run_dir"], state["url"], value)
+        if state.get("resuming"):
+            contract = parse_contract(value)
+            pending = [flow for flow in contract.flows if "qa_contracts.json::test_contract_" + flow.id
+                       not in state.get("resume_completed", [])]
+            if any(not flow.authentication and any(s.action == "tap" and s.purpose == "test_form" for s in flow.steps)
+                   for flow in pending):
+                raise ValueError("Interrupted submissions need reconciliation before resume; write contracts were not replayed.")
+        return run_contracts(state["run_dir"], state["url"], value, completed=set(state.get("resume_completed") or []))
     except Exception as error:
         from .android_design import normalize_case
 

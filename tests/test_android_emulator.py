@@ -167,15 +167,15 @@ def browser():
     yield from shared_browser.__wrapped__()
 
 
-@pytest.mark.parametrize("boot_fails", [False, True])
+@pytest.mark.parametrize("failure_stage", ["", "appium", "device"])
 @pytest.mark.parametrize("previously_connected", [False, True])
-def test_start_button_prepares_android_before_submitting_the_test(browser, boot_fails, previously_connected):
+def test_start_button_prepares_android_before_submitting_the_test(browser, failure_stage, previously_connected):
     context, page, errors, calls = studio(browser)
-    environment = {"ok": False, "devices": [], "can_start_emulator": True,
+    environment = {"ok": False, "devices": [], "can_prepare": True, "appium": {"available": False},
                    "emulators": [{"name": "demo", "device_id": "avd:demo"}],
-                   "errors": ["No Android device is connected."]}
+                   "errors": ["Appium server is not running.", "No Android device is connected."]}
     if previously_connected:
-        environment.update(ok=True, devices=[{"device_id": "emulator-5554", "avd_name": "demo", "status": "device"}])
+        environment.update(devices=[{"device_id": "emulator-5554", "avd_name": "demo", "status": "device"}])
     page.route("**/api/android/environment?*", lambda route: route.fulfill(json=environment))
     prepared, submitted = [], []
 
@@ -191,6 +191,8 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, boot_
     try:
         page.locator("#mobileModeBtn").click()
         expect(page.locator("#androidStart")).to_be_enabled()
+        assert not prepared and not submitted
+        expect(page.locator("#androidEnvNote")).to_contain_text("launch local Appium")
         expect(page.locator("#androidDevice")).to_have_value("emulator-5554" if previously_connected else "avd:demo")
         page.locator("#androidMode").select_option("installed")
         page.locator("#androidPackage").fill("com.example.demo")
@@ -199,18 +201,28 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, boot_
         page.locator("#androidAuthorized").check()
         page.locator("#androidStart").click()
         expect(page.locator("#androidStart")).to_be_disabled()
-        expect(page.locator("#androidRunNote")).to_contain_text("Waiting for Android to boot")
+        expect(page.locator("#androidRunNote")).to_contain_text("Starting local Appium")
         assert not submitted and len(prepared) == 1
         payload = prepared[0].request.post_data_json
-        assert set(payload) == {"device_id", "avd_name", "appium_url", "authorized"}
+        assert set(payload) == {"device_id", "avd_name", "appium_url", "authorized", "stage"}
+        assert payload["stage"] == "appium"
         assert "fixture-private-key" not in prepared[0].request.post_data
         assert payload["avd_name"] == "demo"
-        if boot_fails:
-            prepared[0].fulfill(status=409, json={"detail": "Android did not finish booting"})
+        if failure_stage == "appium":
+            prepared[0].fulfill(status=409, json={"detail": "Appium could not start"})
+            expect(page.locator("#androidRunNote")).to_have_text("Appium could not start")
+            assert not submitted and len(prepared) == 1
+        else:
+            prepared[0].fulfill(json={"appium": {"started": True, "url": "http://127.0.0.1:4723"}})
+            expect(page.locator("#androidRunNote")).to_contain_text("Waiting for Android to boot")
+            assert not submitted and len(prepared) == 2
+            assert prepared[1].request.post_data_json["stage"] == "device"
+        if failure_stage == "device":
+            prepared[1].fulfill(status=409, json={"detail": "Android did not finish booting"})
             expect(page.locator("#androidRunNote")).to_have_text("Android did not finish booting")
             assert not submitted
-        else:
-            prepared[0].fulfill(json={"device_id": "emulator-5554", "avd_name": "demo", "started": True})
+        elif not failure_stage:
+            prepared[1].fulfill(json={"device_id": "emulator-5554", "avd_name": "demo", "started": True})
             expect(page.locator("#androidRunNote")).to_contain_text("Verification stopped")
             assert len(submitted) == 1 and "emulator-5554" in submitted[0]
             assert "avd:demo" not in submitted[0]

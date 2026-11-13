@@ -53,15 +53,31 @@ SAFE_TEXT = re.compile(r"^\s*(search|find|go|filter|apply filters?|sort|log ?in|
 # a button without words whose ICON says search ('fa fa-search', 'bi-search', a magnifier) only searches - its code name
 # (automationexercise.com: id="submit_search") must not make it a 'submit' that is never pressed
 SEARCH_ICON = re.compile(r"\bsearch\b|magnif", re.I)
+REFERENCE_NAV = re.compile(r"^\s*(?:pay|payment|salary|compensation|billing)\s+"
+                           r"(?:grades?|bands?|types?|methods?|settings|configuration|history|reports?|categories|policies)\s*$", re.I)
+
+
+def reference_navigation(text: str, context: dict | None = None) -> bool:
+    """A reference/configuration destination, identified by purpose and native navigation context."""
+    context = context or {}
+    href = context.get("href") or ""
+    if not REFERENCE_NAV.fullmatch(text or "") or context.get("tag") != "a" or context.get("in_form"):
+        return False
+    if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
+                 r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href, re.I):
+        return False
+    return context.get("role") == "menuitem" or bool(href and href != "#")
 
 
 def _kind_of(s: str) -> str:
     return next((name for name, rx in CLASSES if rx.search(s or "")), "")
 
 
-def action_class(text: str | None, selector: str | None = "") -> str:
+def action_class(text: str | None, selector: str | None = "", context: dict | None = None) -> str:
     """'safe' | 'test_account' | 'write' | 'delete' | 'pay' | 'logout' | 'password' - what the control would do."""
     t = f"{text or ''} {selector or ''}"
+    if reference_navigation(text or "", context):
+        return "safe"
     if TEST_ACCOUNT.search(t) and not PAY.search(t):
         return "test_account"
     by_text = _kind_of(text or "")
@@ -90,9 +106,9 @@ def allowed(kind: str) -> bool:
     return kind in settings.allow_actions
 
 
-def action_risk(text: str | None, selector: str | None = "") -> str:
+def action_risk(text: str | None, selector: str | None = "", context: dict | None = None) -> str:
     """'safe' | 'test_account' | 'write' (allowed here: only the tests made for it do it) | 'protected' (never)."""
-    kind = action_class(text, selector)
+    kind = action_class(text, selector, context)
     if kind in ("safe", "test_account"):
         return kind
     return "write" if allowed(kind) else "protected"

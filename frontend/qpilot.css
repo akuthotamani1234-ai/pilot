@@ -1,0 +1,111 @@
+/* Qpilot workspace: readable execution, clear evidence, deliberate code review. */
+:root {
+  color-scheme:light; --bg:#f4f7fb; --panel:#fff; --side:#101b30; --fg:#172b46;
+  --muted:#52657e; --line:#dce5ef; --soft:#f0f5fb; --accent:#1765d1;
+  --accent-2:#397fe3; --accent-soft:#eaf2ff; --green:#157052; --red:#ba3547;
+  --radius:14px; --shadow:0 4px 24px -14px #1b395340;
+}
+body {font-size:15px; line-height:1.6; background:var(--bg)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible {
+  outline:3px solid #4c9aff; outline-offset:3px;
+}
+.app {grid-template-columns:236px minmax(0,1fr) 292px}
+.side {background:linear-gradient(165deg,#111e35,#10192b);padding:28px 18px 18px}
+.logo>b {letter-spacing:-1px; font-size:29px; color:#fff}
+.brand-glyph {transform:none;gap:3px; border-radius:7px;overflow:hidden}
+.brand-glyph i {background:#3d8df5}.brand-glyph i:nth-child(2) {background:#99caff}
+.brand-glyph i:nth-child(3) {background:#1e63bc}.brand-glyph i:nth-child(4) {background:#61acf5}
+.new-btn {background:#246bd2;border-color:#3e84e8;font-size:14px;padding:12px}
+.new-btn:hover {background:#347ce5;border-color:#79b1ff}
+.studio-nav {font-size:14px;padding:12px 10px;color:#bccbe0}
+.studio-nav.current {background:#1d3659;color:#fff}
+.studio-nav.current svg {color:#76b4ff}.nav-indicator {background:#66b3ff}
+.side-title {font-size:10px;color:#91a6c3;letter-spacing:1.5px}
+.recent .r-url {font-size:12px;color:#d8e5f8}.recent .r-meta {font-size:11px;color:#98adc8}
+.side-footer b {font-size:12px}.side-footer small {font-size:11px}
+.chat-top {min-height:72px;background:#ffffffd9;padding:18px 28px;border-color:var(--line)}
+.chat-title {font-size:15px}.breadcrumb-label {font-size:13px;color:#5e718a}
+.workspace-location {font-size:12px;color:#465d79;border-color:#d7e3f1}
+.workspace-steps {display:flex;order:0;flex:none;gap:4px;padding:10px 26px;border-bottom:1px solid var(--line);background:#fff}
+.workspace-steps button {display:flex;align-items:center;gap:7px;background:transparent;border:0;border-radius:7px;
+  padding:8px 12px;color:#5a6f89;font-size:13px;cursor:pointer;white-space:nowrap}
+.workspace-steps button span {font-size:10px;font-weight:700;color:#7085a2}
+.workspace-steps button[aria-current=step] {background:var(--accent-soft);color:#1258bd;font-weight:650}
+.workspace-steps button:disabled {opacity:.5;cursor:default}
+.workspace-hero {padding:34px 30px 25px}
+.workspace-hero h1 {color:#162c4a;letter-spacing:-1.4px;line-height:1.2;font-size:clamp(30px,2.8vw,42px)}
+.workspace-hero h1>span {color:#4d709c}.workspace-hero>p {font-size:15px;color:#526983}
+.eyebrow,.section-label {font-size:11px;color:#326aaf;letter-spacing:1.4px;font-weight:700}
+.mode-card {padding:19px 17px;border-radius:13px}.mode-card.selected {border-color:#5d97e5;background:#f6faff;box-shadow:0 0 0 2px #1765d10b}
+.mode-card:hover {border-color:#80aee9}.mode-icon.web {background:#e9f2ff;color:#1765d1}
+.mode-copy>b {font-size:15px}.mode-copy>b>small {font-size:10px}.mode-copy>span {font-size:12px;color:#5d718b}
+.mode-card.selected .mode-radio {border-color:#1765d1;background:#1765d1;box-shadow:inset 0 0 0 3px #fff}
+.workflow-option.selected {background:#f6faff;border-color:#6f9fdf}.workflow-option-icon {background:#eaf2ff;color:#2868bb}
+.workflow-option b {font-size:14px}.workflow-option small {font-size:12px;color:#526983}
+.fields label,.tick {font-size:14px}.fields input,.fields select,.fields textarea,.wide textarea {font-size:14px;border-color:#cbd9e9;min-height:42px;border-radius:8px}
+.primary {font-size:14px;background:var(--accent);border-color:var(--accent);padding:10px 16px;border-radius:8px}
+.primary:hover {background:#1258bc}.secondary {font-size:13px;padding:8px 12px;border-radius:8px}
+.composer button {background:var(--accent);border-color:var(--accent)}
+.workflow-option.selected>i {border-color:var(--accent);background:var(--accent);box-shadow:inset 0 0 0 3px #fff}
+.note {font-size:13px;color:#465f7e;line-height:1.7;background:#eff5fd;border-color:#d9e8fb}
+.card {border-color:#dce6f1;box-shadow:var(--shadow)}
+.workflow-cards h3 {font-size:15px}.workflow-cards p {font-size:13px;color:#526983}
+.step-label {font-size:10px;color:#4874aa}.welcome-note {font-size:12px;color:#566e8d}
+.todo-head {border-color:var(--line)}.todo-list li {font-size:13px;color:#4f6581}
+.todo-list li.on {background:#eaf2ff;color:#155bb9}.todo-head>span:last-child {font-size:12px}
+.live-workspace {padding:20px 24px 15px;background:#fff;border:1px solid var(--line);border-radius:14px;min-width:0;margin-bottom:18px}
+.live-heading {display:flex;align-items:center;justify-content:space-between;gap:12px}
+.live-heading h2 {font-size:21px;letter-spacing:-.4px;margin:3px 0;color:#18385b}
+.status-chip {background:#eaf3ff;border:1px solid #c7defa;color:#205da7;padding:5px 10px;border-radius:20px;font-size:12px;text-transform:capitalize}
+#liveCurrent {font-size:15px;font-weight:600;margin:10px 0 4px;overflow-wrap:anywhere}
+.live-explanation {font-size:12px;color:#5e7390;margin:2px 0 10px}
+.live-toolbar {display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#5c708b}
+.live-toolbar button {padding:4px 9px;min-height:32px}
+.live-timeline {list-style:none;margin:10px 0 0;padding:0;overflow:auto;max-height:230px;scrollbar-width:thin;overscroll-behavior:contain}
+.live-timeline li {display:flex;gap:12px;padding:10px 8px;border-top:1px solid #e9eff6;font-size:13px;overflow-wrap:anywhere}
+.live-timeline li>div {min-width:0}.live-timeline b {font-weight:550}.live-timeline small {display:block;color:#617793;font-size:11px;margin-top:2px}
+.event-state {display:inline-block;min-width:76px;align-self:flex-start;padding:2px 6px;background:#eff4fa;border-radius:5px;font-size:11px;text-align:center}
+.event-running .event-state {color:#155dbf;background:#e9f2ff}.event-completed .event-state,.event-passed .event-state {color:#176347;background:#e8f6ee}
+.event-failed .event-state,.event-error .event-state {color:#ad273b;background:#ffedf0}
+.event-inconclusive .event-state,.event-skipped .event-state {color:#82520c;background:#fff4df}
+.live-timeline details {color:#526a88;font-size:11px}.live-timeline code {white-space:pre-wrap;overflow-wrap:anywhere}
+body[data-setup-state=results] .live-timeline {max-height:130px}
+.repository-workspace {border:1px solid #d4e2f2;background:#fff;border-radius:16px;padding:24px;box-shadow:var(--shadow);scroll-margin-top:16px}
+.repo-heading h2 {font-size:26px;margin:5px 0;letter-spacing:-.6px}.repo-heading p {font-size:14px;color:#536d8c}
+.finding-choices {border:1px solid #d9e4f1;border-radius:10px;margin:18px 0 8px;padding:10px 14px;min-width:0}
+.finding-choices legend {font-size:13px;font-weight:650;padding:0 5px}
+.finding-choice {display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #edf1f7;font-size:13px}
+.finding-choice:last-child {border:0}.finding-choice input {margin-top:5px;accent-color:#1765d1}
+.finding-choice span {min-width:0;overflow-wrap:anywhere}.finding-choice small {display:block;color:#526983;margin-top:4px}
+.finding-choice:has(input:disabled) {color:#65788e}
+.proposal-summary {border-top:1px solid var(--line);margin-top:22px;padding-top:8px}
+.file-diff {border:1px solid #cfdeee;border-radius:9px;margin:12px 0;overflow:hidden}
+.file-diff summary {background:#eff5fc;padding:9px 12px;font:12px var(--mono);cursor:pointer}
+.file-diff pre {margin:0;overflow:auto;background:#11243c;color:#e4efff;padding:16px;font-size:12px;max-height:420px;tab-size:2}
+.validation-list {list-style:none;padding:0;font-size:13px}.validation-list li {padding:8px 10px;border-left:3px solid #8195ae;margin:6px 0;background:#f5f8fc}
+.validation-list span {display:block;color:#526983}.validation-passed {border-color:#22835c!important}.validation-failed {border-color:#c33b50!important}
+.review-ack {display:flex;gap:9px;align-items:flex-start;font-size:13px;margin:18px 0}.review-ack input {margin-top:5px;accent-color:#1765d1}
+body[data-test-mode=android][data-setup-state=configure] .mode-card {padding:9px 12px}
+body[data-test-mode=android][data-setup-state=configure] .mode-copy>span,
+body[data-test-mode=android][data-setup-state=configure] .workflow-option small {display:none}
+body[data-test-mode=android][data-setup-state=configure] .mode-icon {height:32px;width:32px}
+body[data-test-mode=android][data-setup-state=configure] .workflow-option {padding:7px 10px}
+body[data-test-mode=android][data-setup-state=configure] .workspace-steps {padding-top:4px;padding-bottom:4px}
+@media(max-width:1200px) {
+  .app{grid-template-columns:0 minmax(0,1fr) 284px}.workspace-steps{padding:9px 18px}
+  .app>.side:not(.open){visibility:hidden;pointer-events:none}
+}
+@media(max-width:1000px) {
+  .app{grid-template-columns:0 minmax(0,1fr)}.live-workspace{padding:18px 22px}
+  .app>.todo:not(.open){visibility:hidden;pointer-events:none}
+}
+@media(max-width:640px) {
+  body{font-size:14px}.chat-top{padding:12px 14px}.workspace-steps{padding:7px 9px;gap:0;justify-content:space-between}
+  .workspace-steps button{font-size:11px;padding:7px;gap:4px}.workspace-steps button span{font-size:9px}
+  .workspace-hero{padding:23px 18px 20px}.workspace-hero h1{font-size:31px}.workspace-hero>p{font-size:13px}
+  .mode-copy>b{font-size:13px}.mode-copy>span{font-size:11px;white-space:normal}.mode-copy>b>small{font-size:9px}
+  .live-workspace{padding:14px}.live-heading h2{font-size:18px}.status-chip{font-size:10px}
+  .live-timeline{max-height:180px}.live-timeline li{font-size:12px;padding:8px 0;gap:7px}.event-state{min-width:65px;font-size:10px}
+  .live-explanation{font-size:11px}.repository-workspace{padding:16px}.repo-heading h2{font-size:23px}
+}
+@media(prefers-reduced-motion:reduce) {*{transition:none!important;scroll-behavior:auto!important}}

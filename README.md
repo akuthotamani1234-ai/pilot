@@ -106,6 +106,17 @@ All settings are in **`.env`**. Each line of `.env.example` explains its setting
 The web UI also lets you pick the AI for each run. A key pasted there is used for that run only and never saved.
 
 Other settings you may want:
+- Qpilot's UI defaults to **Watch**: one visible Chrome window and a 1,000 ms delay per user action. Uncheck Watch
+  for **Fast** execution with isolated headless workers. The live timeline retains actions missed between refreshes.
+- `FINALIZATION_RESERVE_S` (default 120) reserves time inside `RUN_TIME_LIMIT_MIN` for deterministic findings and reports.
+- `DISCOVERY_BUDGET_FRACTION` (default 0.4) caps discovery's share of the overall budget; `CRAWL_TIME_LIMIT_MIN` remains
+  an additional cap. Discovery-only runs retain their selected discovery budget.
+- After execution, **AI fixes** reads your selected GitHub repository at a pinned commit. Select supported findings,
+  prepare changes, review the diff and validation limitations, then create a pull request. Repository repair uses the
+  configured AI provider and privacy policy; temporary API keys from a finished QA worker are not retained.
+  Syntax checks are automatic for supported file types; project regression commands require your CI or local review.
+- Discovery performs input checks without submitting write forms. Planned authorized fixture/staging workflows retain
+  their existing write guards. Interrupted write workflows require record reconciliation before replay.
 - `LLM_BUDGET_USD` (default 2): the most a run may spend on the AI. After that it uses the built-in rules.
 - `TEST_WORKERS` (default 4): how many browsers run tests at the same time.
 - `MAX_PAGES`, `MAX_DEPTH`, `HARD_PAGE_CAP`, `CRAWL_TIME_LIMIT_MIN`, `RUN_TIME_LIMIT_MIN`: how much of the website is
@@ -427,6 +438,11 @@ Local-only (never commit): `.env`, `.venv/`, `runs/`, `logs/`, `accounts/`, `art
 ## Native Android testing
 
 Appium + UiAutomator2 testing is available alongside the existing Playwright website workflow.
+In Standard testing, **Start Android test** starts the installed local Appium server and boots the selected installed
+emulator automatically, then waits for both to be ready before uploading the APK or creating a test run. The setup
+panel shows the current preparation step and elapsed time. Selecting Android or refreshing device status only checks
+the environment. Missing SDK, Java, Appium or UiAutomator2 installations still need setup; a USB phone must be connected
+and authorized. An already running Appium server or emulator is reused.
 See [Android setup, safety, AI generation and live demos](project-docs/12_ANDROID.md) and the
 [controlled Android fixture](tests/android_demo/README.md). Real device tests are opt-in.
 
