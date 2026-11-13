@@ -61,8 +61,31 @@ def baseline_path(site_key: str) -> Path:
     return settings.baseline_dir / site_key
 
 
-def saved_tests(site_key: str) -> dict | None:
-    """The test scripts + test cases saved by the last run of this site (for a regression run), or None."""
+def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
+    """The test scripts + test cases for a regression run, or None.
+
+    Prefers a specific prior run's generated_tests/ + test_cases.json when `from_run` is set
+    (Studio "Run the same tests again"). Falls back to baseline/<site>/tests.
+    """
+    from ..config import settings as _settings
+    if from_run:
+        run_dir = Path(_settings.runs_dir) / from_run
+        tests_dir = run_dir / "generated_tests"
+        cases_path = run_dir / "test_cases.json"
+        files = sorted(tests_dir.glob("test_*.py")) if tests_dir.is_dir() else []
+        # Include helper modules the suite needs (not conftest — regenerated fresh).
+        helpers = sorted(p for p in tests_dir.glob("*.py")
+                         if p.name not in ("conftest.py",) and not p.name.startswith("test_")) if tests_dir.is_dir() else []
+        if files and cases_path.exists():
+            meta = {"date": from_run, "origin": "", "source_run": from_run}
+            summary = run_dir / "summary.json"
+            if summary.exists():
+                try:
+                    meta["origin"] = (json.loads(summary.read_text(encoding="utf-8")).get("url")
+                                      or json.loads(summary.read_text(encoding="utf-8")).get("source") or "")
+                except Exception:
+                    pass
+            return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
     b = baseline_path(site_key)
     files = sorted((b / "tests").glob("*.py")) if (b / "tests").is_dir() else []
     if not files or not (b / "test_cases.json").exists():

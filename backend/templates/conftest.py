@@ -696,13 +696,14 @@ if not HEADLESS and not getattr(Locator, "_qa_captions", False):
 # it added itself) - code the AI wrote can't: in its files the guard is strict.
 AI_FILES = {"test_flows_ai.py"}
 PROTECTED_RX = re.compile(os.environ.get("QA_PROTECTED_RX") or
-                          r"delete|remove|\btrash|log ?out|sign ?out|\bpay\b|payment|\bbuy\b|purchase|check ?out|"
-                          r"place (your )?order", re.I)
+                          r"delete|remove|\btrash|log ?out|sign ?out|\bpay\b(?![\s_-]*grades?\b)|payment|\bbuy\b|"
+                          r"purchase|check ?out|place (your )?order", re.I)
 TEST_ACCOUNT_RX = re.compile(os.environ.get("QA_TEST_ACCOUNT_RX") or r"add to (cart|basket|bag|trolley)|wish ?list", re.I)
 SAFE_TEXT_RX = re.compile(os.environ.get("QA_SAFE_TEXT_RX") or r"^\s*(search|log ?in|sign ?in)\s*$", re.I)
 UNSAFE_LINK_RX = re.compile(os.environ.get("QA_UNSAFE_LINK_RX") or
                             r"logout|log-out|signout|sign-out|delete|remove|unsubscribe|deactivate|cancel-account", re.I)
-MONEY_RX = re.compile(r"check ?out|\bbuy\b|place (your )?order|\bpay\b", re.I)
+# Same pay-grade exclusion as backend/actions.py - admin "Pay Grades" nav is not a payment submit.
+MONEY_RX = re.compile(r"check ?out|\bbuy\b|place (your )?order|\bpay\b(?![\s_-]*grades?\b)", re.I)
 # words that only SEND something when a button / form does it - a link with them only opens a page ('View post')
 WRITE_RX = re.compile(os.environ.get("QA_WRITE_RX") or
                       r"\bsend\b|\bpost\b|publish|\bshare\b|\binvite\b|\bsave\b|submit|\bupdate\b|\bsubscribe\b", re.I)
@@ -753,7 +754,8 @@ def _refuse_protected(loc) -> None:
     if names and _risky(names):
         label = next((n for n in names if n), "control").splitlines()[0][:60]
         pytest.skip(f"Blocked: '{label}' is a protected action (it could pay, order, delete, send or log out) - "
-                    "never clicked without explicit approval")
+                    "never clicked without ALLOW_ACTIONS naming the class "
+                    "(and TEST_PAYMENT=1 for pay, staging only)")
 
 
 def _acts(key_arg, args, kwargs) -> bool:

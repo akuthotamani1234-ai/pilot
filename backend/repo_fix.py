@@ -263,7 +263,7 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
         if "\r\n" in remote:  # keep the file's own line-ending style
             content = content.replace("\n", "\r\n")
         _gh("PUT", f"/repos/{repo}/contents/{f['path']}", token, json={
-            "message": f"Blow AI: fix {', '.join(f['fixes'])[:60]}", "branch": branch, "sha": current["sha"],
+            "message": f"Qpilot: fix {', '.join(f['fixes'])[:60]}", "branch": branch, "sha": current["sha"],
             "content": base64.b64encode(content.encode("utf-8")).decode("ascii")})
         sent.append(f["path"])
     if not sent:
@@ -271,7 +271,7 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
 
     full = [a for a in plan["applied"] if not a.get("partial")]
     partial = [a for a in plan["applied"] if a.get("partial")]
-    lines = ["Automated fixes from a **Blow AI** website test.", ""]
+    lines = ["Automated fixes from a **Qpilot** website test.", ""]
     if summary:
         lines += [f"Test result: **{summary.get('verdict', '')}** - {summary.get('passed', 0)} passed, "
                   f"{summary.get('failed', 0)} failed.", ""]
@@ -287,7 +287,7 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
     if stale:
         lines += ["", "### Skipped (changed on GitHub meanwhile)"] + [f"- `{p}`" for p in stale]
     lines += ["", "Please review every change before merging. Re-run the test after merging to confirm the fixes."]
-    title = f"Blow AI: {len(full)} website fix(es)"
+    title = f"Qpilot: {len(full)} website fix(es)"
     if partial:
         title += f", {len(partial)} partial"
     pr = _gh("POST", f"/repos/{repo}/pulls", token, json={

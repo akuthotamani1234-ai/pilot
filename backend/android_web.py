@@ -346,7 +346,7 @@ class BotCheckGate:
         if self.human_s:
             print("::human::" + json.dumps({"what": "bot_check", "kind": kind, "wait_s": self.human_s}), flush=True)
             print(f"[android] Please complete the security check yourself on the Android device (the emulator "
-                  f"window). Blow AI never solves or bypasses these checks. Waiting up to {self.human_s} s.", flush=True)
+                  f"window). Qpilot never solves or bypasses these checks. Waiting up to {self.human_s} s.", flush=True)
             if self.on_ask:
                 self.on_ask()
             data = self._wait(read, self.human_s)
@@ -361,7 +361,7 @@ class BotCheckGate:
                         f"It did not finish by itself within {self.wait_s} s"
                         + (f" and nobody completed it on the device within {self.human_s} s" if self.human_s else "")
                         + ". Nothing behind it was tested, and no test was made from the check page. To test this "
-                        "website: start again and complete the check on the emulator when Blow AI asks, ask the site "
+                        "website: start again and complete the check on the emulator when Qpilot asks, ask the site "
                         "owner to allow the test device, or use a copy of the site without bot protection.")
         self.events.append({"kind": kind, "outcome": "blocked", "waited_s": waited})
         print("[android] " + self.blocked, flush=True)

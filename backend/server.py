@@ -193,6 +193,7 @@ class RunRequest(BaseModel):
     allow_actions: str | None = None  # staging only: also delete, logout, password, pay (comma-separated)
     test_payment: bool = False       # staging + allow pay: the payment provider is in its test mode
     reuse_tests: bool = False        # run the tests of the last run again (regression) instead of writing new ones
+    reuse_from_run: str | None = None  # prefer that run's generated_tests + test_cases.json
     record_video: bool = False       # save a video of the test browsers (runs/<run>/videos)
     # optional - only when the tester can't work it out by itself
     max_depth: int = 0
@@ -694,6 +695,10 @@ def start_run(req: RunRequest):
         if req.reuse_tests:
             cmd.append("--reuse-tests")
         env = os.environ.copy()
+        if req.reuse_tests and req.reuse_from_run:
+            env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
+        elif "REUSE_FROM_RUN" in env:
+            env.pop("REUSE_FROM_RUN", None)
         env["QA_CONTRACT_JSON"] = contract_json
         env["QA_CONTRACT_ONLY"] = "1" if req.contract_only else "0"
         if req.contract_only:

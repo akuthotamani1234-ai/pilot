@@ -24,8 +24,24 @@ import re
 
 from .config import settings
 
-PAY = re.compile(r"\bpay\b|payment|\bbuy\b|purchase|check ?out|place (your )?order|order now|"
-                 r"confirm( order| purchase| payment)?\b|transfer|send money|\bdonate\b|book now|reserve now", re.I)
+# Payment *intent* only (checkout / pay now / place order / confirm payment / buy).
+# Admin nav like "Pay Grades", "Payment Methods", bare "Confirm", HR "Transfer Employee" are carved out in
+# action_class via nav-aware helpers — not every word containing pay/transfer/confirm.
+PAY = re.compile(
+    r"\bpay\s*now\b|\bpay\b(?![\s_-]*(grades?|methods?|grade|period|scale)\b)|"
+    r"\bpayments?\b(?![\s_-]*methods?\b)|billing|"
+    r"\bbuy\b|\bpurchase\b|check[\s-]?out|place (your )?order|order now|"
+    r"confirm (order|purchase|payment)\b|send money|"
+    r"\bdonate\b(?!\s+(blood|organ|time)\b)|book now|reserve now",
+    re.I,
+)
+# Labels that look like pay keywords but are admin/nav config (not checkout submits).
+ADMIN_PAY_NAV = re.compile(
+    r"^\s*(pay[\s_-]*grades?|payment[\s_-]*methods?|pay[\s_-]*periods?|pay[\s_-]*scales?)\s*$",
+    re.I,
+)
+BARE_CONFIRM = re.compile(r"^\s*confirm\s*$", re.I)
+HR_TRANSFER = re.compile(r"^\s*transfer(\s+\w+){0,3}\s*$", re.I)
 LOGOUT = re.compile(r"log ?out|sign ?out|log ?off", re.I)
 PASSWORD = re.compile(r"change (my )?(password|email)|reset password", re.I)
 # (\btrash: a button that only shows a trash-can icon - 'bi trash', 'fa trash alt' - deletes)
@@ -68,16 +84,84 @@ def reference_navigation(text: str, context: dict | None = None) -> bool:
         return False
     return context.get("role") == "menuitem" or bool(href and href != "#")
 
+# Back-compat alias used by tests / callers.
+PAY_GRADE_LABEL = ADMIN_PAY_NAV
+NAV_ROLES = frozenset({
+    "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "navigation", "menu", "treeitem",
+})
+NAV_KINDS = frozenset({
+    "link", "menu", "menu_item", "tab", "tabs", "navigation", "sidebar", "tree_item", "hover",
+})
+NAV_TAGS = frozenset({"a", "nav"})
+NAV_PURPOSES = frozenset({"navigate", "navigation", "menu", "tab", "link", "open_page", "admin_config"})
+
 
 def _kind_of(s: str) -> str:
     return next((name for name, rx in CLASSES if rx.search(s or "")), "")
 
 
-def action_class(text: str | None, selector: str | None = "", context: dict | None = None) -> str:
+def _nav_context(*, role: str | None = None, kind: str | None = None, tag: str | None = None,
+                 purpose: str | None = None, href: str | None = None, selector: str | None = "") -> bool:
+    """True when the control looks like navigation (link / menu / tab), not a pay/checkout submit."""
+    if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
+                 r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href or "", re.I):
+        return False
+    role_l = (role or "").strip().lower()
+    kind_l = (kind or "").strip().lower()
+    tag_l = (tag or "").strip().lower()
+    purpose_l = (purpose or "").strip().lower()
+    if role_l in NAV_ROLES or kind_l in NAV_KINDS or tag_l in NAV_TAGS or purpose_l in NAV_PURPOSES:
+        return True
+    href_l = (href or "").strip()
+    if href_l and not href_l.startswith("#") and not href_l.lower().startswith("javascript:"):
+        return True
+    sel = selector or ""
+    if re.search(r"(^|[\s\[>#.])a([\s\[.#:]|$)|role=['\"]?(link|menuitem|tab)\b", sel, re.I):
+        return True
+    return False
+
+
+def is_pay_grade_navigation(text: str | None, selector: str | None = "", *,
+                            role: str | None = None, kind: str | None = None, tag: str | None = None,
+                            purpose: str | None = None, href: str | None = None) -> bool:
+    """Link/menuitem/tab to admin pay-config pages (Pay Grades / Payment Methods / …) is not payment."""
+    label = (text or "").split("\n")[0].strip()
+    if not ADMIN_PAY_NAV.match(label):
+        return False
+    return _nav_context(role=role, kind=kind, tag=tag, purpose=purpose, href=href, selector=selector)
+
+
+def is_safe_admin_nav(text: str | None, selector: str | None = "", *,
+                      role: str | None = None, kind: str | None = None, tag: str | None = None,
+                      purpose: str | None = None, href: str | None = None) -> bool:
+    """Nav that must never be treated as checkout/payment: pay-config, bare Confirm, HR Transfer…"""
+    label = (text or "").split("\n")[0].strip()
+    if not label:
+        return False
+    if not _nav_context(role=role, kind=kind, tag=tag, purpose=purpose, href=href, selector=selector):
+        return False
+    if ADMIN_PAY_NAV.match(label) or BARE_CONFIRM.match(label) or HR_TRANSFER.match(label):
+        return True
+    return False
+
+
+def action_class(text: str | None, selector: str | None = "", context: dict | None = None, *,
+                 role: str | None = None, kind: str | None = None, tag: str | None = None,
+                 purpose: str | None = None, href: str | None = None) -> str:
     """'safe' | 'test_account' | 'write' | 'delete' | 'pay' | 'logout' | 'password' - what the control would do."""
+    if context:
+        role, kind, tag = role or context.get("role"), kind or context.get("kind"), tag or context.get("tag")
+        purpose, href = purpose or context.get("purpose"), href or context.get("href")
+    in_form = bool((context or {}).get("in_form"))
+    if not in_form and is_safe_admin_nav(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href):
+        return "safe"
+    if not in_form and is_pay_grade_navigation(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href):
+        return "safe"
     t = f"{text or ''} {selector or ''}"
     if reference_navigation(text or "", context):
         return "safe"
+    if ADMIN_PAY_NAV.fullmatch(text or "") or REFERENCE_NAV.fullmatch(text or ""):
+        return "pay"
     if TEST_ACCOUNT.search(t) and not PAY.search(t):
         return "test_account"
     by_text = _kind_of(text or "")
@@ -106,12 +190,36 @@ def allowed(kind: str) -> bool:
     return kind in settings.allow_actions
 
 
-def action_risk(text: str | None, selector: str | None = "", context: dict | None = None) -> str:
+def permission_needed(kind: str) -> str:
+    """Which setting would allow this consequential class (for blocked-reason text)."""
+    if kind == "pay":
+        return "ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+    if kind in ("delete", "logout", "password"):
+        return f"ALLOW_ACTIONS including '{kind}' (staging only)"
+    if kind == "write":
+        return "TEST_ENVIRONMENT=staging with write confirmation for the host"
+    return "explicit approval for this action class"
+
+
+def blocked_reason(kind: str) -> str:
+    """Why a protected control was not clicked, and which permission would be needed."""
+    if kind == "pay":
+        return (f"protected: payment/checkout/billing submit - never performed without "
+                f"{permission_needed('pay')}")
+    if kind in ("delete", "logout", "password", "write"):
+        return (f"protected: '{kind}' action - never performed without {permission_needed(kind)}")
+    return ("protected: it could pay, order, delete, send, publish or log out - never performed without "
+            "ALLOW_ACTIONS naming the class (and TEST_PAYMENT=1 for pay)")
+
+
+def action_risk(text: str | None, selector: str | None = "", context: dict | None = None, *,
+                role: str | None = None, kind: str | None = None, tag: str | None = None,
+                purpose: str | None = None, href: str | None = None) -> str:
     """'safe' | 'test_account' | 'write' (allowed here: only the tests made for it do it) | 'protected' (never)."""
-    kind = action_class(text, selector, context)
-    if kind in ("safe", "test_account"):
-        return kind
-    return "write" if allowed(kind) else "protected"
+    cls = action_class(text, selector, context, role=role, kind=kind, tag=tag, purpose=purpose, href=href)
+    if cls in ("safe", "test_account"):
+        return cls
+    return "write" if allowed(cls) else "protected"
 
 
 def protected_pattern() -> str:

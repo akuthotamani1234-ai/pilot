@@ -116,25 +116,50 @@ def _why(stage: str, error: BaseException | None) -> tuple[str, str]:
                      + (f": {text[0][:300]}" if text else "") + ". Everything done before it is in this report.")
 
 
+def _ingest_saved_evidence(state: dict, run_dir: Path) -> dict:
+    """Before gates/reports on interrupt or fallback: load saved results and ensure a finding per failure."""
+    from backend.agents.failure_analysis import ensure_findings_from_results, load_saved_results
+    out = dict(state)
+    disk = load_saved_results(run_dir)
+    if disk and len(disk) >= len(out.get("results") or []):
+        out["results"] = disk
+    if not out.get("test_cases") and (run_dir / "test_cases.json").exists():
+        try:
+            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
+            if isinstance(loaded, list):
+                out["test_cases"] = loaded
+        except (OSError, ValueError, TypeError):
+            pass
+    out["failures"] = ensure_findings_from_results(
+        run_dir, out.get("results") or [], cases=out.get("test_cases"), app_map=out.get("app_map"),
+        unhealable=out.get("unhealable"), healing_log=out.get("healing_log"))
+    return out
+
+
 def _fallback_report(state: dict, run_dir: Path, error: BaseException) -> dict:
     """The report itself crashed: a minimal report.html + summary.json, so a run still always has a report."""
+    state = _ingest_saved_evidence(state, run_dir)
     reason = state.get("incomplete_reason") or "The run did not finish."
     detail = redact(f"{type(error).__name__}: {(str(error).splitlines() or [''])[0][:300]}")
+    findings = state.get("failures") or []
     (run_dir / "report.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Qpilot report</title></head>
 <body style="font-family:'Segoe UI',system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.6">
 <h1>❔ We couldn't test enough</h1><p>{escape(reason)}</p>
 <p>The full report could not be written either ({escape(detail)}). What was done is in the files of this run folder:
-pages in app_map.json, test cases in test_cases.json, results in results.json.</p></body></html>""", encoding="utf-8")
+pages in app_map.json, test cases in test_cases.json, results in results.json, findings in failures.json
+({len(findings)} finding(s)).</p></body></html>""", encoding="utf-8")
     (run_dir / "summary.json").write_text(json.dumps({
         "url": state.get("url"), "source": state.get("source"), "run_id": state.get("run_id"),
         "verdict": "Insufficient Evidence", "reasons": [reason, f"The report could not be written: {detail}"],
         "gates": [], "incomplete": True, "incomplete_reason": reason, "stopped_at": state.get("stopped_at", ""),
         "limits_hit": [], "pages": len(state.get("app_map", [])), "tests": len(state.get("results", [])),
-        "test_cases": len(state.get("test_cases", [])), "coverage": {}, "working_well": [], "pass_rate": 0,
+        "test_cases": len(state.get("test_cases", [])), "findings": len(findings),
+        "coverage": {}, "working_well": [], "pass_rate": 0,
         "headline": {"emoji": "❔", "title": "We couldn't test enough", "text": reason},
         "finished": datetime.now().strftime("%Y-%m-%d %H:%M")}, indent=2), encoding="utf-8")
-    return {"verdict": "Insufficient Evidence", "report_path": str(run_dir / "report.html")}
+    return {"verdict": "Insufficient Evidence", "report_path": str(run_dir / "report.html"),
+            "failures": findings, "results": state.get("results", [])}
 
 
 def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = False) -> dict:
@@ -174,6 +199,8 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
             config["recursion_limit"] = 50
             last.update(resuming=True, resume_completed=[r["nodeid"] for r in recovered], results=recovered)
             print(f"  [run] resuming before: {', '.join(STAGE_TEXT.get(n, n) for n in snap.next)}")
+            print("  [run] resume keeps completed results and run-owned writes; pending interrupted work continues "
+                  "without duplicating finished cases")
             if any(n not in ("report", "save_baseline", "integrations") for n in snap.next):
                 from backend.agents.discovery import restore_login
                 note = restore_login(last)
@@ -211,6 +238,7 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
     last = dict(last, incomplete=True, incomplete_reason=reason, stop_kind=kind, stopped_at=stage,
                 log=last.get("log", []) + [reason])
     print(f"\n  [run] {reason}\n  [run] writing the report with what was done so far ...")
+    last = _ingest_saved_evidence(last, run_dir)
     try:
         last.update(reporter_agent(last))
     except Exception as e:
@@ -241,6 +269,10 @@ def _apply(opts: dict) -> None:
         settings.max_heal_rounds = opts["max_heal"]
     if opts.get("reuse_tests"):
         settings.reuse_tests = True
+    if opts.get("reuse_from_run"):
+        settings.reuse_from_run = str(opts["reuse_from_run"]).strip()
+    elif os.getenv("REUSE_FROM_RUN"):
+        settings.reuse_from_run = os.getenv("REUSE_FROM_RUN", "").strip()
     if opts.get("scope"):  # (overrides CRAWL_SCOPE)
         settings.crawl_scope = opts["scope"]
     if opts.get("env"):  # (overrides TEST_ENVIRONMENT)

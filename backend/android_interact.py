@@ -396,7 +396,7 @@ PLAIN = {
     "rejected": "the AI's suggestion was not safe or not valid",
     "not attempted": "it could not be reached",
     "AI not used": "the AI did not give a usable answer; the rule-based checks stand",
-    "protected by a CAPTCHA": "the form is protected by a CAPTCHA, which only a person may complete; Blow AI never "
+    "protected by a CAPTCHA": "the form is protected by a CAPTCHA, which only a person may complete; Qpilot never "
                               "solves CAPTCHAs",
 }
 

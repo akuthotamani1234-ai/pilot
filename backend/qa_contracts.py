@@ -491,6 +491,53 @@ def contract_cases(contract):
                     "functionality_status": "confirmed" if approved else "blocked",
                     "authentication": kind == "flow" and any(f.authentication for f in flow_chain(contract, item.id)),
                     "plan": [["assert_contract", [item.id]]] if approved else [],
+                    # Explicit contracts are the business-outcome oracle (web + Android).
+                    "verification": "business" if approved else "interaction",
                 }
             )
     return result
+
+
+def write_authorization_gap(*, environment: str, writes_ok: bool, allow_actions: list[str] | None = None,
+                            action_class: str = "write") -> str:
+    """Why a write / consequential workflow stays blocked — never auto-enabled by environment=test alone.
+
+    Returns '' when the existing authorization settings already permit the action class on staging with writes_ok.
+    """
+    from .actions import permission_needed
+
+    allow_actions = list(allow_actions or [])
+    if environment != "staging" or not writes_ok:
+        return (f"Write/business mutation blocked: missing {permission_needed(action_class)}. "
+                "environment=test (or production) never enables writes by itself.")
+    if action_class in ("delete", "logout", "password") and action_class not in allow_actions:
+        return f"Write blocked: missing permission — {permission_needed(action_class)}"
+    if action_class == "pay" and ("pay" not in allow_actions):
+        return f"Write blocked: missing permission — {permission_needed('pay')}"
+    return ""
+
+
+def business_outcome_requires_oracle(case: dict, *, has_requirements: bool = False,
+                                     has_contract: bool = False) -> str:
+    """Empty when the case may claim a business outcome; otherwise the precise missing oracle/permission.
+
+    Authorized read-only search/filter/pagination/sort cases that already assert defined outcomes are allowed.
+    Unsubmitted form / input-only checks stay interaction. Writes need staging + writes_ok + unique data + cleanup
+    elsewhere; this helper only names the missing outcome oracle.
+    """
+    from .assert_strength import verification_credit
+
+    credit = verification_credit(case)
+    if credit == "business":
+        return ""
+    if credit == "smoke":
+        return "Smoke/page-load check only — not a business outcome"
+    kind = case.get("kind") or case.get("journey") or ""
+    if kind in ("form",) or case.get("journey") == "form":
+        if has_requirements or has_contract:
+            return ""
+        return ("Unsubmitted form / input-only check: values may be retained, but Save/create/update/search "
+                "persistence needs an explicit requirement or QA contract (and write authorization for sends)")
+    if has_requirements or has_contract:
+        return ""
+    return "Business outcome needs an explicit requirement or QA contract"

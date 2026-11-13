@@ -388,9 +388,13 @@ def _own_status(keys: list[str], by_key: dict) -> tuple | None:
 def decided(f: dict, by_tc: dict, results: list[dict] | None, strength: dict | None = None) -> list[dict]:
     """What decides a feature's status: each linked test case's result FOR THIS FEATURE (a site-wide case: its own
     single tests), why, the failure classes of its failing tests, how many assertions ran, and whether a passed test
-    checked a state / value (strong) or only that nothing broke (weak - backend/assert_strength.py)."""
+    checked a state / value (strong) or only that nothing broke (weak - backend/assert_strength.py).
+
+    Interaction-only / unsubmitted input checks may pass with strong asserts (retained values) but never set
+    `strong` for business-verified credit — see assert_strength.verification_credit / counts_as_business_proof.
+    """
     from .agents.failure_analysis import classify
-    from .assert_strength import of_result
+    from .assert_strength import counts_as_business_proof, of_result, verification_credit
     from .excel import case_hits
     by_key = {f"{r.get('file')}::{r.get('test')}": r for r in results or []}
     out = []
@@ -410,12 +414,16 @@ def decided(f: dict, by_tc: dict, results: list[dict] | None, strength: dict | N
             bad = [r for r in hits if r.get("outcome") in ("failed", "error") and not r.get("flaky")]
             checks = sum(int(r.get("checks") or 0) for r in hits) if results is not None else None
             ran = hits
-        strong = not strength or any(of_result(r, strength) == "strong" for r in ran
-                                     if r.get("outcome") == "passed" or r.get("flaky"))
+        code_strong = not strength or any(of_result(r, strength) == "strong" for r in ran
+                                          if r.get("outcome") == "passed" or r.get("flaky"))
+        # Business-verified needs both a strong assert AND business verification credit on the case.
+        strong = bool(code_strong and counts_as_business_proof(c, "strong" if code_strong else "weak"))
+        credit = verification_credit(c)
         if c.get("journey") == "form" or c.get("verification_level") == "input_only":
             strong = False
         out.append({"tc_id": t["tc_id"], "how": t["how"], "status": status, "why": why, "checks": checks,
-                    "kinds": sorted({classify(r)[0] for r in bad}), "title": c.get("title", ""), "strong": strong})
+                    "kinds": sorted({classify(r)[0] for r in bad}), "title": c.get("title", ""), "strong": strong,
+                    "verification": credit})
     return out
 
 
@@ -463,7 +471,13 @@ def record_outcomes(reg: dict, cases: list[dict], crawl: dict | None = None, res
             f["status"], f["why"] = "suspect", "it did nothing - while exploring and in its test (needs a person to look)"
         elif ("Passed" in st or "Flaky" in st) and not any(x["strong"] for x in checked
                                                            if x["status"] in ("Passed", "Flaky")):
-            f["status"], f["why"] = "smoke", "its passed test only checked that nothing broke (no errors) - not that it works"
+            # Distinguish weak smoke from interaction-only (strong fill asserts, no business outcome).
+            interaction = any(x.get("verification") == "interaction" for x in checked
+                              if x["status"] in ("Passed", "Flaky"))
+            f["status"], f["why"] = "smoke", (
+                "interaction/input check only - values retained, but Save/create/search/persistence was not proven"
+                if interaction else
+                "its passed test only checked that nothing broke (no errors) - not that it works")
         elif "Passed" in st or "Flaky" in st:
             f["status"], f["why"] = "verified", "flaky: passed on a retry" if "Passed" not in st else ""
         elif failing:  # its test could not reach it: no evidence that it is broken

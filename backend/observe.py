@@ -25,7 +25,7 @@ from collections import Counter
 from urllib.parse import urlparse
 
 from . import runctl
-from .actions import action_risk
+from .actions import action_class, action_risk, blocked_reason
 from .config import settings
 from .page_inventory import capture_after_action
 
@@ -302,7 +302,8 @@ STORAGE_JS = """() => [JSON.stringify(Object.entries(localStorage)), JSON.string
 RESTORE_JS = """([l, s]) => { localStorage.clear(); sessionStorage.clear();
   for (const [k, v] of JSON.parse(l)) localStorage.setItem(k, v); for (const [k, v] of JSON.parse(s)) sessionStorage.setItem(k, v); }"""
 
-# at most this many controls of one kind per page (22 category boxes, 7 page buttons ... a few show what they do)
+# at most this many controls of one kind per page (22 category boxes, 7 page buttons ... a few show what they do).
+# Prefer page content over global chrome / table-row toggles when the budget is tight (see _explore sort).
 KIND_CAP = {"next": 2, "slide": 2, "tab": 4, "tick": 3, "select": 3, "repeated": 2}
 # a form's button that only reads (lists, filters) - it may be clicked while exploring even when the page's script
 # sends its form; any other button of such a form ('In', 'Save', 'Add') sends data: only the form tests do that
@@ -312,14 +313,18 @@ READING_SUBMIT = re.compile(r"^\s*(search|filter|find|apply( filters?)?|show|vie
 # what the AI saw in a page's picture that the page's controls don't stand for: tried too (up to SEEN_MAX per page).
 # Boxes, lists and tables are left to the form / data / table tests; the menu and plain content are not controls.
 SEEN_MAX = 3
+SEEN_MAX_THOROUGH = 8
 SEEN_SKIP = {"navigation", "content", "media", "list", "table", "search", "form", "filter", "sort"}
+# Deterministic search words to expand catalog/list URLs (never submitted as pay/checkout).
+SEARCH_SEED_WORDS = ("admin", "employee", "leave", "report", "settings", "user", "pim", "job")
 # what a control found by its words really is: its clickable element, its form, its icon, its address
 SEEN_CONTROL_JS = """e => {
   const c = e.closest('button, a[href], [role=button], [role=tab], [role=link], [role=menuitem], input, summary, label')
             || e;
   const f = c.closest('form'), i = c.querySelector ? c.querySelector('i, svg, img, [class*=icon]') : null;
   const type = (c.getAttribute('type') || (c.tagName === 'BUTTON' && f ? 'submit' : '')).toLowerCase();
-  return { type, in_form: !!f,
+  return { type, in_form: !!f, tag: (c.tagName || '').toLowerCase(),
+           role: c.getAttribute('role') || ({A:'link', BUTTON:'button'})[c.tagName] || '',
            form_method: f ? (f.getAttribute('method') || (f.getAttribute('action') ? 'get' : 'script')).toLowerCase() : '',
            text: (c.innerText || c.value || c.getAttribute('aria-label') || '').trim().split('\\n')[0].slice(0, 80),
            icon: i ? `${i.getAttribute('class') || ''} ${i.getAttribute('aria-label') || ''}`.trim() : '',
@@ -393,8 +398,9 @@ class Explorer:
             kind = "repeated" if (b.get("count") or 1) > 1 else (b.get("kind") or "")
             out.append({"name": (b.get("accname") or b.get("text") or "control").split("\n")[0].strip()[:60],
                         "text": b.get("text") or "", "selector": b["selector"], "action": "click", "kind": kind,
-                        "tag": b.get("tag"), "role": b.get("role"), "in_form": b.get("in_form"), "href": b.get("href"),
-                        "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by")})
+                        "role": b.get("role") or "", "tag": b.get("tag") or "",
+                        "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by"),
+                        "chrome": bool(b.get("chrome")), "in_table": bool(b.get("in_table"))})
         for i in entry.get("inputs", []):
             s = i.get("selector")
             if not s or i.get("disabled") or i.get("readonly"):
@@ -402,10 +408,12 @@ class Explorer:
             name = (i.get("label") or i.get("name") or i.get("placeholder") or "box").split("\n")[0].strip()[:60]
             if i.get("tag") == "select" and len(i.get("options") or []) >= 2:
                 out.append({"name": name, "text": name, "selector": s, "action": "select", "kind": "select",
-                            "value": i["options"][-1]["value"], "revealed_by": i.get("revealed_by")})
+                            "value": i["options"][-1]["value"], "revealed_by": i.get("revealed_by"),
+                            "chrome": bool(i.get("chrome")), "in_table": bool(i.get("in_table"))})
             elif (i.get("type") or "") == "checkbox" and s not in in_form:
                 out.append({"name": name, "text": name, "selector": s, "action": "tick", "kind": "tick",
-                            "revealed_by": i.get("revealed_by")})
+                            "revealed_by": i.get("revealed_by"),
+                            "chrome": bool(i.get("chrome")), "in_table": bool(i.get("in_table"))})
         known_actions = {(t["selector"], t["action"]) for t in out}
         for item in entry.get("hovers", []):
             if item.get("selector") and (item["selector"], "hover") not in known_actions:
@@ -420,13 +428,16 @@ class Explorer:
 
     def _eligible(self, t: dict) -> tuple[str, str]:
         """(risk, why not) - why not = '' when the action may be performed."""
-        risk = action_risk(t["text"] or t["name"], t["selector"], t)
+        cls = action_class(t["text"] or t["name"], t["selector"],
+                           role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))
+        risk = action_risk(t["text"] or t["name"], t["selector"],
+                           role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))
         if t.get("disabled"):
             return risk, "disabled on the page"
         if settings.discovery_only and risk == "test_account":
             return risk, "discovery only: no test-account changes"
         if risk == "protected":
-            return risk, "protected: it could pay, order, delete, send, publish or log out - never performed"
+            return risk, blocked_reason(cls)
         if risk == "write":  # (staging: allowed - but only the tests made for it do it, with tagged test data)
             return risk, "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
         if t.get("submit"):
@@ -633,25 +644,33 @@ class Explorer:
         if sends_form({"type": info["type"], "in_form": info["in_form"], "form_method": info["form_method"],
                        "text": info["text"]}):
             return "sends a form - the form tests check it"
-        if action_risk(f"{info['text']} {info['icon']}".replace("-", " ").strip() or t["name"],
-                       info["href"]) in ("protected", "write"):
-            return "protected: it could pay, order, delete, send, publish or log out - never performed"
+        label = f"{info['text']} {info['icon']}".replace("-", " ").strip() or t["name"]
+        cls = action_class(label, info["href"], role=info.get("role"), tag=info.get("tag"), href=info.get("href"))
+        risk = action_risk(label, info["href"], role=info.get("role"), tag=info.get("tag"), href=info.get("href"))
+        if risk in ("protected", "write"):
+            return blocked_reason(cls if risk == "protected" else "write")
         return ""
 
     def _explore(self, page, url: str, entry: dict) -> tuple[list[str], list[str]]:
         host, budget, new_urls, changed = urlparse(url).hostname, settings.max_interactions_per_page, [], []
-        seen_left = SEEN_MAX  # (what the AI saw has its own small budget: it never pushes the page's controls out)
+        seen_cap = SEEN_MAX_THOROUGH if settings.explore_repeated_controls else SEEN_MAX
+        seen_left = seen_cap  # (what the AI saw has its own small budget: it never pushes the page's controls out)
         self._untouched = url if _same_page(page.url, url) else None  # (the crawl has just opened it)
         behaviour = entry.setdefault("behaviour", [])
         queue = self._targets(entry)
         queue += self._seen_targets(entry, queue)
         tried = entry.setdefault("seen_tried", [])
         while queue:
-            # Discover routes and root controls before spending the budget replaying
-            # a revealed widget's descendants (for example every video-player toggle).
+            # Discover routes and root controls before spending the budget on revealed widgets,
+            # global chrome, or repeated table-row toggles (KIND_CAP / explore_repeated already bound samples).
+            # Menu/chrome navigation first under budget so sections are reached before widgets burn the quota.
+            # Repeated table-row toggles stay last; pay/checkout remain skipped via _eligible protected risk.
             queue.sort(key=lambda target: (
+                0 if target.get("kind") in {"menu", "hover", "tab"} and not target.get("in_table") else
+                1 if target.get("kind") in {"next", "filter", "select"} else
+                3 if target.get("in_table") or target.get("kind") == "repeated" else
                 2 if target.get("revealed_by") else
-                0 if target.get("kind") in {"next", "menu", "tab", "filter", "select", "hover"} else 1
+                4 if target.get("chrome") and target.get("kind") not in {"menu", "hover", "tab"} else 2
             ))
             t = queue.pop(0)
             key = (t["name"], t["selector"])
@@ -666,11 +685,14 @@ class Explorer:
                 getattr(self, bucket).append({"control": t["name"], "page": url, "why": why})
                 continue
             left = seen_left if t.get("seen") else budget
-            if left <= 0 or time.time() > self.deadline or runctl.stopping():
+            # Soft run reserve: stop starting heavy interactions so analysis/report can still finish.
+            if left <= 0 or time.time() > self.deadline or runctl.should_stop_heavy_work():
                 self.counts["not_tried_limit"] += 1
                 self.skipped.append({"control": t["name"], "page": url, "why":
                                      f"limit: MAX_INTERACTIONS_PER_PAGE={settings.max_interactions_per_page}"
                                      if left <= 0 else "the run was stopped" if runctl.stopping()
+                                     else "run time reserve (ANALYSIS_RESERVE_S / REPORT_RESERVE_S)"
+                                     if runctl.should_stop_heavy_work() and time.time() <= self.deadline
                                      else "limit: CRAWL_TIME_LIMIT_MIN"})
                 if t.get("seen"):
                     tried.append({"name": t["name"], "status": "not tried", "why": self.skipped[-1]["why"]})
@@ -748,21 +770,24 @@ class Explorer:
         Never: a login form, a form that pays or deletes, a search / filter form (its own tests)."""
         if settings.discovery_only:
             return []
-        from .actions import DELETE, PAY
-        from .forms import SEARCHY, is_login_form
+        from .actions import DELETE, action_class
+        from .forms import SEARCHY, is_login_form, keep_form_field
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
-            fields = [x for x in f.get("fields", []) if x.get("selector")]
-            if not fields or is_login_form(f) or PAY.search(said) or DELETE.search(said) or READING_SUBMIT.match(said) \
+            fields = [x for x in f.get("fields", []) if keep_form_field(x)]
+            submit_sel = ((f.get("submit") or {}).get("selector") or "")
+            submit_cls = action_class(said, submit_sel, role="button", kind="button", tag="button")
+            if not fields or is_login_form(f) or submit_cls in ("pay", "delete") or DELETE.search(said) \
+                    or READING_SUBMIT.match(said) \
                     or any((x.get("type") or "") == "search" or SEARCHY.search(f"{x.get('name')} {x.get('label')}")
                            for x in fields):
                 continue
             key = ("__form__", tuple(sorted(x["selector"] for x in fields)), (f.get("submit") or {}).get("selector"))
             if key in self.decided:
                 continue  # (the same form on another page - the footer's newsletter box: filled once)
-            if time.time() > self.deadline or runctl.stopping():
+            if time.time() > self.deadline or runctl.should_stop_heavy_work():
                 break
             if forms_considered >= FILL_MAX_FORMS:
                 fills.append({"form": f["selector"], "not_sent": "Form inspection limit reached; not filled"})
@@ -783,32 +808,62 @@ class Explorer:
 
     def _fill_box(self, page, x: dict, box: dict, tag: str, scope=None):
         """A valid value in one box, the way a person gives it - None when the box is left as it is (hidden, greyed
-        out, already filled in: an existing record's form keeps its values, nothing is sent from it)."""
-        from .form_targets import check_user_control, unique_control
+        out, already filled in: an existing record's form keeps its values, nothing is sent from it).
+
+        Resolution is scoped to the form/dialog/section container and refuses ambiguous matches (no silent .first).
+        """
+        from .forms import (
+            FormTargetProblem,
+            keep_form_field,
+            reresolve_field,
+            select_option_user,
+            set_choice,
+            unique_field,
+        )
         from .testdata import valid_value
-        scope = page if scope is None else scope
         metadata = dict(box, **x)
-        el = unique_control(scope, metadata)
-        if not el.is_visible() or not el.is_enabled():
-            if metadata.get("required"):
-                raise ValueError("Required field is not reachable in the intended form")
+        if not keep_form_field(dict(box, **x)):
+            return None
+        root = scope or page.locator("body")
+        try:
+            el = unique_field(page, root, dict(box, **x))
+        except FormTargetProblem as e:
+            if e.kind == "ambiguous":
+                raise
+            if x.get("required") or box.get("required"):
+                raise ValueError(f"required field missing/invisible inside the form: {e}") from e
+            return None
+        if not el.is_enabled():
             return None
         t, tag_name = (box.get("type") or x.get("type") or "").lower(), box.get("tag") or ""
+        fallbacks: list = []
         if t == "checkbox":
             if box.get("required") or x.get("required"):
-                check_user_control(scope, metadata, True)
+                set_choice(el, checked=True, log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if not el.is_checked():
+                    raise ValueError("The checkbox did not retain the checked state")
+                self._last_control_fallbacks = fallbacks
                 return "ticked"
             return None
         if t == "radio":
             name = el.get_attribute("name") or ""
-            if name and not page.locator(f'input[type=radio][name="{name}"]:checked').count():
-                check_user_control(scope, metadata, True)
+            if name and not root.locator(f'input[type=radio][name="{name}"]:checked').count():
+                set_choice(el, checked=True, log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if not el.is_checked():
+                    raise ValueError("The radio did not retain the selected state")
+                self._last_control_fallbacks = fallbacks
                 return "chosen"
             return None
         if tag_name == "select" or t.startswith("select"):
             options = el.evaluate("e => [...e.options].filter(o => !o.disabled && o.value).map(o => o.value)")
             if options and not el.input_value():
-                el.select_option(options[0], timeout=3000)
+                select_option_user(el, options[0], log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if el.input_value() != options[0]:
+                    raise ValueError("The select did not retain the chosen option")
+                self._last_control_fallbacks = fallbacks
                 return options[0]
             return None
         if t in ("file", "image", "range", "color", "hidden") or el.input_value():
@@ -823,8 +878,10 @@ class Explorer:
             return None
         el.fill(value, timeout=3000)
         el.evaluate("e => e.blur && e.blur()")
+        el = reresolve_field(page, root, dict(box, **x))
         if el.input_value(timeout=3000) != value:
             raise ValueError("The input did not retain the intended test value")
+        self._last_control_fallbacks = []
         return value
 
     def _fill_one(self, page, url: str, entry: dict, f: dict, fields: list[dict], send: bool) -> dict:
@@ -832,18 +889,31 @@ class Explorer:
         tag = f"qa-{self.tag_base}-f{self._tags}"
         known = {i.get("selector"): i for i in entry.get("inputs", []) if i.get("selector")}
         self._fresh(page, url, bool(entry.get("lazy")))
+        from .forms import FormTargetProblem, form_scope, keep_form_field
         from .navigation import open_path, opener_path
-        open_path(page, opener_path(entry, f["selector"], f.get("revealed_by")), f["selector"])
-        from .form_targets import form_scope
-        form = form_scope(page, f["selector"])
+        fields = [x for x in fields if keep_form_field(dict(known.get(x.get("selector"), {}), **x))]
+        if not fields:
+            return {"form": f.get("selector"), "name": ((f.get("submit") or {}).get("text") or "the form").strip()[:60],
+                    "page": url, "tag": tag, "filled": [], "not_sent": "no in-form fill targets after chrome/table filter"}
+        open_path(page, opener_path(entry, f["selector"], f.get("revealed_by")), fields[0]["selector"])
+        try:
+            form = form_scope(page, {"form": f["selector"]})
+        except FormTargetProblem:
+            raise
         start = snapshot(page)
         boxes0 = form.evaluate(BOX_STATE_JS)
-        filled = []
+        filled, control_fallbacks = [], []
         for x in fields:
-            v = self._fill_box(page, x, known.get(x["selector"], {}), tag, form)
+            self._last_control_fallbacks = []
+            v = self._fill_box(page, x, known.get(x["selector"], {}), tag, scope=form)
             if v is not None:
-                filled.append({"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
-                               "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v})
+                row = {"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
+                       "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v}
+                if self._last_control_fallbacks:
+                    # Fallback force/DOM paths are recorded and never prove normal user actionability.
+                    row["control_fallback"] = self._last_control_fallbacks
+                    control_fallbacks.extend(self._last_control_fallbacks)
+                filled.append(row)
                 page.wait_for_timeout(200)
         page.wait_for_timeout(500)
         # boxes that only appeared while filling: added to the page and the form (its tests fill them), then filled
@@ -857,10 +927,13 @@ class Explorer:
                 now = []
         for i in now[:8]:
             i = dict(i, revealed_by=f["selector"], revealed_by_name="filling the form")
+            if not keep_form_field(i):
+                continue
             entry.setdefault("inputs", []).append(i)
             f["fields"].append({k: i.get(k) for k in ("name", "id", "type", "selector", "required", "label",
-                                                      "placeholder", "autocomplete")})
-            v = self._fill_box(page, i, i, tag, form)
+                                                      "placeholder", "autocomplete", "accname", "role", "chrome",
+                                                      "in_table")})
+            v = self._fill_box(page, i, i, tag, scope=form)
             if v is not None:
                 filled.append({"box": (i.get("label") or i.get("placeholder") or "box")[:60], "value": v})
         changes = _box_changes(boxes0, form.evaluate(BOX_STATE_JS))
@@ -869,13 +942,26 @@ class Explorer:
                "page": url, "tag": tag, "filled": filled, **changes,
                "said": [a for a in ev["added"] if len(a) < 160][:6], "choices": self._other_choices(page, form),
                "sent": False}
+        if control_fallbacks:
+            rec["control_fallbacks"] = control_fallbacks
+            rec["proves_user_actionability"] = False
         if not send:
             rec["not_sent"] = "Discovery input check only; forms are never sent here. Authorized submissions require a planned outcome check."
             return rec
         if not any(tag in str(x["value"]) for x in filled):  # (an existing record's form - its boxes were filled in
             rec["not_sent"] = "nothing of this run's own was typed in (an existing record's form): not sent"
             return rec  # already: sending it would only save that record again - its own tests check it)
-        btn = page.locator(f["submit"]["selector"]).first
+        from .forms import _visible_matches
+        btn_hits = _visible_matches(form.locator(f["submit"]["selector"]))
+        if not btn_hits:
+            btn_hits = _visible_matches(page.locator(f["submit"]["selector"]))
+        if len(btn_hits) != 1:
+            from .forms import form_target_problem
+            raise form_target_problem(
+                "ambiguous" if len(btn_hits) > 1 else "missing_required",
+                f"form submit matched {len(btn_hits)} visible controls - not clicking",
+            )
+        btn = btn_hits[0]
         before = snapshot(page)
         btn.click(timeout=5000)
         page.wait_for_timeout(1200)
