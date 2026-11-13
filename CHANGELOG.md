@@ -2,6 +2,21 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-13 — Evidence linkage + run-time reserves (P9 / P6)
+
+- Findings from `ensure_findings_from_results` / classify retain control/container, URL/state, expected vs
+  observed, screenshot, and console/network notes (secrets still redacted).
+- Console JS noise and failed resource loads without an `AssertionError` classify as infrastructure — not
+  auto `product_defect`. Crawl findings separate app JS exceptions, resource-load failures, and readiness
+  timeouts; own-host HTTP error status stays a product signal.
+- Session expiry / protected reauth (`LOGGED_OUT`) is inconclusive with `session_expired`, distinct from
+  credential `auth_problem`. Blank/still-loading readiness timeouts are explicit `timeout` findings.
+- `ANALYSIS_RESERVE_S` / `REPORT_RESERVE_S` (defaults 180/120): near `RUN_TIME_LIMIT_MIN`, stop heavy discovery
+  and new suite starts so analysis + report still finish. Measure phase durations before raising defaults.
+- Observe deprioritizes global chrome / table-row toggles (KIND_CAP unchanged). Resume keeps completed results
+  and runs only pending tests. Docs note serial watched Chrome vs parallel `TEST_WORKERS`.
+- Offline: `tests/test_orangehrm_p6_p9.py`.
+
 ## 2026-11-13 — Field-aware data, verification credit, AI grounding (P3–P5)
 
 - Field-aware values from labels/constraints (`field_kind`): valid email/phone/numeric/date (type/format/pattern).
