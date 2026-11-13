@@ -32,6 +32,12 @@ def test_html_and_json_harvest_same_host_paths():
     assert any("jobTitle" in u or "/admin/" in u for u in json_paths)
 
 
+def test_search_seed_words_are_available_for_multi_query_exploration():
+    from backend.observe import SEARCH_SEED_WORDS
+    assert "admin" in SEARCH_SEED_WORDS and "employee" in SEARCH_SEED_WORDS
+    assert len(SEARCH_SEED_WORDS) >= 5
+
+
 def test_seed_urls_drops_checkout_and_keeps_admin(monkeypatch):
     pages = {
         "https://hr.test/robots.txt": "Sitemap: https://hr.test/sitemap.xml\n",
