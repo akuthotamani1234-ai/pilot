@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-13 — Findings finalize on interrupt / empty failures
+
+- `ensure_findings_from_results` builds a rule-based finding for every failed/inconclusive result
+  (idempotent merge into `failures.json`; LLM enrichment stays optional).
+- Incomplete stop / fallback report paths ingest saved `results.json` / `.jsonl` before gates.
+- Reporter and quality gates no longer pass automation-reliability or “no bugs” when failures
+  remain unlinked; metrics consistency counts consolidated `nodeids`.
+
 ## 2026-11-12 — Studio UI refresh + delete harden
 
 - Static JS/CSS served with `Cache-Control: no-store`; home page shows a visible **build** fingerprint.
