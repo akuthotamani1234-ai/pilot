@@ -160,6 +160,7 @@ def build_server(ui_url: str | None = None):
         qa_contract: dict | None = None, contract_only: bool = False,
         llm_provider: Provider = "ollama", llm_model: str = "",
         test_build: bool = False,
+        thorough: bool = False,
     ) -> dict:
         """Start native or Android Chrome Appium QA with the shared runner and per-device lock.
         Requires an available device/emulator and running local Appium. The user must explicitly
@@ -189,6 +190,7 @@ def build_server(ui_url: str | None = None):
             "interaction_timeout_s": interaction_timeout_s, "requirements": requirements,
             "qa_contract": json.dumps(qa_contract) if qa_contract else "", "contract_only": contract_only,
             "llm_provider": llm_provider, "llm_model": llm_model, "interaction_testing": test_build,
+            "thorough": thorough,
         }, apk_path)
 
     @server.tool(annotations=read)

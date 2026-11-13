@@ -171,7 +171,8 @@
           <label class="tick android-scope"><input type="checkbox" id="androidWholeApp" checked><span><b>Whole app</b><small>Explore reachable screens; check every unique discovered control.</small></span></label>
           <div id="androidFlowToolsSlot"></div>
         </div>
-        <p class="muted small android-scope-note">Whole-app mode checks visible text, control visibility and enabled state, and safe navigation within the limits below. Build a test flow for actions that change app data.</p>
+        <p class="muted small android-scope-note">Whole-app mode checks visible text, control visibility and enabled state, and safe navigation within the limits below. Build a test flow for actions that change app data. This never proves every feature was tested.</p>
+        <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>Raise discovery and user-like budgets for this run (still within safety caps). Use for larger apps; still not whole-app certification.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
         <div class="fields">

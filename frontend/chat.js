@@ -441,6 +441,7 @@
     data.append("contract_only", $("androidContractOnly").checked ? "true" : "false");
     // Websites too: the ticked box is the person's confirmation that it is a test / demo site they may test
     data.append("interaction_testing", $("androidTestBuild").checked ? "true" : "false");
+    data.append("thorough", $("androidThorough") && $("androidThorough").checked ? "true" : "false");
     data.append("max_test_cases", $("androidMaxCases").value);
     // Test mode's limits are sent explicitly, so a run never falls back to an older server's smaller defaults
     data.append("max_interactions", $("androidMaxInteractions").value || "300");
@@ -983,6 +984,24 @@
     const lim = (s && s.coverage_limitations) || {};
     const crawlInfo = crawl || (s && s.crawl) || {};
     const counts = (s && s.result_status_counts) || {};
+    const cov = (s && s.coverage) || {};
+    const android = s && (s.target_type === "android" || s.target_type === "mobile"
+      || (Number.isFinite(cov.tested) && Number.isFinite(cov.total) && !cov.routes));
+    if (android) {
+      const unvisited = Array.isArray(cov.unvisited) ? cov.unvisited.length : +(cov.unvisited || 0) || 0;
+      const early = s.early_stop || (s.interaction && s.interaction.stopped) || "";
+      const tested = +(cov.tested || 0);
+      const total = +(cov.total || 0);
+      if (!unvisited && !early && !(total && tested < total) && !s.incomplete) return "";
+      const bits = [];
+      if (total) bits.push(tested + " of " + total + " discovered controls have passing evidence");
+      if (unvisited) bits.push(unvisited + " discovered control(s) not reached");
+      if (early) bits.push("stopped early: " + early);
+      const detail = s.incomplete_reason || ("Coverage gaps remain: " + bits.join("; ")
+        + ". This is not whole-app certification.");
+      return `<div class="warn coverage-reminder" role="status"><b>Coverage reminder:</b> ${esc(detail)}` +
+        `<div class="coverage-reminder-actions"><button type="button" class="secondary thorough-again" data-android="1">Run Thorough again</button></div></div>`;
+    }
     const notVisited = +(pagesCov.not_visited ?? crawlInfo.not_visited_count ?? s.pages_not_visited ?? 0) || 0;
     const limitHit = !!(lim.partial || pagesCov.limit_reached || pagesCov.time_limit_reached
       || crawlInfo.limit_reached || crawlInfo.time_limit_reached
@@ -1754,8 +1773,22 @@
     // three different coverages - never one mixed percentage
     const cv = s.coverage;
     const P = (cv && cv.pages) || null;
-    const covHtml = cv ? `<h4>🧭 Coverage <span class="muted small">– discovered → inspected → tested → verified</span></h4>
-      ${P ? `<div class="stats">${stat(P.discovered, "pages discovered")}${stat(P.inspected, "pages inspected")}
+    const androidCov = s.target_type === "android" || s.target_type === "mobile"
+      || (cv && Number.isFinite(cv.tested) && Number.isFinite(cv.total) && !cv.routes);
+    const unvisitedN = Array.isArray(cv && cv.unvisited) ? cv.unvisited.length
+      : (cv && cv.unvisited != null ? +cv.unvisited : 0) || 0;
+    const earlyStop = s.early_stop || (s.interaction && s.interaction.stopped) || "";
+    const androidCovHtml = androidCov && cv ? `<h4>Coverage <span class="muted small">– Android (bounded, not whole-app proof)</span></h4>
+      <div class="stats">
+        ${stat(cv.screens ?? s.screens_visited ?? s.pages, "screens visited")}
+        ${stat(`${cv.tested ?? 0} / ${cv.planned ?? 0}`, "controls with passing evidence / planned")}
+        ${stat(cv.total ?? 0, "controls discovered on visited screens")}
+        ${stat(unvisitedN, "discovered controls not reached", unvisitedN ? "bad" : "")}</div>
+      ${earlyStop ? `<div class="warn" role="status"><b>Stopped early:</b> ${esc(earlyStop)}</div>` : ""}
+      ${s.incomplete_reason ? `<p class="small muted">${esc(s.incomplete_reason)}</p>` : ""}
+      <p class="small muted">No whole-app accuracy percentage is claimed. Use Thorough, test login, and approved flows to cover more on the next run.</p>` : "";
+    const covHtml = androidCovHtml || (cv && cv.routes ? `<h4>Coverage <span class="muted small">– discovered → inspected → tested → verified</span></h4>
+      ${P && P.discovered != null ? `<div class="stats">${stat(P.discovered, "pages discovered")}${stat(P.inspected, "pages inspected")}
         ${stat(P.tested, "pages tested")}${stat(P.verified, "pages verified (a test passed)", "good")}
         ${stat(P.logged_in, "behind the login")}${stat(P.needs_permission, "need other permissions")}</div>` : ""}
       <div class="stats">
@@ -1766,7 +1799,7 @@
         ${stat(cv.execution.blocked || 0, "blocked (protected actions)")}
         ${stat(cv.execution.inconclusive || 0, "inconclusive (checked nothing)", cv.execution.inconclusive ? "bad" : "")}</div>
       ${(cv.journeys || []).length ? `<p class="small"><b>User journeys:</b> ${cv.journeys.map((j) => `${j.status === "Passed" ? "✓" : j.status === "Failed" ? "✗" : "•"} ${esc(j.title)}`).join(" · ")}</p>` : ""}
-      ${cv.registry ? registryHtml(cv.registry) : ""}` : "";
+      ${cv.registry ? registryHtml(cv.registry) : ""}` : "");
     // regression: compared with the last run of this website
     const cmp = d.comparison;
     const moved = cmp && cmp.previous_run ? (cmp.cases || []).filter((c) => ["newly failing", "fixed", "still failing"].includes(c.change)) : [];
@@ -1866,7 +1899,18 @@
 
   $("thread").addEventListener("click", async (e) => {
     const thoroughBtn = e.target.closest(".thorough-again");
-    if (thoroughBtn) { focusThoroughSetup(); return; }
+    if (thoroughBtn) {
+      if (thoroughBtn.dataset.android === "1") {
+        setWorkspaceMode("android");
+        if ($("androidThorough")) $("androidThorough").checked = true;
+        if ($("androidTestBuild")) $("androidTestBuild").checked = true;
+        $("mobileForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        say(`<div class="note">Thorough is on for Android: the next run raises discovery and user-like budgets within safety caps. Add a test login if the app has auth. Still not a whole-app guarantee.</div>`);
+        return;
+      }
+      focusThoroughSetup();
+      return;
+    }
     const v = e.target.closest(".view-xl");
     if (v) { openExcel(v.dataset.run); return; }
     const again = e.target.closest(".rerun");

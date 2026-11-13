@@ -517,6 +517,18 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("These flows were recorded in test mode. Tick the test-mode box to run them.")
     if config.get("contract_only") and not any(contract[k] for k in ("flows", "rules", "checks")):
         raise AndroidEnvironmentError("Contract-only mode needs at least one configured check.")
+    thorough = bool(config.get("thorough", False))
+    if thorough:
+        # Raise this-run budgets to Thorough floors (never above hard caps already enforced above).
+        max_screens = max(max_screens, 80)
+        max_actions = max(max_actions, 150)
+        limits["max_depth"] = max(limits["max_depth"], 8)
+        limits["discovery_timeout_s"] = max(limits["discovery_timeout_s"], 900)
+        limits["max_scroll_actions"] = max(limits["max_scroll_actions"], 60)
+        limits["max_scrolls_per_screen"] = max(limits["max_scrolls_per_screen"], 8)
+        limits["max_candidates_per_screen"] = max(limits["max_candidates_per_screen"], 24)
+        limits["max_interactions"] = max(limits["max_interactions"], 500)
+        limits["interaction_timeout_s"] = max(limits["interaction_timeout_s"], 3600)
     return {
         **config,
         "qa_contract": contract,
@@ -531,6 +543,7 @@ def validate_mobile_config(config: dict) -> dict:
         "appium_url": server_url,
         "max_screens": max_screens,
         "max_actions": max_actions,
+        "thorough": thorough,
         "verify_observed_navigation": bool(config.get("verify_observed_navigation", True)),
     }
 

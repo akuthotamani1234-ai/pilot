@@ -874,6 +874,7 @@ async def start_mobile_run(
     qa_contract: str = Form(""),
     contract_only: bool = Form(False),
     interaction_testing: bool = Form(False),
+    thorough: bool = Form(False),  # raise Android discovery/user-like budgets within hard caps
     max_interactions: int = Form(300),
     interaction_timeout_s: int = Form(2700),
     bot_check_wait_s: int = Form(30),
@@ -921,7 +922,8 @@ async def start_mobile_run(
             "appium_url": appium_url, "max_depth": max_depth, "discovery_timeout_s": discovery_timeout_s,
             "expected_destinations": expected_destinations, "expected_values": expected_values, "requirements": requirements, "qa_contract": qa_contract, "contract_only": contract_only,
             "max_test_cases": max_test_cases, "allow_rules_fallback": allow_rules_fallback,
-            "interaction_testing": interaction_testing, "max_interactions": max_interactions,
+            "interaction_testing": interaction_testing, "thorough": thorough,
+            "max_interactions": max_interactions,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
             "human_wait_s": human_wait_s,
         })
@@ -930,10 +932,18 @@ async def start_mobile_run(
     scope_keys = ('max_depth', 'max_screens', 'max_actions', 'max_scroll_actions',
                   'max_scrolls_per_screen', 'discovery_timeout_s', 'max_test_cases')
     accepted_scope = {key: config[key] for key in scope_keys}
-    if requested_scope:
+    if requested_scope and not thorough:
+        # Thorough raises budgets server-side; client requested_scope may still hold the pre-raise numbers.
         try:
             requested = json.loads(requested_scope)
             if not isinstance(requested, dict) or requested != accepted_scope:
+                raise ValueError('Scope differs')
+        except (ValueError, TypeError) as error:
+            raise HTTPException(409, 'Android exploration settings changed before submission. Refresh the page and review the limits; no test was started.') from error
+    elif requested_scope and thorough:
+        try:
+            requested = json.loads(requested_scope)
+            if not isinstance(requested, dict):
                 raise ValueError('Scope differs')
         except (ValueError, TypeError) as error:
             raise HTTPException(409, 'Android exploration settings changed before submission. Refresh the page and review the limits; no test was started.') from error

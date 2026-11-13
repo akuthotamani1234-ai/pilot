@@ -46,4 +46,15 @@ footer{padding:14px 34px;background:#eef1f8;color:#5c6880;font-size:14px}a{color
 <div class="note">No application APK or package name is needed. To test successful login or form submission, configure approved flows, test data and expected results.</div>
 </div><footer>All three methods: start device + Appium → select source → configure checks → start → review evidence.</footer>
 </article>
+<article class="guide" id="accuracy">
+<header><div class="eyebrow">ACCURACY PLAYBOOK</div><h1>Get better coverage without pretending the whole app was tested</h1><p>Qpilot Android runs are bounded. Use these five steps for more useful evidence on different apps.</p></header>
+<div class="content">
+<div class="step"><span class="number">1</span><div><h2>Day-to-day = Test studio</h2><p>Accuracy Lab only scores whether Qpilot matched known truths. It does not test your app.</p></div></div>
+<div class="step"><span class="number">2</span><div><h2>Add a test login when the app has auth</h2><p>Without credentials, protected screens stay unvisited and the report stays incomplete.</p></div></div>
+<div class="step"><span class="number">3</span><div><h2>Use approved QA contracts for must-pass flows</h2><p>Login, cart, and critical screens need expected results — not only “button exists”.</p></div></div>
+<div class="step"><span class="number">4</span><div><h2>Turn on Thorough for larger apps</h2><p>Thorough raises discovery and user-like budgets within safety caps. Tick test-build mode when you may exercise undoable demo actions.</p></div></div>
+<div class="step"><span class="number">5</span><div><h2>Read unvisited / not tested / stopped early before trusting a green run</h2><p>Coverage stats show tested vs planned vs discovered. No whole-app accuracy percentage is claimed.</p></div></div>
+<div class="note">Checkout, payment, account deletion, sharing and calls stay blocked by design.</div>
+</div><footer>Better accuracy comes from budgets + credentials + contracts — not from claiming every feature was tested once.</footer>
+</article>
 </main></html>
