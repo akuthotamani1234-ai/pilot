@@ -25,8 +25,9 @@ WEAK_ATTRS = {"status", "title", "ok"}
 RANK = {"none": 0, "weak": 1, "strong": 2}
 
 # Case kinds that fill/type without proving a business outcome by themselves.
-INTERACTION_JOURNEYS = frozenset({"form"})  # fill-the-form journeys never send
-INTERACTION_IDS = frozenset({"site_input_values"})
+INTERACTION_JOURNEYS = frozenset({"form"})  # fill-the-form journeys never send (unsubmitted)
+# site_input_values stays business: per-box valid/invalid/sql asserts prove that box's handling.
+INTERACTION_IDS = frozenset()
 BUSINESS_FEATURE_KINDS = frozenset({
     "search", "filter", "sort", "pagination", "table_search", "page_size", "filter_pages",
 })
