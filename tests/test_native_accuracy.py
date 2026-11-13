@@ -247,7 +247,8 @@ def test_open_drawer_excludes_background_and_allows_its_login_navigation():
     screen = extract_screen(xml, "com.example", "test")
     safe = safe_navigation_elements(screen)
     assert screen["screen_name"] == "Navigation menu"
-    assert len(safe) == 1 and safe[0]["text"] == "Log In"
+    # Drawer background (View cart) stays excluded; exhaustive explore allows Reset App State (pay-only block).
+    assert [e["text"] for e in safe] == ["Log In", "Reset App State"]
 
 
 def test_drawer_recovery_replays_from_home_before_pressing_back(tmp_path, monkeypatch):

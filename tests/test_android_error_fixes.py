@@ -35,7 +35,7 @@ def test_recovery_does_not_exhaust_the_exploration_action_budget(tmp_path, monke
 
 def test_remaining_controls_get_an_action_limit_reason(tmp_path, monkeypatch):
     driver = FakeDriver()
-    driver.page_source = START_XML.replace('text="Delete account"', 'text="About"').replace('id/delete', 'id/about')
+    driver.page_source = START_XML.replace('text="Checkout"', 'text="About"').replace('id/delete', 'id/about')
     start_xml = driver.page_source
     driver.back = lambda: setattr(driver, "page_source", start_xml)
     monkeypatch.setattr(android_pipeline, "create_session", lambda _: driver)

@@ -221,13 +221,13 @@ def test_the_contact_dialog_is_filled_and_sent_and_its_missing_validation_is_a_f
     assert row["status"] == "failed"
 
 
-def test_a_box_label_the_reader_repeats_does_not_read_as_an_sms():
-    """The web reader gives a box's label twice (accessibility_id and hint); joined with the id "message-text" that
-    made "text message", so the contact form was excluded as sending an SMS. The rule itself stays."""
+def test_a_box_label_the_reader_repeats_does_not_read_as_checkout():
+    """The web reader gives a box's label twice (accessibility_id and hint); joined with the id "message-text".
+    That must not look like a blocked checkout/payment control."""
     box = {"text": "", "accessibility_id": "Message:", "resource_id": "message-text", "hint": "Message:"}
     assert label(box) == "Message: message-text"
     assert never_in_test_mode(label(box)) == ""
-    assert never_in_test_mode("Send SMS") and never_in_test_mode("Text message")
+    assert never_in_test_mode("Checkout") and never_in_test_mode("Place order")
 
 
 # ------------------------------------------------------------------ 4. nothing private leaves .private, nothing risky

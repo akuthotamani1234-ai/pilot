@@ -140,7 +140,7 @@ def test_phone_actions_are_valid_flow_steps():
     {"action": "back", "value": "x"},
     {"action": "back", "locator": {"strategy": "text", "value": "Home"}},
     {"action": "long_press"},
-    {"action": "long_press", "locator": {"strategy": "accessibility_id", "value": "Delete item"}},
+    {"action": "long_press", "locator": {"strategy": "accessibility_id", "value": "Checkout"}},
 ])
 def test_invalid_or_irreversible_phone_steps_are_rejected(step):
     with pytest.raises(ValueError):

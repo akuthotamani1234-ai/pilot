@@ -859,23 +859,24 @@ async def start_mobile_run(
     package_name: str = Form(""),
     start_url: str = Form(""),
     app_activity: str = Form(""),
-    max_screens: int = Form(40),
-    max_actions: int = Form(60),
-    max_scroll_actions: int = Form(30),
-    max_scrolls_per_screen: int = Form(4),
+    max_screens: int = Form(0),  # 0 = until exhausted
+    max_actions: int = Form(0),
+    max_scroll_actions: int = Form(0),
+    max_scrolls_per_screen: int = Form(0),
     requested_scope: str = Form('', max_length=2000),
     authorized: bool = Form(False),
     appium_url: str = Form("http://127.0.0.1:4723"),
-    max_depth: int = Form(5),
-    discovery_timeout_s: int = Form(600),
+    max_depth: int = Form(0),
+    discovery_timeout_s: int = Form(0),
     expected_destinations: str = Form(""),
     expected_values: str = Form(""),
     requirements: str = Form(""),
     qa_contract: str = Form(""),
     contract_only: bool = Form(False),
     interaction_testing: bool = Form(False),
-    max_interactions: int = Form(300),
-    interaction_timeout_s: int = Form(2700),
+    thorough: bool = Form(False),  # raise soft budgets when set; 0 still means until exhausted
+    max_interactions: int = Form(0),
+    interaction_timeout_s: int = Form(0),
     bot_check_wait_s: int = Form(30),
     human_wait_s: int = Form(180),
     max_test_cases: int = Form(300),
@@ -921,7 +922,8 @@ async def start_mobile_run(
             "appium_url": appium_url, "max_depth": max_depth, "discovery_timeout_s": discovery_timeout_s,
             "expected_destinations": expected_destinations, "expected_values": expected_values, "requirements": requirements, "qa_contract": qa_contract, "contract_only": contract_only,
             "max_test_cases": max_test_cases, "allow_rules_fallback": allow_rules_fallback,
-            "interaction_testing": interaction_testing, "max_interactions": max_interactions,
+            "interaction_testing": interaction_testing, "thorough": thorough,
+            "max_interactions": max_interactions,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
             "human_wait_s": human_wait_s,
         })
@@ -930,10 +932,18 @@ async def start_mobile_run(
     scope_keys = ('max_depth', 'max_screens', 'max_actions', 'max_scroll_actions',
                   'max_scrolls_per_screen', 'discovery_timeout_s', 'max_test_cases')
     accepted_scope = {key: config[key] for key in scope_keys}
-    if requested_scope:
+    if requested_scope and not thorough:
+        # Thorough raises budgets server-side; client requested_scope may still hold the pre-raise numbers.
         try:
             requested = json.loads(requested_scope)
             if not isinstance(requested, dict) or requested != accepted_scope:
+                raise ValueError('Scope differs')
+        except (ValueError, TypeError) as error:
+            raise HTTPException(409, 'Android exploration settings changed before submission. Refresh the page and review the limits; no test was started.') from error
+    elif requested_scope and thorough:
+        try:
+            requested = json.loads(requested_scope)
+            if not isinstance(requested, dict):
                 raise ValueError('Scope differs')
         except (ValueError, TypeError) as error:
             raise HTTPException(409, 'Android exploration settings changed before submission. Refresh the page and review the limits; no test was started.') from error

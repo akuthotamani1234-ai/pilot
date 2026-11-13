@@ -13,53 +13,37 @@ from .safety import check_target, is_metadata_host
 
 ID = r"^[A-Za-z][A-Za-z0-9_-]{0,63}$"
 SECRET_REF = r"^BLOWAI_SECRET_[A-Z0-9_]{1,80}$"  # noqa: S105 - environment reference pattern, not a credential
-# Explicit test approval never permits irreversible actions.
+# Non-test-mode discovery also hard-blocks only checkout / payment (exhaustive explore).
 IRREVERSIBLE = re.compile(
-    r"\b(pay|payment|purchase|buy|checkout|place ?order|order|delete|remove|erase|transfer|send|permission|"
-    r"uninstall|reset|clear app state|log ?out|sign ?out|password change|change password|sort|crash|force close|share)\b",
+    r"\b(pay|pay ?now|payments?|purchase|buy|buy ?now|checkout|check ?out|"
+    r"place (?:an |the |your |my )?order|(?:confirm|submit|complete|finish) (?:the |your |my |this )?"
+    r"(?:order|purchase|payment)|order now|credit card|card details|"
+    r"apple ?pay|google ?pay|pay ?pal)\b",
     re.I,
 )
-# Test mode ("test everything except checkout"): the person confirmed a test build, or a test / demo website they
-# may test. A tester then also uses what can be undone or costs nothing: remove an item from the cart, log out, sort,
-# view "My orders", a free newsletter, a contact message. These stay blocked even then. Each entry is the plain
-# reason the report shows for a control that was never pressed.
+# Test mode: explore until exhausted; only checkout / payment stay blocked.
 TEST_MODE_NEVER = tuple((reason, re.compile(r"\b(?:" + words + r")\b", re.I)) for reason, words in (
     ("checkout, payment and placing an order are never tested",
      r"check ?out|pay|pay ?now|payments?|pay ?pal|apple ?pay|google ?pay|purchase|buy|buy ?now|"
      r"place (?:an |the |your |my )?order|(?:confirm|submit|complete|finish) (?:the |your |my |this )?"
-     r"(?:order|purchase|payment)|order now|re-?order|credit card|card details|book now|reserve now|"
+     r"(?:order|purchase|payment)|order now|re-?order|credit card|card details|"
+     r"book now|reserve now|"
      r"book (?:a |the |this |your )?(?:room|table|flight|ticket|seat|stay|trip|appointment)"),
     ("paid subscriptions and upgrades are never started",
-     r"(?:paid|premium|monthly|yearly|annual) (?:subscription|plan|membership)|upgrade|membership|free trial|"
+     r"(?:paid|premium|monthly|yearly|annual) (?:subscription|plan|membership)|"
      r"start (?:a |your |the )?(?:free )?trial|subscribe (?:now|to (?:premium|pro|plus))"),
-    ("deleting or closing an account is never tested",
-     r"(?:delete|close|deactivate|remove|cancel|erase) (?:my |your |the |this )?(?:account|profile|user)|deactivate"),
-    ("changing the test account's password is never tested",
-     r"change (?:your |my |the )?password|password change|new password"),
-    ("crash and force-close buttons are never pressed", r"crash|force ?close|force ?stop"),
-    ("sharing, sending to other apps, phone calls and SMS are never used",
-     r"share|send to|sms|text message|call|call us|dial|phone call|whats ?app|invite"),
-    ("money is never moved", r"transfer|donate|withdraw|top ?up"),
-    ("downloads, uploads and app installs are not used", r"download|upload|install|uninstall"),
-    # My Demo App's "Reset App State": test mode already clears the app's data before every check
-    ("not pressed: it resets the app's data; test mode already starts every check from cleared data",
-     r"reset (?:the )?app(?: state| data)?"),
-    ("device data and permissions are never changed",
-     r"factory reset|wipe|erase|reset (?:app|all|device|data|everything)|clear (?:app|all) data|clear app state|"
-     r"permission|grant"),
 ))
-# In a native app these open the camera, the contacts or another app (an e-mail app): never followed there. On a
-# website they are pages and forms of the site itself (Contact us, Email a friend), kept inside the approved origin.
-TEST_MODE_NEVER_NATIVE = ("device features (camera, scanner, location, fingerprint, USB, photos, contacts, e-mail) "
-                          "and other apps are never used",
-                          re.compile(r"\b(camera|photo|gallery|microphone|location|locate|contacts?|e-?mail|scanner|scan|"
-                                     r"qr|finger ?print|biometrics?|face ?id|usb|allow|accept)\b", re.I))
+# Native-only: leaving the app into the camera / contacts / system prompt is still skipped (not payment, but
+# not an in-app screen). Exhaustive exploration stays inside the app under test.
+TEST_MODE_NEVER_NATIVE = ("device features that leave the app (camera, scanner, contacts) are not followed out",
+                          re.compile(r"\b(camera|photo|gallery|microphone|location|locate|contacts?|scanner|scan|"
+                                     r"qr|finger ?print|biometrics?|face ?id|usb)\b", re.I))
 DEVICE_ACTIONS = ("back", "rotate", "background", "hide_keyboard")
 
 
 def never_in_test_mode(text: str, native: bool = False) -> str:
     """'' when a tester may press a control with this label in test mode, else the plain reason it is never pressed.
-    Outside test mode the stricter IRREVERSIBLE / NEVER_TAP / RISKY_ACTION rules apply unchanged. (A menu item that
+    Outside test mode IRREVERSIBLE still hard-blocks checkout/payment only. (A menu item that
     only opens an app's own screen - "QR Code Scanner" - is checked with native=False: the screen may open, its
     device feature is never used.)"""
     words = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text or "").replace("_", " ").replace("-", " ")

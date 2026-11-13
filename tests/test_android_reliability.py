@@ -63,7 +63,7 @@ def test_distinct_native_webview_containers_remain_distinct_routes():
 def test_menu_prefixed_preference_toggles_are_not_automatic_navigation():
     result = screen('<node class="android.widget.Button" content-desc="side-menu-star-forms" clickable="true"/>'
                     '<node class="android.widget.Button" content-desc="side-menu-item-forms" clickable="true"/>')
-    assert [e['accessibility_id'] for e in safe_navigation_elements(result)] == ['side-menu-item-forms']
+    assert [e['accessibility_id'] for e in safe_navigation_elements(result)] == ['side-menu-star-forms', 'side-menu-item-forms']
 
 
 def test_loading_webview_is_waited_out_before_recording(monkeypatch):
