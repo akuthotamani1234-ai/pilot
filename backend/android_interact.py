@@ -45,6 +45,7 @@ SUCCESS = re.compile(r"\b(success\w*|welcome|created|registered|verify|check you
 
 WRONG_PASSWORD = "BLOWAI_SECRET_AUTO_WRONG_PASSWORD"  # noqa: S105 - reference names, not credentials
 STRONG_PASSWORD = "BLOWAI_SECRET_AUTO_STRONG_PASSWORD"  # noqa: S105
+EMPTY_PASSWORD = "BLOWAI_SECRET_AUTO_EMPTY_PASSWORD"  # noqa: S105 - private reference used only to clear a field
 TEST_USERNAME = "BLOWAI_SECRET_TEST_USERNAME"
 TEST_PASSWORD = "BLOWAI_SECRET_TEST_PASSWORD"  # noqa: S105
 SIGNUP_EMAIL = "BLOWAI_SECRET_AUTO_SIGNUP_EMAIL"
@@ -52,7 +53,7 @@ SIGNUP_USERNAME = "BLOWAI_SECRET_AUTO_SIGNUP_USERNAME"
 # The account test mode registered itself (when no test account was given): kept privately for the final run.
 ACCOUNT_USERNAME = "BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME"
 ACCOUNT_PASSWORD = "BLOWAI_SECRET_AUTO_ACCOUNT_PASSWORD"  # noqa: S105
-GENERATED_SECRETS = (WRONG_PASSWORD, STRONG_PASSWORD, SIGNUP_EMAIL, SIGNUP_USERNAME)
+GENERATED_SECRETS = (WRONG_PASSWORD, STRONG_PASSWORD, EMPTY_PASSWORD, SIGNUP_EMAIL, SIGNUP_USERNAME)
 
 
 def _new_signup_email() -> str:
@@ -67,6 +68,7 @@ def generated_secrets() -> dict:
     """Throwaway values, new for every run: a password nobody has, and a strong one for invalid-format probes."""
     return {WRONG_PASSWORD: "Wrong-" + secrets.token_hex(5) + "!",
             STRONG_PASSWORD: "Qa-" + secrets.token_hex(5) + "#9x",
+            EMPTY_PASSWORD: "",
             SIGNUP_EMAIL: _new_signup_email(),
             SIGNUP_USERNAME: _new_signup_username()}
 
@@ -134,6 +136,9 @@ def tap(element: dict) -> dict:
 
 def fill(element: dict, value: str | None = None, secret_ref: str | None = None) -> dict:
     step = {"action": "fill", "locator": element["locators"][0]}
+    if value == "" and not secret_ref and (element.get("password") or re.search(
+            r"password|passwd|token|secret", step["locator"]["value"], re.I)):
+        secret_ref = EMPTY_PASSWORD
     if secret_ref:
         step.update(secret_ref=secret_ref, sensitive=bool(element.get("password")) or secret_ref != TEST_USERNAME)
     else:
@@ -728,6 +733,7 @@ class Session:
         elif form["kind"] == "search":
             self._search_check(screen, form)
         elif form["kind"] == "signup":
+            self._form_negative_checks(screen, form)
             self._positive_form_check(screen, form, "Sign-up")
         else:
             self._form_negative_checks(screen, form)
@@ -884,7 +890,7 @@ class Session:
         meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
                 "element_ids": [e["id"] for e in (user, password, submit) if e], "source": "interaction"}
         # 1. Empty fields are refused
-        empty = ([fill(user, "")] if user else []) + reach(submit) + [tap(submit)]
+        empty = [fill(box, "") for box in (user, password) if box] + reach(submit) + [tap(submit)]
         self._refused(screen, empty, password, "Login with empty fields is refused",
                       {**meta, "expected": "The login form stays; the app does not log in with empty fields.",
                        "requirement": "Standard login behaviour (empty fields are refused)"},
@@ -1085,7 +1091,7 @@ class Session:
         meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
                 "element_ids": [e["id"] for e in form["inputs"]] + [submit["id"]], "source": "interaction",
                 "requirement": "Observed form validation on a test build (regression)"}
-        empty = [fill(e, "") for e in form["inputs"] if not e.get("password")] + reach(submit) + [tap(submit)]
+        empty = [fill(e, "") for e in form["inputs"]] + reach(submit) + [tap(submit)]
         tries = [("empty", "Submitting the form empty is refused", empty)]
         target = next((e for e in form["inputs"] if not e.get("password")
                        and any(v["expect"] == "reject" for v in BASE.get(field_kind(e), []))), None)

@@ -1170,6 +1170,19 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
             identity = ["activity", activity, "scroller", scroller[:120]]
         elif native_heading:
             identity = ["activity", activity, "heading", native_heading.casefold()[:120]]
+    # A shared scroll-view shell can contain a product, Login or Signup. Keep
+    # forms distinct without putting entered values into the screen identity.
+    form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
+                         for e in elements if e["input_capable"] and not e["within_webview"]
+                         and not e["outside_active_drawer"])
+    if form_fields and not drawer_nodes and not loading:
+        form_actions = sorted((e["resource_id"] or e["accessibility_id"], e["text"].casefold())
+                              for e in elements if e["clickable"] and not e["input_capable"]
+                              and not e["within_webview"] and re.fullmatch(
+                                  r"\s*(?:log ?in|sign ?in|sign ?up|register|create (?:an? )?account|submit|continue|next|search|save|send)\s*",
+                                  e["text"], re.I))
+        schema = json.dumps({"fields": form_fields, "actions": form_actions}, ensure_ascii=True, separators=(",", ":"))
+        identity = [*identity, "form", hashlib.sha256(schema.encode()).hexdigest()[:16]]
     if any(e["visible"] and e["class_name"].endswith("WebView") for e in elements):
         identity, screen_name = ["embedded_webview", *identity], "Embedded web content"
     if drawer_nodes:
