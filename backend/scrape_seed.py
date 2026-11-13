@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from html import unescape
-from urllib.parse import urljoin, urlparse, urldefrag
+from urllib.parse import urldefrag, urljoin, urlparse
 
 # Payment/checkout paths we never seed (exploration still must not queue these as must-complete work).
 PAY_CHECKOUT_PATH = re.compile(
