@@ -6,7 +6,7 @@
 <title>Qpilot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/chat.css">
 <link rel="stylesheet" href="/static/studio.css">
 </head>
@@ -20,7 +20,7 @@
     <button class="new-btn" id="newBtn" type="button" aria-label="Start a new test"><span aria-hidden="true">+</span> New test</button>
     <div class="side-title">WORKSPACE</div>
     <a class="studio-nav current" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span><span class="nav-indicator"></span></a>
-    <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
+    <a class="studio-nav" href="/qa-lab" title="Score how often Qpilot was right against known truths"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
     <button class="studio-nav privacy-nav" id="privacySettingsBtn" type="button"><span aria-hidden="true">&#9881;</span><span>Privacy &amp; connections</span></button>
     <div class="side-section-head"><span class="side-title">RECENT RUNS</span></div>
     <nav class="recent" id="recent" aria-busy="true"><span class="muted small" role="status">Loading recent runs…</span></nav>
@@ -45,9 +45,9 @@
 
     <div class="workspace-hero">
       <p class="brand-lockup" aria-label="Qpilot">Qpilot</p>
-      <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg> QUALITY WORKSPACE</span>
-      <h1>See every path.<br><span>Ship with evidence.</span></h1>
-      <p>Explore the product, run the checks that matter, and keep checkout &amp; payment blocked by design.</p>
+      <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg> TEST STUDIO</span>
+      <h1>Test what matters.<br><span>Prove it with evidence.</span></h1>
+      <p>Paste a URL or open Android, run the suite, then review a report you can trust. Checkout and payment stay blocked.</p>
     </div>
     <div class="mode-switcher" role="group" aria-label="Testing platform">
       <button id="webModeBtn" class="mode-card selected" type="button" aria-pressed="true" aria-controls="composer"><span class="mode-icon web"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span><span class="mode-copy"><b>Web testing <small>Playwright</small></b><span>Websites &amp; web applications</span></span><span class="mode-radio" aria-hidden="true"></span></button>
