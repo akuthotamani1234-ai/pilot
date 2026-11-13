@@ -21,6 +21,7 @@ from pprint import pformat
 from urllib.parse import urlparse
 
 from .actions import DELETE, PAY, action_risk, writes_allowed
+from .form_targets import FORM_TARGET_HELPER
 from .navigation import OPEN_PATH_HELPER, opener_path
 from .testdata import field_kind, valid_value, values
 
@@ -72,6 +73,7 @@ def data_forms(pages: list[dict]) -> list[dict]:
             for x in fields:
                 kind = field_kind(x)
                 boxes.append({"selector": x["selector"], "name": _name(x), "kind": kind,
+                              "label": x.get("label") or "", "local_selector": x.get("local_selector"),
                               "type": (x.get("type") or "").lower(), "tag": x.get("tag") or "",
                               "required": bool(x.get("required")),
                               "valid": valid_value(x, "{tag}") if kind else "",
@@ -110,7 +112,9 @@ def form_cases(pages: list[dict]) -> list[dict]:
     for n, d in enumerate(data_forms(pages), start=1):
         spec, page = _spec(d), d["page"]
         base = {"kind": "form", "page": page["slug"], "url": page["url"], "pages": [page["slug"]],
-                "guest": not page.get("auth"), "files": ["test_forms.py"]}
+                "guest": not page.get("auth"), "files": ["test_forms.py"],
+                "verification_level": "input_only" if guard else "submitted",
+                "business_verified": False}
         # sending valid values to the edit form of an EXISTING record would overwrite it: on staging the round trip
         # edits its own record instead (without sending, the guard keeps it harmless)
         existing = re.search(r"/(\d+|[0-9a-f-]{8,})/(edit|update)\b|/edit(/|$)", urlparse(page["url"]).path, re.I)
@@ -230,7 +234,7 @@ def cleanup_case(cases: list[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------- the code (test_forms.py, test_cleanup.py)
 
-FORM_HELPERS = OPEN_PATH_HELPER + r'''
+FORM_HELPERS = OPEN_PATH_HELPER + '\n' + FORM_TARGET_HELPER + r'''
 def _visible(loc):
     try:
         return loc.count() > 0 and loc.first.is_visible()
@@ -242,10 +246,13 @@ def _fill_form(page, F, tag, bad=None):
     """A valid value in every box (names / texts / e-mails carry the run's tag) - except `bad`: (selector, value)."""
     groups = set()
     for b in F['boxes']:
-        el = page.locator(b['selector']).first
+        scope = form_scope(page, F.get('form'))
+        el = unique_control(scope, b)
         if not _visible(el):
             pytest.skip(f"Recorded field '{b['name']}' is not visible after reopening the form; filling was not verified")
-        if not el.is_enabled():  # (greyed out now - a return date of a one-way trip): a person leaves it
+        if not el.is_enabled():
+            if b.get('required'):
+                pytest.skip(f"Required field '{b['name']}' is disabled; whole-form input was not verified")
             if bad and b['selector'] == bad[0]:
                 pytest.skip(f"'{b['name']}' is disabled on this page - nothing can be typed into it")
             continue
@@ -254,7 +261,7 @@ def _fill_form(page, F, tag, bad=None):
             continue
         if b['type'] == 'checkbox':
             if b['required']:
-                el.check()
+                check_user_control(scope, b, True)
             continue
         if b['type'] == 'radio':
             name = el.get_attribute('name') or b['selector']
@@ -262,7 +269,7 @@ def _fill_form(page, F, tag, bad=None):
                 groups.add(name)
                 # (a choice that is already made - 'Round trip' - is kept, like a person would)
                 if not page.locator(f'input[type=radio][name="{name}"]:checked').count():
-                    el.check()
+                    check_user_control(scope, b, True)
             continue
         if b['tag'] == 'select' or b['type'].startswith('select'):
             options = el.evaluate("e => [...e.options].filter(o => !o.disabled && o.value).map(o => o.value)")
@@ -270,6 +277,8 @@ def _fill_form(page, F, tag, bad=None):
                 el.select_option(options[0])
             continue
         if b['type'] == 'file' or not b['kind']:
+            if b.get('required'):
+                pytest.skip(f"Required field '{b['name']}' needs a supported control value")
             continue
         value = b['valid']
         if b['kind'] == 'email':
@@ -283,7 +292,8 @@ def _fill_form(page, F, tag, bad=None):
 def _send(page, F):
     """Click the form's own button (this one planned click is approved; on test / production the write guard stops
     what it sends)."""
-    btn = page.locator(F['submit']).first
+    btn = page.locator(F['submit'])
+    expect(btn, 'The form submit button must be unique').to_have_count(1)
     expect(btn, 'the form\'s button should be visible').to_be_visible()
     btn.evaluate(APPROVE_JS)
     btn.click()

@@ -90,7 +90,11 @@ def login_form(p: dict) -> dict | None:
             continue
         user = _user_box(fields)
         if user:
-            return {"user": user["selector"], "password": pws[0]["selector"], "submit": sub}
+            from .navigation import opener_path
+            form = {"user": user["selector"], "password": pws[0]["selector"], "submit": sub}
+            if f.get("selector"):
+                form.update(form=f["selector"], openers=opener_path(p, f["selector"], f.get("revealed_by")))
+            return form
     # no <form>: exactly one password box on the page + a user box + a "log in" button
     inputs = p.get("inputs", [])
     pws = [i for i in inputs if i.get("type") == "password" and i.get("selector")]

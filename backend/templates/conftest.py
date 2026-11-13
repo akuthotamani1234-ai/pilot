@@ -21,6 +21,7 @@ import re
 import sys
 import threading
 import time
+import uuid
 import zipfile
 from pathlib import Path
 from urllib.parse import quote, quote_plus, urljoin, urlparse
@@ -50,7 +51,11 @@ BASE_URL = os.environ.get("QA_BASE_URL", "")
 # watching: the browser scaled so its whole window fits the screen, at its top left (discovery.fit_window_args)
 WINDOW_ARGS = [a for a in json.loads(os.environ.get("QA_WINDOW_ARGS") or "[]")
                if re.fullmatch(r"--(start-maximized|window-position=\d+,\d+|window-size=\d+,\d+)", a)]
-CAPTION_MS = 0 if HEADLESS else max(500, min(SLOW_MO_MS or 800, 1400))
+CAPTION_MS = 0  # pacing happens once per user action, outside presentation-only captions
+ACTION_DELAY_MS = 0 if HEADLESS else max(0, min(SLOW_MO_MS, 3000))
+EVENT_SESSION = uuid.uuid4().hex[:12]
+EVENT_FILE = RUN_DIR / f"events.{EVENT_SESSION}.{os.environ.get('PYTEST_XDIST_WORKER', 'main')}.jsonl"
+_EVENT_SEQUENCE = 0
 SHOT_DIR.mkdir(parents=True, exist_ok=True)
 REDACTED = "[REDACTED]"
 
@@ -366,10 +371,14 @@ def pytest_assertion_pass(item, lineno, orig, expl):
 # 'Search'"), and so is every check that passed and every `_step_ok()` line - with ✓ / ✗ and the time. They are written
 # to running.*.json while the test runs (the chat shows them ticking) and kept with the result (results.jsonl).
 MAX_STEPS = 60
-STEP_NAME_JS = """e => { const t = (e.innerText || e.value || e.getAttribute('aria-label') || e.getAttribute('placeholder')
+STEP_NAME_JS = """e => {
+  const labels = e.labels ? [...e.labels] : [];
+  const l = labels.find(l => l.parentElement === e.parentElement) || labels[0];
+  const adjacent = e.previousElementSibling?.tagName === 'LABEL' ? e.previousElementSibling.innerText : '';
+  const t = (adjacent || l?.innerText || e.innerText || e.getAttribute('aria-label') || e.getAttribute('placeholder')
   || e.getAttribute('title') || e.getAttribute('name') || '').trim().split('\\n')[0];
   if (t) return t.slice(0, 50);
-  const l = e.labels && e.labels[0]; return l ? l.innerText.trim().slice(0, 50) : e.tagName.toLowerCase(); }"""
+  return e.tagName.toLowerCase(); }"""
 
 
 def _step(text: str, ok=None) -> None:
@@ -377,13 +386,38 @@ def _step(text: str, ok=None) -> None:
     if item is None:
         return
     steps = item.__dict__.setdefault("_qa_steps", [])
+    _event(text, "failed" if ok is False else "completed" if ok else "info")
     if len(steps) >= MAX_STEPS:
-        return
+        del steps[0]  # the durable event file retains the complete history
     steps.append({"text": _redact(text)[:140], "ok": ok, "t": round(time.time() - getattr(item, "_qa_t0", time.time()), 1)})
     _running(item)
 
 
 pytest.qa_step = _step  # (a journey's own verified steps - `_step_ok()` in the generated tests - tick live too)
+
+
+def _event(text, status, **details):
+    global _EVENT_SEQUENCE
+    item = _CURRENT["item"]
+    if item is None:
+        return
+    _EVENT_SEQUENCE += 1
+    page = getattr(item, '_qa_page', None)
+    value = {"id": f"{EVENT_SESSION}:{_EVENT_SEQUENCE}", "timestamp": time.time(),
+             "worker": os.environ.get("PYTEST_XDIST_WORKER", "main"), "test": item.name,
+             "url": _redact(page.url) if page is not None and not page.is_closed() else "",
+             "nodeid": item.nodeid, "status": status, "text": _redact(text)[:500],
+             "elapsed": round(time.time() - getattr(item, "_qa_t0", time.time()), 2), **details}
+    try:
+        with EVENT_FILE.open("a", encoding="utf-8") as stream:
+            stream.write(_redact(json.dumps(value)) + "\n")
+    except OSError as exc:
+        print(f"[qa-note] Live event could not be saved: {type(exc).__name__}")
+
+
+def _pace(page):
+    if ACTION_DELAY_MS:
+        page.wait_for_timeout(ACTION_DELAY_MS)
 
 
 def _named(loc) -> str:
@@ -403,10 +437,12 @@ def _stepped(method, verb):
         if _CURRENT["item"] is None:
             return method(self, *args, **kwargs)
         name = _named(self)
-        what = (f"{verb} '{str(args[0])[:40]}' into '{name}'" if verb == "Type" and args else
+        what = (f"{verb} '{_shown_value(self, args[0])[:40]}' into '{name}'" if verb == "Type" and args else
                 f"Press {args[0]} in '{name}'" if verb == "Press" and args else
                 f"Choose '{str(args[0])[:40]}' in '{name}'" if verb == "Choose" and args else f"{verb} '{name}'")
+        _event(what, "running", selector=_redact(str(getattr(self, "_selector", "")))[:300])
         try:
+            _pace(self.page)
             out = method(self, *args, **kwargs)
         except Exception:
             _step(what, False)
@@ -421,7 +457,9 @@ def _goto_stepped(method):
         if _CURRENT["item"] is None:
             return method(self, url, *args, **kwargs)
         shown = urlparse(str(url)).path or "/"
+        _event(f"Open {shown}", "running")
         try:
+            _pace(self)
             out = method(self, url, *args, **kwargs)
         except Exception:
             _step(f"Open {shown}", False)
@@ -591,6 +629,9 @@ Locator._qa_test_name = ""
 
 
 def _describe(loc) -> str:
+    name = _named(loc)
+    if name:
+        return name
     m = re.search(r"selector='(.*)'", str(loc))
     return m.group(1) if m else "element"
 
@@ -674,13 +715,19 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
   const icon = i ? [i.getAttribute('class'), i.getAttribute('data-icon'), i.getAttribute('aria-label'),
                     i.getAttribute('alt')].filter(Boolean).join(' ').replace(/[-_]+/g, ' ') : '';
   return [box ? '' : said, e.getAttribute('aria-label') || '', e.getAttribute('title') || '', e.getAttribute('href') || '',
-          icon].map(s => s.trim().slice(0, 100)); }"""
+          icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : ''].map(s => s.trim().slice(0, 100)); }"""
 
 
 def _risky(names: list) -> bool:
     shown, other = names[0], " ".join(names[1:])
     both = f"{shown} {other}"
     href = names[3] if len(names) > 3 else ""
+    reference = re.compile(os.environ.get('QA_REFERENCE_NAV_RX') or r'(?!)', re.I)
+    if len(names) >= 8 and reference.fullmatch(shown) and names[5] == 'a' and not names[7] and (
+            names[6] == 'menuitem' or bool(href and href != '#')) and not re.search(
+                r'javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|'
+                r'[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)', href, re.I):
+        return False
     if TEST_ACCOUNT_RX.search(both) and not MONEY_RX.search(both):
         return False
     link = bool(shown and href and not href.startswith("#") and not href.lower().startswith("javascript"))
@@ -805,7 +852,7 @@ class _Browser:
 
     def _now(self):
         if self.b is None or not self.b.is_connected():
-            self.b = self.pw.chromium.launch(headless=HEADLESS, slow_mo=SLOW_MO_MS, args=[] if HEADLESS else WINDOW_ARGS)
+            self.b = self.pw.chromium.launch(headless=HEADLESS, slow_mo=0, args=[] if HEADLESS else WINDOW_ARGS)
         return self.b
 
     def new_context(self, **opts):
@@ -956,7 +1003,7 @@ if LOGIN and not getattr(Page, "_qa_relogin", False):
 
 STATUS_HTML = """<html><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f172a;
   font-family:system-ui,sans-serif;color:#e2e8f0"><div style="text-align:center;max-width:80vw">
-  <div style="font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8">Blow AI &middot; {title}</div>
+  <div style="font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8">Qpilot &middot; {title}</div>
   <div style="font-size:26px;font-weight:700;margin-top:14px;word-break:break-all">{text}</div>
   <div style="font-size:14px;color:#94a3b8;margin-top:10px">{note}</div></div></body></html>"""
 
@@ -1561,6 +1608,16 @@ def pytest_runtest_makereport(item, call):
                 TRACE_DIR.mkdir(parents=True, exist_ok=True)
                 item._qa_trace = str(TRACE_DIR / f"{_name(item)}.zip")
                 entry["trace"] = item._qa_trace
+        if entry["outcome"] == "inconclusive" and not entry.get("screenshot"):
+            p = getattr(item, "_qa_page", None)
+            if p is not None and not p.is_closed():
+                try:
+                    path = SHOT_DIR / f"{_name(item)}_{int(time.time())}.png"
+                    p.screenshot(path=str(path), full_page=True)
+                    entry.update(screenshot=str(path), url=p.url)
+                except Exception:
+                    pass  # the unavailable screenshot is not a passing check
+        _event(entry.get("error") or "Test finished", entry["outcome"], checks=entry["checks"])
         _record(entry)
     if rep.when == "call":
         _CURRENT["item"] = None

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from .android import DEVICE_ABSENCE_ERRORS, AndroidEnvironmentError, _adb_path, _run_cli, _sdk_path, parse_devices
+from .android_service import APPIUM_STARTUP_ERRORS
 
 ROOT = Path(__file__).resolve().parent.parent
 AVD_NAME = re.compile(r"[A-Za-z0-9_.-]{1,160}\Z")
@@ -51,13 +52,15 @@ def startup_choices(environment):
     for device in environment["devices"]:
         if device["status"] == "device":
             device["avd_name"] = connected_avd_name(environment.get("adb"), device["device_id"])
-    # Device absence/unreadiness alone must not block the Start Emulator affordance.
-    can_start = bool(emulators and environment.get("android_sdk") and environment.get("adb")
-                     and environment.get("java") and environment.get("uiautomator2")
-                     and environment.get("appium", {}).get("available")
-                     and not any(not error.startswith(DEVICE_ABSENCE_ERRORS)
-                                 for error in environment.get("errors", [])))
-    return {**environment, "emulators": emulators, "can_start_emulator": can_start}
+    # Installed tools may be stopped. Only missing/broken prerequisites block preparation.
+    tools_ready = bool(environment.get("android_sdk") and environment.get("adb")
+                       and environment.get("java") and environment.get("uiautomator2")
+                       and (environment.get("appium_cli") or environment.get("appium", {}).get("available"))
+                       and not any(not error.startswith(DEVICE_ABSENCE_ERRORS + APPIUM_STARTUP_ERRORS)
+                                   for error in environment.get("errors", [])))
+    can_prepare = tools_ready and bool(emulators or any(d["status"] == "device" for d in environment["devices"]))
+    return {**environment, "emulators": emulators, "can_start_emulator": tools_ready and bool(emulators),
+            "can_prepare": can_prepare}
 
 
 def _devices(adb):

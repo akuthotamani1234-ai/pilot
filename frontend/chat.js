@@ -271,6 +271,7 @@
 
   function newTest() {
     if (timer || mobilePreparing) return;  // a test is running or Android is booting
+    if (window.QpilotLive) window.QpilotLive.reset();
     ['androidApiKey','androidTestUsername','androidTestPassword'].forEach(id => $(id).value = '');
     document.body.dataset.setupState = "idle";
     job = null; posted = {}; logLines = []; llmWarnings = 0; lastCheck = {}; casesKey = ""; chainGen++;
@@ -386,15 +387,14 @@
         note.textContent = "Android tools and a device are ready. Appium stays local to this computer.";
         $("androidRunNote").textContent = "";
         start.disabled = false;
-      } else if (data.can_start_emulator) {
-        note.textContent = "Choose an emulator. Start Android test will open it automatically and wait for Android to boot.";
-        $("androidRunNote").textContent = "The selected emulator will start when you click Start Android test.";
+      } else if (data.can_prepare || data.can_start_emulator) {
+        note.textContent = "Ready to start. Start Android test will launch local Appium and boot your selected emulator if needed.";
+        $("androidRunNote").textContent = "Appium and Android will start automatically when you click Start Android test.";
         start.disabled = false;
       } else {
-        const errors = data.errors || ["Android environment is not ready."];
+        const errors = (data.errors || ["Android environment is not ready."]).map(message => message.replaceAll("`", ""));
         note.textContent = errors.join(" ");
-        $("androidRunNote").textContent = errors.join(" ");
-        note.textContent += " Start Appium with `appium --address 127.0.0.1`, connect/authorize a device, then refresh.";
+        $("androidRunNote").textContent = "Complete the setup above, then refresh device status.";
       }
     } catch (error) {
       note.textContent = error.message || "Could not check the Android environment.";
@@ -467,15 +467,31 @@
     controls.forEach(control => control.disabled = true);
     mobilePreparing = true;
     lockWorkspaceMode(true);
-    $("androidRunNote").textContent = selectedAvd ? "Starting or reconnecting the emulator. Waiting for Android to boot; this may take a few minutes…" : "Checking the selected Android device…";
+    form.setAttribute("aria-busy", "true");
+    const startLabel = $("androidStart").textContent;
+    $("androidStart").textContent = "Preparing Android…";
+    let preparationMessage = "Step 1 of 3 · Starting local Appium and waiting for it to be ready";
+    const preparationStarted = Date.now();
+    const showPreparation = () => {
+      $("androidRunNote").textContent = `${preparationMessage} · ${Math.floor((Date.now() - preparationStarted) / 1000)}s elapsed`;
+    };
+    showPreparation();
+    const preparationTimer = setInterval(showPreparation, 1000);
     try {
-      const preparation = await fetch("/api/android/prepare", {
-        method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },
-        body: JSON.stringify({ device_id: selectedDevice, avd_name: selectedAvd,
-          appium_url: $("androidAppiumUrl").value, authorized: $("androidAuthorized").checked })
-      });
-      const prepared = await preparation.json();
-      if (!preparation.ok) throw new Error(prepared.detail || "Android could not be started.");
+      const prepareStep = async stage => {
+        const response = await fetch("/api/android/prepare", {
+          method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },
+          body: JSON.stringify({ device_id: selectedDevice, avd_name: selectedAvd,
+            appium_url: $("androidAppiumUrl").value, authorized: $("androidAuthorized").checked, stage })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Android could not be started.");
+        return result;
+      };
+      await prepareStep("appium");
+      preparationMessage = selectedAvd ? "Step 2 of 3 · Appium is ready. Waiting for Android to boot; this may take a few minutes" : "Step 2 of 3 · Appium is ready. Checking the selected Android device";
+      showPreparation();
+      const prepared = await prepareStep("device");
       data.set("device_id", prepared.device_id);
       let option = [...$("androidDevice").options].find(item => item.value === prepared.device_id);
       if (!option) {
@@ -484,7 +500,8 @@
       }
       option.dataset.avd = prepared.avd_name || selectedAvd;
       $("androidDevice").value = prepared.device_id;
-      $("androidRunNote").textContent = mode === "apk" ? "Android is ready. Uploading the private APK…" : "Android is ready. Starting Appium tests…";
+      preparationMessage = mode === "apk" ? "Step 3 of 3 · Android is ready. Uploading the private APK" : "Step 3 of 3 · Android is ready. Starting Appium tests";
+      showPreparation();
       const response = await fetch("/api/mobile/runs", {
         method: "POST", headers: { "X-Agentic-QA": "1" }, body: data
       });
@@ -500,6 +517,9 @@
       $("androidRunNote").textContent = error.message || "Could not start the Android test.";
       $("androidStart").disabled = false;
     } finally {
+      clearInterval(preparationTimer);
+      form.removeAttribute("aria-busy");
+      $("androidStart").textContent = startLabel;
       mobilePreparing = false;
       controls.forEach((control, index) => control.disabled = disabledBefore[index]);
       if (!timer) lockWorkspaceMode(false);
@@ -763,7 +783,8 @@
       '<p>All existing test, review, recording, business-rule and backend-check settings remain available here.</p></div></div>' +
       myTestsHtml(lastCheck) + advancedHtml(saved) +
       '<div class="toggles"><label><input type="checkbox" id="aiWatch" ' + (saved.watch === false ? '' : 'checked') +
-      '> Watch tests in a browser window</label><label><input type="checkbox" id="aiFresh"> Fresh baseline and scripts</label></div></section>' +
+      '> Watch mode: visible browser and readable steps</label><label><input type="checkbox" id="aiFresh"> Fresh baseline and scripts</label></div>' +
+      '<p class="muted small">Turn off Watch for Fast mode with isolated hidden browsers. All modes retain execution evidence.</p></section>' +
       '<div class="setup-run"><p id="aiRunSummary" class="note"></p>' +
       '<label class="tick auth"><input type="checkbox" id="aiAuth" ' + (wasAuthorized(pendingSource) ? 'checked' : '') +
       '><span>I own this website or have permission to test it.</span></label>' +
@@ -850,7 +871,7 @@
   function loginHtml(c) {
     const configured = !!c.has_test_account;
     return '<section class="setup-section" id="setupAccount"><div class="setup-section-title"><span>01</span><div>' +
-      '<h3>How should Blow AI access the website?</h3><p>Choose an account method before exploration starts.</p></div></div>' +
+      '<h3>How should Qpilot access the website?</h3><p>Choose an account method before exploration starts.</p></div></div>' +
       '<label class="account-choice">Account method <select id="aiAccountMode"><option value="public">Public pages only</option>' +
       '<option value="existing">Use my existing test account</option><option value="signup">Create or reuse a permitted test account</option>' +
       (configured ? '<option value="configured">Use the test account configured on this computer</option>' : '') + '</select></label>' +
@@ -912,7 +933,7 @@
     $("aiCredentials").hidden = mode !== "existing";
     $("aiSignupField").hidden = mode !== "signup";
     $("aiAccountNote").textContent = mode === "existing" ? "The supplied test account is used for this run. Login must succeed before protected pages can be covered."
-      : mode === "signup" ? "Blow AI looks for registration, creates a permitted test account when supported, then signs in. Missing signup or verification blocks are explained."
+      : mode === "signup" ? "Qpilot looks for registration, creates a permitted test account when supported, then signs in. Missing signup or verification blocks are explained."
       : mode === "configured" ? "The local configured test account is used without exposing its password in this interface."
       : "Public pages only. Stored accounts and account creation will not be used.";
     updateSetupSummary();
@@ -1062,6 +1083,7 @@
                    thorough: !!thorough,
                    allow_rules_fallback: $("aiFallback").checked,
                    show_browser: $("aiWatch").checked, fresh: $("aiFresh").checked,
+                   execution_mode: $("aiWatch").checked ? "watch" : "fast", action_delay_ms: 1000,
                    authorized: true, allow_signup: accountMode === "signup" && $("aiSignup").checked, environment: val("advEnv") || "test",
                    production_confirmed: $("advProd").checked, max_depth: maxDepth,
                    writes_confirmed: val("advEnv") === "staging" && $("advWrites").checked,
@@ -1211,6 +1233,7 @@
 
   // ------------------------------------------------------------ 3) live progress -> to-do ticks + chat messages
   function applyUpdate(d) {
+    if (window.QpilotLive) window.QpilotLive.update(d);
     job = Object.assign(job || {}, d);
     since = d.next;
     logLines.push(...(d.lines || []));
@@ -1228,7 +1251,7 @@
       // a website's bot check (Cloudflare "Just a moment..."): only a person may complete it, on the Android device
       update("human", !h.done && !finished
         ? `<div class="warn">🔐 <b>The website shows a security check${h.kind ? " (" + esc(h.kind) + ")" : ""}.</b>
-           Please complete it yourself in the <b>Android emulator window</b> - Blow AI never solves or bypasses these checks.
+           Please complete it yourself in the <b>Android emulator window</b> - Qpilot never solves or bypasses these checks.
            I wait up to ${Math.round((h.wait_s || 180) / 60)} minutes, then continue when the real website appears.</div>`
         : h.ok ? `<p>🔐 Thank you - the security check was completed. Testing continues.</p>`
                : `<p class="muted">🔐 The security check was not completed in time - the report says what could not be tested.</p>`);
@@ -1334,7 +1357,7 @@
         notify("Testing completed", `${d.source || "Your website"} · ${mins}:${secs} min. The report is ready.`);
         later(async () => {
           say(`<div class="done-banner"><span class="big">✅</span><div><b>Testing completed</b>
-            <span>All steps are done in ${mins}:${secs} min. The final report is below.</span></div></div>`);
+            <span>The process ended in ${mins}:${secs} min. Review completed checks and coverage limits below.</span></div></div>`);
           if ($("m-exec")) await loadCases(d.run);  // final Passed / Failed for every test case
           await showReport(d.run, true);
         });
@@ -1628,7 +1651,7 @@
     const links = L.total && !linkCase ? `<div class="case ${L.done < L.total ? (L.done ? "Running" : "") : L.broken ? "Failed" : "Passed"}">
         <span class="ci">🔗</span><span class="ct">Every link on the website (${L.total})</span>
         <span class="cs">${L.done < L.total ? `${L.done}/${L.total}` : L.broken ? `${L.broken} broken` : "all OK"}</span></div>` : "";
-    return `<p>${timer && done < all ? "Running the tests" : "✅ Finished running the tests"}: <b>${esc(posted.execText)}</b>${L.total ? ` · links ${L.done}/${L.total}` : ""}</p>
+    return `<p>Execution progress: <b>${esc(posted.execText)}</b>${L.total ? ` · links ${L.done}/${L.total}` : ""}</p>
       <div class="card"><div class="bar"><i style="width:${all ? Math.round((done / all) * 100) : 0}%"></i></div>
       <div class="cases">${list}${links}</div></div>`;
   }
@@ -1822,7 +1845,7 @@
             <button type="button" class="secondary schedule" data-run="${esc(run)}">⏰ Repeat this test</button>` : ""}
         </div>
         ${live ? logHtml() : d.console && d.console.length ? `<details class="log"><summary>Agent log</summary><pre>${esc(d.console.join("\n"))}</pre></details>` : ""}
-      </div>`);
+      </div>`, "report");
     offerRepoFix(run);
   }
 
@@ -1915,52 +1938,9 @@
   }
 
   // ------------------------------------------------------------ 5) apply the fixes to the website's repo (Pull Request)
-  function looksLikeGithubRepo(url) {
-    return /^https?:\/\/(www\.)?github\.com\/[^/\s]+\/[^/\s]+/i.test((url || "").trim());
-  }
-
-  function repoFixNextStepsHtml(plan, hasAutoFiles) {
-    const steps = [];
-    steps.push("Review the scan summary and any diffs below.");
-    if (hasAutoFiles) {
-      steps.push("Click <b>Create Pull Request on GitHub</b> when the automatic changes look right (or apply them by hand).");
-    } else {
-      steps.push("Apply the listed hand fixes in your repository (nothing matched automatically).");
-    }
-    if ((plan.skipped || []).length || (plan.no_code || []).length) {
-      steps.push("Finish any <b>hand fixes</b> / advice items listed below.");
-    }
-    steps.push("On GitHub: review and merge the PR (if you created one).");
-    steps.push("Come back to Studio and re-run or recheck the website.");
-    return `<div class="card repo-fix-next"><h4>What you have to do next</h4><ol>${
-      steps.map((s) => `<li>${s}</li>`).join("")}</ol></div>`;
-  }
-
   async function offerRepoFix(run) {
-    const generation = chainGen;
-    let info;
-    try { info = await (await fetch(`/api/runs/${encodeURIComponent(run)}/repo-fix`)).json(); } catch (e) { return; }
-    if (generation !== chainGen || !info.fixes_with_code) return;
-    const id = "repofix-" + run.replace(/\W/g, "");
-    say(`<p>🛠 <b>Want me to apply these fixes to your code?</b> Paste the website's <b>GitHub repository</b> link,
-      then press <b>Prepare changes</b>. I will download that repo, match the findings against its source files,
-      and tell you exactly what to do next. Nothing is pushed until you press <b>Create Pull Request</b>;
-      your main branch stays untouched until you review and merge on GitHub.</p>
-      <div class="card">
-        <div class="fields">
-          <label>GitHub repository <input id="${id}-repo" type="url" spellcheck="false" placeholder="https://github.com/you/your-website"
-            value="${esc(info.repo_url || "")}"></label>
-          <label>GitHub token <input id="${id}-tok" type="password" autocomplete="off"
-            placeholder="${info.has_token ? "Saved in .env (leave empty)" : "Token with Contents + Pull requests: write"}"></label>
-        </div>
-        <p class="muted small" id="${id}-hint">Paste the link, then Prepare changes (or press Enter in the repository field).</p>
-        <div class="actions"><button type="button" class="primary" id="${id}-prep">🔍 Prepare changes</button></div>
-        <div id="${id}-out"></div>
-      </div>`, id);
-    $(`${id}-prep`).addEventListener("click", () => prepareRepoFix(run, id));
-    $(`${id}-repo`).addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); prepareRepoFix(run, id); }
-    });
+    say('<div id="qpilotRepository"></div>', 'qpilot-repository');
+    await window.QpilotRepo.mount(run, $("qpilotRepository"));
   }
 
   async function postJSON(url, body) {
@@ -2011,85 +1991,6 @@
     } catch (err) {
       btn.disabled = false;
       btn.textContent = `Could not approve: ${err.message}`;
-    }
-  }
-
-  async function prepareRepoFix(run, id) {
-    const out = $(`${id}-out`), btn = $(`${id}-prep`), hint = $(`${id}-hint`);
-    const body = { repo_url: $(`${id}-repo`).value.trim(), token: $(`${id}-tok`).value.trim() };
-    if (!body.repo_url) {
-      out.innerHTML = `<div class="warn">Paste a GitHub repository link first (for example https://github.com/you/your-website).</div>`;
-      if (hint) hint.textContent = "Repository link is required.";
-      $(`${id}-repo`).focus();
-      return;
-    }
-    if (!looksLikeGithubRepo(body.repo_url)) {
-      out.innerHTML = `<div class="warn">That is not a GitHub repository link. Use https://github.com/owner/repo</div>`;
-      if (hint) hint.textContent = "Need a github.com/owner/repo URL.";
-      $(`${id}-repo`).focus();
-      return;
-    }
-    btn.disabled = true;
-    if (hint) hint.textContent = "Scanning the repository against this run’s findings…";
-    out.innerHTML = `<p class="muted">Downloading the repository and matching findings in its source files…
-      <span class="typing"><i></i><i></i><i></i></span></p>`;
-    try {
-      const plan = await postJSON(`/api/runs/${encodeURIComponent(run)}/repo-fix/prepare`, body);
-      const filesHtml = (plan.files || []).map((f) =>
-        `<details class="log"><summary><b>${esc(f.path)}</b> · ${esc((f.fixes || []).join(", "))}</summary>
-          <pre>${esc(f.diff)}</pre></details>`).join("");
-      const fullApplied = (plan.applied || []).filter((a) => !a.partial);
-      const partialApplied = (plan.applied || []).filter((a) => a.partial);
-      const skippedHtml = (plan.skipped || []).map((s) =>
-        `<li><b>${esc(s.title)}</b> <span class="muted">· ${esc(s.reason || "")}</span></li>`).join("");
-      const noCodeItems = Array.isArray(plan.no_code) ? plan.no_code : [];
-      const noCodeHtml = noCodeItems.map((item) => {
-        if (typeof item === "string") return `<li>${esc(item)}</li>`;
-        const why = item.why ? ` <span class="muted">· ${esc(item.why)}</span>` : "";
-        return `<li><b>${esc(item.title || "Advice")}</b>${why}</li>`;
-      }).join("");
-      const scanned = plan.files_scanned != null ? plan.files_scanned : "?";
-      const considered = plan.fixes_considered != null
-        ? plan.fixes_considered
-        : (plan.applied || []).length + (plan.skipped || []).length;
-      const summary = `<p class="muted">I looked through <b>${esc(String(scanned))}</b> source file(s) in
-        <b>${esc(plan.repo || body.repo_url)}</b> for <b>${esc(String(considered))}</b> code-bearing fix(es):
-        ${fullApplied.length} matched, ${partialApplied.length} partial,
-        ${(plan.skipped || []).length} need a hand, ${noCodeItems.length} advice-only.</p>`;
-      const handBlock = (skippedHtml || noCodeHtml)
-        ? `<h4>Fix these by hand / advice</h4><ul>${skippedHtml}${noCodeHtml}</ul>` : "";
-      const hasFiles = !!(plan.files || []).length;
-      const next = repoFixNextStepsHtml(plan, hasFiles);
-      out.innerHTML = hasFiles
-        ? `${summary}${next}<h4>Automatic changes ready</h4>${filesHtml}${handBlock}
-           <div class="note">Creates a new branch and a Pull Request in <b>${esc(plan.repo)}</b>. Your main branch is not changed.</div>
-           <div class="actions"><button type="button" class="primary" id="${id}-pr">⬆ Create Pull Request on GitHub</button></div>
-           <div id="${id}-done"></div>`
-        : `${summary}${next}<div class="warn">No automatic code match in this repository.
-           Apply the hand fixes below, then re-test in Studio.</div>${handBlock}`;
-      if (hasFiles) $(`${id}-pr`).addEventListener("click", () => createRepoPr(run, id, body.token));
-      if (hint) hint.textContent = "Scan finished — follow What you have to do next.";
-    } catch (e) {
-      out.innerHTML = `<div class="warn">${esc(e.message)}</div>`;
-      if (hint) hint.textContent = "Prepare failed — check the link, token, and network, then try again.";
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  async function createRepoPr(run, id, token) {
-    const btn = $(`${id}-pr`), done = $(`${id}-done`);
-    btn.disabled = true;
-    done.innerHTML = `<p class="muted">Creating the Pull Request…</p>`;
-    try {
-      const r = await postJSON(`/api/runs/${encodeURIComponent(run)}/repo-fix/create`, { token });
-      done.innerHTML = `<div class="done-banner"><span class="big">✅</span><div><b>Pull Request created</b>
-        <span>Review it and merge it on GitHub, then test the website again:
-        <a href="${esc(r.pr_url)}" target="_blank" rel="noopener">${esc(r.pr_url)}</a>
-        ${r.stale && r.stale.length ? `<br>Skipped (changed on GitHub meanwhile): ${esc(r.stale.join(", "))}` : ""}</span></div></div>`;
-    } catch (e) {
-      btn.disabled = false;
-      done.innerHTML = `<div class="warn">${esc(e.message)}</div>`;
     }
   }
 

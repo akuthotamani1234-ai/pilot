@@ -192,7 +192,7 @@ def page_features(p: dict) -> list[dict]:
     protected = {}
     for b in p.get("buttons", []):
         t = (b.get("text") or "").split("\n")[0].strip()
-        if t and action_risk(t, b.get("selector")) == "protected" and not b.get("disabled"):
+        if t and action_risk(t, b.get("selector"), b) == "protected" and not b.get("disabled"):
             protected.setdefault(t.lower(), {"text": t[:40], "selector": b.get("selector")})
     if protected:
         out.append({"kind": "protected", "actions": list(protected.values())[:8]})

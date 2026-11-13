@@ -56,6 +56,8 @@ class Settings:
     crawl_time_limit_min: float = float(os.getenv("CRAWL_TIME_LIMIT_MIN", "30"))     # stop exploring after this
     # the WHOLE run (all agents): after this the run stops and the report is written with what was done (0 = no limit)
     run_time_limit_min: float = float(os.getenv("RUN_TIME_LIMIT_MIN", "90"))
+    finalization_reserve_s: float = float(os.getenv("FINALIZATION_RESERVE_S", "120"))
+    discovery_budget_fraction: float = max(0.1, min(0.8, float(os.getenv("DISCOVERY_BUDGET_FRACTION", "0.4"))))
     # polite speed on a PUBLIC website: page loads per second while exploring (0 = no limit; slower after HTTP 429/503)
     max_requests_per_sec: float = float(os.getenv("MAX_REQUESTS_PER_SEC", "2"))
     # only this part of the website (--section /electronics), else decided from the link
@@ -73,7 +75,7 @@ class Settings:
     test_retries: int = int(os.getenv("TEST_RETRIES", "0"))        # optional re-runs of failed tests (0 = once only)
     llm_budget_usd: float = float(os.getenv("LLM_BUDGET_USD", "2"))  # AI cost limit per run; then built-in rules
     headless: bool = os.getenv("HEADLESS", "true").lower() != "false"
-    slow_mo_ms: int = int(os.getenv("SLOW_MO_MS", "0"))  # pause after every browser action, to watch it live
+    slow_mo_ms: int = int(os.getenv("SLOW_MO_MS", "1000"))  # one delay per watched user action; headless stays fast
     # save a video of the test browsers in runs/<run>/videos (one per browser window; large files - off by default)
     record_video: bool = os.getenv("RECORD_VIDEO", "false").lower() == "true"
     # a one-time code / CAPTCHA at login, with a visible browser: wait this long for a PERSON to complete it (0 = never)

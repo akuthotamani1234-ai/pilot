@@ -170,7 +170,7 @@ def _where(f: dict, page_of_file: dict[str, str]) -> str:
     return page_of_file.get(f.get("file") or "", f.get("page_url") or "")
 
 
-def build_fixes(state: dict) -> list[dict]:
+def build_fixes(state: dict, *, enrich: bool = True) -> list[dict]:
     ctx = Context(state)
     page_of_file = {name: p["url"] for name, p in ctx.by_file.items()}
     fixes, seen, fails = [], {}, {}
@@ -209,7 +209,7 @@ def build_fixes(state: dict) -> list[dict]:
     for n, x in enumerate(fixes):
         x["id"] = n
 
-    if llm_enabled() and fixes:
+    if enrich and llm_enabled() and fixes:
         try:
             brief = [{"id": x["id"], "problem": x["title"], "page": x["where"], "error": x["error"]} for x in fixes[:20]]
             for upd in extract_json(ask_llm(load_prompt("fix_advice").format(fixes=json.dumps(brief, indent=1)),
@@ -219,7 +219,8 @@ def build_fixes(state: dict) -> list[dict]:
                     x["fix"], x["source"] = upd["fix"].strip(), "ai"
         except (LLMError, json.JSONDecodeError, ValueError, KeyError, IndexError, TypeError) as e:
             print(f"  [advice] AI advice skipped, using built-in advice: {str(e)[:150]}")
-    ai_fill(fixes)  # AI writes the corrected code where the rules only found the current line
+    if enrich:
+        ai_fill(fixes)
 
     Path(state["run_dir"], "fixes.json").write_text(json.dumps(fixes, indent=2), encoding="utf-8")
     return fixes

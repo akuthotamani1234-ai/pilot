@@ -112,7 +112,7 @@ def studio(browser, scenario="discovery", viewport=None):
 
     page.route("**/*", respond)
     page.goto("http://127.0.0.1:8299/", wait_until="networkidle")
-    page.locator("#recent .open").wait_for()
+    page.locator("#recent .open").wait_for(state="attached")  # closed navigation drawers remain hidden
     return context, page, errors, calls
 
 

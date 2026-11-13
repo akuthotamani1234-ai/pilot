@@ -412,6 +412,8 @@ def decided(f: dict, by_tc: dict, results: list[dict] | None, strength: dict | N
             ran = hits
         strong = not strength or any(of_result(r, strength) == "strong" for r in ran
                                      if r.get("outcome") == "passed" or r.get("flaky"))
+        if c.get("journey") == "form" or c.get("verification_level") == "input_only":
+            strong = False
         out.append({"tc_id": t["tc_id"], "how": t["how"], "status": status, "why": why, "checks": checks,
                     "kinds": sorted({classify(r)[0] for r in bad}), "title": c.get("title", ""), "strong": strong})
     return out

@@ -39,6 +39,8 @@ class QAState(TypedDict, total=False):
     # ---- Execution Agent
     results: list[dict[str, Any]]
     rerun_only: list[str]            # set by Self-Healing: only re-run these tests
+    resuming: bool                  # retain completed results and run only pending work
+    resume_completed: list[str]
 
     # ---- Failure Analysis Agent
     failures: list[dict[str, Any]]

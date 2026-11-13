@@ -131,6 +131,7 @@ def test_readiness_failure_is_bounded_and_fallback_is_explicit(tmp_path, monkeyp
 
 def test_short_provider_probe_never_retries_or_changes_global_timeout(monkeypatch):
     from backend import cost, runctl
+    monkeypatch.setattr(llm, "llm_enabled", lambda: True)  # independent of the user's persisted privacy policy
     monkeypatch.setattr(runctl, "stopping", lambda: False)
     monkeypatch.setattr(cost, "record", lambda *args: None)
     monkeypatch.setattr(llm.settings, "llm_timeout", 240)

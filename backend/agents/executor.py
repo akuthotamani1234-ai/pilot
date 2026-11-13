@@ -19,11 +19,12 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
 from .. import runctl
-from ..actions import SAFE_TEXT, TEST_ACCOUNT, WRITE, protected_pattern
+from ..actions import REFERENCE_NAV, SAFE_TEXT, TEST_ACCOUNT, WRITE, protected_pattern
 from ..config import settings
 from ..safety import AD_HOSTS, TRACKER_SAID, clean_env, is_private_host, redact
 from ..state import QAState
@@ -73,7 +74,7 @@ def _watched_slow_mo_ms() -> int:
     """A visible run should be readable by default; hidden runs stay fast."""
     if settings.headless:
         return 0
-    return max(500, min(settings.slow_mo_ms or 800, 1400))
+    return max(0, min(settings.slow_mo_ms, 3000))
 
 
 def _workers(n_tests: int | None, headless: bool | None = None) -> int:
@@ -211,6 +212,7 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
         "QA_PROTECTED_RX": protected_pattern(), "QA_TEST_ACCOUNT_RX": TEST_ACCOUNT.pattern,
         "QA_ENVIRONMENT": settings.environment, "QA_RUN_ID": run_dir.name,
         "QA_SAFE_TEXT_RX": SAFE_TEXT.pattern, "QA_WRITE_RX": WRITE.pattern,
+        "QA_REFERENCE_NAV_RX": REFERENCE_NAV.pattern,
         # a link that says where it goes is protected only by an address that changes data (the crawler's rule)
         "QA_UNSAFE_LINK_RX": "|".join(re.escape(w) for w in settings.unsafe_link_words),
         "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
@@ -249,6 +251,8 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
            "--rootdir", str(test_dir.resolve()), f"--junitxml={junit.resolve()}"]
     if (test_dir / "pytest.ini").exists():
         cmd += ["-c", str((test_dir / "pytest.ini").resolve())]
+    if state.get("resuming") and select is None:
+        cmd += ["--deselect=" + node for node in state.get("resume_completed", [])]
     workers = _workers(len(select) if select else None, headless)
     if headless and not settings.headless:  # (the Chrome windows you are watching are browsers too)
         workers = max(1, workers - WATCHED_WINDOWS)
@@ -321,7 +325,13 @@ def _read(results_file: Path) -> list[dict]:
     out = []
     for f in [results_file] + _worker_files(results_file):
         if f.exists():
-            out += [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
+            for line in f.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    print(f"  [execution] incomplete result line retained for investigation in {f.name}")
     return out
 
 
@@ -512,7 +522,8 @@ def execution_agent(state: QAState) -> QAState:
         from ..qa_web import execute_pipeline_contracts
 
         output = execute_pipeline_contracts(state)
-        results, cases = output["results"], output["test_cases"]
+        results = (list(state.get("results") or []) if state.get("resuming") else []) + output["results"]
+        cases = output["test_cases"]
         for case in cases:
             result = next((r for r in results if r.get("contract_id") == case.get("contract_id")), None)
             if result:
@@ -542,8 +553,13 @@ def execution_agent(state: QAState) -> QAState:
               "features and page checks, the small checks (input values, links) last")
         print(f"  [execution] watched browser: fitted to the screen, action captions on, slow motion "
               f"{_watched_slow_mo_ms()} ms")
-    info = _run_pytest(state, test_dir, run_dir / "results.jsonl", shot_dir)
-    results = _read(run_dir / "results.jsonl")
+    results_file = run_dir / (f"results.resume-{uuid.uuid4().hex[:8]}.jsonl" if state.get("resuming") else "results.jsonl")
+    previous = list(state.get("results") or []) if state.get("resuming") else []
+    if state.get("resuming") and settings.writes_ok:
+        raise RuntimeError("Resume with writes requires reconciliation of interrupted run-owned records. "
+                           "Resume read-only or review created.jsonl and start a fresh authorized write run.")
+    info = _run_pytest(state, test_dir, results_file, shot_dir)
+    results = previous + _read(results_file)
 
     # Bounded retries (TEST_RETRIES): run failed tests again, with a trace. Pass on a retry => flaky (the first
     # failure is kept); failed again for another reason => the retry's failure is reported (see _merge_retry).

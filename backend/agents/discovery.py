@@ -470,7 +470,7 @@ EXTRACT_JS = r"""
   const buttons = group([...deepAll(CONTROLS), ...custom, ...sortHeads]
     .filter(b => visible(b) && !bookmark(b)).slice(0, 300).map(b => ({ ...shadowOf(b),
       text: nameOf(b), accname: accName(b), role: roleOf(b), selector: sel(b), type: b.getAttribute('type') || '',
-      tag: b.tagName.toLowerCase(),
+      tag: b.tagName.toLowerCase(), href: b.getAttribute('href') || '',
       // a real name (a word a person reads or hears), not one made of its CSS classes ('btn btn orange')
       named: /[\p{L}\p{N}]/u.test(`${accName(b)} ${b.getAttribute('title') || ''}`) || !!b.querySelector('img[alt]:not([alt=""])'),
       in_form: !!b.closest('form'), disabled: !!b.disabled || b.classList.contains('disabled'),
@@ -558,6 +558,12 @@ EXTRACT_JS = r"""
         .map(i => [i.name, String(i.value).slice(0, 100)]).slice(0, 10),
       fields: fields.map(i => ({name: i.name || '', id: i.id || '', type: i.type || '', tag: i.tagName.toLowerCase(),
         selector: sel(i), required: reqOf(i), label: labelFor(i).slice(0, 80),
+        local_selector: i.id && f.querySelectorAll('[id="'+q(i.id)+'"]').length === 1 ? '[id="'+q(i.id)+'"]' :
+          (i.name && f.querySelectorAll('[name="'+q(i.name)+'"]').length === 1 ? '[name="'+q(i.name)+'"]' :
+          i.tagName.toLowerCase() + (i.getAttribute('type') ? '[type="'+q(i.getAttribute('type'))+'"]' : '')),
+        global: !!i.closest('nav,aside,[role=navigation],[role=search]'),
+        min: i.getAttribute('min'), max: i.getAttribute('max'), step: i.getAttribute('step'),
+        readonly: i.readOnly, disabled: i.disabled,
         placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i)})),
       submit: submit ? {text: accName(submit), selector: sel(submit)} : null
     };
@@ -1669,6 +1675,8 @@ def discovery_agent(state: QAState) -> QAState:
     queue = _Frontier((start_url, 0, True, False))  # (logged-in pages always first)
     seen = {(start_url, False)}
     crawl_started, time_limited, stopped = time.time(), False, ""
+    from ..scheduling import discovery_minutes
+    crawl_budget_min = discovery_minutes(settings)
     # a test account is known: logging in is the first job (the "Sign in" link is opened before anything else)
     has_account = False if settings.discovery_only or not settings.login_enabled else (
         bool(settings.test_username and settings.test_password) or bool(
@@ -1687,7 +1695,7 @@ def discovery_agent(state: QAState) -> QAState:
         with (run_dir / "created.jsonl").open("a", encoding="utf-8") as fh:
             fh.write(json.dumps({"what": what, "tag": tag, "where": where, "status": "created", "time": time.time(),
                                  "by": "exploring"}) + "\n")
-    explorer = Explorer(EXTRACT_JS, _settle, crawl_started + settings.crawl_time_limit_min * 60,
+    explorer = Explorer(EXTRACT_JS, _settle, crawl_started + crawl_budget_min * 60,
                         tag_base=re.sub(r"\D", "", run_dir.name)[-6:] or "run", on_created=created)
     # the AI looks at each page's screenshot while the crawl goes on (2 at a time): what it saw is tried too
     from concurrent.futures import ThreadPoolExecutor
@@ -1809,9 +1817,9 @@ def discovery_agent(state: QAState) -> QAState:
             return True
 
         while queue and len(app_map) < limit:
-            if time.time() - crawl_started > settings.crawl_time_limit_min * 60:
+            if time.time() - crawl_started > crawl_budget_min * 60:
                 time_limited = True
-                print(f"  [discovery] stopped at the crawl time limit ({settings.crawl_time_limit_min} min) - "
+                print(f"  [discovery] stopped at the reserved crawl budget ({crawl_budget_min:g} min) - "
                       f"{len(queue)} pages not visited", flush=True)
                 break
             if runctl.stopping():  # (the pages found so far are kept: the report is written with them)
@@ -2572,7 +2580,7 @@ def discovery_agent(state: QAState) -> QAState:
         "throttled": pace.events,
         "needs_login": routes["needs_login"][:100],
         "consent_closed": routes.get("consent_closed", ""),
-        "time_limit_reached": time_limited, "time_limit_min": settings.crawl_time_limit_min, "stopped": stopped,
+        "time_limit_reached": time_limited, "time_limit_min": crawl_budget_min, "stopped": stopped,
         "sections_not_reached": queue.menu_left()[:100],  # (menu sections the crawl never opened - limits)
         "still_loading": [p["url"] for p in app_map if p.get("still_loading")][:100],  # (tested as they showed)
         "max_interactions_per_page": settings.max_interactions_per_page,

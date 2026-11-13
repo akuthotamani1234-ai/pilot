@@ -141,6 +141,8 @@ def classify(r: dict) -> tuple[str, str, str]:
 def _rule_classify(r: dict) -> tuple[str, str, str]:
     """(category, why, confidence) for one failed / inconclusive test result - from the fixed rules only."""
     err, etype = (r.get("error") or ""), (r.get("error_type") or "")
+    if re.search(r"Automation (?:target|form|cannot supply)|recorded opener must|login opener must", err, re.I):
+        return "test_defect", "The automation could not establish a unique, reachable target or grounded value.", "high"
     if r.get("contract_id"):
         if r.get("outcome") == "failed" and etype == "AssertionError":
             return "product_defect", "An explicit QA contract expectation failed: " + err[:300], "high"
@@ -336,6 +338,7 @@ def _one_per_problem(failures: list[dict]) -> list[dict]:
         key = same_message(re.sub(r"\(after: [^)]*\)", "", said))
         if key in first:
             g = first[key]
+            g["nodeids"] = list(dict.fromkeys((g.get("nodeids") or [g["nodeid"]]) + [f["nodeid"]]))
             g["pages"].append(f.get("page_url"))
             g["explanation"] = f"{g['base_explanation']} Seen on {len(g['pages'])} pages."
             g["evidence"] += [x for x in f.get("evidence") or [] if x not in g["evidence"]][:2]
@@ -369,11 +372,16 @@ def failure_analysis_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_reporting import analyze
         return analyze(state)
+    from ..finalization import reconcile
+    state = reconcile(state, recover=False)  # execution supplied its complete result set; persist before AI
     cases = state.get("test_cases", [])
     pages = {p["url"]: p for p in state.get("app_map", [])}
     failures = []
     from ..vision import review_results
-    review_results(state)  # the AI looks at the failed tests' screenshots first (result["vision"]; VISION=off: nothing)
+    try:
+        review_results(state)
+    except Exception as exc:
+        print(f"  [failure-analysis] optional visual analysis unavailable: {type(exc).__name__}")
     # once security software blocked the website, an 'HTTP 403' is its block page too - not the login's answer
     blocked = any(BLOCK_PAGE.search(r.get("error") or "") for r in state.get("results", []))
     for r in state.get("results", []):
@@ -478,6 +486,7 @@ def failure_analysis_agent(state: QAState) -> QAState:
 
     # Optional: the AI explains test failures in plain English. It can SUGGEST another category (shown as a
     # suggestion), but the category, severity and verdict stay the ones the rules decided.
+    Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
     test_failures = [f for f in failures if f["source"] == "test"]
     if llm_enabled() and test_failures:
         try:

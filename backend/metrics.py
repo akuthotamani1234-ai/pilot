@@ -31,10 +31,13 @@ FINDING_KIND = {  # failures.json category -> what kind of finding it is
     "product_defect": "application_defects", "assertion_failure": "to_review", "test_defect": "test_problems",
     "locator": "test_problems", "timeout": "test_problems", "infrastructure": "test_problems",
     "auth_problem": "auth_or_data", "test_data": "auth_or_data", "inconclusive": "inconclusive", "flaky": "flaky",
-    "rule_violation": "to_review", "suspect": "to_review", "third_party": "third_party", "test_mistake": "test_problems"}
+    "rule_violation": "to_review", "suspect": "to_review", "third_party": "third_party", "test_mistake": "test_problems",
+    "untriaged": "to_review"}
 
 
 def result_group(r: dict) -> str:
+    if r.get("verification_level") == "input_only":
+        return "input_checks"
     f = r.get("file") or ""
     if f == "test_all_links.py":
         return "links"
@@ -46,6 +49,8 @@ def result_group(r: dict) -> str:
 
 
 def case_group(c: dict) -> str:
+    if c.get("journey") == "form" or c.get("verification_level") == "input_only":
+        return "input_checks"
     return SMALL_CASES.get(c.get("id"), "functional")
 
 
@@ -83,7 +88,8 @@ def build(results: list[dict], cases: list[dict], registry: dict | None = None, 
     functional = [c for c in cases if case_group(c) == "functional" and not c.get("blocked")]
     fs = _statuses(functional)
 
-    workflows = [c for c in cases if c.get("kind") == "journey" or (c.get("ai") and c.get("kind") == "flow")]
+    workflows = [c for c in cases if case_group(c) != "input_checks"
+                 and (c.get("kind") == "journey" or (c.get("ai") and c.get("kind") == "flow"))]
     wf_rows = []
     for c in workflows:
         hits = case_hits(c, results)
@@ -268,7 +274,8 @@ def consistency(m: dict, results, cases, registry, failures, case_result, case_h
                           P["verified"] <= P["tested"] <= P["inspected"] <= P["discovered"],
                           f"{P['verified']} <= {P['tested']} <= {P['inspected']} <= {P['discovered']}"))
     answered = {r["nodeid"] for r in results if r.get("outcome") in ("failed", "error", "inconclusive")}
-    found = {f.get("nodeid") for f in failures if f.get("source") == "test"}
+    from .finalization import finding_nodes
+    found = set().union(*(finding_nodes(f) for f in failures if f.get("source") == "test")) if failures else set()
     out.append(_check("Every failed or inconclusive single test has its finding", answered == found,
                       f"{len(answered)} failed / inconclusive single test(s), {len(found)} test finding(s)"
                       + (f"; without a finding: {sorted(answered - found)[:4]}" if answered - found else "")

@@ -290,7 +290,7 @@ def test_the_feature_coverage_gate_never_claims_full_coverage_with_gaps():
     verdict, reasons, gates = decide_verdict(_state(feature_counts=gaps))
     gate = next(g for g in gates if g["id"] == "feature_coverage")
     assert verdict == "Ready with Risks" and gate["status"] == "risk"
-    assert gate["detail"].startswith("Not complete") and "3 not tested" in gate["detail"] and gate["detail"] in reasons
+    assert gate["detail"].startswith("Not complete") and "4 NOT TESTED" in gate["detail"] and gate["detail"] in reasons
     assert all(g["id"] != "feature_coverage" for g in decide_verdict(_state())[2])  # (no registry: no claim either way)
 
 

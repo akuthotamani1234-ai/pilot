@@ -121,7 +121,7 @@ def _fallback_report(state: dict, run_dir: Path, error: BaseException) -> dict:
     reason = state.get("incomplete_reason") or "The run did not finish."
     detail = redact(f"{type(error).__name__}: {(str(error).splitlines() or [''])[0][:300]}")
     (run_dir / "report.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Blow AI report</title></head>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Qpilot report</title></head>
 <body style="font-family:'Segoe UI',system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.6">
 <h1>❔ We couldn't test enough</h1><p>{escape(reason)}</p>
 <p>The full report could not be written either ({escape(detail)}). What was done is in the files of this run folder:
@@ -166,6 +166,13 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
             if not snap.next:
                 raise SystemExit("This run already finished - there is nothing to resume.")
             last, start = dict(snap.values), None
+            from backend.finalization import ingest_results
+            recovered = ingest_results(dict(last, run_dir=str(run_dir)))
+            config["configurable"].setdefault("checkpoint_ns", "")
+            config = graph.update_state(config, {"resuming": True, "resume_completed": [r["nodeid"] for r in recovered],
+                                                "results": recovered})
+            config["recursion_limit"] = 50
+            last.update(resuming=True, resume_completed=[r["nodeid"] for r in recovered], results=recovered)
             print(f"  [run] resuming before: {', '.join(STAGE_TEXT.get(n, n) for n in snap.next)}")
             if any(n not in ("report", "save_baseline", "integrations") for n in snap.next):
                 from backend.agents.discovery import restore_login
@@ -208,6 +215,8 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
         last.update(reporter_agent(last))
     except Exception as e:
         traceback.print_exc()
+        from backend.finalization import reconcile
+        last = reconcile(last)
         last.update(_fallback_report(last, run_dir, e))
     return last
 

@@ -29,6 +29,11 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
     known_messages = " ".join(messages).casefold()
     headings = {str(h.get("text", "") if isinstance(h, dict) else h).strip().casefold()
                 for page in pages for h in page.get("headings", [])}
+    import json
+    evidence = json.dumps(pages, ensure_ascii=False).casefold() + " " + requirements.casefold()
+    observed_selectors = [str(item.get("selector") or "") for page in pages
+                          for group in ("inputs", "buttons", "links", "forms", "tables", "behaviour")
+                          for item in page.get(group, []) if isinstance(item, dict)]
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
@@ -36,6 +41,11 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
             selector = node.args[0].value
             if not isinstance(selector, str):
                 continue
+            if re.fullmatch(r"#[\w-]+", selector) and not any(selector in known for known in observed_selectors):
+                return "The selector was not observed: " + selector
+            if re.search(r"(^|[\s>,])(?:table|thead|tbody|th)(?=[\s>.#\[:]|$)", selector) and not any(
+                    re.match(r"(?:table|thead|tbody|th)\b", known) for known in observed_selectors):
+                return "Native table selectors are unsupported by the captured controls; use observed table roles and selectors"
             if selector.strip().startswith("text=") or ">> text=" in selector:
                 return "Use observed link selectors or get_by_role with an exact name; broad text= locators also match descriptions"
             if re.fullmatch(r"h[1-6]", selector.strip(), re.I):
@@ -50,6 +60,10 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                 if not count_only:
                     return "Bare heading selectors are ambiguous and the document title is not a heading. Use observed heading names or expect(page).to_have_title"
         if node.func.attr == "get_by_text":
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                value = node.args[0].value.strip()
+                if value and value.casefold() not in evidence:
+                    return "The text or business record was not observed or required: " + repr(value)
             if not any(k.arg == "exact" and isinstance(k.value, ast.Constant) and k.value.value is True for k in node.keywords):
                 return "Use exact=True for text locators, or an observed role/name or href selector"
         if (node.func.attr == "get_by_role" and node.args and isinstance(node.args[0], ast.Constant)
