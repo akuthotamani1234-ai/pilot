@@ -1,4 +1,4 @@
-# Blow AI — Architecture Guardrails
+# Qpilot — Architecture Guardrails
 
 Read this file **before** adding or moving files. It protects the codebase during human and assistant-assisted
 ("vibe coding") changes. Product behavior rules (safety, secrets, verdicts) remain as defined in
@@ -6,7 +6,7 @@ Read this file **before** adding or moving files. It protects the codebase durin
 
 ## 1. System shape
 
-Blow AI is a **local QA product** (primary target: Windows) with:
+Qpilot is a **local QA product** (primary target: Windows) with:
 
 | Layer | Location | Responsibility |
 | --- | --- | --- |

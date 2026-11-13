@@ -74,7 +74,7 @@ def _title(f: dict) -> str:
 
 def slack_message(state: QAState, found: list[dict]) -> str:
     run_dir = Path(state["run_dir"])
-    lines = [f"*Blow AI* tested {state.get('url')}: *{state.get('verdict')}*",
+    lines = [f"*Qpilot* tested {state.get('url')}: *{state.get('verdict')}*",
              f"{len(found)} application defect(s) at or above '{settings.slack_min_severity}'"]
     for f in found[:5]:
         lines.append(f"• [{f.get('severity')}] {_title(f)} - {f.get('page_url') or ''}")
@@ -105,7 +105,7 @@ def issue_text(f: dict, state: QAState) -> tuple[str, str]:
     steps = bug.get("steps") or []
     summary = f"[{f.get('severity')}] {_title(f)}"[:240]
     parts = [
-        f"*Found by Blow AI* on {state.get('url')} (run {state.get('run_id')})",
+        f"*Found by Qpilot* on {state.get('url')} (run {state.get('run_id')})",
         f"*Issue ID:* {fingerprint(f)}",
         f"*Page:* {f.get('page_url') or '-'}",
         f"*Feature:* {bug.get('feature') or '-'}",

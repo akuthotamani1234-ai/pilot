@@ -177,7 +177,7 @@ def test_create_pr_body_does_not_count_partial_as_full_success(tmp_path, monkeyp
     assert result["pr_url"].endswith("/pull/1")
     pr_post = next(c for c in calls if c[0] == "POST" and c[1].endswith("/pulls"))
     body = pr_post[2]["json"]
-    assert body["title"] == "Blow AI: 1 website fix(es), 1 partial"
+    assert body["title"] == "Qpilot: 1 website fix(es), 1 partial"
     assert "### What this changes" in body["body"]
     assert "**Full fix**" in body["body"]
     assert "### Partially applied" in body["body"]

@@ -1,4 +1,4 @@
-# Blow AI local MCP integration
+# Qpilot local MCP integration
 
 The Python MCP server lets an MCP-compatible AI client use the same Playwright and Appium services as the Studio UI. The UI owns the workers, one-run lock, Stop control, device validation and reports. No second automation implementation or separate browser tool is required.
 
@@ -12,7 +12,7 @@ Studio (ui.bat) works without the MCP SDK. Optional packages for the MCP stdio s
 2. Double-click **ui.bat**, as usual. Keep its window open.
 3. Open **mcp-config.local.json**, generated for this checkout. Merge its blow-ai server entry into your client's MCP server settings. Client-specific settings locations and supported configuration formats differ; the generated file uses the common mcpServers JSON format.
 4. Open **Privacy & connections** in the UI. MCP data access is off by default. Approve your assistant; local-only mode also requires confirmation that it processes data locally.
-5. Reconnect the client, then ask it to check the Blow AI connection. No crawl or test starts from connection alone.
+5. Reconnect the client, then ask it to check the Qpilot connection. No crawl or test starts from connection alone.
 
 This implementation does not modify any IDE's global settings or automatically authorize tools.
 
@@ -94,7 +94,7 @@ Choose Standard testing or AI assistant through MCP after selecting the engine. 
 
 | Mode | Where | What |
 | --- | --- | --- |
-| Studio Standard | Composer / Android form in Blow AI | Configure and run tests here |
+| Studio Standard | Composer / Android form in Qpilot | Configure and run tests here |
 | MCP | External MCP client (Cursor/Claude) + Privacy approve | Prepare the request in Studio, paste or ask in the assistant; Studio shows the run |
 | Testing always | Local `ui.bat` Studio | MCP does not replace Studio |
 

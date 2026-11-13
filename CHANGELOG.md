@@ -1,6 +1,63 @@
 # Changelog
 
-All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
+All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
+
+## 2026-11-13 — Evidence linkage + run-time reserves (P9 / P6)
+
+- Findings from `ensure_findings_from_results` / classify retain control/container, URL/state, expected vs
+  observed, screenshot, and console/network notes (secrets still redacted).
+- Console JS noise and failed resource loads without an `AssertionError` classify as infrastructure — not
+  auto `product_defect`. Crawl findings separate app JS exceptions, resource-load failures, and readiness
+  timeouts; own-host HTTP error status stays a product signal.
+- Session expiry / protected reauth (`LOGGED_OUT`) is inconclusive with `session_expired`, distinct from
+  credential `auth_problem`. Blank/still-loading readiness timeouts are explicit `timeout` findings.
+- `ANALYSIS_RESERVE_S` / `REPORT_RESERVE_S` (defaults 180/120): near `RUN_TIME_LIMIT_MIN`, stop heavy discovery
+  and new suite starts so analysis + report still finish. Measure phase durations before raising defaults.
+- Observe deprioritizes global chrome / table-row toggles (KIND_CAP unchanged). Resume keeps completed results
+  and runs only pending tests. Docs note serial watched Chrome vs parallel `TEST_WORKERS`.
+- Offline: `tests/test_orangehrm_p6_p9.py`.
+
+## 2026-11-13 — Field-aware data, verification credit, AI grounding (P3–P5)
+
+- Field-aware values from labels/constraints (`field_kind`): valid email/phone/numeric/date (type/format/pattern).
+- Custom checkbox/radio/select: prefer user-facing click/select; verify retained checked/value; re-resolve after
+  reactive updates; force/DOM only as recorded fallback (`proves_user_actionability=False`).
+- Unsubmitted form / input-only cases carry `verification: interaction` — strong fill asserts never grant
+  business-verified credit (registry → smoke with an interaction why).
+- Search/filter/sort/pagination and submitted form/CRUD keep `verification: business` when outcomes are defined.
+- Writes stay gated by staging + `writes_ok` / `ALLOW_ACTIONS`; `environment=test` alone never enables writes
+  (`write_authorization_gap` names the missing permission).
+- AI grounding rejects invented records (e.g. John Doe), brittle toast wrappers, and unobserved headings;
+  unsupported scripts are exploratory/unsupported before execution — not product defects. Role-based tables OK
+  without native `<table>`. Healing still refuses assertion removal.
+- Offline fixtures: `tests/test_orangehrm_p3_p5.py` (+ existing form-boundary / ai-grounding tests).
+
+## 2026-11-13 — Form boundaries and target identity (P2)
+
+- Form fill/assert scopes to the form, dialog, or labeled section; prefers label / role / stable id.
+- Ambiguous matches are fail-closed (automation/inconclusive) — no silent Playwright `.first` pick.
+- Sidebar/global search and unrelated table row checkboxes are excluded from form schemas and fill targets.
+- Opener paths (Add dialogs, nested menus) stay on form cases; missing/invisible required fields block a whole-form pass.
+- Offline fixtures: sidebar Search vs Emergency Contact phone, duplicate-label containers, unresolved ambiguity, wrong opener.
+
+## 2026-11-13 — Coverage gate honesty + Pay Grades vs payment
+
+- Route/feature gates no longer claim exhaustive reachability when exploration is partial
+  (`not_tried_limit`, pending URLs, crawl/time limits); prose keeps URLs / route patterns /
+  controls / interaction checks / features / workflows and PASS–INCONCLUSIVE denominators separate.
+- `metrics.consistent` failures lead summary reasons and the HTML report; provisional/untriaged
+  findings keep Insufficient Evidence instead of “zero bugs / none found”.
+- Admin config navigation named “Pay Grades” / “Pay Grade” (link/menuitem/tab) is not classified
+  as `pay`; real Pay now / Proceed to payment / checkout submits stay blocked, with reasons that
+  name `ALLOW_ACTIONS` / `TEST_PAYMENT`.
+
+## 2026-11-13 — Findings finalize on interrupt / empty failures
+
+- `ensure_findings_from_results` builds a rule-based finding for every failed/inconclusive result
+  (idempotent merge into `failures.json`; LLM enrichment stays optional).
+- Incomplete stop / fallback report paths ingest saved `results.json` / `.jsonl` before gates.
+- Reporter and quality gates no longer pass automation-reliability or “no bugs” when failures
+  remain unlinked; metrics consistency counts consolidated `nodeids`.
 
 ## 2026-11-12 — Studio UI refresh + delete harden
 

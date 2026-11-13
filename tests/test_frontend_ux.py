@@ -64,7 +64,9 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "thorough: !!thorough" in script
     assert "thorough ? 80" in script or "thorough ? 80 :" in script
     assert 'crawl_scope: thorough ? "site"' in script
-    assert "thorough && depthRaw === 0 ? 12" in script
+    # Thorough keeps soft depth 0 (unlimited) — do not force depth 12.
+    assert "const maxDepth = depthRaw" in script
+    assert "thorough && depthRaw === 0 ? 12" not in script
     assert "coverageReminderHtml(s, crawl)" in script
     assert "coverageReminderHtml(s, d.crawl || s.crawl)" in script
     assert "Coverage reminder:" in script

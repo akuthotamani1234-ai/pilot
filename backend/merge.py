@@ -56,7 +56,7 @@ def merge_runs(run_dirs: list[Path], runs_dir: Path) -> Path:
     items = "".join(f"<li>{e(k['kind'])}: {k['fully_tested']} fully tested, {k['smoke']} smoke-checked, "
                     f"{k['found']} found</li>" for k in summary["coverage_card"]["items"][:30])
     (out / "report.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Blow AI - merged report</title></head>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Qpilot - merged report</title></head>
 <body style="font-family:'Segoe UI',system-ui,sans-serif;max-width:980px;margin:32px auto;padding:0 16px;line-height:1.5">
 <h1>Merged report: {e(verdict)}</h1><p>{len(runs)} run(s), each testing its own part of the website. The worst verdict
 counts; the numbers below are added up.</p>

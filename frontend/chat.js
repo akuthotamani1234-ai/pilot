@@ -394,7 +394,7 @@
       } else {
         const errors = (data.errors || ["Android environment is not ready."]).map(message => message.replaceAll("`", ""));
         note.textContent = errors.join(" ");
-        $("androidRunNote").textContent = "Complete the setup above, then refresh device status.";
+        $("androidRunNote").textContent = errors.join(" ");
       }
     } catch (error) {
       note.textContent = error.message || "Could not check the Android environment.";
@@ -1074,7 +1074,8 @@
       +$("aiActions").value || (thorough ? 80 : standardActions)));
     const depthRaw = Math.max(0, +val("advDepth") || 0);
     // Thorough + unset depth → 12 for MCP parity; Standard keeps the advanced value (incl. 0).
-    const maxDepth = thorough && depthRaw === 0 ? 12 : depthRaw;
+    // Thorough keeps soft depth 0 (unlimited) — forcing 12 cut deep trees and hurt exploration.
+    const maxDepth = depthRaw;
     const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
                    crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
                    max_interactions_per_page: actionsPerPage,
@@ -1841,8 +1842,8 @@
           ${d.cases_available ? `<a class="secondary" href="/api/cases/${encodeURIComponent(run)}/download">Download test cases (JSON)</a>` : ""}
           ${d.report_html ? `<a class="primary" href="${esc(d.report_html)}" target="_blank" style="text-decoration:none">📄 Open full report</a>` : ""}
           ${(d.videos || []).map((v, i) => `<a class="secondary" href="${esc(v)}" target="_blank">🎬 Video${d.videos.length > 1 ? " " + (i + 1) : ""}</a>`).join("")}
-          ${s.source || s.url ? `<button type="button" class="secondary rerun" data-run="${esc(run)}">🔁 Run the same tests again</button>
-            <button type="button" class="secondary schedule" data-run="${esc(run)}">⏰ Repeat this test</button>` : ""}
+          ${s.target_type === "android" ? "" : (s.source || s.url ? `<button type="button" class="secondary rerun" data-run="${esc(run)}">🔁 Run the same tests again</button>
+            <button type="button" class="secondary schedule" data-run="${esc(run)}">⏰ Repeat this test</button>` : "")}
         </div>
         ${live ? logHtml() : d.console && d.console.length ? `<details class="log"><summary>Agent log</summary><pre>${esc(d.console.join("\n"))}</pre></details>` : ""}
       </div>`, "report");
@@ -1890,13 +1891,30 @@
   // ------------------------------------------------------------ regression: run the same tests again, then compare
   const reports = {};  // run -> its summary (for "Run the same tests again")
 
-  function offerRerun(run) {
-    const s = reports[run] || {};
+  async function offerRerun(run) {
+    if (timer) {
+      say(`<div class="warn">A test is already running. Stop it first, then use <b>Run the same tests again</b>.</div>`);
+      return;
+    }
+    let s = reports[run] || {};
+    if (!(s.source || s.url) || s.target_type == null) {
+      try {
+        const d = await (await fetch(`/api/report/${encodeURIComponent(run)}`)).json();
+        if (d && d.summary) { s = d.summary; reports[run] = s; }
+      } catch (e) { /* keep empty; warn below */ }
+    }
     const src = s.source || s.url;
-    if (!src || timer) return;
+    if (s.target_type === "android") {
+      say(`<div class="warn">Android runs cannot use <b>Run the same tests again</b> here. Start a new Android test from the Android form (scripts are regenerated for that device session).</div>`);
+      return;
+    }
+    if (!src) {
+      say(`<div class="warn">This report has no website URL, so the same tests cannot be re-run. Start a new test from the composer.</div>`);
+      return;
+    }
     const id = "rerun-" + run.replace(/\W/g, "");
-    say(`<p>🔁 <b>Regression run:</b> I'll run the <b>same test scripts</b> as in that run against <b>${esc(src)}</b>
-        (no new tests are written), then show which test cases started failing, were fixed or still fail.</p>
+    say(`<p>🔁 <b>Regression run:</b> I'll run the <b>same test scripts</b> from <b>${esc(run)}</b> against <b>${esc(src)}</b>
+        (no new tests are written), then show which cases started failing, were fixed, or still fail.</p>
       <div class="card">
         ${s.authenticated ? `<p class="small">Those tests log in. The test account is never saved, so give it again
           (leave empty if it is in .env).</p><div class="fields">
@@ -1911,7 +1929,10 @@
   }
 
   async function startRerun(run, src, id) {
-    if (!await standardReady()) return;
+    if (!await standardReady()) {
+      say(`<div class="warn">Switch to <b>Standard testing</b> (not MCP) to run the same website tests again.</div>`);
+      return;
+    }
     const note = $(`${id}-note`), user = $(`${id}-user`), pass = $(`${id}-pass`);
     const problem = !$(`${id}-auth`).checked ? "Please confirm that you may test this website."
       : user && !!user.value.trim() !== !!pass.value ? "Give both the user name and the password (or neither)." : "";
@@ -1921,10 +1942,19 @@
     }
     const prefs = loadPrefs();  // the AI used last time, if it needs no key that has to be pasted again
     const prov = providers.find((p) => p.id === prefs.provider && workflow.providerAllowed(p.id) && (!p.key_env || p.has_key));
-    const body = { workflow: "standard", privacy_mode: workflow.mode, source: src, authorized: true, reuse_tests: true, show_browser: false,
-                   llm_provider: prov ? prov.id : "none", llm_model: prov ? prefs.model || "" : "" };
+    const prior = reports[run] || {};
+    const body = {
+      workflow: "standard", privacy_mode: workflow.mode, source: src, authorized: true,
+      reuse_tests: true, reuse_from_run: run, show_browser: false,
+      llm_provider: prov ? prov.id : "none", llm_model: prov ? prefs.model || "" : "",
+      environment: prior.environment || "test",
+      auth_mode: prior.auth_mode || (prior.authenticated ? "existing" : "auto"),
+      thorough: !!prior.thorough,
+      crawl_scope: prior.crawl_scope || "auto",
+    };
     if (user && user.value.trim()) { body.test_username = user.value.trim(); body.test_password = pass.value; }
     $(`${id}-go`).disabled = true;
+    note.hidden = false; note.textContent = "Starting regression run with the same scripts…";
     const res = await fetch("/api/runs", { method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },
                                            body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));

@@ -513,6 +513,14 @@ EXTRACT_JS = r"""
       if (lab && !lab.contains(i)) return /\*\s*$/.test(lab.innerText || '') || /required/i.test(lab.className || '');
     }
     return false; };
+  // Site chrome (sidebar / header / nav) and table row selectors: used to keep form schemas to the form itself.
+  const chromeShell = i => !!(inFrame(i) || i.closest(
+    'aside, nav, header, [role=complementary], [role=navigation], [role=banner], [class*=sidebar i], [id*=sidebar i], [class*=side-bar i], [class*=topbar i]'));
+  const inTableRow = i => !!(i.closest('table tbody tr, tbody [role=row], [role=rowgroup] [role=row]')
+    && /^(checkbox|radio)$/i.test(i.type || ''));
+  const searchHint = i => `${i.placeholder || ''} ${i.id || ''} ${i.name || ''} ${i.getAttribute('aria-label') || ''} ${labelFor(i)}`;
+  const isChromeSearch = i => chromeShell(i) && (i.type === 'search'
+    || /search|filter|find|keywords?/i.test(searchHint(i)));
   const inputs = deepAll('input, textarea, select')
     .filter(i => !['hidden', 'submit', 'button'].includes(i.type)).filter(visible).slice(0, 60).map(i => ({ ...shadowOf(i),
       tag: i.tagName.toLowerCase(), type: i.type || '', name: i.name || '', id: i.id || '',
@@ -522,19 +530,31 @@ EXTRACT_JS = r"""
       minlength: i.minLength > 0 ? i.minLength : null, maxlength: i.maxLength > 0 ? i.maxLength : null,
       pattern: i.getAttribute('pattern') || null, html: tag(i),
       readonly: !!i.readOnly, disabled: !!i.disabled, opener: isOpener(i), suggests: suggests(i),
-      checked: !!i.checked,
+      checked: !!i.checked, chrome: chromeShell(i), in_table: inTableRow(i),
+      region: chromeShell(i) ? (i.closest('aside, [role=complementary], [class*=sidebar i], [id*=sidebar i]') ? 'sidebar'
+        : i.closest('nav, [role=navigation]') ? 'nav'
+        : i.closest('header, [role=banner], [class*=topbar i]') ? 'header' : 'chrome') : '',
       options: i.tagName === 'SELECT' ? [...i.options].filter(o => !o.disabled && o.value !== '')
         .map(o => ({ value: o.value, text: o.text.trim().slice(0, 40) })).slice(0, 15) : null
     }));
 
   // Framework dialogs often use labelled inputs and a footer button without a <form>.
+  // Labeled sections (Emergency Contacts style) are treated like dialogs when they hold fields + a Save/Add button
+  // and are not already a native/form/dialog container.
   const fieldNodes = root => [...(root.elements || root.querySelectorAll('input, textarea, select'))]
     .filter(i => /^(INPUT|TEXTAREA|SELECT)$/.test(i.tagName)
-      && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i));
+      && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i)
+      && !isChromeSearch(i) && !inTableRow(i));
   const nativeForms = deepAll('form, [role=form]').filter(f => visible(f) || fieldNodes(f).length);
   const dialogForms = deepAll('dialog, [role=dialog], .modal').filter(d => visible(d)
     && fieldNodes(d).some(i => !i.closest('form, [role=form]')));
-  const forms = [...new Set([...nativeForms, ...dialogForms])].slice(0, 20).map((f, idx) => {
+  const sectionForms = deepAll('section, [role=region], fieldset').filter(s => visible(s)
+    && !s.closest('form, [role=form], dialog, [role=dialog], .modal')
+    && !chromeShell(s)
+    && fieldNodes(s).some(i => !i.closest('form, [role=form]'))
+    && [...s.querySelectorAll('button, input[type=submit], input[type=button], [role=button]')]
+      .some(b => visible(b) && /^(send|submit|save|create|add|register|update|confirm|apply)\b/i.test(accName(b))));
+  const forms = [...new Set([...nativeForms, ...dialogForms, ...sectionForms])].slice(0, 20).map((f, idx) => {
     const native = f.tagName === 'FORM';
     const fields = fieldNodes(f).filter(i => native || f.matches('[role=form]')
       ? i.form === f || i.closest('form, [role=form]') === f : !i.closest('form, [role=form]'));
@@ -546,7 +566,7 @@ EXTRACT_JS = r"""
         && b.type !== 'reset' && !/^(close|cancel|dismiss|back|previous|x|\u00d7)$/i.test(accName(b)));
     const submit = candidates.find(b => (b.form === f || f.contains(b))
       && (b.type === 'submit' || b.getAttribute('type') === null))
-      || candidates.find(b => /^(send|submit|save|create|register|sign ?up|log ?in|sign ?in|continue|next|search|apply|confirm)\b/i.test(accName(b)));
+      || candidates.find(b => /^(send|submit|save|create|register|sign ?up|log ?in|sign ?in|continue|next|search|apply|confirm|add|update)\b/i.test(accName(b)));
     return {
       index: idx, selector: !f.id && dialog && dialog !== f
         ? sel(dialog) + ' ' + (native ? 'form' : '[role=form]') + ' >> nth='
@@ -557,14 +577,15 @@ EXTRACT_JS = r"""
       hidden: [...f.querySelectorAll('input[type=hidden]')].filter(i => i.name && !/csrf|token|nonce|key|secret|auth|session/i.test(i.name))
         .map(i => [i.name, String(i.value).slice(0, 100)]).slice(0, 10),
       fields: fields.map(i => ({name: i.name || '', id: i.id || '', type: i.type || '', tag: i.tagName.toLowerCase(),
-        selector: sel(i), required: reqOf(i), label: labelFor(i).slice(0, 80),
+        selector: sel(i), required: reqOf(i), label: labelFor(i).slice(0, 80), accname: accName(i), role: roleOf(i),
         local_selector: i.id && f.querySelectorAll('[id="'+q(i.id)+'"]').length === 1 ? '[id="'+q(i.id)+'"]' :
           (i.name && f.querySelectorAll('[name="'+q(i.name)+'"]').length === 1 ? '[name="'+q(i.name)+'"]' :
           i.tagName.toLowerCase() + (i.getAttribute('type') ? '[type="'+q(i.getAttribute('type'))+'"]' : '')),
         global: !!i.closest('nav,aside,[role=navigation],[role=search]'),
         min: i.getAttribute('min'), max: i.getAttribute('max'), step: i.getAttribute('step'),
         readonly: i.readOnly, disabled: i.disabled,
-        placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i)})),
+        placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i),
+        chrome: chromeShell(i), in_table: inTableRow(i)})),
       submit: submit ? {text: accName(submit), selector: sel(submit)} : null
     };
   }).filter(f => f.selector);
@@ -1736,12 +1757,30 @@ def discovery_agent(state: QAState) -> QAState:
             return c
 
         contexts = {False: new_context()}
-        # more ways to find pages: the website's own sitemap (robots.txt / sitemap.xml) - queued from the start page
+        # Non-MCP HTTP scrape seeder + sitemap: more same-host URLs before Playwright observe (no pay/checkout seeds).
         extra_found = []
         if mode != "page":
-            extra_found = [(u, "sitemap") for u in _sitemap_urls(contexts[False], start_url)]
-            if extra_found:
-                print(f"  [discovery] the sitemap lists {len(extra_found)} address(es)", flush=True)
+            try:
+                from ..scrape_seed import seed_entries
+                start_html = ""
+                try:
+                    r0 = contexts[False].request.get(start_url, timeout=15000)
+                    if getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400:
+                        start_html = r0.text() if callable(getattr(r0, "text", None)) else (r0.text or "")
+                except Exception:
+                    start_html = ""
+                # Preserve provenance: sitemap stays "sitemap"; HTML/openapi are "scrape".
+                extra_found = seed_entries(contexts[False].request, start_url, html=start_html or None)
+                if extra_found:
+                    n_sm = sum(1 for _u, how in extra_found if how == "sitemap")
+                    n_sc = sum(1 for _u, how in extra_found if how == "scrape")
+                    print(f"  [discovery] scrape seeder found {len(extra_found)} address(es) "
+                          f"({n_sm} sitemap, {n_sc} scrape/HTML/openapi; checkout/payment dropped)", flush=True)
+            except Exception as e:
+                print(f"  [discovery] scrape seeder skipped: {str(e).splitlines()[0][:120]}", flush=True)
+                extra_found = [(u, "sitemap") for u in _sitemap_urls(contexts[False], start_url)]
+                if extra_found:
+                    print(f"  [discovery] the sitemap lists {len(extra_found)} address(es)", flush=True)
 
         # ONE tab per session for the whole crawl: it moves from page to page instead of opening/closing tabs.
         # `current` holds the error lists of the page being visited right now.
@@ -1825,6 +1864,15 @@ def discovery_agent(state: QAState) -> QAState:
             if runctl.stopping():  # (the pages found so far are kept: the report is written with them)
                 stopped = runctl.reason()
                 print(f"  [discovery] stopped ({stopped}) - {len(queue)} pages not visited", flush=True)
+                break
+            # Soft reserve: leave wall-clock for analysis + report; do not start more heavy page visits.
+            if runctl.should_stop_heavy_work():
+                time_limited = True
+                stopped = stopped or ("run time reserve "
+                                      f"(ANALYSIS_RESERVE_S={settings.analysis_reserve_s}/"
+                                      f"REPORT_RESERVE_S={settings.report_reserve_s})")
+                print(f"  [discovery] stopped for analysis/report reserve - {len(queue)} pages not visited",
+                      flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
             if not inside and not_app >= MAX_NOT_APP:
@@ -1983,7 +2031,9 @@ def discovery_agent(state: QAState) -> QAState:
                         desk = {x.get("selector") for x in entry.get("buttons", []) + entry.get("inputs", [])}
                         entry["mobile_only"] = [dict(b, mobile_only=True) for b in phone.get("buttons", [])
                                                 if b.get("selector") and b["selector"] not in desk
-                                                and action_risk(b.get("text"), b.get("selector")) == "safe"][:8]
+                                                and action_risk(b.get("text"), b.get("selector"),
+                                                                role=b.get("role"), kind=b.get("kind"),
+                                                                tag=b.get("tag")) == "safe"][:8]
                         entry["layout"] = layout
                     except Exception as e:
                         print(f"  [discovery] phone width could not be checked on {url}: {str(e).splitlines()[0][:100]}")
@@ -2334,10 +2384,11 @@ def discovery_agent(state: QAState) -> QAState:
                         nxt = start_scheme + nxt.split(":", 1)[1]
                     if (nxt, auth) in seen or not _is_crawlable(nxt, base_host):
                         return False
-                    # (the sitemap lists the WHOLE website: like the site-wide menu, it never leaves the section)
-                    out = _leaves_section(nxt, section, widen, from_folder, chrome or how == "sitemap")
-                    if out == MENU_OUTSIDE and how == "sitemap":
-                        out = "listed in the sitemap, outside the section"
+                    # Sitemap / scrape seed the WHOLE host: like the site-wide menu, they never leave the section.
+                    seed_wide = how in ("sitemap", "scrape")
+                    out = _leaves_section(nxt, section, widen, from_folder, chrome or seed_wide)
+                    if out == MENU_OUTSIDE and seed_wide:
+                        out = (f"listed in the {how}, outside the section")
                     if out:  # (not "seen": the same address in another page's content may still be followed)
                         if (nxt, False) not in seen and (nxt, True) not in seen:
                             skipped.setdefault(nxt, out)
@@ -2409,20 +2460,28 @@ def discovery_agent(state: QAState) -> QAState:
                     routes_seen = page.evaluate("() => window.__qaRoutes || []")
                 except Exception:
                     routes_seen = []
-                for u in routes_seen[:30]:
+                for u in routes_seen[:120]:
                     if _normalize(u) != url:
                         enqueue(u, how="history")
-                # the results page of the website's search box (a search with a word of its items - safe, read only;
-                # once per search form: the header's is on every page)
+                # the results page of the website's search box (safe, read-only GET). Probe item words plus a
+                # small deterministic seed list so admin/list pages surface without submitting pay/checkout.
+                from ..observe import SEARCH_SEED_WORDS
                 names = [l.get("text") or "" for p in app_map + [entry] for l in (p.get("itemLinks") or {}).get("links") or []]
-                found = _search_url(entry, url, _probe_word(names))
-                if found and not widen and not _in_scope(_normalize(urljoin(url, found)), section):
-                    skipped.setdefault(_normalize(urljoin(url, found)),  # (the header's search box: the whole site)
-                                       "the site-wide search's results page, outside the section")
-                    found = None
-                if found and found.split("?")[0] not in searched and enqueue(found, how="search"):
-                    searched.add(found.split("?")[0])
-                    print(f"  [discovery] the search box leads to its results page: {_normalize(found)}")
+                probe_words = [_probe_word(names)]
+                for w in SEARCH_SEED_WORDS:
+                    if w not in probe_words:
+                        probe_words.append(w)
+                for word in probe_words[:6]:  # bounded: item word + a few seeds
+                    found = _search_url(entry, url, word)
+                    if found and not widen and not _in_scope(_normalize(urljoin(url, found)), section):
+                        skipped.setdefault(_normalize(urljoin(url, found)),
+                                           "the site-wide search's results page, outside the section")
+                        continue
+                    if found and found.split("?")[0] not in searched and enqueue(found, how="search"):
+                        searched.add(found.split("?")[0])
+                        print(f"  [discovery] the search box leads to its results page "
+                              f"(word={word!r}): {_normalize(found)}")
+                        break  # one new results-page pattern is enough per form path
                 # learn what every control does, one action at a time: pages only a button (or an action, e.g.
                 # 'Add to cart' -> the cart link) leads to are queued, controls revealed by an action are added,
                 # and a page an action changed (the menu says 'Cart (1)' now) is read again.

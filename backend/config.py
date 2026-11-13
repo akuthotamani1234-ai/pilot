@@ -48,7 +48,7 @@ class Settings:
     # because some sites generate endless URLs, e.g. calendars / search pages)
     max_pages: int = int(os.getenv("MAX_PAGES", "0"))
     max_depth: int = int(os.getenv("MAX_DEPTH", "0"))
-    hard_page_cap: int = int(os.getenv("HARD_PAGE_CAP", "500"))
+    hard_page_cap: int = int(os.getenv("HARD_PAGE_CAP", "1000"))
     # What to test. "auto" decides from the link: home page -> entire website, one folder (site.com/shop) ->
     # limited pages (that app), deeper / exact address -> that specific page. "site" / "section" / "page" force one.
     crawl_scope: str = os.getenv("CRAWL_SCOPE", "auto").lower()
@@ -58,6 +58,10 @@ class Settings:
     run_time_limit_min: float = float(os.getenv("RUN_TIME_LIMIT_MIN", "90"))
     finalization_reserve_s: float = float(os.getenv("FINALIZATION_RESERVE_S", "120"))
     discovery_budget_fraction: float = max(0.1, min(0.8, float(os.getenv("DISCOVERY_BUDGET_FRACTION", "0.4"))))
+    # Soft reserves near RUN_TIME_LIMIT_MIN: stop starting heavy discovery / new suite work so deterministic
+    # failure analysis and report finalization still finish. Measure phase durations before raising these.
+    analysis_reserve_s: int = int(os.getenv("ANALYSIS_RESERVE_S", "180"))
+    report_reserve_s: int = int(os.getenv("REPORT_RESERVE_S", "120"))
     # polite speed on a PUBLIC website: page loads per second while exploring (0 = no limit; slower after HTTP 429/503)
     max_requests_per_sec: float = float(os.getenv("MAX_REQUESTS_PER_SEC", "2"))
     # only this part of the website (--section /electronics), else decided from the link
@@ -100,6 +104,8 @@ class Settings:
     max_heal_rounds: int = int(os.getenv("MAX_HEAL_ROUNDS", "2"))
     # Regression run: run the test scripts saved by the last run of this site again, instead of writing new ones
     reuse_tests: bool = os.getenv("REUSE_TESTS", "false").lower() == "true"
+    # Prefer scripts/cases from this prior run id (Studio "Run the same tests again"); else site baseline.
+    reuse_from_run: str = os.getenv("REUSE_FROM_RUN", "").strip()
 
     # A test account for login forms (optional). With it, "login works" is tested; without it only
     # "a wrong password is rejected". Read by the tests at run time - never written into the test files.

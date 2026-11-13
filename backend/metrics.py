@@ -277,7 +277,7 @@ def consistency(m: dict, results, cases, registry, failures, case_result, case_h
     from .finalization import finding_nodes
     found = set().union(*(finding_nodes(f) for f in failures if f.get("source") == "test")) if failures else set()
     out.append(_check("Every failed or inconclusive single test has its finding", answered == found,
-                      f"{len(answered)} failed / inconclusive single test(s), {len(found)} test finding(s)"
+                      f"{len(answered)} failed / inconclusive single test(s), {len(found)} covered by test finding(s)"
                       + (f"; without a finding: {sorted(answered - found)[:4]}" if answered - found else "")
                       + (f"; finding without a test: {sorted(found - answered)[:4]}" if found - answered else "")))
     wf = m["workflows"]

@@ -1,4 +1,4 @@
-# Blow AI – AI website tester
+# Qpilot – AI website tester
 
 Give it a **website URL**, a **GitHub link** or a **project folder**. It tests the website the way a QA tester would
 and ends with a plain-English report. A run has these steps:
