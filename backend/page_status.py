@@ -52,7 +52,13 @@ def exploration_status(crawl: dict) -> dict:
         "depth_limited": depth_limited, "sampled": sampled, "actions_limited": actions_limited,
         "login_blocked": login_blocked,
         "permissions_blocked": len(crawl.get("needs_permission", [])),
-        "statement": ("All discovered routes were processed within the selected scope and exploration budgets."
-                      if exhausted else "Exploration is partial; inspect unvisited routes and recorded limits."),
-        "limitation": "Route discovery is not proof that every component state or business workflow was tested.",
+        "statement": (
+            "Discovered routes were processed within the selected scope and exploration budgets "
+            "(not exhaustive product reachability)."
+            if exhausted else
+            "Exploration is partial (pending URLs, crawl/time limits, and/or interaction limits); "
+            "do not claim every reachable page or workflow was visited."),
+        "limitation": ("Visited URLs ≠ route patterns ≠ controls ≠ interaction checks ≠ features ≠ "
+                       "business workflows. Route discovery is not proof that every component state "
+                       "or business workflow was tested."),
     }

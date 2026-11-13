@@ -28,6 +28,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from ..llm import LLMError, ask_llm, extract_json, llm_enabled, load_prompt
+from ..safety import redact
 from ..state import QAState
 
 SEVERITY = {"http_status": "medium", "page_failed": "critical", "product_defect": "high", "console_error": "medium",
@@ -100,6 +101,25 @@ PY_ERROR = r"SyntaxError|NameError|ImportError|ModuleNotFoundError|AttributeErro
 MISSING = re.compile(r"element\(s\) not found|resolved to 0 elements")
 LOCATOR = re.compile(r"""locator\((["'])(.+?)\1\)""")
 WAITED_FOR = re.compile(r"""waiting for locator\((["'])(.+?)\1\)""")  # (Playwright's call log names the element)
+# Session ended mid-test (conftest reauth): not a broken credential assumption (auth_problem).
+SESSION_EXPIRED = re.compile(
+    r"logged out - the website ended the test account's session|ended the test account's session|"
+    r"signing in again did not work|Signed in again: the website had ended",
+    re.I)
+# Blank / still-loading within the bounded readiness wait (discovery still_loading / page open timeout).
+READYNESS_TIMEOUT = re.compile(
+    r"still.?loading|never finished loading|page readiness timed out|bounded readiness|"
+    r"the page took too long to open|showed but never finished",
+    re.I)
+# Console / network noise without a website assertion — automation or infrastructure, not product_defect.
+CONSOLE_OR_NETWORK = re.compile(
+    r"JS exception|JavaScript errors?|console\.error|Failed to load resource|net::ERR_|"
+    r"ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|socket hang up",
+    re.I)
+# Network / browser load failures (not an HTTP status the site's own server returned).
+RESOURCE_LOAD_FAIL = re.compile(r"Failed to load resource|net::ERR_|NS_ERROR_", re.I)
+APP_JS_EXCEPTION = re.compile(r"JS exception|Uncaught |TypeError:|ReferenceError:|SyntaxError:", re.I)
+OWN_HTTP_STATUS = re.compile(r"^HTTP [45]\d\d\b")
 
 
 def _control_gone(err: str) -> bool:
@@ -138,6 +158,26 @@ def classify(r: dict) -> tuple[str, str, str]:
     return cat, why, conf
 
 
+def _has_assertion(r: dict, err: str, etype: str) -> bool:
+    return etype == "AssertionError" or "AssertionError" in err or "expect(" in err
+
+
+def _console_or_network_notes(r: dict) -> list[str]:
+    """Console / network notes attached to a result (warnings, crawl page errors) — never auto product_defect alone."""
+    notes: list[str] = []
+    for key in ("warnings", "console_errors", "console_notes"):
+        for item in r.get(key) or []:
+            text = str(item).strip()
+            if text and text not in notes:
+                notes.append(text[:240])
+    for key in ("failed_requests", "network_notes"):
+        for item in r.get(key) or []:
+            text = str(item).strip()
+            if text and text not in notes:
+                notes.append(text[:240])
+    return notes[:12]
+
+
 def _rule_classify(r: dict) -> tuple[str, str, str]:
     """(category, why, confidence) for one failed / inconclusive test result - from the fixed rules only."""
     err, etype = (r.get("error") or ""), (r.get("error_type") or "")
@@ -146,6 +186,11 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
             return "product_defect", "An explicit QA contract expectation failed: " + err[:300], "high"
         if r.get("outcome") == "error":
             return "infrastructure", "The approved QA contract could not execute: " + err[:300], "high"
+    if SESSION_EXPIRED.search(err):
+        # Protected reauth (conftest) already tried; report session expiry separately from auth_problem.
+        return "inconclusive", (
+            "Session expired mid-test (login page returned). Protected reauth was attempted where configured; "
+            "this is not a broken credential assumption (auth_problem)."), "high"
     if r.get("outcome") == "inconclusive":  # (with the test's own reason when it gave one: "Inconclusive: ...")
         return "inconclusive", (err if err.startswith("Inconclusive:") else
                                 "The test ran without failing, but it checked nothing - a pass would prove nothing."), "high"
@@ -171,6 +216,10 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
         return "test_defect", "The generated script itself has a coding error.", "high"
     if etype == "TestTimeout" or "TestTimeout" in err:
         return "timeout", "The test hit its time limit and was stopped.", "medium"
+    if READYNESS_TIMEOUT.search(err):
+        return "timeout", (
+            "Page readiness timed out within the bounded wait (blank/still loading). "
+            "Not proof of a product defect — the page did not become ready in time."), "medium"
     if re.search(r"no test account|TEST_USERNAME", err):
         return "test_data", "The test needs a test account, and none was given.", "high"
     if re.search(r"sent me back to the login page|login did not hold|did not work: the login form is still shown|"
@@ -181,7 +230,17 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
                  r"Target page, context or browser has been closed", err):
         return "infrastructure", ("Network, rate limit or browser problem (the website refused or dropped the "
                                   "connection), not the website logic."), "medium"
-    asserted = etype == "AssertionError" or "AssertionError" in err
+    asserted = _has_assertion(r, err, etype)
+    # Console / failed resource without an AssertionError: automation/infrastructure — never auto product_defect.
+    notes = _console_or_network_notes(r)
+    if not asserted and (CONSOLE_OR_NETWORK.search(err) or any(CONSOLE_OR_NETWORK.search(n) for n in notes)):
+        if any(RESOURCE_LOAD_FAIL.search(x) for x in [err, *notes]):
+            return "infrastructure", (
+                "Failed resource request / network load error without an assertion failure — "
+                "infrastructure or third-party load, not a proven product defect."), "medium"
+        return "infrastructure", (
+            "Browser console / JS noise without an assertion failure — automation or infrastructure, "
+            "not a proven product defect."), "medium"
     website_said = re.search(r"the website said|no visible response|caused JavaScript errors", err)
     if _control_gone(err) and not website_said:
         return "locator", ("The element the test uses was not found on the page (renamed, moved or removed) - not "
@@ -211,11 +270,15 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
                                      "calling it a bug."), "low"
     if "Timeout" in etype or "Timeout" in err:
         return "timeout", "Page or element took too long - slow site, or a wait in the script is wrong.", "low"
-    if etype == "AssertionError" or "AssertionError" in err or "expect(" in err:
+    if asserted:
         # the check itself failed: the website did not behave as expected. Built-in checks are precise;
         # an AI-written check may itself be wrong, so it gets less confidence.
         conf = "medium" if r.get("file") == "test_flows_ai.py" else "high"
         return "product_defect", "The website did not behave as expected.", conf
+    if notes or r.get("screenshot"):
+        return "infrastructure", (
+            "Failure without an AssertionError (screenshot / console / network notes present) — "
+            "treated as automation or infrastructure, not a product defect."), "low"
     return "inconclusive", "Unexpected failure - the evidence does not show whose problem it is. Needs a human look.", "low"
 
 
@@ -326,7 +389,8 @@ def _same_problem(i: dict) -> str:
 
 def _one_per_problem(failures: list[dict]) -> list[dict]:
     """The same coding error on many pages ('no JavaScript errors' failed on 17 pages with one 'Mixed Content' message)
-    is ONE finding, with the pages it was seen on - not 17. Other findings are kept as they are."""
+    is ONE finding, with the pages it was seen on - not 17. Other findings are kept as they are.
+    Merged findings keep every covered nodeid in ``nodeids`` so metrics/ensure stay 1:1 with results."""
     out, first = [], {}
     for f in failures:
         if not (f.get("test") or "").startswith("test_no_console_errors") or f["category"] != "product_defect":
@@ -339,14 +403,30 @@ def _one_per_problem(failures: list[dict]) -> list[dict]:
             g["pages"].append(f.get("page_url"))
             g["explanation"] = f"{g['base_explanation']} Seen on {len(g['pages'])} pages."
             g["evidence"] += [x for x in f.get("evidence") or [] if x not in g["evidence"]][:2]
+            nid = f.get("nodeid")
+            if nid and nid not in g["nodeids"]:
+                g["nodeids"].append(nid)
             continue
-        f = dict(f, pages=[f.get("page_url")], base_explanation=f.get("explanation") or "")
+        f = dict(f, pages=[f.get("page_url")], nodeids=[x for x in (f.get("nodeid"),) if x],
+                 base_explanation=f.get("explanation") or "")
         first[key] = f
         out.append(f)
     for n, f in enumerate(out):
         f["id"] = n
         f.pop("base_explanation", None)
     return out
+
+
+def covered_result_nodeids(failures: list[dict]) -> set[str]:
+    """Nodeids of failed/inconclusive results that already have a test finding (including consolidated)."""
+    found: set[str] = set()
+    for f in failures:
+        if f.get("source") != "test":
+            continue
+        if f.get("nodeid"):
+            found.add(f["nodeid"])
+        found.update(x for x in (f.get("nodeids") or []) if x)
+    return found
 
 
 def _gone_items(run_dir) -> set[str]:
@@ -362,7 +442,236 @@ def _gone_items(run_dir) -> set[str]:
 
 def _case_of(r: dict, cases: list[dict]) -> dict | None:
     from ..excel import case_hits
-    return next((c for c in cases if r in case_hits(c, [r])), None)
+    for c in cases:
+        try:
+            if r in case_hits(c, [r]):
+                return c
+        except (KeyError, TypeError, ValueError):
+            continue
+    # Fallback: match by tc_id / feature when case_hits cannot resolve files yet.
+    tc = r.get("tc_id")
+    if tc:
+        hit = next((c for c in cases if c.get("tc_id") == tc), None)
+        if hit:
+            return hit
+    return None
+
+
+def load_saved_results(run_dir: Path | str) -> list[dict]:
+    """Results already on disk: prefer results.json, else merge results.jsonl / worker files / android_results."""
+    run_dir = Path(run_dir)
+    final = run_dir / "results.json"
+    if final.exists():
+        try:
+            data = json.loads(final.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+        except (OSError, ValueError, TypeError):
+            pass
+    by_id: dict[str, dict] = {}
+    order: list[str] = []
+    paths = [run_dir / "results.jsonl", *sorted(run_dir.glob("results.gw*.jsonl")),
+             *sorted(run_dir.glob("results_bg*.jsonl")), run_dir / "android_results.jsonl"]
+    for path in paths:
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            key = row.get("nodeid") or row.get("test") or f"anon:{len(order)}"
+            if key not in by_id:
+                order.append(key)
+            by_id[key] = row  # later lines win (retries / workers)
+    return [by_id[k] for k in order]
+
+
+def _evidence_linkage(r: dict, case: dict, page: dict, err: str) -> dict:
+    """Retain intended control/container, URL/state, expected vs observed, screenshot, console/network notes."""
+    spec = case.get("spec") if isinstance(case.get("spec"), dict) else {}
+    control = (r.get("control") or case.get("element") or case.get("control") or spec.get("name")
+               or spec.get("box_name") or "")
+    container = (r.get("container") or case.get("container") or case.get("form") or spec.get("form")
+                 or spec.get("dialog") or spec.get("section") or "")
+    selector = r.get("selector") or case.get("selector") or spec.get("selector") or ""
+    expected = r.get("expected") or case.get("expected") or ""
+    observed = (r.get("observed") or r.get("actual") or _short_error(err).replace("E   ", "").strip())[:400]
+    console_notes = list(_console_or_network_notes(r))
+    for item in (page.get("console_errors") or [])[:5]:
+        text = str(item).strip()[:240]
+        if text and text not in console_notes:
+            console_notes.append(text)
+    network_notes = []
+    for item in (r.get("network_notes") or r.get("failed_requests") or page.get("failed_requests") or [])[:8]:
+        text = str(item).strip()[:240]
+        if text and text not in network_notes:
+            network_notes.append(text)
+    page_url = r.get("url") or case.get("url") or page.get("url") or ""
+    state_note = r.get("page_state") or r.get("state") or ""
+    if SESSION_EXPIRED.search(err):
+        state_note = state_note or "session_expired"
+    if READYNESS_TIMEOUT.search(err) or page.get("still_loading"):
+        state_note = state_note or "still_loading_or_readiness_timeout"
+    out = {
+        "control": redact(str(control))[:120] if control else "",
+        "container": redact(str(container))[:120] if container else "",
+        "selector": redact(str(selector))[:200] if selector else "",
+        "expected": redact(str(expected))[:400] if expected else "",
+        "observed": redact(str(observed))[:400] if observed else "",
+        "page_url": page_url,
+        "page_state": state_note,
+        "screenshot": r.get("screenshot"),
+        "console_notes": [redact(n) for n in console_notes[:10]],
+        "network_notes": [redact(n) for n in network_notes[:10]],
+    }
+    if SESSION_EXPIRED.search(err):
+        out["session_expired"] = True
+    return out
+
+
+def _finding_from_result(
+    r: dict,
+    *,
+    fid: int,
+    cases: list[dict] | None = None,
+    pages: dict | None = None,
+    blocked: bool = False,
+    unhealable: list | None = None,
+    healing_log: list | None = None,
+    provisional: bool = False,
+) -> dict:
+    """One test finding from the fixed classify/severity rules (optional LLM enrichment happens elsewhere)."""
+    cases, pages = cases or [], pages or {}
+    cat, why, conf = classify(r)
+    err = r.get("error") or ""
+    if blocked and cat == "auth_problem" and re.search(r"HTTP 403\b", err):
+        cat, why, conf = "infrastructure", BLOCKED_WHY, "medium"
+    sev, better = _severity(cat, r, err)
+    why = better or why
+    nodeid = r.get("nodeid") or ""
+    if nodeid and nodeid in (unhealable or []):
+        last = next((h for h in reversed(healing_log or []) if h.get("nodeid") == nodeid), {})
+        why = (f"A repair of the script was tried, run again and undone ({last.get('why') or 'it did not help'}) - "
+               "the first failure stands. Needs human review." if last.get("status") in ("reverted", "still failing")
+               else "Self-healing could not find a replacement for the element this test uses - "
+                    "the feature may have been removed or broken. Needs human review.")
+        sev, conf = "medium", "low"
+    case = _case_of(r, cases) or {}
+    page = pages.get(case.get("url") or r.get("url")) or pages.get(case.get("url")) or {}
+    link = _evidence_linkage(r, case, page, err)
+    evidence = [x for x in (r.get("screenshot"), r.get("trace")) if x]
+    if link["console_notes"]:
+        evidence.append(f"{len(link['console_notes'])} console note(s)")
+    elif page.get("console_errors"):
+        evidence.append(f"{len(page['console_errors'])} browser console error(s) on this page while crawling")
+    if link["network_notes"]:
+        evidence.append(f"{len(link['network_notes'])} network note(s)")
+    elif page.get("failed_requests"):
+        evidence.append(f"{len(page['failed_requests'])} failed request(s) on this page while crawling")
+    if link["control"]:
+        evidence.append(f"control: {link['control']}")
+    if link["container"]:
+        evidence.append(f"container: {link['container']}")
+    test_name = r.get("test") or (nodeid.split("::")[-1] if nodeid else "unknown")
+    f = {
+        "id": fid, "source": "test", "nodeid": nodeid, "test": test_name, "file": r.get("file"),
+        "page_url": link["page_url"], "category": cat,
+        "category_name": CATEGORY_NAME.get(cat, cat),
+        "severity": sev, "confidence": conf, "explanation": redact(why),
+        "error": redact(_short_error(err)),
+        "screenshot": r.get("screenshot"), "trace": r.get("trace"), "evidence": evidence,
+        "tc_id": case.get("tc_id"), "feature": case.get("feature") or r.get("feature") or "",
+        "control": link["control"], "container": link["container"], "selector": link["selector"],
+        "expected": link["expected"], "observed": link["observed"],
+        "page_state": link["page_state"],
+        "console_notes": link["console_notes"], "network_notes": link["network_notes"],
+        "next_action": BLOCKED_ACTION if why == BLOCKED_WHY else NEXT_ACTION.get(cat, NEXT_ACTION["inconclusive"]),
+    }
+    if link.get("session_expired"):
+        f["session_expired"] = True
+    if provisional:
+        f["provisional"] = True
+    if r.get("vision"):  # what the AI saw on the screenshots (its verdict, the screen's words, its reason)
+        f["seen_by_ai"] = r["vision"]
+    if cat == "product_defect":  # a bug report a developer can act on
+        f["bug"] = {"title": case.get("title") or test_name, "route": urlparse(case.get("url") or "").path or "/",
+                    "feature": case.get("feature") or "", "steps": case.get("steps") or [],
+                    "expected": link["expected"] or case.get("expected") or "",
+                    "actual": link["observed"] or _short_error(err).replace("E   ", "")[:400],
+                    "severity": sev, "confidence": conf}
+    return f
+
+
+def ensure_findings_from_results(
+    run_dir: Path | str,
+    results: list[dict] | None = None,
+    *,
+    cases: list[dict] | None = None,
+    app_map: list[dict] | None = None,
+    unhealable: list | None = None,
+    healing_log: list | None = None,
+) -> list[dict]:
+    """Deterministic findings for every failed/inconclusive result before gates/reports.
+
+    Loads results from disk when needed, appends a rule-based finding for each unanswered
+    failed/error/inconclusive outcome (via classify), merges into failures.json without wiping
+    richer LLM findings already present, and is idempotent by nodeid.
+    """
+    run_dir = Path(run_dir)
+    if results is None:
+        results = load_saved_results(run_dir)
+    if cases is None and (run_dir / "test_cases.json").exists():
+        try:
+            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
+            cases = loaded if isinstance(loaded, list) else []
+        except (OSError, ValueError, TypeError):
+            cases = []
+    cases = cases or []
+    pages = {p["url"]: p for p in (app_map or []) if p.get("url")}
+    if not pages and (run_dir / "app_map.json").exists():
+        try:
+            am = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+            pages = {p["url"]: p for p in am if isinstance(p, dict) and p.get("url")} if isinstance(am, list) else {}
+        except (OSError, ValueError, TypeError):
+            pages = {}
+
+    existing: list[dict] = []
+    path = run_dir / "failures.json"
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                existing = data
+        except (OSError, ValueError, TypeError):
+            existing = []
+
+    covered = covered_result_nodeids(existing)
+    out = list(existing)
+    next_id = max((int(f["id"]) for f in out if isinstance(f.get("id"), int)), default=-1) + 1
+    blocked = any(BLOCK_PAGE.search(r.get("error") or "") for r in results)
+    for r in results:
+        if r.get("outcome") not in ("failed", "error", "inconclusive"):
+            continue
+        nodeid = r.get("nodeid")
+        if not nodeid or nodeid in covered:
+            continue
+        finding = _finding_from_result(
+            r, fid=next_id, cases=cases, pages=pages, blocked=blocked,
+            unhealable=unhealable, healing_log=healing_log, provisional=True)
+        out.append(finding)
+        covered.add(nodeid)
+        next_id += 1
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    return out
 
 
 def failure_analysis_agent(state: QAState) -> QAState:
@@ -375,45 +684,16 @@ def failure_analysis_agent(state: QAState) -> QAState:
     from ..vision import review_results
     review_results(state)  # the AI looks at the failed tests' screenshots first (result["vision"]; VISION=off: nothing)
     # once security software blocked the website, an 'HTTP 403' is its block page too - not the login's answer
-    blocked = any(BLOCK_PAGE.search(r.get("error") or "") for r in state.get("results", []))
-    for r in state.get("results", []):
-        if r["outcome"] not in ("failed", "error", "inconclusive"):
+    results = state.get("results") or []
+    if not results and state.get("run_dir"):
+        results = load_saved_results(state["run_dir"])
+    blocked = any(BLOCK_PAGE.search(r.get("error") or "") for r in results)
+    for r in results:
+        if r.get("outcome") not in ("failed", "error", "inconclusive"):
             continue
-        cat, why, conf = classify(r)
-        err = r.get("error") or ""
-        if blocked and cat == "auth_problem" and re.search(r"HTTP 403\b", err):
-            cat, why, conf = "infrastructure", BLOCKED_WHY, "medium"
-        sev, better = _severity(cat, r, err)
-        why = better or why
-        if r["nodeid"] in state.get("unhealable", []):
-            last = next((h for h in reversed(state.get("healing_log", [])) if h.get("nodeid") == r["nodeid"]), {})
-            why = (f"A repair of the script was tried, run again and undone ({last.get('why') or 'it did not help'}) - "
-                   "the first failure stands. Needs human review." if last.get("status") in ("reverted", "still failing")
-                   else "Self-healing could not find a replacement for the element this test uses - "
-                        "the feature may have been removed or broken. Needs human review.")
-            sev, conf = "medium", "low"
-        case = _case_of(r, cases) or {}
-        page = pages.get(case.get("url")) or {}
-        evidence = [x for x in (r.get("screenshot"), r.get("trace")) if x]
-        if page.get("console_errors"):
-            evidence.append(f"{len(page['console_errors'])} browser console error(s) on this page while crawling")
-        if page.get("failed_requests"):
-            evidence.append(f"{len(page['failed_requests'])} failed request(s) on this page while crawling")
-        f = {
-            "id": len(failures), "source": "test", "nodeid": r["nodeid"], "test": r["test"], "file": r["file"],
-            "page_url": r.get("url") or case.get("url"), "category": cat, "category_name": CATEGORY_NAME[cat],
-            "severity": sev, "confidence": conf, "explanation": why, "error": _short_error(err),
-            "screenshot": r.get("screenshot"), "trace": r.get("trace"), "evidence": evidence,
-            "tc_id": case.get("tc_id"), "next_action": BLOCKED_ACTION if why == BLOCKED_WHY else NEXT_ACTION[cat],
-        }
-        if r.get("vision"):  # what the AI saw on the screenshots (its verdict, the screen's words, its reason)
-            f["seen_by_ai"] = r["vision"]
-        if cat == "product_defect":  # a bug report a developer can act on
-            f["bug"] = {"title": case.get("title") or r["test"], "route": urlparse(case.get("url") or "").path or "/",
-                        "feature": case.get("feature") or "", "steps": case.get("steps") or [],
-                        "expected": case.get("expected") or "", "actual": _short_error(err).replace("E   ", "")[:400],
-                        "severity": sev, "confidence": conf}
-        failures.append(f)
+        failures.append(_finding_from_result(
+            r, fid=len(failures), cases=cases, pages=pages, blocked=blocked,
+            unhealable=state.get("unhealable"), healing_log=state.get("healing_log")))
 
     failures = _one_per_problem(failures)
     host = urlparse(state.get("url") or "").hostname or ""
@@ -431,37 +711,69 @@ def failure_analysis_agent(state: QAState) -> QAState:
                 f["pages"].append(i["url"])
                 f["explanation"] = f"{base} Seen on {len(f['pages'])} pages."
             continue
-        third_party = i["type"] == "failed_request" and host and not _own_host(i["detail"].split("→")[-1], host)
+        detail = i.get("detail") or ""
+        third_party = i["type"] == "failed_request" and host and not _own_host(detail.split("→")[-1], host)
+        # Separate load failures (net::ERR_ / Failed to load resource) from app JS vs own-host HTTP status.
+        load_fail = bool(RESOURCE_LOAD_FAIL.search(detail)) or (
+            i["type"] == "failed_request" and not OWN_HTTP_STATUS.match(detail.strip()))
+        console_resource = i["type"] == "console_error" and bool(RESOURCE_LOAD_FAIL.search(detail))
+        resource_fail = load_fail or console_resource
+        app_js = i["type"] == "console_error" and bool(APP_JS_EXCEPTION.search(detail)) and not console_resource
+        own_http = i["type"] in ("failed_request", "http_status", "page_failed") and bool(
+            OWN_HTTP_STATUS.match(detail.strip())) and not third_party
         # a page that did not answer in time is no error page: slow website, network or a busy test machine
-        slow = i["type"] == "page_failed" and "timeout" in i["detail"].lower()
+        slow = i["type"] == "page_failed" and "timeout" in detail.lower()
+        still_loading = bool((pages.get(i["url"]) or {}).get("still_loading")) or bool(
+            READYNESS_TIMEOUT.search(detail))
         # an API address the crawl opened from a link (it answers POST / PUT, never a page visit) - and a server that
         # said 'busy' (503 / 429: it limits how fast it is asked) - no broken page either
-        api = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP 405\b", i["detail"]))
+        api = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP 405\b", detail))
         # (and what its error page shows - /api/createAccount's own styles and scripts: no page a visitor uses)
         api_page = not api and (pages.get(i["url"]) or {}).get("status") == 405
-        busy = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP (503|429)\b", i["detail"]))
+        busy = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP (503|429)\b", detail))
         # an insecure (http) style / font / picture on an https page: real, but cosmetic - the page still works
-        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(i["detail"]))
+        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(detail))
         # another website's resource (ERR_BLOCKED_BY_ORB, a blocked tracker / ad): never this website's bug
-        cat = "infrastructure" if stale or api or api_page or busy else "timeout" if slow else "third_party" \
-            if third_party else "product_defect"
-        sev = "low" if third_party or stale or api or api_page or busy or mixed else SEVERITY[
-            "timeout" if slow else i["type"]]
-        failures.append({
-            "id": len(failures), "source": "crawler", "test": i["type"], "file": None,
-            "page_url": i["url"], "category": cat, "category_name": CATEGORY_NAME[cat],
-            "severity": sev, "confidence": "low" if third_party or slow or i["type"] == "console_error" else "high",
-            "explanation": GONE_WHY if stale else
-            "The page did not load within the time limit - not proof of an error page." if slow else
-            ("An API address (found as a link): it answers its own method (POST / PUT), not a page visit - HTTP 405 "
-             "is right, not a broken page.") if api else
-            ("Seen on an API address (it answers POST / PUT, not a page visit): its error page is not a page of the "
-             "website a visitor uses.") if api_page else
-            ("The page asks for a style / font / picture over insecure http:// on an https:// page, so the browser "
-             "blocks it: the page may look a little different, nothing a visitor does breaks. Load it over "
-             "https:// (one change for the whole site).") if mixed else
-            ("The website's server said it was busy (HTTP 503 / 429) - often because it limits how fast it is asked. "
-             "Check it again later; one busy answer is no proof of a bug.") if busy else {
+        if stale or api or api_page or busy or (resource_fail and not third_party and not own_http):
+            cat = "infrastructure"
+        elif third_party:
+            cat = "third_party"
+        elif slow or still_loading:
+            cat = "timeout"
+        elif own_http or app_js:
+            cat = "product_defect"
+        else:
+            cat = "product_defect"
+        sev = "low" if third_party or stale or api or api_page or busy or mixed or (
+            resource_fail and not own_http) else SEVERITY["timeout" if slow or still_loading else i["type"]]
+        if stale:
+            explain = GONE_WHY
+        elif still_loading:
+            explain = ("Page showed but never finished loading within the bounded readiness wait — "
+                       "timeout outcome, not a proven product defect.")
+        elif slow:
+            explain = "The page did not load within the time limit - not proof of an error page."
+        elif api:
+            explain = ("An API address (found as a link): it answers its own method (POST / PUT), not a page visit - "
+                       "HTTP 405 is right, not a broken page.")
+        elif api_page:
+            explain = ("Seen on an API address (it answers POST / PUT, not a page visit): its error page is not a page "
+                       "of the website a visitor uses.")
+        elif mixed:
+            explain = ("The page asks for a style / font / picture over insecure http:// on an https:// page, so the "
+                       "browser blocks it: the page may look a little different, nothing a visitor does breaks. Load "
+                       "it over https:// (one change for the whole site).")
+        elif busy:
+            explain = ("The website's server said it was busy (HTTP 503 / 429) - often because it limits how fast it "
+                       "is asked. Check it again later; one busy answer is no proof of a bug.")
+        elif resource_fail and not own_http:
+            explain = ("A resource failed to load (network / missing file). Separated from application JS exceptions "
+                       "and from the site's own HTTP error status — not auto-declared a product defect"
+                       + (" (third-party host)." if third_party else "."))
+        elif app_js:
+            explain = "Application JavaScript exception on this page (uncaught error in the site's own script)."
+        else:
+            explain = {
                 "http_status": "The server returned an error status, while the browser rendered usable application controls. Functional testing continued.",
                 "page_failed": "Page did not load or returned an error status.",
                 "console_error": "The browser console reported an error on this page.",
@@ -470,8 +782,20 @@ def failure_analysis_agent(state: QAState) -> QAState:
                 "broken_image": "An image on the page is broken.",
                 "layout": "At phone width (390 px) the page does not fit: it scrolls sideways, or a control is cut "
                           "off or covered.",
-            }[i["type"]], "error": i["detail"], "screenshot": i.get("screenshot"),
-            "evidence": [x for x in (i.get("screenshot"),) if x], "next_action": GONE_ACTION if stale else NEXT_ACTION[cat],
+            }[i["type"]]
+        note_kind = ("resource_request" if resource_fail and not own_http else "app_js_exception" if app_js else
+                     "readiness_timeout" if still_loading or slow else i["type"])
+        failures.append({
+            "id": len(failures), "source": "crawler", "test": i["type"], "file": None,
+            "page_url": i["url"], "category": cat, "category_name": CATEGORY_NAME[cat],
+            "severity": sev, "confidence": "low" if third_party or slow or still_loading or resource_fail
+            or i["type"] == "console_error" else "high",
+            "explanation": explain, "error": redact(detail), "screenshot": i.get("screenshot"),
+            "evidence": [x for x in (i.get("screenshot"),) if x],
+            "console_notes": [redact(detail)[:240]] if i["type"] == "console_error" else [],
+            "network_notes": [redact(detail)[:240]] if resource_fail else [],
+            "issue_kind": note_kind,
+            "next_action": GONE_ACTION if stale else NEXT_ACTION[cat],
             "pages": [i["url"]],
         })
         same[key] = (failures[-1], failures[-1]["explanation"])
@@ -498,4 +822,4 @@ def failure_analysis_agent(state: QAState) -> QAState:
     for f in failures:
         counts[f["category"]] = counts.get(f["category"], 0) + 1
     log = state.get("log", []) + [f"Failure analysis: {len(failures)} findings {counts or ''}."]
-    return {"failures": failures, "log": log, "results": state.get("results", [])}  # (with what the AI saw on screen)
+    return {"failures": failures, "log": log, "results": results}  # (with what the AI saw on screen)

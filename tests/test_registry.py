@@ -52,7 +52,7 @@ def test_tests_are_linked_and_only_a_checked_result_verifies():
     add_fid = next(f["id"] for f in reg["features"].values() if f["name"] == "Add to cart")
     menu_fid = next(f["id"] for f in reg["features"].values() if f["name"] == "Categories")
     cases = [
-        {"tc_id": "TC-1", "title": "End-to-end on Shop", "pages": ["shop"],
+        {"tc_id": "TC-1", "title": "End-to-end on Shop", "pages": ["shop"], "verification": "business",
          "parts": [{"page": "shop", "step": {"id": "dropdown_sort_by", "kind": "dropdown", "selector": "#sort"}},
                    {"page": "shop", "step": {"id": "buttons_click", "title": "Every button can be clicked"}}],
          "execution_status": "Passed"},
@@ -90,6 +90,7 @@ def test_a_failing_journey_fails_its_workflow_never_the_features_it_went_through
              {"tc_id": "TC-P", "title": "Shopping journey", "journey": "product", "pages": ["product_1"],
               "execution_status": "Failed", "actual_result": "the cart total did not follow the quantity"},
              {"tc_id": "TC-A", "title": "'Add to cart' adds the item", "pages": ["product_1"],
+              "verification": "business",
               "parts": [{"page": "product_1", "step": {"id": "add_to_cart"}}], "execution_status": "Passed"}]
     registry.link_tests(reg, cases)
     assert {"tc_id": "TC-P", "how": "uses"} in reg["features"][add]["tests"]

@@ -268,9 +268,15 @@ def consistency(m: dict, results, cases, registry, failures, case_result, case_h
                           P["verified"] <= P["tested"] <= P["inspected"] <= P["discovered"],
                           f"{P['verified']} <= {P['tested']} <= {P['inspected']} <= {P['discovered']}"))
     answered = {r["nodeid"] for r in results if r.get("outcome") in ("failed", "error", "inconclusive")}
-    found = {f.get("nodeid") for f in failures if f.get("source") == "test"}
+    found: set = set()
+    for f in failures:
+        if f.get("source") != "test":
+            continue
+        if f.get("nodeid"):
+            found.add(f["nodeid"])
+        found.update(x for x in (f.get("nodeids") or []) if x)
     out.append(_check("Every failed or inconclusive single test has its finding", answered == found,
-                      f"{len(answered)} failed / inconclusive single test(s), {len(found)} test finding(s)"
+                      f"{len(answered)} failed / inconclusive single test(s), {len(found)} covered by test finding(s)"
                       + (f"; without a finding: {sorted(answered - found)[:4]}" if answered - found else "")
                       + (f"; finding without a test: {sorted(found - answered)[:4]}" if found - answered else "")))
     wf = m["workflows"]

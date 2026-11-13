@@ -236,6 +236,19 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     traces=True records a Playwright trace of every failing test (used for the retry of failed tests only:
     recording traces for every test makes a long run much slower). headless=True: hidden browsers, also while
     you watch the other tests in Chrome."""
+    sandbox = "own process, clean environment, network + file guard, per-test time limit"
+    # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
+    # Measure phase durations before raising ANALYSIS_RESERVE_S / REPORT_RESERVE_S / SUITE_TIMEOUT_S.
+    suite_s = settings.suite_timeout_s
+    rem = runctl.remaining_s()
+    if rem is not None:
+        leave = runctl.reserve_budget_s()
+        suite_s = max(30, min(suite_s, int(rem - leave))) if rem > leave else 0
+    if suite_s <= 0 or runctl.should_stop_heavy_work():
+        print("  [execution] run time reserve reached before suite start - skipping new tests so analysis/report "
+              "can finish", flush=True)
+        return {"timed_out": True, "stopped": False, "returncode": -1, "sandbox": sandbox,
+                "reserve_skip": True}
     for f in [results_file] + _worker_files(results_file):
         if f.exists():
             f.unlink()
@@ -265,7 +278,7 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     )
     proc = subprocess.Popen(cmd, cwd=test_dir.resolve(), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", errors="replace", **kwargs)
-    job, sandbox = None, "own process, clean environment, network + file guard, per-test time limit"
+    job = None
     if IS_WINDOWS:
         try:
             job = _Job(settings.sandbox_memory_mb, settings.sandbox_max_processes)
@@ -281,7 +294,7 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
             _stop_uncontained(proc)
             raise RuntimeError("Windows Job Object limits could not be established; generated tests were stopped") from e
     timed_out = stopped = False
-    deadline = time.time() + settings.suite_timeout_s
+    deadline = time.time() + suite_s
     last_heartbeat = 0.0
     try:
         while True:
@@ -293,12 +306,14 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
                     last_heartbeat = time.time()
                     print(f"  [execution] still running: {_result_count(results_file)} result(s) so far; "
                           f"{_running_status(results_file)}", flush=True)
-                if time.time() < deadline and not runctl.stopping():
+                if time.time() < deadline and not runctl.should_stop_heavy_work():
                     continue
             stopped = runctl.stopping()
             timed_out = not stopped
-            print(f"  [execution] {runctl.reason() if stopped else f'the tests took longer than {settings.suite_timeout_s} s'}"
-                  " - stopped them (the results so far are kept)")
+            why = (runctl.reason() if stopped else
+                   "run time reserve (ANALYSIS_RESERVE_S / REPORT_RESERVE_S)" if runctl.should_stop_heavy_work()
+                   else f"the tests took longer than {settings.suite_timeout_s} s")
+            print(f"  [execution] {why} - stopped them (the results so far are kept)")
             if job:
                 job.kill()
             elif IS_WINDOWS:
@@ -504,6 +519,34 @@ def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path)
                 f"{count['reverted'] + count['still failing']} undone or still failing."]}
 
 
+def _completed_outcomes(results: list[dict]) -> dict[str, dict]:
+    """Nodeid -> result for tests that already answered (resume must not re-run or duplicate them)."""
+    done = {}
+    for r in results:
+        nid = r.get("nodeid")
+        if nid and r.get("outcome") in ("passed", "failed", "error", "inconclusive", "skipped", "blocked"):
+            done[nid] = r
+    return done
+
+
+def _collect_nodeids(test_dir: Path) -> list[str]:
+    """Collect pytest nodeids offline (no browser) so a resumed run can skip completed work."""
+    try:
+        out = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
+             "--rootdir", str(test_dir.resolve()), str(test_dir.resolve())],
+            cwd=str(test_dir.resolve()), capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=120, check=False, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    ids = []
+    for line in (out.stdout or "").splitlines():
+        line = line.strip()
+        if "::" in line and not line.startswith("=") and " error" not in line.lower():
+            ids.append(line.split()[0] if " " in line else line)
+    return ids
+
+
 def execution_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_pipeline import _execute_mobile
@@ -536,14 +579,55 @@ def execution_agent(state: QAState) -> QAState:
     if state.get("rerun_only"):
         return _rerun_healed(state, run_dir, test_dir, shot_dir)
 
+    # Resume: keep completed results from an interrupted suite; only run pending nodeids (no duplicate writes).
+    from .failure_analysis import load_saved_results
+    prior = _completed_outcomes(load_saved_results(run_dir) or state.get("results") or [])
+    select = None
+    if prior:
+        collected = _collect_nodeids(test_dir)
+        pending = [n for n in collected if n not in prior] if collected else []
+        if collected and not pending:
+            print(f"  [execution] resume: all {len(prior)} collected test(s) already have results - skipping suite",
+                  flush=True)
+            results = list(prior.values())
+            info = {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "resume-kept",
+                    "resume_kept": len(prior)}
+            (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+            (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2),
+                                                    encoding="utf-8")
+            note = (f"Execution resume: kept {len(prior)} completed result(s); no pending tests — "
+                    "did not re-run or duplicate run-owned writes.")
+            print("  [execution] " + note)
+            return {"results": results, "test_cases": state.get("test_cases", []),
+                    "log": state.get("log", []) + [note]}
+        if pending:
+            select = pending
+            print(f"  [execution] resume: keeping {len(prior)} completed result(s); "
+                  f"running {len(pending)} pending test(s)", flush=True)
+        else:
+            print(f"  [execution] resume: {len(prior)} prior result(s) on disk; could not collect pending ids — "
+                  "full suite will merge without dropping completed work", flush=True)
+
     print("  [execution] running generated tests in the sandbox ...")
     if not settings.headless:
         print("  [execution] ONE Chrome window shows every test, one after another: the journeys first, then the "
               "features and page checks, the small checks (input values, links) last")
         print(f"  [execution] watched browser: fitted to the screen, action captions on, slow motion "
               f"{_watched_slow_mo_ms()} ms")
-    info = _run_pytest(state, test_dir, run_dir / "results.jsonl", shot_dir)
-    results = _read(run_dir / "results.jsonl")
+        print("  [execution] note: visible Chrome is serial (one window); hidden runs use TEST_WORKERS in parallel")
+    info = _run_pytest(state, test_dir, run_dir / "results.jsonl", shot_dir, select=select)
+    if info.get("reserve_skip") and prior:
+        results = list(prior.values())
+    else:
+        fresh = _read(run_dir / "results.jsonl")
+        if prior:
+            by_id = dict(prior)
+            for r in fresh:
+                if r.get("nodeid"):
+                    by_id[r["nodeid"]] = r
+            results = list(by_id.values())
+        else:
+            results = fresh
 
     # Bounded retries (TEST_RETRIES): run failed tests again, with a trace. Pass on a retry => flaky (the first
     # failure is kept); failed again for another reason => the retry's failure is reported (see _merge_retry).
