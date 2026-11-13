@@ -8,6 +8,11 @@ steps modules and helpers of the run:
 
 A test that PASSED with only weak checks is a "smoke" test: it says the page did not break, never that a feature works.
 It never makes a feature "verified" (backend/registry.py). Saved as runs/<run>/strength.json  {"file::test": strength}.
+
+Separately, verification *credit* (case metadata) decides whether a strong pass may count as business-verified:
+  business     asserts an explicit business outcome (submit/search result/persistence/contract)
+  interaction  input-only / unsubmitted fills — may prove actionability of boxes, not Save/create/search outcomes
+  smoke        page-load / no-error style checks only
 """
 import ast
 import json
@@ -18,6 +23,50 @@ WEAK_NAMES = {"console_errors", "new_errors", "errors", "errors_before", "bad", 
               "response", "status", "failed", "problems"}
 WEAK_ATTRS = {"status", "title", "ok"}
 RANK = {"none": 0, "weak": 1, "strong": 2}
+
+# Case kinds that fill/type without proving a business outcome by themselves.
+INTERACTION_JOURNEYS = frozenset({"form"})  # fill-the-form journeys never send
+INTERACTION_IDS = frozenset({"site_input_values"})
+BUSINESS_FEATURE_KINDS = frozenset({
+    "search", "filter", "sort", "pagination", "table_search", "page_size", "filter_pages",
+})
+BUSINESS_CASE_KINDS = frozenset({"form", "crud", "pair", "items"})  # submitted / outcome-checked form work
+
+
+def verification_credit(case: dict | None) -> str:
+    """What credit a passed case may give: business | interaction | smoke.
+
+    Explicit `case['verification']` wins. Otherwise inferred from kind / journey / type — never from environment=test.
+    Unsubmitted Save/input-only checks stay interaction: they cannot prove Save, creation, update, search or persistence.
+    """
+    if not case:
+        return "business"
+    explicit = (case.get("verification") or "").strip().lower()
+    if explicit in ("business", "interaction", "smoke"):
+        return explicit
+    if case.get("type") == "smoke" or (case.get("id") or "").startswith(("page_loads", "no_console", "images_load",
+                                                                           "site_pages", "site_no_js", "site_images")):
+        return "smoke"
+    if case.get("id") in INTERACTION_IDS or case.get("journey") in INTERACTION_JOURNEYS:
+        return "interaction"
+    # Feature cases that assert search/filter/pagination/sort outcomes are business when designed as such.
+    if case.get("kind") == "feature" and case.get("feature_kind") in BUSINESS_FEATURE_KINDS:
+        return "business"
+    if case.get("kind") in ("sort", "table_search", "page_size", "filter", "pagination"):
+        return "business"
+    if case.get("kind") in BUSINESS_CASE_KINDS:
+        # Guarded form_valid still checks "would send" — a defined outcome under the write guard.
+        return "business"
+    if case.get("kind") in ("check", "learned") and case.get("type") == "exploratory":
+        return "interaction"
+    if case.get("blocked") or case.get("kind") in ("blocked", "unsupported"):
+        return "interaction"
+    return "business"
+
+
+def counts_as_business_proof(case: dict | None, strength: str) -> bool:
+    """True only when a pass may mark a feature verified (strong assert + business credit)."""
+    return verification_credit(case) == "business" and strength == "strong"
 
 
 def _assert_strength(node: ast.Assert) -> str:
