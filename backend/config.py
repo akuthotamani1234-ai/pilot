@@ -48,7 +48,8 @@ class Settings:
     # because some sites generate endless URLs, e.g. calendars / search pages)
     max_pages: int = int(os.getenv("MAX_PAGES", "0"))
     max_depth: int = int(os.getenv("MAX_DEPTH", "0"))
-    hard_page_cap: int = int(os.getenv("HARD_PAGE_CAP", "1000"))
+    # Soft safety only for runaway crawls; Studio prefers until-exhausted discovery.
+    hard_page_cap: int = int(os.getenv("HARD_PAGE_CAP", "5000"))
     # What to test. "auto" decides from the link: home page -> entire website, one folder (site.com/shop) ->
     # limited pages (that app), deeper / exact address -> that specific page. "site" / "section" / "page" force one.
     crawl_scope: str = os.getenv("CRAWL_SCOPE", "auto").lower()

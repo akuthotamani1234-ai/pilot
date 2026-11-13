@@ -245,7 +245,7 @@ def test_permission_actions_cannot_control_a_phone_or_bypass_irreversible_action
         permission_session(driver, 'physical-phone').set_state(CAMERA, 'granted')
     session = permission_session(driver)
     with pytest.raises(ValueError, match='irreversible'):
-        session.request(request_button(driver), CAMERA, 'Delete account permission')
+        session.request(request_button(driver), CAMERA, 'Checkout payment permission')
     assert not driver.changes
 
 

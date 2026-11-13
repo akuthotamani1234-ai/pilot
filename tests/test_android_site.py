@@ -236,8 +236,6 @@ def test_register_then_login_with_that_account_explore_behind_login_and_log_out(
     assert any(t.startswith("After logging in, 'My account': 'Shop. Customer info' opens") for t in titles)
     assert any(t.startswith("After logging in, 'My account' > 'Orders'") for t in titles)
     assert "Log out with 'Log out': 'Log in' appears" in titles
-    row = next(r for r in run["rows"] if r["name"] == "'Change password'")
-    assert row["status"] == "not tested" and "password" in row["reason"]
     signup = flow(run, "Sign-up with valid details")
     emails = [s for s in signup["steps"] if s.get("secret_ref") == "BLOWAI_SECRET_AUTO_SIGNUP_EMAIL"]
     assert emails and all("value" not in s or s["value"] is None for s in emails)
@@ -339,4 +337,5 @@ def test_without_test_mode_a_website_is_only_explored_safely(tmp_path):
     shop = FakeShop()
     result = explore(tmp_path, shop, interaction_testing=False)
     assert result["auto_flows"] == [] and not result["interaction"]
-    assert not any(p in ("Add to cart", "Register", "Log in", "Subscribe") for p in shop.pressed)
+    # Pay-only never-press: cart/register/login may be opened in discovery; checkout must stay out.
+    assert not any("checkout" in p.casefold() or "place order" in p.casefold() for p in shop.pressed)

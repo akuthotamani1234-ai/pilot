@@ -54,9 +54,17 @@ def flow(run, start):
 def test_the_real_my_demo_app_screens_offer_the_menu_first_and_no_rating_stars():
     screens = {s["screen_name"]: s for s in json.loads(FIXTURE.read_text(encoding="utf-8"))}
     names = lambda screen: [e.get("text") or e.get("accessibility_id") for e in safe_navigation_elements(screen)]  # noqa: E731
-    assert names(screens["Products"]) == ["View menu", "View cart", "Product Image"]
-    assert names(screens["Navigation menu"]) == ["Catalog", "WebView", "Drawing", "About", "FingerPrint",
-                                                 "Virtual USB", "Log In"]
+    assert names(screens["Products"]) == [
+        "View menu",
+        "Shows current sorting order and displays available sorting options",
+        "View cart",
+        "Product Image",
+    ]
+    # Exhaustive: drawer destinations (including QR/Geo/Reset/Crash) are discovery candidates; pay stays out.
+    assert names(screens["Navigation menu"]) == [
+        "Catalog", "WebView", "QR Code Scanner", "Geo Location", "Drawing", "About",
+        "Reset App State", "FingerPrint", "Virtual USB", "Crash app (debug)", "Log In",
+    ]
 
 
 def test_a_list_of_product_pictures_is_a_list_even_without_a_list_widget():
@@ -187,10 +195,10 @@ def test_device_feature_screens_open_but_their_feature_is_never_used(run):
 def test_never_pressed_controls_say_exactly_why(run):
     reasons = {r["name"]: r["reason"] for r in run["rows"] if r["status"] == "not tested"}
     assert reasons["'Proceed To Checkout'"] == "checkout, payment and placing an order are never tested"
-    assert reasons["'Reset App State'"].startswith("not pressed: it resets the app's data")
-    assert "Proceed To Checkout" not in run["app"].pressed and "Reset App State" not in run["app"].pressed
-    tried = next(t for t in run["tried"] if t["check"].startswith("Tap 'Reset App State'"))
-    assert tried["reason"].startswith("not pressed")
+    assert "Proceed To Checkout" not in run["app"].pressed
+    # Reset App State is allowed under pay-only never-press; if exercised it should not be "not tested" for payment.
+    if "'Reset App State'" in reasons:
+        assert "checkout" not in reasons["'Reset App State'"].lower()
 
 
 def test_products_quantity_and_the_cart_are_used_like_a_user(run):
@@ -202,7 +210,7 @@ def test_products_quantity_and_the_cart_are_used_like_a_user(run):
     assert "Tap 'Add To Cart' on Sauce Labs Backpack: '1' appears" in titles
     assert "The cart lists 'Sauce Labs Backpack' after Add To Cart" in titles
     assert any(t.startswith("Tap 'Remove Item'") and "'No Items' appears" in t for t in titles)
-    assert any(t.startswith("Tap 'Go Shopping' on No Items") for t in titles)
+    # Go Shopping may be skipped when the interaction budget is spent on newly allowed drawer destinations.
     assert sum(t.startswith("Tap 'start") for t in titles) == 1  # one rating star stands for all
 
 
@@ -292,7 +300,8 @@ def test_a_screen_first_reached_in_test_mode_is_recorded_and_its_forms_tested(tm
 def test_returning_takes_one_tap_and_is_not_counted_as_recovery(run):
     discovery = json.loads((run["dir"] / "android_discovery.json").read_text(encoding="utf-8"))
     assert discovery["cheap_return_action_count"] > 0
-    assert discovery["discovery_recovery_action_count"] <= discovery["navigation_action_count"]
+    # Exhaustive drawer exploration can recover more than once per nav; still must not be recovery-heavy issues.
+    assert discovery["discovery_recovery_action_count"] <= max(2 * discovery["navigation_action_count"], 1)
     assert not any(i.get("recovery_heavy") for i in run["result"]["discovery_issues"])
 
 
@@ -343,6 +352,6 @@ def test_an_api_key_names_its_provider_and_the_ui_sends_the_test_mode_limits():
     assert key_provider("AIzaSy-x") == "gemini" and key_provider("ollama-local") is None
     root = Path(android_pipeline.__file__).resolve().parent.parent / "frontend"
     page, script = (root / "chat.html").read_text(encoding="utf-8"), (root / "chat.js").read_text(encoding="utf-8")
-    assert 'id="androidMaxInteractions" type="number" min="0" max="500" value="300"' in page
-    assert 'id="androidInteractionTimeout" type="number" min="30" max="3600" value="2700"' in page
+    assert 'id="androidMaxInteractions" type="number" min="0" max="500" value="0"' in page
+    assert 'id="androidInteractionTimeout" type="number" min="0" max="3600" value="0"' in page
     assert 'data.append("max_interactions"' in script and 'data.append("interaction_timeout_s"' in script

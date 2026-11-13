@@ -72,6 +72,10 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "Coverage reminder:" in script
     assert "Run Thorough again" in script and "thorough-again" in script
     assert "Observed/scripted controls are not the same as business-verified checks." in script
+    assert 'id="androidThorough"' in (FRONTEND / "chat.html").read_text(encoding="utf-8")
+    assert 'data.append("thorough"' in script and "androidThorough" in script
+    assert "Stopped early:" in script
+    assert "bounded, not whole-app proof" in script
     assert ".warn.coverage-reminder" in css
     assert ".coverage-reminder-actions" in css
     assert ":disabled" in css  # disabled controls retain a visible disabled state; exact opacity is a style choice

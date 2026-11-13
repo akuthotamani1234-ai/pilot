@@ -432,6 +432,7 @@ def report(state: dict) -> dict:
         'controls_needing_functional_checks_count': features['controls_needing_functional_checks_count'],
         "controls": control_coverage(state, features, cases, results),
         "early_stop": early_stop(state),
+        "thorough": bool(config.get("thorough")),
         "interaction": {**(state.get("interaction") or {}), "kept": len(state.get("auto_flows", []))},
         "bot_check": bot_check,
         "user_like_coverage": user_coverage(state.get("interaction") or {}, cases, results),

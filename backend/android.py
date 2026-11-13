@@ -20,14 +20,18 @@ DEFAULT_APPIUM_URL = "http://127.0.0.1:4723"
 ANDROID_EXECUTION_REVISION = 2
 MAX_APK_BYTES = 500 * 1024 * 1024
 PACKAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
+# Exploration never-press: checkout and payment only (place-order / paid plans included).
+# Other former "risky" labels may be exercised in exhaustive / test-build exploration.
 RISKY_ACTION = re.compile(
-    r"\b(pay|purchase|buy|checkout|delete|remove|transfer|send|submit|save|create|update|confirm|"
-    r"place order|change password|log ?out|sign ?out|sign ?in|log ?in|sign ?up|register|unsubscribe|deactivate|"
-    r"accept|allow|share|invite|post|publish|upload|install|grant|erase|reset|wipe|add|increase|decrease|clear|register|book|order|subscribe|"
-    r"toggle|favorite|favourite|bookmark|pin|star|permission|camera|photo|gallery|microphone|location|contact|scanner|"
-    r"crash|force close)\b",
+    r"\b(pay|pay ?now|payments?|purchase|buy|buy ?now|checkout|check ?out|"
+    r"place (?:an |the |your |my )?order|(?:confirm|submit|complete|finish) (?:the |your |my |this )?"
+    r"(?:order|purchase|payment)|order now|credit card|card details|"
+    r"(?:paid|premium|monthly|yearly|annual) (?:subscription|plan|membership)|"
+    r"apple ?pay|google ?pay|pay ?pal)\b",
     re.I,
 )
+# Emergency wall-clock when discovery_timeout_s / interaction_timeout_s is 0 (until exhausted).
+EXHAUSTIVE_WALL_CLOCK_S = 6 * 60 * 60
 
 
 def repeat_family(element: dict):
@@ -425,29 +429,26 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("Select a connected Android device.")
     server_url = _local_appium_url(config.get("appium_url") or DEFAULT_APPIUM_URL)
     try:
-        max_screens = int(config.get("max_screens", 40))
-        max_actions = int(config.get("max_actions", 60))
+        # 0 = until exhausted (no soft screen/action budget); hard max still applies when > 0.
+        max_screens = int(config.get("max_screens", 0))
+        max_actions = int(config.get("max_actions", 0))
     except (TypeError, ValueError) as e:
         raise AndroidEnvironmentError("Exploration limits must be whole numbers.") from e
-    if not 1 <= max_screens <= 100 or not 0 <= max_actions <= 200:
-        raise AndroidEnvironmentError("Exploration limits must be 1-100 screens and 0-200 actions.")
+    if not 0 <= max_screens <= 100 or not 0 <= max_actions <= 200:
+        raise AndroidEnvironmentError("Exploration limits must be 0-100 screens and 0-200 actions (0 = until exhausted).")
     limits = {}
     for key, default, low, high in (
-        ("max_depth", 5, 0, 10),
-        ("discovery_timeout_s", 600, 10, 900),
+        # 0 depth / timeout / interactions = until exhausted (emergency wall-clock applied in the pipeline)
+        ("max_depth", 0, 0, 10),
+        ("discovery_timeout_s", 0, 0, 900),
         ("command_timeout_s", 60, 10, 120),
         ("session_timeout_s", 300, 60, 300),
         ("max_test_cases", 300, 1, 300),
-        ("max_scroll_actions", 30, 0, 100),
-        ("max_scrolls_per_screen", 4, 0, 12),
-        # Native discovery: controls explored per screen (menu items and tabs first); the rest are listed
-        ("max_candidates_per_screen", 12, 1, 100),
-        # User-like testing of a test build or test website: tries (probe + replay each count) and its own time
-        # budget. The defaults cover a demo shop such as nopCommerce (about 10 menu entries, 20 footer links and the
-        # shop's features); the maximums keep every run finite so it always ends with a report.
-        ("max_interactions", 300, 0, 500),
-        ("interaction_timeout_s", 2700, 30, 3600),
-        # A website's bot check: how long to wait for it to finish by itself, then for a person to complete it
+        ("max_scroll_actions", 0, 0, 100),
+        ("max_scrolls_per_screen", 0, 0, 12),
+        ("max_candidates_per_screen", 0, 0, 100),
+        ("max_interactions", 0, 0, 500),
+        ("interaction_timeout_s", 0, 0, 3600),
         ("bot_check_wait_s", 30, 0, 120),
         ("human_wait_s", 180, 0, 900),
     ):
@@ -456,7 +457,7 @@ def validate_mobile_config(config: dict) -> dict:
         except (TypeError, ValueError) as e:
             raise AndroidEnvironmentError(f"{key} must be a whole number.") from e
         if not low <= value <= high:
-            raise AndroidEnvironmentError(f"{key} must be between {low} and {high}.")
+            raise AndroidEnvironmentError(f"{key} must be between {low} and {high} (0 = until exhausted where allowed).")
         limits[key] = value
     expectations = config.get("expected_destinations") or {}
     if isinstance(expectations, str):
@@ -517,6 +518,27 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("These flows were recorded in test mode. Tick the test-mode box to run them.")
     if config.get("contract_only") and not any(contract[k] for k in ("flows", "rules", "checks")):
         raise AndroidEnvironmentError("Contract-only mode needs at least one configured check.")
+    thorough = bool(config.get("thorough", False))
+    if thorough:
+        # Thorough with soft budgets still set: raise floors. With 0 (= until exhausted), leave as exhaustive.
+        if max_screens:
+            max_screens = max(max_screens, 80)
+        if max_actions:
+            max_actions = max(max_actions, 150)
+        if limits["max_depth"]:
+            limits["max_depth"] = max(limits["max_depth"], 8)
+        if limits["discovery_timeout_s"]:
+            limits["discovery_timeout_s"] = max(limits["discovery_timeout_s"], 900)
+        if limits["max_scroll_actions"]:
+            limits["max_scroll_actions"] = max(limits["max_scroll_actions"], 60)
+        if limits["max_scrolls_per_screen"]:
+            limits["max_scrolls_per_screen"] = max(limits["max_scrolls_per_screen"], 8)
+        if limits["max_candidates_per_screen"]:
+            limits["max_candidates_per_screen"] = max(limits["max_candidates_per_screen"], 24)
+        if limits["max_interactions"]:
+            limits["max_interactions"] = max(limits["max_interactions"], 500)
+        if limits["interaction_timeout_s"]:
+            limits["interaction_timeout_s"] = max(limits["interaction_timeout_s"], 3600)
     return {
         **config,
         "qa_contract": contract,
@@ -531,6 +553,7 @@ def validate_mobile_config(config: dict) -> dict:
         "appium_url": server_url,
         "max_screens": max_screens,
         "max_actions": max_actions,
+        "thorough": thorough,
         "verify_observed_navigation": bool(config.get("verify_observed_navigation", True)),
     }
 
@@ -1169,12 +1192,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
 
 
 def safe_navigation_elements(screen: dict) -> list[dict]:
-    """Clickable controls allowed for bounded exploration after risky-action filtering."""
+    """Clickable controls for exploration after checkout/payment filtering."""
+    from .qa_contracts import never_in_test_mode
+
     out = []
-    has_visible_inputs = any(e.get("visible") and e.get("input_capable") for e in screen.get("elements", []))
-    has_login_submit = any(e.get("visible") and e.get("clickable")
-                           and re.search(r"\blog ?in\b|\bsign ?in\b", e.get("text", "") + " " + e.get("accessibility_id", ""), re.I)
-                           for e in screen.get("elements", []))
     # A catalogue: a list widget, or several product pictures (one per card) on the screen. A single product
     # picture belongs to a detail screen, where it may open an image viewer outside the app.
     has_product_list = any(
@@ -1204,18 +1225,17 @@ def safe_navigation_elements(screen: dict) -> list[dict]:
             "open log in screen",
             "open sign in screen",
         }
-        risks = [re.sub(r"\s+", "", match.group().casefold()) for match in RISKY_ACTION.finditer(label)]
         navigation_tab = element.get("navigation_role") == "tab"
         navigation_menu = element.get("navigation_role") == "menu_item"
-        login_menu = element.get("navigation_role") == "menu_item" and bool(re.search(r"\blog ?in\b|\bsign ?in\b", primary, re.I))
-        signup_menu = element.get("navigation_role") == "menu_item" and bool(
-            re.search(r"\bsign ?up\b|\bregister\b|\bregistration\b", primary, re.I)
-        )
-        signup_entry = bool(re.search(r"\bsign ?up\b|\bregister\b|\bregistration\b|\bcreate account\b", primary, re.I)) \
-            and (not has_visible_inputs or signup_menu or has_login_submit)
-        permitted = not risks or (explicit_login_screen or navigation_tab or login_menu) and set(risks) <= {"login", "signin"}
-        permitted = permitted or signup_menu and set(risks) <= {"signup", "register"}
-        permitted = permitted or signup_entry and set(risks) <= {"signup", "register", "create"}
+        # Exhaustive explore: labelled non-pay controls. Menu items may open in-app screens (QR/Geo);
+        # device-feature buttons that leave the app stay blocked. Checkout/payment never explored.
+        if never_in_test_mode(
+            label,
+            native=not (navigation_menu or navigation_tab or explicit_login_screen),
+        ):
+            continue
+        # Unlabelled look-alikes (rating stars start1..) stay out of discovery; test mode samples one family.
+        has_face = bool(primary.strip()) or navigation_tab or navigation_menu or product_image
         if (
             element.get("visible")
             and not element.get("outside_active_drawer")
@@ -1224,9 +1244,7 @@ def safe_navigation_elements(screen: dict) -> list[dict]:
             and not element.get("input_capable")
             and element.get("locators")
             and element.get("locator_unique", True)
-            and permitted
-            and (navigation_tab or navigation_menu or login_menu or signup_menu or signup_entry or explicit_login_screen
-                 or SAFE_NAVIGATION.search(label))
+            and has_face
         ):
             out.append(element)
             if product_image:

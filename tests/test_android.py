@@ -48,7 +48,7 @@ def test_mobile_config_requires_local_appium_and_bounded_limits():
         validate_mobile_config({**config, "appium_url": "http://192.168.1.10:4723"})
     with pytest.raises(AndroidEnvironmentError, match="whole numbers"):
         validate_mobile_config({**config, "max_screens": "many"})
-    with pytest.raises(AndroidEnvironmentError, match="1-100 screens"):
+    with pytest.raises(AndroidEnvironmentError, match="0-100 screens"):
         validate_mobile_config({**config, "max_screens": 101})
 
 
