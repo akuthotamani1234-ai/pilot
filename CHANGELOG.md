@@ -2,6 +2,14 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-13 — Form boundaries and target identity (P2)
+
+- Form fill/assert scopes to the form, dialog, or labeled section; prefers label / role / stable id.
+- Ambiguous matches are fail-closed (automation/inconclusive) — no silent Playwright `.first` pick.
+- Sidebar/global search and unrelated table row checkboxes are excluded from form schemas and fill targets.
+- Opener paths (Add dialogs, nested menus) stay on form cases; missing/invisible required fields block a whole-form pass.
+- Offline fixtures: sidebar Search vs Emergency Contact phone, duplicate-label containers, unresolved ambiguity, wrong opener.
+
 ## 2026-11-13 — Coverage gate honesty + Pay Grades vs payment
 
 - Route/feature gates no longer claim exhaustive reachability when exploration is partial
