@@ -111,6 +111,9 @@ def test_report_path_ensure_then_gates_see_findings(tmp_path):
     # timeout + inconclusive are unreliable answers; product_defect is a real finding - never "0 of N"
     assert gates["automation"]["status"] in ("missing", "risk")
     assert not gates["automation"]["detail"].startswith("0 of")
-    assert gates["blockers"]["status"] == "fail"  # empty-form assertion → product_defect blocker
+    # Rule-based ensure_findings marks rows provisional → Insufficient Evidence, not “none found” / zero bugs
+    assert gates["blockers"]["status"] == "missing"
+    assert "provisional" in gates["blockers"]["detail"].lower() or "insufficient evidence" in gates["blockers"]["detail"].lower()
+    assert "none found" not in gates["blockers"]["detail"].lower()
     m = metrics.build(results, [], None, findings)
     assert next(c for c in m["consistency"] if "finding" in c["check"])["ok"]

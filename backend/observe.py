@@ -25,7 +25,7 @@ from collections import Counter
 from urllib.parse import urlparse
 
 from . import runctl
-from .actions import action_risk
+from .actions import action_class, action_risk, blocked_reason
 from .config import settings
 from .page_inventory import capture_after_action
 
@@ -319,7 +319,8 @@ SEEN_CONTROL_JS = """e => {
             || e;
   const f = c.closest('form'), i = c.querySelector ? c.querySelector('i, svg, img, [class*=icon]') : null;
   const type = (c.getAttribute('type') || (c.tagName === 'BUTTON' && f ? 'submit' : '')).toLowerCase();
-  return { type, in_form: !!f,
+  return { type, in_form: !!f, tag: (c.tagName || '').toLowerCase(),
+           role: c.getAttribute('role') || ({A:'link', BUTTON:'button'})[c.tagName] || '',
            form_method: f ? (f.getAttribute('method') || (f.getAttribute('action') ? 'get' : 'script')).toLowerCase() : '',
            text: (c.innerText || c.value || c.getAttribute('aria-label') || '').trim().split('\\n')[0].slice(0, 80),
            icon: i ? `${i.getAttribute('class') || ''} ${i.getAttribute('aria-label') || ''}`.trim() : '',
@@ -393,6 +394,7 @@ class Explorer:
             kind = "repeated" if (b.get("count") or 1) > 1 else (b.get("kind") or "")
             out.append({"name": (b.get("accname") or b.get("text") or "control").split("\n")[0].strip()[:60],
                         "text": b.get("text") or "", "selector": b["selector"], "action": "click", "kind": kind,
+                        "role": b.get("role") or "", "tag": b.get("tag") or "",
                         "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by")})
         for i in entry.get("inputs", []):
             s = i.get("selector")
@@ -419,13 +421,16 @@ class Explorer:
 
     def _eligible(self, t: dict) -> tuple[str, str]:
         """(risk, why not) - why not = '' when the action may be performed."""
-        risk = action_risk(t["text"] or t["name"], t["selector"])
+        cls = action_class(t["text"] or t["name"], t["selector"],
+                           role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))
+        risk = action_risk(t["text"] or t["name"], t["selector"],
+                           role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))
         if t.get("disabled"):
             return risk, "disabled on the page"
         if settings.discovery_only and risk == "test_account":
             return risk, "discovery only: no test-account changes"
         if risk == "protected":
-            return risk, "protected: it could pay, order, delete, send, publish or log out - never performed"
+            return risk, blocked_reason(cls)
         if risk == "write":  # (staging: allowed - but only the tests made for it do it, with tagged test data)
             return risk, "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
         if t.get("submit"):
@@ -631,9 +636,11 @@ class Explorer:
         if sends_form({"type": info["type"], "in_form": info["in_form"], "form_method": info["form_method"],
                        "text": info["text"]}):
             return "sends a form - the form tests check it"
-        if action_risk(f"{info['text']} {info['icon']}".replace("-", " ").strip() or t["name"],
-                       info["href"]) in ("protected", "write"):
-            return "protected: it could pay, order, delete, send, publish or log out - never performed"
+        label = f"{info['text']} {info['icon']}".replace("-", " ").strip() or t["name"]
+        cls = action_class(label, info["href"], role=info.get("role"), tag=info.get("tag"), href=info.get("href"))
+        risk = action_risk(label, info["href"], role=info.get("role"), tag=info.get("tag"), href=info.get("href"))
+        if risk in ("protected", "write"):
+            return blocked_reason(cls if risk == "protected" else "write")
         return ""
 
     def _explore(self, page, url: str, entry: dict) -> tuple[list[str], list[str]]:

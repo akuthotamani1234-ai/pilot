@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..actions import PROTECTED
+from ..actions import PROTECTED, action_class as classify_action
 from ..ai_grounding import account_permission_reason
 from ..auth import login_form  # (the login form finder lives with the login logic; re-used here)
 from ..config import settings
@@ -64,6 +64,10 @@ def safe_buttons(p: dict) -> list[dict]:
         if b.get("disabled") or b.get("inert"):
             continue  # can't be clicked by a person either
         if not text and not b.get("selector"):
+            continue
+        # Prefer action_class (role/nav context) so "Pay Grades" menu links are not treated as payment.
+        if classify_action(text, b.get("selector"), role=b.get("role"), kind=b.get("kind"),
+                           tag=b.get("tag")) in ("pay", "delete", "logout", "password", "write"):
             continue
         if UNSAFE_BUTTON.search(text) or UNSAFE_BUTTON.search(b.get("selector") or ""):
             continue
@@ -1931,7 +1935,8 @@ def blocked_cases(pages: list[dict]) -> list[dict]:
                             "steps": [f"Open {_page_name(p)}", f"Click '{a['text']}'"],
                             "expected": "Needs explicit approval and a safe test environment before it can be tested",
                             "skip_reason": "Blocked: protected action (it could pay, order, delete, send or change "
-                                           "data) - never clicked without explicit approval",
+                                           "data) - never clicked without ALLOW_ACTIONS naming the class "
+                                           "(and TEST_PAYMENT=1 for pay, staging only)",
                             "page": p["slug"], "url": p["url"], "pages": [p["slug"]], "guest": not p.get("auth"),
                             "files": [], "tests": []})
     return out

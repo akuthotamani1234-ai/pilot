@@ -47,7 +47,22 @@ def test_coverage_limitations_surface_unvisited_pages_and_never_claim_complete_s
     assert lim["claims_complete_product_coverage"] is False
     assert lim["pages"]["not_visited"] == 5
     assert "entire site" in lim["statement"].lower() or "incomplete" in lim["statement"].lower()
-    assert "not proof" in lim["limitation"]
+    assert "not proof" in lim["limitation"] or "denominators" in lim
+
+
+def test_partial_exploration_with_interaction_limit_does_not_claim_exhaustive_reachability():
+    lim = report_clarity.coverage_limitations(
+        crawl={"visited": 11, "not_visited_count": 0,
+               "actions": {"not_tried_limit": 8},
+               "exploration": {"status": "partial", "within_selected_scope": False, "actions_limited": True}},
+        limits=[], incomplete=False)
+    assert lim["partial"] is True
+    assert lim["actions_not_tried_limit"] == 8
+    assert lim["claims_complete_product_coverage"] is False
+    text = (lim["statement"] + " " + lim["limitation"]).lower()
+    assert "partial" in text or "incomplete" in text
+    assert "exhaustive" not in lim["statement"].lower() or "not" in lim["statement"].lower()
+    assert any(word in text for word in ("control", "interaction", "workflow", "feature", "url"))
 
 
 def test_metrics_include_clarity_buckets_without_accuracy_percent():

@@ -1975,7 +1975,9 @@ def discovery_agent(state: QAState) -> QAState:
                         desk = {x.get("selector") for x in entry.get("buttons", []) + entry.get("inputs", [])}
                         entry["mobile_only"] = [dict(b, mobile_only=True) for b in phone.get("buttons", [])
                                                 if b.get("selector") and b["selector"] not in desk
-                                                and action_risk(b.get("text"), b.get("selector")) == "safe"][:8]
+                                                and action_risk(b.get("text"), b.get("selector"),
+                                                                role=b.get("role"), kind=b.get("kind"),
+                                                                tag=b.get("tag")) == "safe"][:8]
                         entry["layout"] = layout
                     except Exception as e:
                         print(f"  [discovery] phone width could not be checked on {url}: {str(e).splitlines()[0][:100]}")

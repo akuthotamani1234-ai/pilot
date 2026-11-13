@@ -24,7 +24,9 @@ import re
 
 from .config import settings
 
-PAY = re.compile(r"\bpay\b|payment|\bbuy\b|purchase|check ?out|place (your )?order|order now|"
+# `\bpay\b` alone would treat admin config nav like "Pay Grades" as payment - exclude that config name.
+# Real payment verbs (pay now, payment, checkout, buy, ...) still match.
+PAY = re.compile(r"\bpay\b(?![\s_-]*grades?\b)|payment|\bbuy\b|purchase|check ?out|place (your )?order|order now|"
                  r"confirm( order| purchase| payment)?\b|transfer|send money|\bdonate\b|book now|reserve now", re.I)
 LOGOUT = re.compile(r"log ?out|sign ?out|log ?off", re.I)
 PASSWORD = re.compile(r"change (my )?(password|email)|reset password", re.I)
@@ -54,13 +56,56 @@ SAFE_TEXT = re.compile(r"^\s*(search|find|go|filter|apply filters?|sort|log ?in|
 # (automationexercise.com: id="submit_search") must not make it a 'submit' that is never pressed
 SEARCH_ICON = re.compile(r"\bsearch\b|magnif", re.I)
 
+# Admin config navigation named "Pay Grade(s)" is not a payment/checkout submit.
+PAY_GRADE_LABEL = re.compile(r"^\s*pay[\s_-]*grades?\s*$", re.I)
+NAV_ROLES = frozenset({
+    "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "navigation", "menu", "treeitem",
+})
+NAV_KINDS = frozenset({
+    "link", "menu", "menu_item", "tab", "tabs", "navigation", "sidebar", "tree_item", "hover",
+})
+NAV_TAGS = frozenset({"a", "nav"})
+NAV_PURPOSES = frozenset({"navigate", "navigation", "menu", "tab", "link", "open_page", "admin_config"})
+
 
 def _kind_of(s: str) -> str:
     return next((name for name, rx in CLASSES if rx.search(s or "")), "")
 
 
-def action_class(text: str | None, selector: str | None = "") -> str:
+def _nav_context(*, role: str | None = None, kind: str | None = None, tag: str | None = None,
+                 purpose: str | None = None, href: str | None = None, selector: str | None = "") -> bool:
+    """True when the control looks like navigation (link / menu / tab), not a pay/checkout submit."""
+    role_l = (role or "").strip().lower()
+    kind_l = (kind or "").strip().lower()
+    tag_l = (tag or "").strip().lower()
+    purpose_l = (purpose or "").strip().lower()
+    if role_l in NAV_ROLES or kind_l in NAV_KINDS or tag_l in NAV_TAGS or purpose_l in NAV_PURPOSES:
+        return True
+    href_l = (href or "").strip()
+    if href_l and not href_l.startswith("#") and not href_l.lower().startswith("javascript:"):
+        return True
+    sel = selector or ""
+    if re.search(r"(^|[\s\[>#.])a([\s\[.#:]|$)|role=['\"]?(link|menuitem|tab)\b", sel, re.I):
+        return True
+    return False
+
+
+def is_pay_grade_navigation(text: str | None, selector: str | None = "", *,
+                            role: str | None = None, kind: str | None = None, tag: str | None = None,
+                            purpose: str | None = None, href: str | None = None) -> bool:
+    """Link/menuitem/tab to an admin config page named Pay Grade(s) is not a payment action."""
+    label = (text or "").split("\n")[0].strip()
+    if not PAY_GRADE_LABEL.match(label):
+        return False
+    return _nav_context(role=role, kind=kind, tag=tag, purpose=purpose, href=href, selector=selector)
+
+
+def action_class(text: str | None, selector: str | None = "", *,
+                 role: str | None = None, kind: str | None = None, tag: str | None = None,
+                 purpose: str | None = None, href: str | None = None) -> str:
     """'safe' | 'test_account' | 'write' | 'delete' | 'pay' | 'logout' | 'password' - what the control would do."""
+    if is_pay_grade_navigation(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href):
+        return "safe"
     t = f"{text or ''} {selector or ''}"
     if TEST_ACCOUNT.search(t) and not PAY.search(t):
         return "test_account"
@@ -90,12 +135,36 @@ def allowed(kind: str) -> bool:
     return kind in settings.allow_actions
 
 
-def action_risk(text: str | None, selector: str | None = "") -> str:
+def permission_needed(kind: str) -> str:
+    """Which setting would allow this consequential class (for blocked-reason text)."""
+    if kind == "pay":
+        return "ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+    if kind in ("delete", "logout", "password"):
+        return f"ALLOW_ACTIONS including '{kind}' (staging only)"
+    if kind == "write":
+        return "TEST_ENVIRONMENT=staging with write confirmation for the host"
+    return "explicit approval for this action class"
+
+
+def blocked_reason(kind: str) -> str:
+    """Why a protected control was not clicked, and which permission would be needed."""
+    if kind == "pay":
+        return (f"protected: payment/checkout/billing submit - never performed without "
+                f"{permission_needed('pay')}")
+    if kind in ("delete", "logout", "password", "write"):
+        return (f"protected: '{kind}' action - never performed without {permission_needed(kind)}")
+    return ("protected: it could pay, order, delete, send, publish or log out - never performed without "
+            "ALLOW_ACTIONS naming the class (and TEST_PAYMENT=1 for pay)")
+
+
+def action_risk(text: str | None, selector: str | None = "", *,
+                role: str | None = None, kind: str | None = None, tag: str | None = None,
+                purpose: str | None = None, href: str | None = None) -> str:
     """'safe' | 'test_account' | 'write' (allowed here: only the tests made for it do it) | 'protected' (never)."""
-    kind = action_class(text, selector)
-    if kind in ("safe", "test_account"):
-        return kind
-    return "write" if allowed(kind) else "protected"
+    cls = action_class(text, selector, role=role, kind=kind, tag=tag, purpose=purpose, href=href)
+    if cls in ("safe", "test_account"):
+        return cls
+    return "write" if allowed(cls) else "protected"
 
 
 def protected_pattern() -> str:

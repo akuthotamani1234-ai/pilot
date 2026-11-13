@@ -90,16 +90,39 @@ def _quality_gates(state: QAState) -> list[dict]:
                            "The login expired during the crawl - some pages behind it were not tested." if expired
                            else f"Logged in ({'; '.join(login.get('evidence') or [])})."))
 
-    # route coverage
+    # route coverage — never claim exhaustive reachability when exploration is partial
+    exploration = crawl.get("exploration") or {}
+    actions = crawl.get("actions") or {}
+    pending_urls = int(crawl.get("not_visited_count") or 0)
+    partial_exploration = bool(
+        crawl.get("limit_reached") or crawl.get("time_limit_reached") or crawl.get("stopped")
+        or pending_urls > 0 or actions.get("not_tried_limit")
+        or exploration.get("status") == "partial"
+        or exploration.get("within_selected_scope") is False
+        or exploration.get("actions_limited"))
     if len(ok_pages) < 1:
         gates.append(_gate("routes", "Pages could be visited", "missing", "No page could be opened."))
-    elif crawl.get("limit_reached"):
-        gates.append(_gate("routes", "Every reachable page was visited", "risk",
-                           f"Stopped at the page limit of {crawl.get('limit')}: {crawl.get('not_visited_count', 0)} "
-                           "more pages were found but not visited.", mandatory=False))
+    elif partial_exploration:
+        bits = []
+        if crawl.get("limit_reached"):
+            bits.append(f"page limit ({crawl.get('limit')})")
+        if crawl.get("time_limit_reached") or crawl.get("stopped"):
+            bits.append("crawl time limit / stop")
+        if pending_urls:
+            bits.append(f"{pending_urls} pending URL(s) not visited")
+        if actions.get("not_tried_limit"):
+            bits.append(f"{actions.get('not_tried_limit')} control interaction(s) not tried (per-page limit)")
+        detail = ("Exploration is partial — this is not exhaustive reachability. "
+                  + ("; ".join(bits) + ". " if bits else "")
+                  + f"{len(ok_pages)} page(s) visited. Visited URLs ≠ every route pattern, control, "
+                    "interaction check, feature or business workflow.")
+        gates.append(_gate("routes", "Route exploration within selected limits", "risk", detail, mandatory=False))
     else:
-        gates.append(_gate("routes", "Every reachable page was visited", "pass",
-                           f"{len(ok_pages)} page(s) visited within the limits.", mandatory=False))
+        gates.append(_gate(
+            "routes", "Discovered routes visited within selected scope", "pass",
+            f"{len(ok_pages)} discovered page(s) visited within the selected exploration scope. "
+            "This is not a claim that every possible URL, control, feature or business workflow was reached.",
+            mandatory=False))
 
     # execution evidence
     answered = [r for r in results if r["outcome"] in ("passed", "failed", "error", "inconclusive")]
@@ -142,16 +165,25 @@ def _quality_gates(state: QAState) -> list[dict]:
     limit = SEV_RANK.get(settings.gate_block_severity, 1)
     blockers = [f for f in failures if f["category"] == "product_defect" and SEV_RANK.get(f["severity"], 9) <= limit
                 and f.get("confidence") != "low"]
-    if blockers:
+    confirmed_blockers = [f for f in blockers if not f.get("provisional")]
+    provisional_open = [f for f in failures if f.get("provisional")]
+    if confirmed_blockers:
         block_status, block_detail = "fail", (
-            f"{len(blockers)} blocking problem(s): "
-            + "; ".join(sorted({f['explanation'][:80] for f in blockers}))[:400])
+            f"{len(confirmed_blockers)} blocking problem(s): "
+            + "; ".join(sorted({f['explanation'][:80] for f in confirmed_blockers}))[:400])
     elif unlinked:
         # Empty/unlinked findings must never clear a "no bugs" gate while failures remain.
         block_status, block_detail = "missing", (
             f"Cannot confirm absence of blockers: {len(unlinked)} failed/inconclusive test(s) have no finding yet.")
+    elif provisional_open or blockers:
+        n = len(provisional_open) or len(blockers)
+        block_status, block_detail = "missing", (
+            f"Insufficient Evidence: {n} finding(s) are still provisional / untriaged — "
+            "cannot confirm absence of blockers while triage is open.")
     else:
-        block_status, block_detail = "pass", "None found."
+        block_status, block_detail = "pass", (
+            "No high-severity product defects confirmed among triaged findings "
+            "(not a claim that the product has zero bugs).")
     gates.append(_gate("blockers", f"No website bug of severity '{settings.gate_block_severity}' or higher",
                        block_status, block_detail))
     # critical user journeys (log in, shopping, orders ...) must all pass
@@ -168,19 +200,27 @@ def _quality_gates(state: QAState) -> list[dict]:
                            (f"Failing: {'; '.join(bad)[:300]}" if bad else
                             f"Not proven: {'; '.join(open_)[:300]}" if open_ else
                             f"All {len(journeys)} critical journey(s) passed."), mandatory=bool(bad)))
-    # feature coverage: every feature found is tested or says why not - full coverage is never claimed with gaps
+    # feature coverage: registry features ≠ business workflows; never claim complete product coverage with gaps
+    # or while exploration is still partial (pending URLs / interaction limits).
     fc = state.get("feature_counts")  # (the registry, after the results: set by reporter_agent)
     if fc:
         F, P = fc["features"], fc["pages"]
         gaps = F["unresolved"] + F["clicked_only"] + P.get("not_reached", 0)
-        gates.append(_gate(
-            "feature_coverage", "Every feature found was tested (or says why not)", "risk" if gaps else "pass",
-            ("Not complete - " if gaps else "")
+        incomplete_cov = bool(gaps or partial_exploration)
+        feat_detail = (
+            ("Not complete - " if incomplete_cov else "")
             + f"{F['discovered']} feature(s) found: {F['verified']} verified, {F['failed']} failed, {F['blocked']} "
               f"blocked (protected), {F['needs_login']} need a test account, {F['inconclusive']} inconclusive, "
               f"{F['clicked_only']} only clicked, {F['skipped']} skipped, {F['unresolved']} not tested; "
               f"{P.get('not_reached', 0)} page(s) not reached (limits), {P.get('sampled_out', 0)} more page(s) of "
-              "sampled address patterns.", mandatory=False))
+              "sampled address patterns. "
+              "Counts are registry features / route patterns — not every control, interaction check or "
+              "business workflow.")
+        gates.append(_gate(
+            "feature_coverage",
+            "Features found were tested or explained" if incomplete_cov
+            else "Every feature found was tested (or says why not)",
+            "risk" if incomplete_cov else "pass", feat_detail, mandatory=False))
     # (another website's blocked tracker / ad is listed, never a risk of THIS website's release)
     others = [f for f in failures if f not in blockers and f["category"] not in NOT_ANSWERED + ("third_party",)]
     healed = [h for h in state.get("healing_log", []) if h["status"] in ("healed", "repaired")]
@@ -192,8 +232,13 @@ def _quality_gates(state: QAState) -> list[dict]:
         risks.append(f"{len(healed)} test script(s) were repaired automatically - please review them.")
     if unlinked:
         risks.append(f"{len(unlinked)} failed/inconclusive result(s) still have no linked finding.")
+    if provisional_open:
+        risks.append(f"{len(provisional_open)} finding(s) remain provisional / untriaged.")
+    findings_detail = (" ".join(risks) if risks else
+                       "No further triaged findings beyond the gates above "
+                       "(not a claim of zero bugs across the whole product).")
     gates.append(_gate("findings", "No other findings", "risk" if risks else "pass",
-                       " ".join(risks) or "None.", mandatory=False))
+                       findings_detail, mandatory=False))
     return gates
 
 
@@ -204,7 +249,8 @@ def decide_verdict(state: QAState) -> tuple[str, list[str], list[dict]]:
     failed = [g for g in gates if g["status"] == "fail"]
     risky = [g for g in gates if g["status"] == "risk" or (g["status"] == "missing" and not g["mandatory"])]
     if state.get("incomplete"):  # what was found is reported, but an unfinished run can never be "Ready" - reason first
-        return "Insufficient Evidence", [g["detail"] for g in missing + failed], gates
+        return "Insufficient Evidence", [g["detail"] for g in missing + failed] or [
+            "The run did not finish — Insufficient Evidence until execution completes."], gates
     basic = [g for g in missing if g["id"] in ("app_started", "start_page", "tests_ran")]
     if basic:  # nothing (or nearly nothing) could be tested
         return "Insufficient Evidence", [g["detail"] for g in basic], gates
@@ -214,7 +260,21 @@ def decide_verdict(state: QAState) -> tuple[str, list[str], list[dict]]:
         return "Insufficient Evidence", [g["detail"] for g in missing], gates
     if risky:
         return "Ready with Risks", [g["detail"] for g in risky], gates
-    return "Ready", ["Every release gate passed: all tests passed and no problems were found."], gates
+    return "Ready", [
+        "Every release gate passed for what this run executed. "
+        "That is not a claim that every URL, feature or business workflow was tested, or that the product has zero bugs."
+    ], gates
+
+
+def consistency_reasons(metrics: dict | None) -> list[str]:
+    """Surface metrics.consistent failures as prominent summary reasons when totals do not add up."""
+    if not metrics or metrics.get("consistent", True):
+        return []
+    bad = [c for c in (metrics.get("consistency") or []) if not c.get("ok")]
+    if not bad:
+        return ["Metrics consistency FAILED: totals do not add up — see consistency checks."]
+    detail = "; ".join(f"{c.get('check')}: {c.get('detail')}" for c in bad[:4])
+    return [f"Metrics consistency FAILED ({len(bad)} check(s)): {detail}"]
 
 
 def coverage_summary(state: QAState, run_dir: Path) -> dict:
@@ -319,9 +379,14 @@ def coverage_confidence(cov: dict, state: QAState, limits: list[dict]) -> dict:
         reasons.append("no test cases were designed")
 
     score = max(0, min(100, score))
+    exploration = (state.get("crawl") or {}).get("exploration") or {}
+    if exploration.get("status") == "partial" or exploration.get("within_selected_scope") is False:
+        score = min(score, 59)
+        reasons.append("exploration is partial — not exhaustive reachability")
     if score >= 85:
         label = "High"
-        summary = "Strong coverage evidence: most reachable pages, controls and designed tests were exercised."
+        summary = ("Strong coverage evidence within the selected scope: discovered pages, controls and designed "
+                   "tests that were in budget were exercised (not a whole-product exhaustive claim).")
     elif score >= 60:
         label = "Medium"
         summary = "Useful coverage evidence, but check the listed gaps before trusting it as complete."
@@ -330,7 +395,7 @@ def coverage_confidence(cov: dict, state: QAState, limits: list[dict]) -> dict:
         summary = "Coverage evidence is not enough yet; this run should be treated as partial."
 
     if not reasons:
-        reasons.append("no major coverage gaps were detected")
+        reasons.append("no major coverage gaps were detected within the selected exploration scope")
     if not next_steps:
         next_steps.append("use the report failures and screenshots as the next action list")
     return {
@@ -778,6 +843,10 @@ def reporter_agent(state: QAState) -> QAState:
     from .. import metrics as metrics_mod
     m = metrics_mod.build(results, cases, reg, failures, state.get("crawl"), run_dir / "generated_tests")
     (run_dir / "metrics.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
+    # Consistency errors must lead the summary reasons whenever totals do not add up.
+    reasons = consistency_reasons(m) + list(reasons)
+    if not m.get("consistent", True) and verdict == "Ready":
+        verdict = "Ready with Risks"
     st = m["single_tests"]
     passed, skipped, unclear, failed = st["passed"], st["skipped"], st["inconclusive"], st["failed"]
     fixes = build_fixes(state)
@@ -1235,6 +1304,7 @@ This report never claims the entire site was tested.</p>
   <span><i style="background:#94a3b8"></i>{skipped} skipped (reason shown per test)</span>
   {f'<span>❔ {unclear} inconclusive (ran, but could not establish the result - not counted as passed)</span>' if unclear else ''}
   <span>{'✓ all totals add up' if m['consistent'] else '✗ some totals do NOT add up - see the consistency checks'}</span></div>
+{'' if m['consistent'] else '<div class="box" style="margin-top:12px;border-left:4px solid #b45309"><h3>Metrics consistency FAILED</h3><p>Report totals do not add up. Treat PASS rates and “no bugs” claims as unreliable until the consistency checks below are green.</p><ul>' + ''.join(f"<li><b>{_e(c['check'])}</b> — {_e(c['detail'])}</li>" for c in m['consistency'] if not c['ok']) + '</ul></div>'}
 
 <div class="two">
   <div class="box"><h3>✅ What works well</h3>
@@ -1244,7 +1314,10 @@ This report never claims the entire site was tested.</p>
       <div><span>🔴 Fix first</span><b>{by_prio["critical"] + by_prio["high"]}</b></div>
       <div><span>🟠 Should fix</span><b>{by_prio["medium"]}</b></div>
       <div><span>⚪ Nice to fix</span><b>{by_prio["low"]}</b></div></div>
-      <p class="muted">Each one is explained below: why it matters, and exactly what to change.</p>''' if fixes else '<p>Nothing - no problems found. 🎉</p>'}</div>
+      <p class="muted">Each one is explained below: why it matters, and exactly what to change.</p>''' if fixes else (
+        '<p>Insufficient Evidence — findings are provisional, untriaged, or the run did not finish; not “zero bugs”.</p>'
+        if (state.get("incomplete") or any(f.get("provisional") for f in failures) or not m["consistent"])
+        else '<p>No triaged problems confirmed in this run (not a whole-product “zero bugs” claim).</p>')}</div>
 </div>
 
 {gates_html}
@@ -1252,7 +1325,11 @@ This report never claims the entire site was tested.</p>
 {numbers_html}
 
 <h2>What to fix, step by step</h2>
-{fix_cards or '<div class="box allgood">🎉 Nothing to fix. Every test passed.</div>'}
+{fix_cards or (
+    '<div class="box">Insufficient Evidence — do not treat an empty fix list as “zero bugs” while the run is incomplete, '
+    'findings are provisional, or consistency checks failed.</div>'
+    if (state.get("incomplete") or any(f.get("provisional") for f in failures) or not m["consistent"])
+    else '<div class="box allgood">No triaged fixes from this run. That is not a claim that every page or workflow is bug-free.</div>')}
 
 {confidence_html}
 
