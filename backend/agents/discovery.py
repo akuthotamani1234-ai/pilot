@@ -1839,6 +1839,15 @@ def discovery_agent(state: QAState) -> QAState:
                 stopped = runctl.reason()
                 print(f"  [discovery] stopped ({stopped}) - {len(queue)} pages not visited", flush=True)
                 break
+            # Soft reserve: leave wall-clock for analysis + report; do not start more heavy page visits.
+            if runctl.should_stop_heavy_work():
+                time_limited = True
+                stopped = stopped or ("run time reserve "
+                                      f"(ANALYSIS_RESERVE_S={settings.analysis_reserve_s}/"
+                                      f"REPORT_RESERVE_S={settings.report_reserve_s})")
+                print(f"  [discovery] stopped for analysis/report reserve - {len(queue)} pages not visited",
+                      flush=True)
+                break
             url, depth, inside, auth = queue.popleft()
             if not inside and not_app >= MAX_NOT_APP:
                 continue

@@ -25,6 +25,8 @@ Interrupted or budget-stopped runs already report **Insufficient Evidence** with
 | `CRAWL_SCOPE` | `auto` | Home → site; folder → section; deeper URL → that page (or forced `site` / `section` / `page`). |
 | `CRAWL_TIME_LIMIT_MIN` | `30` | Stop exploring after this many minutes. |
 | `RUN_TIME_LIMIT_MIN` | `90` | Whole-run wall clock; report what finished so far. `0` disables. |
+| `ANALYSIS_RESERVE_S` | `180` | Soft slice near the run end for deterministic failure analysis. When remaining time is inside this + `REPORT_RESERVE_S`, discovery stops starting heavy interactions and the suite will not start (or stops early). Measure phase durations before raising. |
+| `REPORT_RESERVE_S` | `120` | Soft slice after analysis for report finalization. Analysis/report are never blocked by the soft reserve (only by a hard stop / `finished()`). |
 | `PAGE_TIMEOUT_MS` | `20000` | Per-page load wait while crawling. |
 | `MAX_REQUESTS_PER_SEC` | `2` | Polite rate on public sites (`0` = uncapped; slows further after HTTP 429/503). |
 | `MAX_INTERACTIONS_PER_PAGE` | `15` | Clicks used to uncover hidden routes on one page. |
@@ -53,10 +55,10 @@ Studio defaults intensity to Thorough (`max_pages=0` within `HARD_PAGE_CAP`). MC
 | Setting | Default | Role |
 |---|---|---|
 | `MAX_TEST_CASES` | `300` | Cap on generated cases (priority order). |
-| `TEST_WORKERS` | `4` | Parallel browsers via pytest-xdist. Lower on small machines; visible Chrome uses one window serially. |
+| `TEST_WORKERS` | `4` | Parallel browsers via pytest-xdist when headless. Visible Chrome is **serial** (one window, one test after another). Hidden runs stay parallel up to this worker count. |
 | `TEST_RETRIES` | `0` | Optional re-runs of failed tests. |
 | `TEST_TIMEOUT_S` | `180` | Per-test timeout inside the sandbox. |
-| `SUITE_TIMEOUT_S` | `3600` | Whole generated suite timeout. |
+| `SUITE_TIMEOUT_S` | `3600` | Whole generated suite timeout (also capped by remaining run time minus analysis/report reserves). |
 | `MAX_HEAL_ROUNDS` | `2` | Self-heal fix-and-rerun rounds. |
 | `DATA_MAX_FIELDS` | `4` | Robustness inputs probed per page when data tests are on. |
 
@@ -97,7 +99,11 @@ Timeouts and missing keys must surface as clear errors / rules fallback — neve
 ## What “performance work” is allowed later
 
 - Re-measure with unchanged code first; keep evidence under `runs/` or `deep_validation/`.
+- Record phase durations (discovery / execution / analysis / report) before raising `ANALYSIS_RESERVE_S`,
+  `REPORT_RESERVE_S`, `SUITE_TIMEOUT_S`, or `CRAWL_TIME_LIMIT_MIN` — do not blindly raise all timeouts.
 - Prefer lowering soft budgets (`MAX_PAGES`, `CRAWL_TIME_LIMIT_MIN`, `TEST_WORKERS`) for large sites over silent scope expansion.
+- Resume (`main.py --resume`) continues pending interrupted cases and keeps completed results / run-owned writes
+  instead of re-running finished work.
 - Do not publish latency, pages/hour, or accuracy percentages unless counted from that run’s own files
   (`backend/metrics.py`, `backend/report_clarity.py`, reporting honesty in Phases 12–13).
 - Known-truth benchmark metrics (`backend/qa_benchmark.py`) are labelled as precision / recall / answered

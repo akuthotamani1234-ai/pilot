@@ -302,7 +302,8 @@ STORAGE_JS = """() => [JSON.stringify(Object.entries(localStorage)), JSON.string
 RESTORE_JS = """([l, s]) => { localStorage.clear(); sessionStorage.clear();
   for (const [k, v] of JSON.parse(l)) localStorage.setItem(k, v); for (const [k, v] of JSON.parse(s)) sessionStorage.setItem(k, v); }"""
 
-# at most this many controls of one kind per page (22 category boxes, 7 page buttons ... a few show what they do)
+# at most this many controls of one kind per page (22 category boxes, 7 page buttons ... a few show what they do).
+# Prefer page content over global chrome / table-row toggles when the budget is tight (see _explore sort).
 KIND_CAP = {"next": 2, "slide": 2, "tab": 4, "tick": 3, "select": 3, "repeated": 2}
 # a form's button that only reads (lists, filters) - it may be clicked while exploring even when the page's script
 # sends its form; any other button of such a form ('In', 'Save', 'Add') sends data: only the form tests do that
@@ -395,7 +396,8 @@ class Explorer:
             out.append({"name": (b.get("accname") or b.get("text") or "control").split("\n")[0].strip()[:60],
                         "text": b.get("text") or "", "selector": b["selector"], "action": "click", "kind": kind,
                         "role": b.get("role") or "", "tag": b.get("tag") or "",
-                        "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by")})
+                        "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by"),
+                        "chrome": bool(b.get("chrome")), "in_table": bool(b.get("in_table"))})
         for i in entry.get("inputs", []):
             s = i.get("selector")
             if not s or i.get("disabled") or i.get("readonly"):
@@ -403,10 +405,12 @@ class Explorer:
             name = (i.get("label") or i.get("name") or i.get("placeholder") or "box").split("\n")[0].strip()[:60]
             if i.get("tag") == "select" and len(i.get("options") or []) >= 2:
                 out.append({"name": name, "text": name, "selector": s, "action": "select", "kind": "select",
-                            "value": i["options"][-1]["value"], "revealed_by": i.get("revealed_by")})
+                            "value": i["options"][-1]["value"], "revealed_by": i.get("revealed_by"),
+                            "chrome": bool(i.get("chrome")), "in_table": bool(i.get("in_table"))})
             elif (i.get("type") or "") == "checkbox" and s not in in_form:
                 out.append({"name": name, "text": name, "selector": s, "action": "tick", "kind": "tick",
-                            "revealed_by": i.get("revealed_by")})
+                            "revealed_by": i.get("revealed_by"),
+                            "chrome": bool(i.get("chrome")), "in_table": bool(i.get("in_table"))})
         known_actions = {(t["selector"], t["action"]) for t in out}
         for item in entry.get("hovers", []):
             if item.get("selector") and (item["selector"], "hover") not in known_actions:
@@ -652,9 +656,10 @@ class Explorer:
         queue += self._seen_targets(entry, queue)
         tried = entry.setdefault("seen_tried", [])
         while queue:
-            # Discover routes and root controls before spending the budget replaying
-            # a revealed widget's descendants (for example every video-player toggle).
+            # Discover routes and root controls before spending the budget on revealed widgets,
+            # global chrome, or repeated table-row toggles (KIND_CAP / explore_repeated already bound samples).
             queue.sort(key=lambda target: (
+                3 if target.get("chrome") or target.get("in_table") or target.get("kind") == "repeated" else
                 2 if target.get("revealed_by") else
                 0 if target.get("kind") in {"next", "menu", "tab", "filter", "select", "hover"} else 1
             ))
@@ -671,11 +676,14 @@ class Explorer:
                 getattr(self, bucket).append({"control": t["name"], "page": url, "why": why})
                 continue
             left = seen_left if t.get("seen") else budget
-            if left <= 0 or time.time() > self.deadline or runctl.stopping():
+            # Soft run reserve: stop starting heavy interactions so analysis/report can still finish.
+            if left <= 0 or time.time() > self.deadline or runctl.should_stop_heavy_work():
                 self.counts["not_tried_limit"] += 1
                 self.skipped.append({"control": t["name"], "page": url, "why":
                                      f"limit: MAX_INTERACTIONS_PER_PAGE={settings.max_interactions_per_page}"
                                      if left <= 0 else "the run was stopped" if runctl.stopping()
+                                     else "run time reserve (ANALYSIS_RESERVE_S / REPORT_RESERVE_S)"
+                                     if runctl.should_stop_heavy_work() and time.time() <= self.deadline
                                      else "limit: CRAWL_TIME_LIMIT_MIN"})
                 if t.get("seen"):
                     tried.append({"name": t["name"], "status": "not tried", "why": self.skipped[-1]["why"]})
@@ -767,7 +775,7 @@ class Explorer:
             key = ("__form__", tuple(sorted(x["selector"] for x in fields)), (f.get("submit") or {}).get("selector"))
             if key in self.decided:
                 continue  # (the same form on another page - the footer's newsletter box: filled once)
-            if time.time() > self.deadline or runctl.stopping():
+            if time.time() > self.deadline or runctl.should_stop_heavy_work():
                 break
             if forms_considered >= FILL_MAX_FORMS:
                 fills.append({"form": f["selector"], "not_sent": "Form inspection limit reached; not filled"})

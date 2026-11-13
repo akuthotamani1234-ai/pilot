@@ -56,6 +56,10 @@ class Settings:
     crawl_time_limit_min: float = float(os.getenv("CRAWL_TIME_LIMIT_MIN", "30"))     # stop exploring after this
     # the WHOLE run (all agents): after this the run stops and the report is written with what was done (0 = no limit)
     run_time_limit_min: float = float(os.getenv("RUN_TIME_LIMIT_MIN", "90"))
+    # Soft reserves near RUN_TIME_LIMIT_MIN: stop starting heavy discovery / new suite work so deterministic
+    # failure analysis and report finalization still finish. Measure phase durations before raising these.
+    analysis_reserve_s: int = int(os.getenv("ANALYSIS_RESERVE_S", "180"))
+    report_reserve_s: int = int(os.getenv("REPORT_RESERVE_S", "120"))
     # polite speed on a PUBLIC website: page loads per second while exploring (0 = no limit; slower after HTTP 429/503)
     max_requests_per_sec: float = float(os.getenv("MAX_REQUESTS_PER_SEC", "2"))
     # only this part of the website (--section /electronics), else decided from the link

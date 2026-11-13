@@ -192,6 +192,8 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
                 raise SystemExit("This run already finished - there is nothing to resume.")
             last, start = dict(snap.values), None
             print(f"  [run] resuming before: {', '.join(STAGE_TEXT.get(n, n) for n in snap.next)}")
+            print("  [run] resume keeps completed results and run-owned writes; pending interrupted work continues "
+                  "without duplicating finished cases")
             if any(n not in ("report", "save_baseline", "integrations") for n in snap.next):
                 from backend.agents.discovery import restore_login
                 note = restore_login(last)
