@@ -189,10 +189,10 @@
     } else if (c.assistant_active) {
       status.textContent = "Assistant available";
       status.classList.add("ready");
-      note.textContent = "Your assistant has reached Blow AI and its server is online. Send the prepared request in that assistant; runs appear here.";
+      note.textContent = "Your assistant has reached Qpilot and its server is online. Send the prepared request in that assistant; runs appear here.";
     } else {
       status.textContent = "Server online";
-      note.textContent = "The MCP server is online and awaiting an assistant request. Ask your assistant to check the Blow AI connection.";
+      note.textContent = "The MCP server is online and awaiting an assistant request. Ask your assistant to check the Qpilot connection.";
     }
   }
 
@@ -372,7 +372,7 @@
     const activity = ($("mcpAndroidActivity") && $("mcpAndroidActivity").value.trim()) || "";
     const testBuild = !!($("mcpAndroidTestBuild") && $("mcpAndroidTestBuild").checked);
     const lines = [
-      "Use Blow AI MCP for Android Appium testing.",
+      "Use Qpilot MCP for Android Appium testing.",
       "Task: " + task,
       "1. Call get_android_environment with appium_url=" + appium + ".",
       "2. After confirming readiness and my permission, call start_android_test with:",
@@ -387,7 +387,7 @@
     ];
     if (source === "installed" && activity) lines.push("   - app_activity=" + activity);
     lines.push("Check privacy settings and connection first. Confirm my permission and scope before starting.");
-    lines.push("Use approved expected results; report untested components and discovery limits. Show progress and the final report in Blow AI Studio.");
+    lines.push("Use approved expected results; report untested components and discovery limits. Show progress and the final report in Qpilot Studio.");
     return lines.join("\n");
   }
 
@@ -425,9 +425,9 @@
     }
     const text = state.engine === "android"
       ? buildAndroidPrepareText(target, task)
-      : ("Use Blow AI with Playwright for " + target + ".\nTask: " + task
+      : ("Use Qpilot with Playwright for " + target + ".\nTask: " + task
         + "\nCheck the current privacy settings and connection first. Confirm my permission and scope before starting."
-        + "\nUse approved expected results; report untested components and discovery limits. Show progress and the final report in Blow AI.");
+        + "\nUse approved expected results; report untested components and discovery limits. Show progress and the final report in Qpilot.");
     $("mcpRequestPreview").value = text;
     $("mcpRequestPreview").hidden = false;
     const copied = await copyText(text);

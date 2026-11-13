@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
+All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
 ## 2026-11-13 — Evidence linkage + run-time reserves (P9 / P6)
 

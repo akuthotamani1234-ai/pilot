@@ -850,7 +850,7 @@
   function loginHtml(c) {
     const configured = !!c.has_test_account;
     return '<section class="setup-section" id="setupAccount"><div class="setup-section-title"><span>01</span><div>' +
-      '<h3>How should Blow AI access the website?</h3><p>Choose an account method before exploration starts.</p></div></div>' +
+      '<h3>How should Qpilot access the website?</h3><p>Choose an account method before exploration starts.</p></div></div>' +
       '<label class="account-choice">Account method <select id="aiAccountMode"><option value="public">Public pages only</option>' +
       '<option value="existing">Use my existing test account</option><option value="signup">Create or reuse a permitted test account</option>' +
       (configured ? '<option value="configured">Use the test account configured on this computer</option>' : '') + '</select></label>' +
@@ -912,7 +912,7 @@
     $("aiCredentials").hidden = mode !== "existing";
     $("aiSignupField").hidden = mode !== "signup";
     $("aiAccountNote").textContent = mode === "existing" ? "The supplied test account is used for this run. Login must succeed before protected pages can be covered."
-      : mode === "signup" ? "Blow AI looks for registration, creates a permitted test account when supported, then signs in. Missing signup or verification blocks are explained."
+      : mode === "signup" ? "Qpilot looks for registration, creates a permitted test account when supported, then signs in. Missing signup or verification blocks are explained."
       : mode === "configured" ? "The local configured test account is used without exposing its password in this interface."
       : "Public pages only. Stored accounts and account creation will not be used.";
     updateSetupSummary();
@@ -1229,7 +1229,7 @@
       // a website's bot check (Cloudflare "Just a moment..."): only a person may complete it, on the Android device
       update("human", !h.done && !finished
         ? `<div class="warn">🔐 <b>The website shows a security check${h.kind ? " (" + esc(h.kind) + ")" : ""}.</b>
-           Please complete it yourself in the <b>Android emulator window</b> - Blow AI never solves or bypasses these checks.
+           Please complete it yourself in the <b>Android emulator window</b> - Qpilot never solves or bypasses these checks.
            I wait up to ${Math.round((h.wait_s || 180) / 60)} minutes, then continue when the real website appears.</div>`
         : h.ok ? `<p>🔐 Thank you - the security check was completed. Testing continues.</p>`
                : `<p class="muted">🔐 The security check was not completed in time - the report says what could not be tested.</p>`);
@@ -1819,8 +1819,8 @@
           ${d.cases_available ? `<a class="secondary" href="/api/cases/${encodeURIComponent(run)}/download">Download test cases (JSON)</a>` : ""}
           ${d.report_html ? `<a class="primary" href="${esc(d.report_html)}" target="_blank" style="text-decoration:none">📄 Open full report</a>` : ""}
           ${(d.videos || []).map((v, i) => `<a class="secondary" href="${esc(v)}" target="_blank">🎬 Video${d.videos.length > 1 ? " " + (i + 1) : ""}</a>`).join("")}
-          ${s.source || s.url ? `<button type="button" class="secondary rerun" data-run="${esc(run)}">🔁 Run the same tests again</button>
-            <button type="button" class="secondary schedule" data-run="${esc(run)}">⏰ Repeat this test</button>` : ""}
+          ${s.target_type === "android" ? "" : (s.source || s.url ? `<button type="button" class="secondary rerun" data-run="${esc(run)}">🔁 Run the same tests again</button>
+            <button type="button" class="secondary schedule" data-run="${esc(run)}">⏰ Repeat this test</button>` : "")}
         </div>
         ${live ? logHtml() : d.console && d.console.length ? `<details class="log"><summary>Agent log</summary><pre>${esc(d.console.join("\n"))}</pre></details>` : ""}
       </div>`);
@@ -1868,13 +1868,30 @@
   // ------------------------------------------------------------ regression: run the same tests again, then compare
   const reports = {};  // run -> its summary (for "Run the same tests again")
 
-  function offerRerun(run) {
-    const s = reports[run] || {};
+  async function offerRerun(run) {
+    if (timer) {
+      say(`<div class="warn">A test is already running. Stop it first, then use <b>Run the same tests again</b>.</div>`);
+      return;
+    }
+    let s = reports[run] || {};
+    if (!(s.source || s.url) || s.target_type == null) {
+      try {
+        const d = await (await fetch(`/api/report/${encodeURIComponent(run)}`)).json();
+        if (d && d.summary) { s = d.summary; reports[run] = s; }
+      } catch (e) { /* keep empty; warn below */ }
+    }
     const src = s.source || s.url;
-    if (!src || timer) return;
+    if (s.target_type === "android") {
+      say(`<div class="warn">Android runs cannot use <b>Run the same tests again</b> here. Start a new Android test from the Android form (scripts are regenerated for that device session).</div>`);
+      return;
+    }
+    if (!src) {
+      say(`<div class="warn">This report has no website URL, so the same tests cannot be re-run. Start a new test from the composer.</div>`);
+      return;
+    }
     const id = "rerun-" + run.replace(/\W/g, "");
-    say(`<p>🔁 <b>Regression run:</b> I'll run the <b>same test scripts</b> as in that run against <b>${esc(src)}</b>
-        (no new tests are written), then show which test cases started failing, were fixed or still fail.</p>
+    say(`<p>🔁 <b>Regression run:</b> I'll run the <b>same test scripts</b> from <b>${esc(run)}</b> against <b>${esc(src)}</b>
+        (no new tests are written), then show which cases started failing, were fixed, or still fail.</p>
       <div class="card">
         ${s.authenticated ? `<p class="small">Those tests log in. The test account is never saved, so give it again
           (leave empty if it is in .env).</p><div class="fields">
@@ -1889,7 +1906,10 @@
   }
 
   async function startRerun(run, src, id) {
-    if (!await standardReady()) return;
+    if (!await standardReady()) {
+      say(`<div class="warn">Switch to <b>Standard testing</b> (not MCP) to run the same website tests again.</div>`);
+      return;
+    }
     const note = $(`${id}-note`), user = $(`${id}-user`), pass = $(`${id}-pass`);
     const problem = !$(`${id}-auth`).checked ? "Please confirm that you may test this website."
       : user && !!user.value.trim() !== !!pass.value ? "Give both the user name and the password (or neither)." : "";
@@ -1899,10 +1919,19 @@
     }
     const prefs = loadPrefs();  // the AI used last time, if it needs no key that has to be pasted again
     const prov = providers.find((p) => p.id === prefs.provider && workflow.providerAllowed(p.id) && (!p.key_env || p.has_key));
-    const body = { workflow: "standard", privacy_mode: workflow.mode, source: src, authorized: true, reuse_tests: true, show_browser: false,
-                   llm_provider: prov ? prov.id : "none", llm_model: prov ? prefs.model || "" : "" };
+    const prior = reports[run] || {};
+    const body = {
+      workflow: "standard", privacy_mode: workflow.mode, source: src, authorized: true,
+      reuse_tests: true, reuse_from_run: run, show_browser: false,
+      llm_provider: prov ? prov.id : "none", llm_model: prov ? prefs.model || "" : "",
+      environment: prior.environment || "test",
+      auth_mode: prior.auth_mode || (prior.authenticated ? "existing" : "auto"),
+      thorough: !!prior.thorough,
+      crawl_scope: prior.crawl_scope || "auto",
+    };
     if (user && user.value.trim()) { body.test_username = user.value.trim(); body.test_password = pass.value; }
     $(`${id}-go`).disabled = true;
+    note.hidden = false; note.textContent = "Starting regression run with the same scripts…";
     const res = await fetch("/api/runs", { method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },
                                            body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
