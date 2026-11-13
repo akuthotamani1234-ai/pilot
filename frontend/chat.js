@@ -416,11 +416,11 @@
     data.append("max_depth", $("androidDepth").value);
     data.append("discovery_timeout_s", $("androidDiscoveryTimeout").value);
     data.append("max_scroll_actions", $("androidMaxScrolls").value);
-    data.append("max_scrolls_per_screen", "4");
+    data.append("max_scrolls_per_screen", "0");
     data.append("requested_scope", JSON.stringify({
       max_depth: Number($("androidDepth").value), max_screens: Number($("androidMaxScreens").value),
       max_actions: Number($("androidMaxActions").value), max_scroll_actions: Number($("androidMaxScrolls").value),
-      max_scrolls_per_screen: 4, discovery_timeout_s: Number($("androidDiscoveryTimeout").value),
+      max_scrolls_per_screen: 0, discovery_timeout_s: Number($("androidDiscoveryTimeout").value),
       max_test_cases: Number($("androidMaxCases").value)
     }));
     data.append("expected_destinations", $("androidExpectations").value);
@@ -444,8 +444,8 @@
     data.append("thorough", $("androidThorough") && $("androidThorough").checked ? "true" : "false");
     data.append("max_test_cases", $("androidMaxCases").value);
     // Test mode's limits are sent explicitly, so a run never falls back to an older server's smaller defaults
-    data.append("max_interactions", $("androidMaxInteractions").value || "300");
-    data.append("interaction_timeout_s", $("androidInteractionTimeout").value || "2700");
+    data.append("max_interactions", $("androidMaxInteractions").value || "0");
+    data.append("interaction_timeout_s", $("androidInteractionTimeout").value || "0");
     data.append("allow_rules_fallback", $("androidFallback").checked ? "true" : "false");
     if ($("androidProvider").value) data.append("llm_provider", $("androidProvider").value);
     if ($("androidModel").value.trim()) data.append("llm_model", $("androidModel").value.trim());
