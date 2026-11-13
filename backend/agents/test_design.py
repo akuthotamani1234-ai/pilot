@@ -228,14 +228,16 @@ def feature_cases(p: dict) -> list[dict]:
     f, page, out = features(p), _page_name(p), []
     if f["search"] and f["word"]:  # (the word of a real item of this website - test_design_agent picks it)
         out.append({"id": "search_finds_item", "title": f"Search finds '{f['word']}'", "type": "positive",
-                    "priority": "high", "test_data": f["word"],
+                    "priority": "high", "test_data": f["word"], "verification": "business",
+                    "feature_kind": "search",
                     "steps": [f"Open {page}", f"Type '{f['word']}' into the '{f['search_name']}' box", "Press Enter",
                               "Read the list of results (the item cards - not the menus)"],
                     "expected": f"The results list items named with '{f['word']}'; a result without it in its name "
                                 "mentions it on its own page (description, tags)"})
     if f["search"]:
         out.append({"id": "search_no_results", "title": "Search for something that doesn't exist", "type": "negative",
-                    "priority": "medium", "test_data": "zzqx-no-such-item",
+                    "priority": "medium", "test_data": "zzqx-no-such-item", "verification": "business",
+                    "feature_kind": "search",
                     "steps": [f"Open {page}", f"Type 'zzqx-no-such-item' into the '{f['search_name']}' box", "Press Enter"],
                     "expected": "No items are listed, or the page says nothing was found; no JavaScript error"})
     if f["add"]:
@@ -338,6 +340,7 @@ def control_cases(p: dict) -> list[dict]:
     for b in [b for b in controls if b.get("kind") == "sort"][:6]:  # (a bug often hides in the 4th column: Score)
         out.append({"id": key("sort", label(b)), "kind": "sort", "type": "positive", "priority": "medium",
                     "title": f"Clicking the '{label(b)}' column sorts the table", "test_data": "",
+                    "verification": "business", "feature_kind": "sort",
                     "steps": [f"Open {page}", f"Click the '{label(b)}' column header", "Click it again"],
                     "expected": "The column is in order after the first click (numbers as numbers, dates as dates) "
                                 "and in the opposite order after the second", "selector": b["selector"]})
@@ -346,6 +349,7 @@ def control_cases(p: dict) -> list[dict]:
             out.append({"id": key("table_search", t["selector"]), "kind": "table_search", "type": "positive",
                         "priority": "high", "title": "Searching the table shows only the rows that match",
                         "test_data": "a word from the table, the same in UPPER case, a word that is nowhere",
+                        "verification": "business", "feature_kind": "table_search",
                         "steps": [f"Open {page}", "Type a word taken from the table into its search box",
                                   "Type it in UPPER case", "Type a word that is nowhere", "Clear the box"],
                         "expected": "Every row shown contains the word; UPPER case shows the same rows; the nonsense "
@@ -355,6 +359,7 @@ def control_cases(p: dict) -> list[dict]:
             out.append({"id": key("page_size", t["selector"]), "kind": "page_size", "type": "positive",
                         "priority": "medium", "title": f"Rows per page ({', '.join(t['sizes'])}) limits the table",
                         "test_data": ", ".join(t["sizes"]),
+                        "verification": "business", "feature_kind": "page_size",
                         "steps": [f"Open {page}", f"Choose each number of rows: {', '.join(t['sizes'])}"],
                         "expected": "The table shows at most that many rows each time",
                         "selector": t["page_size"], "table": t["selector"], "sizes": t["sizes"]})
@@ -978,30 +983,22 @@ def _number(x) -> float | None:
 
 
 def _value_for(i: dict) -> str | None:
-    """A normal, valid value a person would type into this box (None = leave it, e.g. a date picker)."""
+    """A normal, valid value a person would type into this box (None = leave it, e.g. a date picker).
+
+    Prefers field_kind / valid_value from testdata (labels + constraints); falls back for free text.
+    """
+    from ..testdata import field_kind, valid_value
     t = "textarea" if i.get("tag") == "textarea" else (i.get("type") or "text").lower()
-    hint = f"{i.get('label')} {i.get('name')} {i.get('placeholder')} {i.get('id')}".lower()
     if i.get("readonly") or i.get("disabled") or t in ("file", "range", "hidden", "submit", "button", "image", "color"):
         return None
-    if t == "email" or re.search(r"e-?mail", hint):
-        return "qa.tester@example.com"
-    if t == "password":
-        return "Passw0rd!2024"
-    if t == "tel" or re.search(r"phone|mobile|contact no|your number|\bnumber\b", hint):
-        return "9876543210"
-    if t == "number":  # (inside the box's own limits: 'Passengers' 1-9 gets 9, not 30)
-        lo, hi = _number(i.get("min")), _number(i.get("max"))
-        v = min(30.0, hi) if hi is not None else 30.0
-        v = max(v, lo) if lo is not None else v
-        return str(int(v)) if v.is_integer() else str(v)
-    if t == "url" or re.search(r"website|url", hint):
-        return "https://example.com"
-    if t == "date":  # a birthday is in the past; a visit / booking / delivery date is in the future
-        from datetime import date, timedelta
-        return "1995-06-15" if re.search(r"birth|dob|born", hint) else (date.today() + timedelta(days=7)).isoformat()
+    kind = field_kind(i)
+    if kind and kind not in ("text", "search", "names", "city"):
+        return valid_value(i) or None
+    if kind in ("names", "email", "phone", "date", "number", "age", "quantity", "amount", "url", "zip", "password"):
+        return valid_value(i) or None
     if t in ("text", "search", "textarea", ""):
-        return _sample(i, t)
-    return None
+        return valid_value(i) or _sample(i, t)
+    return valid_value(i) or None
 
 
 # an anti-spam trap: a box people never see or fill ("Leave this field blank") - robots that fill it are rejected
@@ -1206,17 +1203,20 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             openers = opener_path(p, f["selector"], f.get("revealed_by")) if f else []
             required_fields = [{"selector": x["selector"], "name": x["name"], "kind": x.get("field_kind") or x["kind"]}
                                for x in fields if x.get("required")]
-            out.append(_journey(
+            j = _journey(
                 len(out) + 1, "form", f"Fill the whole '{name.strip()[:30]}' form like a user ({len(fields)} boxes) - not sent",
                 [f"Open {_page_name(p)}"]
                 + [f"Open via '{step.get('name') or step['selector']}'" for step in openers]
                 + [f"'{x['name']}': " + (f"type '{x['shown']}'" if x["kind"] == "type" else
                                          f"choose '{x['shown']}'" if x["kind"] == "select" else x["shown"])
                    for x in fields] + ["Do NOT send the form"],
-                "Every box accepts a normal value - no box shows an error", [p],
+                "Every box accepts a normal value - no box shows an error (interaction/input check only; "
+                "not proof of Save, creation, update, search or persistence)", [p],
                 {"url": p["url"], "form": (f or {}).get("selector") or "", "fields": fields,
                  "required_fields": required_fields, "openers": openers},
-                guest=not p.get("auth"), test_data=", ".join(x["shown"] for x in fields if x["kind"] == "type")[:120]))
+                guest=not p.get("auth"), test_data=", ".join(x["shown"] for x in fields if x["kind"] == "type")[:120])
+            j["verification"] = "interaction"  # unsubmitted fill — no business-verified credit
+            out.append(j)
 
     # 4) move through the website by clicking its menu like a person (visitor, and logged in)
     for group in (guests, users):
@@ -1302,11 +1302,12 @@ def small_checks(pages: list[dict], data: list[dict]) -> list[dict]:
          "expected": "No link leads to an error page, and every #section a link points to exists",
          "files": ["test_all_links.py"], "tests": ["test_link", "test_section_link"]},
         {"id": "site_input_values", "title": f"Input boxes handle wrong and unusual values ({len(data)} values, {boxes} boxes)",
-         "type": "negative", "priority": "high",
+         "type": "negative", "priority": "high", "verification": "interaction",
          "test_data": "empty, too long, numbers, symbols, other languages, emoji, attack text (SQL / script) …",
          "steps": ["Click into each input box", "Type each test value (it is only typed, the form is never sent)",
                    "Click outside the box"],
-         "expected": "Valid values are accepted, invalid ones rejected, length limits kept, no script runs, nothing breaks",
+         "expected": "Valid values are accepted, invalid ones rejected, length limits kept, no script runs, nothing breaks "
+                     "(interaction/input check only — not business-verified Save/persistence)",
          "files": data_files, "tests": ["test_data_*"], "checks": data},
     ]]
 
@@ -1385,10 +1386,16 @@ AI_NEEDS = [  # (words in the case, the thing it needs, does a page have it? (pa
 
 def _invented(case: dict, pages: list[dict], kinds: list[set]) -> str:
     """What the AI's test case needs but no page of the site has ('' = everything it uses is really there)."""
-    text = " ".join([str(case.get("title", ""))] + [str(s) for s in case.get("steps", [])])
+    from ..ai_grounding import invented_record_problem
+    text = " ".join([str(case.get("title", "")), str(case.get("expected", "")), str(case.get("test_data", ""))]
+                    + [str(s) for s in case.get("steps", [])])
     for rx, what, has in AI_NEEDS:
         if re.search(rx, text, re.I) and not any(has(p, k) for p, k in zip(pages, kinds)):
             return what
+    # Invented demo people (John Doe, …) unless observed/seeded/required.
+    people = invented_record_problem(text, pages, settings.requirements)
+    if people:
+        return people
     return ""
 
 
@@ -1466,10 +1473,12 @@ def ai_flows(pages: list[dict]) -> list[dict]:
     from ..features import page_features
     kinds = [{f["kind"] for f in page_features(p)} for p in pages]
     real = []
+    unsupported_cases = []
     for c in answer[:LARGE]:
         missing = _invented(c, pages, kinds)
         if missing:
-            print(f"  [test-design] AI test case left out - the website has no {missing}: {str(c['title'])[:80]}")
+            print(f"  [test-design] AI test case unsupported - {missing}: {str(c['title'])[:80]}")
+            unsupported_cases.append((c, missing))
         else:
             real.append(c)
     out = []
@@ -1493,8 +1502,27 @@ def ai_flows(pages: list[dict]) -> list[dict]:
             "page": ", ".join(used), "url": by_slug[used[0]]["url"], "pages": used,
             "guest": bool(c.get("guest")) or not any(by_slug[s].get("auth") for s in used),
             "files": ["test_flows_ai.py"], "tests": [f"test_ai_flow_{n}"],
+            "verification": "interaction" if guessed else "business",
+        })
+    # Keep unsupported proposals visible as exploratory/unsupported — never as product defects.
+    from ..ai_grounding import unsupported_reason
+    for i, (c, missing) in enumerate(unsupported_cases, start=1):
+        used = [s for s in (c.get("pages") or []) if s in by_slug] or [pages[0]["slug"]]
+        out.append({
+            "id": f"ai_unsupported_{i}", "kind": "unsupported", "size": "large", "ai": False,
+            "type": "exploratory", "priority": "low",
+            "title": str(c.get("title") or "Unsupported AI proposal")[:150],
+            "test_data": str(c.get("test_data") or ""),
+            "steps": [str(s) for s in (c.get("steps") if isinstance(c.get("steps"), list) else [c.get("steps")]) if s],
+            "expected": "Not executed — unsupported / not grounded",
+            "page": ", ".join(used), "url": by_slug[used[0]]["url"], "pages": used,
+            "guest": True, "files": [], "tests": [],
+            "skip_reason": unsupported_reason(str(missing)),
+            "verification": "interaction", "blocked": True,
         })
     for c in out:  # AI-written titles / steps in plain English (no CSS selectors)
+        if c.get("kind") == "unsupported":
+            continue
         why = account_permission_reason(c, allow_signup=settings.auto_register,
                                         has_account=bool(settings.test_username and settings.test_password)
                                                     or any(p.get("auth") for p in pages))
@@ -1682,8 +1710,12 @@ def finalize_cases(cases: list[dict], state: dict) -> list[dict]:
         risk = c.get("risk") or ("high" if c.get("journey") in ("login", "form", "shop") or c["id"] == "site_input_values"
                                  or (c.get("priority") == "high" and c.get("type") in ("end-to-end", "negative"))
                                  else "low" if c["id"] == "site_images" else "medium")
+        # Preserve explicit verification credit; default interaction for unsubmitted form journeys / input-only.
+        from ..assert_strength import verification_credit
+        credit = c.get("verification") or verification_credit(c)
         c.update(tc_id=tc, feature=c.get("feature") or feature, element=c.get("element") or element,
                  priority=c.get("priority") if c.get("priority") in LEVELS else "medium", risk=risk,
+                 verification=credit,
                  preconditions=c.get("preconditions") or pre,
                  test_data_ref=c.get("test_data_ref") or (
                      "test account (TEST_USERNAME / TEST_PASSWORD) - never stored in the scripts"

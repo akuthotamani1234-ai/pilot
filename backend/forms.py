@@ -90,6 +90,78 @@ def keep_form_field(x: dict) -> bool:
     return bool(x.get("selector")) and not is_chrome_search_field(x) and not is_table_row_control(x)
 
 
+def record_control_fallback(note: str, *, how: str = "force") -> dict:
+    """Record that a forced click / DOM set was used. Fallback never proves normal user actionability."""
+    return {"fallback": True, "how": how, "note": (note or "")[:200],
+            "proves_user_actionability": False}
+
+
+def set_choice(el, *, checked: bool = True, log: list | None = None) -> dict:
+    """Tick/untick a checkbox or radio the way a person would; force/DOM only as recorded fallback.
+
+    Prefers a normal check/click. On failure tries force=True, then a DOM click. Any fallback is appended to
+    `log` (when given) and returned with proves_user_actionability=False.
+    """
+    want = bool(checked)
+    try:
+        if want:
+            el.check(timeout=3000)
+        else:
+            el.uncheck(timeout=3000)
+        if bool(el.is_checked()) == want:
+            return {"fallback": False, "how": "user", "proves_user_actionability": True}
+    except Exception:
+        pass
+    try:
+        if want:
+            el.check(timeout=3000, force=True)
+        else:
+            el.uncheck(timeout=3000, force=True)
+        if bool(el.is_checked()) == want:
+            rec = record_control_fallback("force check/uncheck on styled control", how="force")
+            if log is not None:
+                log.append(rec)
+            return rec
+    except Exception:
+        pass
+    el.evaluate("(e, w) => { if (!!e.checked !== w) e.click(); }", want)
+    if bool(el.is_checked()) != want:
+        raise AssertionError("custom checkbox/radio did not retain the intended checked state")
+    rec = record_control_fallback("DOM click on overlay-styled control", how="dom")
+    if log is not None:
+        log.append(rec)
+    return rec
+
+
+def select_option_user(el, value: str, *, log: list | None = None) -> dict:
+    """Select a native <select> option; verify the value stuck. Force/DOM only as recorded fallback."""
+    try:
+        el.select_option(value, timeout=5000)
+        if el.input_value() == value:
+            return {"fallback": False, "how": "user", "proves_user_actionability": True}
+    except Exception:
+        pass
+    try:
+        el.evaluate(
+            """(e, v) => { e.value = v; e.dispatchEvent(new Event('input', {bubbles: true}));
+               e.dispatchEvent(new Event('change', {bubbles: true})); }""",
+            value,
+        )
+        if el.input_value() == value:
+            rec = record_control_fallback("DOM value set on select", how="dom")
+            if log is not None:
+                log.append(rec)
+            return rec
+    except Exception as e:
+        raise AssertionError(f"select option {value!r} was not retained: {e}") from e
+    raise AssertionError(f"dropdown value {value!r} was not retained after user and fallback paths")
+
+
+def reresolve_field(page, scope, box: dict):
+    """Re-resolve a field after a reactive update (Vue/React re-render). Same uniqueness rules as unique_field."""
+    return unique_field(page, scope, box)
+
+
 def is_login_form(f: dict) -> bool:
     pw = [x for x in f.get("fields", []) if (x.get("type") or "") == "password"]
     sign_up = re.search(r"regist|sign ?up|create|join", (f.get("submit") or {}).get("text") or "", re.I)
@@ -268,7 +340,9 @@ def form_cases(pages: list[dict]) -> list[dict]:
     for n, d in enumerate(data_forms(pages), start=1):
         spec, page = _spec(d), d["page"]
         base = {"kind": "form", "page": page["slug"], "url": page["url"], "pages": [page["slug"]],
-                "guest": not page.get("auth"), "files": ["test_forms.py"]}
+                "guest": not page.get("auth"), "files": ["test_forms.py"],
+                # Submitted (or write-guard "would send") outcomes are business credit; never auto-enabled by env=test.
+                "verification": "business"}
         # sending valid values to the edit form of an EXISTING record would overwrite it: on staging the round trip
         # edits its own record instead (without sending, the guard keeps it harmless)
         existing = re.search(r"/(\d+|[0-9a-f-]{8,})/(edit|update)\b|/edit(/|$)", urlparse(page["url"]).path, re.I)
@@ -363,7 +437,7 @@ def crud_cases(pages: list[dict]) -> list[dict]:
                                 + (", and it is gone after deleting" if t["delete_allowed"] else ""),
                     "page": d["page"]["slug"], "url": d["page"]["url"], "pages": [d["page"]["slug"], lst["slug"]],
                     "guest": not d["page"].get("auth"), "test_data": "qa-<run>-<n> tagged values",
-                    "files": ["test_forms.py"], "tests": [f"test_{cid}"],
+                    "files": ["test_forms.py"], "tests": [f"test_{cid}"], "verification": "business",
                     "spec": dict(_spec(d), list_url=lst["url"], name_box=t["name_box"], edit=t["edit"],
                                  delete=t["delete_allowed"], delete_text=t["delete_text"], search=t["search"])})
     return out
@@ -388,7 +462,9 @@ def cleanup_case(cases: list[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------- the code (test_forms.py, test_cleanup.py)
 
-FORM_HELPERS = OPEN_PATH_HELPER + r'''
+# Playwright test template string (not SQL). Bandit S608 fires on "select … {value}" inside the body.
+FORM_HELPERS = OPEN_PATH_HELPER + (  # noqa: S608
+    r'''
 class FormTargetProblem(Exception):
     """Ambiguous or missing form target - never silently pick one match with .first."""
     kind = 'missing_optional'
@@ -487,6 +563,67 @@ def _unique_field(page, scope, box):
     raise _form_target_problem(kind, f"recorded field '{name or sel}' is not visible inside the form")
 
 
+def _record_control_fallback(note, how='force'):
+    """Forced click / DOM set: recorded, never counts as proving normal user actionability."""
+    return {'fallback': True, 'how': how, 'note': (note or '')[:200], 'proves_user_actionability': False}
+
+
+def _set_choice(el, checked=True, log=None):
+    """User-facing check first; force/DOM only as recorded fallback. Verifies checked state."""
+    want = bool(checked)
+    try:
+        if want:
+            el.check(timeout=3000)
+        else:
+            el.uncheck(timeout=3000)
+        if bool(el.is_checked()) == want:
+            return {'fallback': False, 'how': 'user', 'proves_user_actionability': True}
+    except Exception:
+        pass
+    try:
+        if want:
+            el.check(timeout=3000, force=True)
+        else:
+            el.uncheck(timeout=3000, force=True)
+        if bool(el.is_checked()) == want:
+            rec = _record_control_fallback('force check/uncheck on styled control', 'force')
+            if log is not None:
+                log.append(rec)
+            return rec
+    except Exception:
+        pass
+    el.evaluate('(e, w) => { if (!!e.checked !== w) e.click(); }', want)
+    if bool(el.is_checked()) != want:
+        raise AssertionError('custom checkbox/radio did not retain the intended checked state')
+    rec = _record_control_fallback('DOM click on overlay-styled control', 'dom')
+    if log is not None:
+        log.append(rec)
+    return rec
+
+
+def _select_option_user(el, value, log=None):
+    try:
+        el.select_option(value, timeout=5000)
+        if el.input_value() == value:
+            return {'fallback': False, 'how': 'user', 'proves_user_actionability': True}
+    except Exception:
+        pass
+    el.evaluate(
+        "(e, v) => { e.value = v; e.dispatchEvent(new Event('input', {bubbles: true}));"
+        " e.dispatchEvent(new Event('change', {bubbles: true})); }", value)
+    if el.input_value() == value:
+        rec = _record_control_fallback('DOM value set on select', 'dom')
+        if log is not None:
+            log.append(rec)
+        return rec
+    raise AssertionError(f'dropdown value {value!r} was not retained after user and fallback paths')
+
+
+def _reresolve_field(page, scope, box):
+    """Re-resolve after reactive re-renders (same uniqueness rules)."""
+    return _unique_field(page, scope, box)
+
+
 def _fill_form(page, F, tag, bad=None):
     """A valid value in every box scoped to the form - except `bad`: (selector, value).
 
@@ -526,7 +663,10 @@ def _fill_form(page, F, tag, bad=None):
             continue
         if b['type'] == 'checkbox':
             if b['required']:
-                el.check()
+                _set_choice(el, checked=True)
+                el = _reresolve_field(page, scope, b)
+                if not el.is_checked():
+                    raise AssertionError(f"required checkbox '{b['name']}' did not stay checked")
                 filled_required.add(b['selector'])
             continue
         if b['type'] == 'radio':
@@ -535,14 +675,20 @@ def _fill_form(page, F, tag, bad=None):
                 groups.add(name)
                 # (a choice that is already made - 'Round trip' - is kept, like a person would)
                 if not scope.locator(f'input[type=radio][name="{name}"]:checked').count():
-                    el.check()
+                    _set_choice(el, checked=True)
+                    el = _reresolve_field(page, scope, b)
+                    if not el.is_checked():
+                        raise AssertionError(f"radio '{b['name']}' did not stay selected")
                 if b.get('required'):
                     filled_required.add(b['selector'])
             continue
         if b['tag'] == 'select' or b['type'].startswith('select'):
             options = el.evaluate("e => [...e.options].filter(o => !o.disabled && o.value).map(o => o.value)")
             if options and not el.input_value():
-                el.select_option(options[0])
+                _select_option_user(el, options[0])
+                el = _reresolve_field(page, scope, b)
+                if el.input_value() != options[0]:
+                    raise AssertionError(f"select '{b['name']}' did not retain option {options[0]!r}")
             if b.get('required'):
                 filled_required.add(b['selector'])
             continue
@@ -564,6 +710,7 @@ def _fill_form(page, F, tag, bad=None):
         elif b['tagged']:
             value = value.replace('{tag}', tag)
         el.fill(value)
+        el = _reresolve_field(page, scope, b)
         expect(el, "The input must retain its intended test value").to_have_value(value)
         if b.get('required'):
             filled_required.add(b['selector'])
@@ -792,7 +939,7 @@ def _check_crud(page, C, tag, track_created):
         assert _find_row(page, C, tag) is None, f"The record ({tag}) is still listed after '{C['delete_text']}'"
         track_created('record', tag, C['list_url'], 'deleted')
         _step_ok("deleted - it is gone from the list")
-'''
+''')
 
 # Real helpers (observe / offline tests) mirror the generated FORM_HELPERS above.
 # Manual string (not getsource of form_target_problem) so generated scripts never contain a banned .__init__.
@@ -808,6 +955,14 @@ FIELD_TARGET_HELPERS = (
     + inspect.getsource(_visible_matches)
     + "\n"
     + inspect.getsource(unique_field)
+    + "\n"
+    + inspect.getsource(record_control_fallback)
+    + "\n"
+    + inspect.getsource(set_choice)
+    + "\n"
+    + inspect.getsource(select_option_user)
+    + "\n"
+    + inspect.getsource(reresolve_field)
     + "\n"
 )
 

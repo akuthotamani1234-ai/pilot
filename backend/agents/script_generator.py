@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from pprint import pformat
 
-from ..ai_grounding import grounding_problem
+from ..ai_grounding import grounding_problem, unsupported_reason
 from ..config import settings
 from ..excel import write_workbook
 from ..forms import FIELD_TARGET_HELPERS
@@ -680,14 +680,32 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
         "                         \"getComputedStyle(e).visibility !== 'hidden'; }).length\")",
         "",
         "",
-        "def _pick(box):",
+        "def _pick(box, log=None):",
+        "    \"\"\"User-facing check first; force/DOM only as recorded fallback (never proves user actionability).\"\"\"",
         "    try:",
         "        box.check(timeout=5000)",
+        "        if box.is_checked():",
+        "            return {'fallback': False, 'how': 'user', 'proves_user_actionability': True}",
         "    except Exception:",
-        "        try:",
-        "            box.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-        "        except Exception:",
-        "            box.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top of it",
+        "        pass",
+        "    try:",
+        "        box.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
+        "        if box.is_checked():",
+        "            rec = {'fallback': True, 'how': 'force', 'note': 'force check on styled control',",
+        "                   'proves_user_actionability': False}",
+        "            if log is not None:",
+        "                log.append(rec)",
+        "            return rec",
+        "    except Exception:",
+        "        pass",
+        "    box.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top of it",
+        "    if not box.is_checked():",
+        "        raise AssertionError('custom checkbox/radio did not retain the checked state')",
+        "    rec = {'fallback': True, 'how': 'dom', 'note': 'DOM click on overlay-styled control',",
+        "           'proves_user_actionability': False}",
+        "    if log is not None:",
+        "        log.append(rec)",
+        "    return rec",
         "",
         "",
         "def _search(page, words):",
@@ -1536,16 +1554,16 @@ def _journey_test(c: dict) -> list[str]:
             "            if f['kind'] == 'select':",
             "                el.select_option(f['value'], timeout=5000)",
             "            elif f['kind'] in ('radio', 'checkbox'):",
-            "                try:",
-            "                    el.check(timeout=3000)",
-            "                except Exception:",
-            "                    try:",
-            "                        el.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-            "                    except Exception:",
-            "                        el.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top",
+            "                fb = []",
+            "                set_choice(el, checked=True, log=fb)",
+            "                el = unique_field(page, scope, f)  # re-resolve after reactive updates",
+            "                expect(el, 'The choice must stay selected/checked').to_be_checked()",
+            "                if fb:  # recorded only — fallback never proves normal user actionability",
+            "                    _step_ok(f\"'{f['name']}': force/DOM fallback used (not proof of user actionability)\")",
             "            else:",
             "                el.fill(f['value'], timeout=5000)",
             "                el.dispatch_event('blur')",
+            "                el = unique_field(page, scope, f)  # re-resolve after reactive updates",
             "                expect(el, 'The input must retain its intended test value').to_have_value(f['value'])",
             "        except Exception as e:",
             "            if f.get('required'):",
@@ -1565,6 +1583,7 @@ def _journey_test(c: dict) -> list[str]:
             "    assert filled, f\"None of the form's {len(J['fields'])} boxes is on the page - nothing could be filled\"",
             "    assert not problems, 'Filling the form like a user:\\n' + '\\n'.join(problems)",
             "    # (the form is NOT sent - no account is created, no message is sent)",
+            "    # Interaction/input check only: retained values ≠ business-verified Save/persistence.",
             "    _no_new_errors(console_errors, errors_before, 'Filling the form')",
         ]
     else:  # navigate
@@ -2756,14 +2775,24 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
         if lost:
             print(f"  [script-gen] AI failed for {len(lost)} of its {len(ai)} journeys: {why[:200]} - those are left "
                   "out (the others and the built-in ones run)")
-            rejected.append({"page": "site", "error": why})
+            rejected.append({"page": "site", "error": why, "category": "unsupported"})
             notes.append(f"The AI could not write working code for {len(lost)} of its {len(ai)} journeys; the other "
                          "test cases run.")
-            # (your own tests stay in the list - not automated, with the reason - the AI's own extra ones go)
+            # Keep lost AI proposals as unsupported/exploratory (never a product defect). Own tests stay visible.
             gone = set(lost)
-            cases = [dict(c, kind="mine", ai=False, files=[], tests=[], skip_reason="Not automated: the AI could not "
-                          "write working code for it this time") if c.get("my_test") and c["id"] in gone else c
-                     for c in cases if not (c.get("ai") and c.get("id") in gone) or c.get("my_test")]
+            kept = []
+            for c in cases:
+                if c.get("my_test") and c["id"] in gone:
+                    kept.append(dict(c, kind="mine", ai=False, files=[], tests=[],
+                                     skip_reason="Not automated: the AI could not write working code for it this time",
+                                     verification="interaction"))
+                elif c.get("ai") and c.get("id") in gone:
+                    kept.append(dict(c, kind="unsupported", ai=False, files=[], tests=[], type="exploratory",
+                                     blocked=True, verification="interaction",
+                                     skip_reason=unsupported_reason(why)))
+                else:
+                    kept.append(c)
+            cases = kept
 
     # 1b) the feature tests (filter, sort, next page, wishlist, long search): test_features.py
     feats = [c for c in cases if c.get("kind") == "feature"]

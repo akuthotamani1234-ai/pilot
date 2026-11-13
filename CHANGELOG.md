@@ -2,6 +2,21 @@
 
 All notable changes to Blow AI should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-13 — Field-aware data, verification credit, AI grounding (P3–P5)
+
+- Field-aware values from labels/constraints (`field_kind`): valid email/phone/numeric/date (type/format/pattern).
+- Custom checkbox/radio/select: prefer user-facing click/select; verify retained checked/value; re-resolve after
+  reactive updates; force/DOM only as recorded fallback (`proves_user_actionability=False`).
+- Unsubmitted form / input-only cases carry `verification: interaction` — strong fill asserts never grant
+  business-verified credit (registry → smoke with an interaction why).
+- Search/filter/sort/pagination and submitted form/CRUD keep `verification: business` when outcomes are defined.
+- Writes stay gated by staging + `writes_ok` / `ALLOW_ACTIONS`; `environment=test` alone never enables writes
+  (`write_authorization_gap` names the missing permission).
+- AI grounding rejects invented records (e.g. John Doe), brittle toast wrappers, and unobserved headings;
+  unsupported scripts are exploratory/unsupported before execution — not product defects. Role-based tables OK
+  without native `<table>`. Healing still refuses assertion removal.
+- Offline fixtures: `tests/test_orangehrm_p3_p5.py` (+ existing form-boundary / ai-grounding tests).
+
 ## 2026-11-13 — Form boundaries and target identity (P2)
 
 - Form fill/assert scopes to the form, dialog, or labeled section; prefers label / role / stable id.

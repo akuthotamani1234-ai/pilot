@@ -792,12 +792,20 @@ class Explorer:
 
         Resolution is scoped to the form/dialog/section container and refuses ambiguous matches (no silent .first).
         """
-        from .forms import FormTargetProblem, keep_form_field, unique_field
+        from .forms import (
+            FormTargetProblem,
+            keep_form_field,
+            reresolve_field,
+            select_option_user,
+            set_choice,
+            unique_field,
+        )
         from .testdata import valid_value
         if not keep_form_field(dict(box, **x)):
             return None
+        root = scope or page.locator("body")
         try:
-            el = unique_field(page, scope or page.locator("body"), dict(box, **x))
+            el = unique_field(page, root, dict(box, **x))
         except FormTargetProblem as e:
             if e.kind == "ambiguous":
                 raise
@@ -807,22 +815,34 @@ class Explorer:
         if not el.is_enabled():
             return None
         t, tag_name = (box.get("type") or x.get("type") or "").lower(), box.get("tag") or ""
+        fallbacks: list = []
         if t == "checkbox":
             if box.get("required") or x.get("required"):
-                el.check(timeout=3000)
+                set_choice(el, checked=True, log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if not el.is_checked():
+                    raise ValueError("The checkbox did not retain the checked state")
+                self._last_control_fallbacks = fallbacks
                 return "ticked"
             return None
         if t == "radio":
             name = el.get_attribute("name") or ""
-            root = scope if scope is not None else page
             if name and not root.locator(f'input[type=radio][name="{name}"]:checked').count():
-                el.check(timeout=3000)
+                set_choice(el, checked=True, log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if not el.is_checked():
+                    raise ValueError("The radio did not retain the selected state")
+                self._last_control_fallbacks = fallbacks
                 return "chosen"
             return None
         if tag_name == "select" or t.startswith("select"):
             options = el.evaluate("e => [...e.options].filter(o => !o.disabled && o.value).map(o => o.value)")
             if options and not el.input_value():
-                el.select_option(options[0], timeout=3000)
+                select_option_user(el, options[0], log=fallbacks)
+                el = reresolve_field(page, root, dict(box, **x))
+                if el.input_value() != options[0]:
+                    raise ValueError("The select did not retain the chosen option")
+                self._last_control_fallbacks = fallbacks
                 return options[0]
             return None
         if t in ("file", "image", "range", "color", "hidden") or el.input_value():
@@ -832,8 +852,10 @@ class Explorer:
             return None
         el.fill(value, timeout=3000)
         el.evaluate("e => e.blur && e.blur()")
+        el = reresolve_field(page, root, dict(box, **x))
         if el.input_value(timeout=3000) != value:
             raise ValueError("The input did not retain the intended test value")
+        self._last_control_fallbacks = []
         return value
 
     def _fill_one(self, page, url: str, entry: dict, f: dict, fields: list[dict], send: bool) -> dict:
@@ -854,12 +876,18 @@ class Explorer:
             raise
         start = snapshot(page)
         boxes0 = form.evaluate(BOX_STATE_JS)
-        filled = []
+        filled, control_fallbacks = [], []
         for x in fields:
+            self._last_control_fallbacks = []
             v = self._fill_box(page, x, known.get(x["selector"], {}), tag, scope=form)
             if v is not None:
-                filled.append({"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
-                               "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v})
+                row = {"box": (x.get("label") or x.get("placeholder") or x.get("name") or "box")[:60],
+                       "value": "[redacted]" if (x.get("type") or "").lower() == "password" else v}
+                if self._last_control_fallbacks:
+                    # Fallback force/DOM paths are recorded and never prove normal user actionability.
+                    row["control_fallback"] = self._last_control_fallbacks
+                    control_fallbacks.extend(self._last_control_fallbacks)
+                filled.append(row)
                 page.wait_for_timeout(200)
         page.wait_for_timeout(500)
         # boxes that only appeared while filling: added to the page and the form (its tests fill them), then filled
@@ -888,6 +916,9 @@ class Explorer:
                "page": url, "tag": tag, "filled": filled, **changes,
                "said": [a for a in ev["added"] if len(a) < 160][:6], "choices": self._other_choices(page, form),
                "sent": False}
+        if control_fallbacks:
+            rec["control_fallbacks"] = control_fallbacks
+            rec["proves_user_actionability"] = False
         if not send:
             rec["not_sent"] = "a test site: forms are filled and watched, never sent (staging sends them)"
             return rec
