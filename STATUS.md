@@ -1,4 +1,4 @@
-# Blow AI — Project Status
+# Qpilot — Project Status
 
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.

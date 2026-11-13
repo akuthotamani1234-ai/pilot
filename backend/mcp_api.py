@@ -52,13 +52,13 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
         if not path.is_file():
             return {"run": run, "section": section, "available": False, "items": [], "total": 0}
         if path.stat().st_size > 64 * 1024 * 1024:
-            raise HTTPException(413, "This artifact is too large for MCP. Open its report in the Blow AI UI.")
+            raise HTTPException(413, "This artifact is too large for MCP. Open its report in the Qpilot UI.")
         data = read_json(path, None)
         if data is None:
             # File exists but is not usable JSON: callers must not invent report contents.
             raise HTTPException(
                 422,
-                "This report section exists but could not be read as JSON. Open the report in the Blow AI UI.",
+                "This report section exists but could not be read as JSON. Open the report in the Qpilot UI.",
             )
         if isinstance(data, list):
             body = {"items": data[offset:offset + limit], "total": len(data), "offset": offset, "limit": limit}

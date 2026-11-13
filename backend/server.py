@@ -66,7 +66,7 @@ class RunFiles(StaticFiles):
         return await super().get_response(path, scope)
 
 
-app = FastAPI(title="Blow AI")
+app = FastAPI(title="Qpilot")
 app.mount("/runs", RunFiles(directory=RUNS), name="runs")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -119,14 +119,14 @@ async def local_only(request: Request, call_next):
     if mcp_request:
         control = request.url.path in {"/api/mcp/info", "/api/mcp/heartbeat"}
         if request.url.path.startswith("/api/settings/"):
-            return JSONResponse({"detail": "Change privacy settings in the Blow AI UI."}, status_code=403)
+            return JSONResponse({"detail": "Change privacy settings in the Qpilot UI."}, status_code=403)
         if not control and not load_policy().allow_mcp:
             return JSONResponse({"detail": "MCP data access is disabled. Approve your assistant in Privacy settings."},
                                 status_code=403)
     host = request.headers.get("host", "")
     host = host[:host.index("]") + 1] if host.startswith("[") and "]" in host else host.split(":")[0]
     if host.lower() not in UI_HOSTS:
-        return JSONResponse({"detail": "The Blow AI UI only answers on 127.0.0.1 / localhost."}, status_code=400)
+        return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
     # (a webhook proves itself with its own token instead - /api/hooks/run)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.headers.get("x-agentic-qa") != "1" \
             and request.url.path != "/api/hooks/run":
@@ -191,6 +191,7 @@ class RunRequest(BaseModel):
     allow_actions: str | None = None  # staging only: also delete, logout, password, pay (comma-separated)
     test_payment: bool = False       # staging + allow pay: the payment provider is in its test mode
     reuse_tests: bool = False        # run the tests of the last run again (regression) instead of writing new ones
+    reuse_from_run: str | None = None  # prefer that run's generated_tests + test_cases.json
     record_video: bool = False       # save a video of the test browsers (runs/<run>/videos)
     # optional - only when the tester can't work it out by itself
     max_depth: int = 0
@@ -690,6 +691,10 @@ def start_run(req: RunRequest):
         if req.reuse_tests:
             cmd.append("--reuse-tests")
         env = os.environ.copy()
+        if req.reuse_tests and req.reuse_from_run:
+            env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
+        elif "REUSE_FROM_RUN" in env:
+            env.pop("REUSE_FROM_RUN", None)
         env["QA_CONTRACT_JSON"] = contract_json
         env["QA_CONTRACT_ONLY"] = "1" if req.contract_only else "0"
         if req.contract_only:
@@ -1647,7 +1652,7 @@ def qa_contract_schema():
 CONTRACT_EXAMPLES = {
     'wdio-basic': ('WebdriverIO v2.2 — 10 functional checks', 'webdriverio-expanded-checks.json'),
     'wdio-complete': ('WebdriverIO v2.2 — 33 configured flows', 'webdriverio-complete-checks.json'),
-    'controlled-simulations': ('Blow AI fixture — protected flows and safe previews', 'controlled-sandbox-checks.json'),
+    'controlled-simulations': ('Qpilot fixture — protected flows and safe previews', 'controlled-sandbox-checks.json'),
     'sauce-cart': ('Sauce Labs demo — add product and verify cart', 'sauce-cart-checks.json'),
     'chrome-dropdown': ('Android Chrome — dropdown selection checks', 'chrome-dropdown-checks.json'),
     'ecommerce-web': ('E-commerce web — search and cart (Automation Exercise template)', 'ecommerce-web-contract.json'),
@@ -1759,7 +1764,7 @@ if __name__ == "__main__":
             port = next((p for p in range(port + 1, port + 20) if not _port_in_use(p)), port + 20)
             print(f"Port {old} is used by another program (or an old UI window - you can close it). Using port {port}.")
     url = f"http://127.0.0.1:{port}"
-    print(f"\n  Blow AI UI running at {url}   (close this window to stop it)\n")
+    print(f"\n  Qpilot UI running at {url}   (close this window to stop it)\n")
     if _schedules():
         print(f"  {len(_schedules())} scheduled test(s): they run while this window is open\n")
     threading.Thread(target=_scheduler, daemon=True).start()  # (scheduled tests: checked every 30 s)

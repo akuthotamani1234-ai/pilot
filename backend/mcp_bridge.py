@@ -117,7 +117,7 @@ class BlowAIBridge:
 
     def _send(self, method: str, route: str, *, params=None, body=None, data=None, headers=None):
         if not route.startswith("/api/") or "://" in route or ".." in route:
-            raise BridgeError("Unsupported Blow AI API route.")
+            raise BridgeError("Unsupported Qpilot API route.")
         try:
             with requests.Session() as session:
                 session.trust_env = False  # local IPC must not go through a configured proxy
@@ -151,19 +151,19 @@ class BlowAIBridge:
             suffix = (" A start request may already have reached the UI; use list_runs before retrying."
                       if method == "POST" else "")
             raise BridgeError(
-                f"Blow AI at {self.ui_url} timed out.{suffix} Start ui.bat and check its displayed port."
+                f"Qpilot at {self.ui_url} timed out.{suffix} Start ui.bat and check its displayed port."
             ) from error
         except requests.RequestException as error:
             suffix = (" A start request may already have reached the UI; use list_runs before retrying."
                       if method == "POST" else "")
-            raise BridgeError(f"Cannot reach Blow AI at {self.ui_url}. Start ui.bat and check its displayed port."
+            raise BridgeError(f"Cannot reach Qpilot at {self.ui_url}. Start ui.bat and check its displayed port."
                               + suffix) from error
 
     def verify(self):
         self._assistant_active = True
         info = self._send("GET", "/api/mcp/info")
         if not isinstance(info, dict) or info.get("product") != "blow-ai" or info.get("bridge_version") != 1:
-            raise BridgeError("This is not a compatible Blow AI UI. Restart this project's ui.bat.")
+            raise BridgeError("This is not a compatible Qpilot UI. Restart this project's ui.bat.")
         return info
 
     def _require_access(self):
@@ -229,7 +229,7 @@ def _http_bridge_error(status_code: int, result) -> str:
         return (detail if detail != "Request rejected"
                 else "MCP data access is disabled. Open Privacy settings in the UI and approve your assistant.")
     if status_code == 403:
-        return f"Blow AI refused access (HTTP 403): {detail}"
+        return f"Qpilot refused access (HTTP 403): {detail}"
     if status_code == 400:
         return f"Invalid MCP request (HTTP 400): {detail}"
     if status_code == 404:
@@ -239,5 +239,5 @@ def _http_bridge_error(status_code: int, result) -> str:
     if status_code == 413:
         return f"Reply too large for MCP (HTTP 413): {detail}"
     if status_code >= 500:
-        return f"Blow AI UI error (HTTP {status_code}): {detail}"
-    return f"Blow AI HTTP {status_code}: {detail}"
+        return f"Qpilot UI error (HTTP {status_code}): {detail}"
+    return f"Qpilot HTTP {status_code}: {detail}"

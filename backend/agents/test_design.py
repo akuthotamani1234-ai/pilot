@@ -2003,18 +2003,18 @@ def test_design_agent(state: QAState) -> QAState:
     pages.sort(key=lambda p: not p.get("auth"))  # the app behind the login first (stable: crawl order kept)
     if settings.reuse_tests:  # regression run: the same test cases as last time (their scripts are run again)
         from .change_detection import saved_tests
-        saved = saved_tests(state["site_key"])
+        saved = saved_tests(state["site_key"], from_run=settings.reuse_from_run or None)
         if saved:
             cases = finalize_cases(saved["cases"], state)
             _link_registry(state, cases)
-            print(f"  [test-design] regression run: re-using the {len(cases)} test cases of the run of "
-                  f"{saved['meta'].get('date', '?')}")
+            src = saved["meta"].get("source_run") or saved["meta"].get("date", "?")
+            print(f"  [test-design] regression run: re-using the {len(cases)} test cases of {src}")
             Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
             write_workbook(Path(state["run_dir"]), cases)
             return {"test_cases": cases, "log": state.get("log", []) + [
-                f"Test design: regression run - the {len(cases)} test cases of {saved['meta'].get('date', '?')} "
+                f"Test design: regression run - the {len(cases)} test cases of {src} "
                 "are run again (no new test cases)."]}
-        print("  [test-design] regression run asked, but this site has no saved tests yet - writing new ones")
+        print("  [test-design] regression run asked, but no saved tests for this site/run - writing new ones")
     data, typed = [], set()
     for p in pages:  # (a box on many pages - the footer's newsletter box - is typed into once, on the first page)
         own = [c for c in data_cases(p) if (c["selector"], c["field"]) not in typed]
