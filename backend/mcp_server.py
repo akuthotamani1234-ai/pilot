@@ -47,9 +47,9 @@ def build_server(ui_url: str | None = None):
             bridge.stop_presence()
 
     server = MCPServer(
-        "Blow AI", version="1.0.0", lifespan=lifespan,
+        "Qpilot", version="1.0.0", lifespan=lifespan,
         instructions=(
-            "Use the existing Blow AI UI for Playwright website and Appium Android QA. Start ui.bat first. "
+            "Use the existing Qpilot UI for Playwright website and Appium Android QA. Start ui.bat first. "
             "MCP data access is blocked until the user approves this assistant in the UI Privacy settings. "
             "Never change privacy settings or claim that a cloud assistant is local. "
             "Local-only mode permits only rules/local Ollama; cloud models require explicit UI consent. "
@@ -73,7 +73,7 @@ def build_server(ui_url: str | None = None):
     @server.tool(annotations=read)
     @_bridge_as_tool_error
     def get_connection_info() -> dict:
-        """Check the local Blow AI UI bridge and return its address; never start automation."""
+        """Check the local Qpilot UI bridge and return its address; never start automation."""
         return {"ui_url": bridge.ui_url, **bridge.verify()}
 
     @server.tool(annotations=read)
@@ -256,7 +256,7 @@ def build_server(ui_url: str | None = None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Blow AI local stdio MCP bridge")
+    parser = argparse.ArgumentParser(description="Qpilot local stdio MCP bridge")
     parser.add_argument("--ui-url", default=None, help="Existing local UI origin; default BLOWAI_UI_URL or port 8000")
     args = parser.parse_args()
     try:

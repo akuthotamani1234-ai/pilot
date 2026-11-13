@@ -1,14 +1,14 @@
 :root {
-  --bg: #f7f7fb;
+  --bg: #eef3f1;
   --panel: #ffffff;
-  --side: #f0f1f7;
+  --side: #e8f0ed;
   --fg: #171a2b;
   --muted: #6b7084;
   --line: #e4e6ef;
   --soft: #f3f4f9;
-  --accent: #5b5bf0;
-  --accent-2: #8b5cf6;
-  --accent-soft: #ecebff;
+  --accent: #0f766e;
+  --accent-2: #14b8a6;
+  --accent-soft: #d8f3ee;
   --green: #16a34a;
   --green-soft: #e7f7ec;
   --red: #dc2626;
@@ -22,7 +22,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1117; --panel: #171a23; --side: #12141c; --fg: #e9ebf5; --muted: #9298ad; --line: #262a37;
-    --soft: #1d2130; --accent: #8b8bff; --accent-2: #a78bfa; --accent-soft: #23234a;
+    --soft: #1d2130; --accent: #2dd4bf; --accent-2: #5eead4; --accent-soft: #134e4a;
     --green: #4ade80; --green-soft: #12301f; --red: #f87171; --red-soft: #3a1717; --amber: #fbbf24; --amber-soft: #352710;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
   }
@@ -30,7 +30,7 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { font: 14.5px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); }
+body { font: 14.5px/1.55 var(--sans, "Manrope"), system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
 a { color: var(--accent); }
 button, input, select { font: inherit; color: inherit; }
 .muted { color: var(--muted); }

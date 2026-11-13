@@ -958,7 +958,7 @@ if LOGIN and not getattr(Page, "_qa_relogin", False):
 
 STATUS_HTML = """<html><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f172a;
   font-family:system-ui,sans-serif;color:#e2e8f0"><div style="text-align:center;max-width:80vw">
-  <div style="font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8">Blow AI &middot; {title}</div>
+  <div style="font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8">Qpilot &middot; {title}</div>
   <div style="font-size:26px;font-weight:700;margin-top:14px;word-break:break-all">{text}</div>
   <div style="font-size:14px;color:#94a3b8;margin-top:10px">{note}</div></div></body></html>"""
 

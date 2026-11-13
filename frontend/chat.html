@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Blow AI</title>
+<title>Qpilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/chat.css">
 <link rel="stylesheet" href="/static/studio.css">
 </head>
@@ -13,7 +16,7 @@
   <!-- ===== left: new test + recent tests ===== -->
   <aside class="side" id="side" tabindex="0" aria-label="Workspace navigation and recent runs">
     <button class="drawer-close" id="navClose" type="button" aria-label="Close navigation">&#215;</button>
-    <div class="logo"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>blow<span>ai</span></b><small>STUDIO</small></div>
+    <div class="logo"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>Qpilot</b><small>STUDIO</small></div>
     <button class="new-btn" id="newBtn" type="button" aria-label="Start a new test"><span aria-hidden="true">+</span> New test</button>
     <div class="side-title">WORKSPACE</div>
     <a class="studio-nav current" href="/" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span><span class="nav-indicator"></span></a>
@@ -40,7 +43,12 @@
       <button class="icon-btn" id="todoBtn" type="button" aria-label="Open execution plan" aria-expanded="false" aria-controls="todo">✓</button>
     </header>
 
-    <div class="workspace-hero"><span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg> AI QUALITY WORKSPACE</span><h1>Test with clarity.<br><span>Release with confidence.</span></h1><p>Choose your platform. Discover components, run checks, and review the evidence.</p></div>
+    <div class="workspace-hero">
+      <p class="brand-lockup" aria-label="Qpilot">Qpilot</p>
+      <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg> QUALITY WORKSPACE</span>
+      <h1>See every path.<br><span>Ship with evidence.</span></h1>
+      <p>Explore the product, run the checks that matter, and keep checkout &amp; payment blocked by design.</p>
+    </div>
     <div class="mode-switcher" role="group" aria-label="Testing platform">
       <button id="webModeBtn" class="mode-card selected" type="button" aria-pressed="true" aria-controls="composer"><span class="mode-icon web"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z"/></svg></span><span class="mode-copy"><b>Web testing <small>Playwright</small></b><span>Websites &amp; web applications</span></span><span class="mode-radio" aria-hidden="true"></span></button>
       <button id="mobileModeBtn" class="mode-card" type="button" aria-pressed="false" aria-controls="mobileForm"><span class="mode-icon android"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10 5h4M11 18.5h2"/></svg></span><span class="mode-copy"><b>Android testing <small>Appium</small></b><span>APK files, installed apps &amp; websites in Chrome</span></span><span class="mode-radio" aria-hidden="true"></span></button>
@@ -58,17 +66,17 @@
     </section>
     <section class="mcp-panel" id="mcpPanel" hidden aria-labelledby="mcpPanelTitle">
       <div class="mcp-panel-head"><div><span class="section-label">CONNECTED WORKFLOW</span><h2 id="mcpPanelTitle">Your assistant. Your testing tools.</h2></div><span class="mcp-state" id="mcpConnectionStatus" role="status" aria-live="polite">Checking connection…</span></div>
-      <p class="mcp-panel-copy">Describe the task in your MCP assistant. Blow AI uses the same scripts, test engines and reports, and shows the run here.</p>
+      <p class="mcp-panel-copy">Describe the task in your MCP assistant. Qpilot uses the same scripts, test engines and reports, and shows the run here.</p>
       <div class="mcp-help" id="mcpHelpBlurb" role="note">
         <table><caption>Where to configure, chat and test</caption><tbody>
-          <tr><th scope="row">Studio Standard</th><td>Composer / Android form in Blow AI — configure and run tests here.</td></tr>
+          <tr><th scope="row">Studio Standard</th><td>Composer / Android form in Qpilot — configure and run tests here.</td></tr>
           <tr><th scope="row">MCP</th><td>External MCP client (Cursor/Claude) + Privacy approve — prepare the request in Studio, paste or ask in the assistant; Studio shows the run.</td></tr>
           <tr><th scope="row">Testing always</th><td>Local <b>ui.bat</b> Studio — MCP does not replace Studio.</td></tr>
         </tbody></table>
       </div>
       <p class="note" id="mcpConnectionNote" role="status"></p>
       <details class="mcp-setup"><summary>Connect your assistant</summary>
-        <ol><li>Run <b>setup/install-mcp.bat</b> once.</li><li>Add the Blow AI server configuration to your MCP client.</li><li>Approve the assistant in <button type="button" class="inline-button" id="mcpPrivacyBtn">Privacy settings</button>, then ask it to check the connection.</li></ol>
+        <ol><li>Run <b>setup/install-mcp.bat</b> once.</li><li>Add the Qpilot server configuration to your MCP client.</li><li>Approve the assistant in <button type="button" class="inline-button" id="mcpPrivacyBtn">Privacy settings</button>, then ask it to check the connection.</li></ol>
         <button class="secondary" id="copyMcpConfig" type="button">Copy server configuration</button>
         <pre class="mcp-config" id="mcpConfigText" hidden tabindex="0" aria-label="MCP server configuration"></pre>
       </details>
@@ -265,8 +273,8 @@
       </fieldset>
       <label class="tick privacy-consent" id="privacyCloudConsentField" hidden><input type="checkbox" id="privacyCloudConsent"><span>I agree that selected cloud models, approved assistants and configured report integrations may receive testing data.</span></label>
       <div class="privacy-assistant">
-        <label class="tick"><input type="checkbox" id="privacyAllowMcp"><span><b>Allow my MCP assistant to access Blow AI</b><br>It can start permitted tests and read public run history, results and reports. Credentials and private session files are excluded.</span></label>
-        <label class="tick privacy-consent" id="privacyLocalAssistantField" hidden><input type="checkbox" id="privacyLocalAssistant"><span>I confirm this assistant processes tool data locally. Blow AI cannot verify where an assistant processes data.</span></label>
+        <label class="tick"><input type="checkbox" id="privacyAllowMcp"><span><b>Allow my MCP assistant to access Qpilot</b><br>It can start permitted tests and read public run history, results and reports. Credentials and private session files are excluded.</span></label>
+        <label class="tick privacy-consent" id="privacyLocalAssistantField" hidden><input type="checkbox" id="privacyLocalAssistant"><span>I confirm this assistant processes tool data locally. Qpilot cannot verify where an assistant processes data.</span></label>
       </div>
       <p class="note" id="privacyMessage" role="status" aria-live="polite"></p>
       <div class="privacy-dialog-actions"><button class="secondary" id="privacyCancel" type="button">Cancel</button><button class="primary" id="privacySave" type="submit">Save privacy settings</button></div>

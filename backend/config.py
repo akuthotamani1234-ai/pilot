@@ -102,6 +102,8 @@ class Settings:
     max_heal_rounds: int = int(os.getenv("MAX_HEAL_ROUNDS", "2"))
     # Regression run: run the test scripts saved by the last run of this site again, instead of writing new ones
     reuse_tests: bool = os.getenv("REUSE_TESTS", "false").lower() == "true"
+    # Prefer scripts/cases from this prior run id (Studio "Run the same tests again"); else site baseline.
+    reuse_from_run: str = os.getenv("REUSE_FROM_RUN", "").strip()
 
     # A test account for login forms (optional). With it, "login works" is tested; without it only
     # "a wrong password is rejected". Read by the tests at run time - never written into the test files.

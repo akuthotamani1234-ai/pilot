@@ -61,7 +61,7 @@ def discovery_report(state: QAState) -> dict:
     feat_line = (" · ".join(f"{feat[k]} {k}" for k in feat["labels"]) if feat.get("discovered")
                  else "0 features tested (discovery does not run functional checks)")
     doc = ('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" '
-           'content="width=device-width,initial-scale=1"><title>Blow AI component discovery</title>'
+           'content="width=device-width,initial-scale=1"><title>Qpilot component discovery</title>'
            '<style>body{font:16px system-ui;color:#172033;background:#f5f7fb;margin:40px auto;max-width:1100px;'
            'padding:24px}main{background:white;border-radius:20px;padding:32px}a{color:#4f46e5}'
            'table{border-collapse:collapse;width:100%}td,th{padding:12px;text-align:left;'

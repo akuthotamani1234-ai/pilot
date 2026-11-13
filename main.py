@@ -143,7 +143,7 @@ def _fallback_report(state: dict, run_dir: Path, error: BaseException) -> dict:
     detail = redact(f"{type(error).__name__}: {(str(error).splitlines() or [''])[0][:300]}")
     findings = state.get("failures") or []
     (run_dir / "report.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Blow AI report</title></head>
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Qpilot report</title></head>
 <body style="font-family:'Segoe UI',system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.6">
 <h1>❔ We couldn't test enough</h1><p>{escape(reason)}</p>
 <p>The full report could not be written either ({escape(detail)}). What was done is in the files of this run folder:
@@ -260,6 +260,10 @@ def _apply(opts: dict) -> None:
         settings.max_heal_rounds = opts["max_heal"]
     if opts.get("reuse_tests"):
         settings.reuse_tests = True
+    if opts.get("reuse_from_run"):
+        settings.reuse_from_run = str(opts["reuse_from_run"]).strip()
+    elif os.getenv("REUSE_FROM_RUN"):
+        settings.reuse_from_run = os.getenv("REUSE_FROM_RUN", "").strip()
     if opts.get("scope"):  # (overrides CRAWL_SCOPE)
         settings.crawl_scope = opts["scope"]
     if opts.get("env"):  # (overrides TEST_ENVIRONMENT)
