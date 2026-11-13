@@ -1473,14 +1473,12 @@ def ai_flows(pages: list[dict]) -> list[dict]:
     from ..features import page_features
     kinds = [{f["kind"] for f in page_features(p)} for p in pages]
     real = []
-    unsupported_cases = []
     for c in answer[:LARGE]:
         missing = _invented(c, pages, kinds)
         if missing:
             print(f"  [test-design] AI test case unsupported - {missing}: {str(c['title'])[:80]}")
-            unsupported_cases.append((c, missing))
-        else:
-            real.append(c)
+            continue  # drop from executable suite — never product_defect
+        real.append(c)
     out = []
     for n, c in enumerate(real, start=1):
         used = [s for s in (c.get("pages") or []) if s in by_slug] or [pages[0]["slug"]]
@@ -1504,22 +1502,7 @@ def ai_flows(pages: list[dict]) -> list[dict]:
             "files": ["test_flows_ai.py"], "tests": [f"test_ai_flow_{n}"],
             "verification": "interaction" if guessed else "business",
         })
-    # Keep unsupported proposals visible as exploratory/unsupported — never as product defects.
-    from ..ai_grounding import unsupported_reason
-    for i, (c, missing) in enumerate(unsupported_cases, start=1):
-        used = [s for s in (c.get("pages") or []) if s in by_slug] or [pages[0]["slug"]]
-        out.append({
-            "id": f"ai_unsupported_{i}", "kind": "unsupported", "size": "large", "ai": False,
-            "type": "exploratory", "priority": "low",
-            "title": str(c.get("title") or "Unsupported AI proposal")[:150],
-            "test_data": str(c.get("test_data") or ""),
-            "steps": [str(s) for s in (c.get("steps") if isinstance(c.get("steps"), list) else [c.get("steps")]) if s],
-            "expected": "Not executed — unsupported / not grounded",
-            "page": ", ".join(used), "url": by_slug[used[0]]["url"], "pages": used,
-            "guest": True, "files": [], "tests": [],
-            "skip_reason": unsupported_reason(str(missing)),
-            "verification": "interaction", "blocked": True,
-        })
+    # Unsupported AI proposals were dropped above (logged). Never product_defect findings.
     for c in out:  # AI-written titles / steps in plain English (no CSS selectors)
         if c.get("kind") == "unsupported":
             continue
