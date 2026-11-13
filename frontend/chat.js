@@ -1053,7 +1053,8 @@
       +$("aiActions").value || (thorough ? 80 : standardActions)));
     const depthRaw = Math.max(0, +val("advDepth") || 0);
     // Thorough + unset depth → 12 for MCP parity; Standard keeps the advanced value (incl. 0).
-    const maxDepth = thorough && depthRaw === 0 ? 12 : depthRaw;
+    // Thorough keeps soft depth 0 (unlimited) — forcing 12 cut deep trees and hurt exploration.
+    const maxDepth = depthRaw;
     const body = { workflow: "standard", privacy_mode: workflow.mode, source: pendingSource, max_pages: fullCrawl ? 0 : Math.max(1, +$("aiPages").value || 10),
                    crawl_scope: thorough ? "site" : $("aiScope").value, auth_mode: accountMode,
                    max_interactions_per_page: actionsPerPage,

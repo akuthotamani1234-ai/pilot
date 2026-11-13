@@ -13,9 +13,10 @@ import shutil
 from pathlib import Path
 from pprint import pformat
 
-from ..ai_grounding import grounding_problem
+from ..ai_grounding import grounding_problem, unsupported_reason
 from ..config import settings
 from ..excel import write_workbook
+from ..forms import FIELD_TARGET_HELPERS
 from ..llm import LLMError, ask_llm, extract_code, load_prompt
 from ..navigation import OPEN_PATH_HELPER, opener_path
 from ..observe import PICTURES_JS, REGION_JS
@@ -679,14 +680,32 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
         "                         \"getComputedStyle(e).visibility !== 'hidden'; }).length\")",
         "",
         "",
-        "def _pick(box):",
+        "def _pick(box, log=None):",
+        "    \"\"\"User-facing check first; force/DOM only as recorded fallback (never proves user actionability).\"\"\"",
         "    try:",
         "        box.check(timeout=5000)",
+        "        if box.is_checked():",
+        "            return {'fallback': False, 'how': 'user', 'proves_user_actionability': True}",
         "    except Exception:",
-        "        try:",
-        "            box.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-        "        except Exception:",
-        "            box.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top of it",
+        "        pass",
+        "    try:",
+        "        box.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
+        "        if box.is_checked():",
+        "            rec = {'fallback': True, 'how': 'force', 'note': 'force check on styled control',",
+        "                   'proves_user_actionability': False}",
+        "            if log is not None:",
+        "                log.append(rec)",
+        "            return rec",
+        "    except Exception:",
+        "        pass",
+        "    box.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top of it",
+        "    if not box.is_checked():",
+        "        raise AssertionError('custom checkbox/radio did not retain the checked state')",
+        "    rec = {'fallback': True, 'how': 'dom', 'note': 'DOM click on overlay-styled control',",
+        "           'proves_user_actionability': False}",
+        "    if log is not None:",
+        "        log.append(rec)",
+        "    return rec",
         "",
         "",
         "def _search(page, words):",
@@ -977,7 +996,7 @@ def checks_script(checks: list[dict], modules: dict[str, str]) -> tuple[str, lis
     return "\n".join(out).rstrip() + "\n", missing
 
 
-JOURNEY_HELPERS = OPEN_PATH_HELPER + r'''
+JOURNEY_HELPERS = OPEN_PATH_HELPER + FIELD_TARGET_HELPERS + r'''
 def _settle(page):
     try:
         page.wait_for_load_state("networkidle", timeout=5000)
@@ -1505,38 +1524,68 @@ def _journey_test(c: dict) -> list[str]:
         body = [
             "    page.goto(J['url'])",
             "    _settle(page)",
+            "    target = J['fields'][0]['selector'] if J.get('fields') else J.get('form')",
             "    if J.get('openers'):",
-            "        open_path(page, J['openers'], J['fields'][0]['selector'])",
+            "        open_path(page, J['openers'], target)",
             "    errors_before = len(console_errors)",
-            "    problems, filled = [], 0",
+            "    problems, filled, filled_required = [], 0, set()",
+            "    try:",
+            "        scope = form_scope(page, J)",
+            "    except FormTargetProblem as e:",
+            "        if e.kind == 'ambiguous':",
+            "            _inconclusive(str(e))",
+            "            return",
+            "        n = len(J.get('fields') or [])",
+            "        raise AssertionError(",
+            "            f\"{e} - None of the form's {n} boxes is on the page - nothing could be filled\") from e",
             "    for f in J['fields']:",
-            "        el = page.locator(f['selector']).first",
-            "        if not el.is_visible():",
-            "            continue  # a box a person can't see (e.g. an anti-spam trap) is never filled",
+            "        try:",
+            "            el = unique_field(page, scope, f)",
+            "        except FormTargetProblem as e:",
+            "            if e.kind == 'ambiguous':",
+            "                _inconclusive(str(e))",
+            "                return",
+            "            if f.get('required') or e.kind == 'missing_required':",
+            "                raise AssertionError(",
+            "                    f\"required field '{f.get('name') or f.get('selector')}' is missing or invisible - \"",
+            "                    f\"whole-form check cannot pass ({e})\") from e",
+            "            _step_ok(f\"skipped optional '{f.get('name') or f.get('selector')}': {e}\")",
+            "            continue",
             "        filled += 1",
             "        try:",
             "            if f['kind'] == 'select':",
             "                el.select_option(f['value'], timeout=5000)",
             "            elif f['kind'] in ('radio', 'checkbox'):",
-            "                try:",
-            "                    el.check(timeout=3000)",
-            "                except Exception:",
-            "                    try:",
-            "                        el.check(timeout=3000, force=True)  # styled radios / checkboxes hide the real box",
-            "                    except Exception:",
-            "                        el.evaluate('e => e.checked || e.click()')  # ... or draw their own box on top",
+            "                fb = []",
+            "                set_choice(el, checked=True, log=fb)",
+            "                el = unique_field(page, scope, f)  # re-resolve after reactive updates",
+            "                expect(el, 'The choice must stay selected/checked').to_be_checked()",
+            "                if fb:  # recorded only — fallback never proves normal user actionability",
+            "                    _step_ok(f\"'{f['name']}': force/DOM fallback used (not proof of user actionability)\")",
             "            else:",
             "                el.fill(f['value'], timeout=5000)",
             "                el.dispatch_event('blur')",
+            "                el = unique_field(page, scope, f)  # re-resolve after reactive updates",
+            "                expect(el, 'The input must retain its intended test value').to_have_value(f['value'])",
             "        except Exception as e:",
-            "            problems.append(f\"could not fill '{f['name']}': {str(e).splitlines()[0][:150]}\")",
+            "            if f.get('required'):",
+            "                problems.append(f\"required '{f['name']}' could not be filled: {str(e).splitlines()[0][:150]}\")",
+            "            else:",
+            "                problems.append(f\"could not fill '{f['name']}': {str(e).splitlines()[0][:150]}\")",
             "            continue",
-            "        if not el.evaluate('e => e.checkValidity()'):",
+            "        if f.get('required'):",
+            "            filled_required.add(f['selector'])",
+            "        if f['kind'] == 'type' and not el.evaluate('e => e.checkValidity()'):",
             "            problems.append(f\"'{f['name']}' rejects a normal value {f['shown']!r}: \"",
             "                            + el.evaluate('e => e.validationMessage'))",
+            "    intended = J.get('required_fields') or [x for x in J['fields'] if x.get('required')]",
+            "    missing = [r.get('name') or r.get('selector') for r in intended if r.get('selector') not in filled_required]",
+            "    if missing:",
+            "        raise AssertionError('required field(s) not filled - whole-form check cannot pass: ' + ', '.join(missing))",
             "    assert filled, f\"None of the form's {len(J['fields'])} boxes is on the page - nothing could be filled\"",
             "    assert not problems, 'Filling the form like a user:\\n' + '\\n'.join(problems)",
             "    # (the form is NOT sent - no account is created, no message is sent)",
+            "    # Interaction/input check only: retained values ≠ business-verified Save/persistence.",
             "    _no_new_errors(console_errors, errors_before, 'Filling the form')",
         ]
     else:  # navigate
@@ -2728,14 +2777,24 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
         if lost:
             print(f"  [script-gen] AI failed for {len(lost)} of its {len(ai)} journeys: {why[:200]} - those are left "
                   "out (the others and the built-in ones run)")
-            rejected.append({"page": "site", "error": why})
+            rejected.append({"page": "site", "error": why, "category": "unsupported"})
             notes.append(f"The AI could not write working code for {len(lost)} of its {len(ai)} journeys; the other "
                          "test cases run.")
-            # (your own tests stay in the list - not automated, with the reason - the AI's own extra ones go)
+            # Keep lost AI proposals as unsupported/exploratory (never a product defect). Own tests stay visible.
             gone = set(lost)
-            cases = [dict(c, kind="mine", ai=False, files=[], tests=[], skip_reason="Not automated: the AI could not "
-                          "write working code for it this time") if c.get("my_test") and c["id"] in gone else c
-                     for c in cases if not (c.get("ai") and c.get("id") in gone) or c.get("my_test")]
+            kept = []
+            for c in cases:
+                if c.get("my_test") and c["id"] in gone:
+                    kept.append(dict(c, kind="mine", ai=False, files=[], tests=[],
+                                     skip_reason="Not automated: the AI could not write working code for it this time",
+                                     verification="interaction"))
+                elif c.get("ai") and c.get("id") in gone:
+                    kept.append(dict(c, kind="unsupported", ai=False, files=[], tests=[], type="exploratory",
+                                     blocked=True, verification="interaction",
+                                     skip_reason=unsupported_reason(why)))
+                else:
+                    kept.append(c)
+            cases = kept
 
     # 1b) the feature tests (filter, sort, next page, wishlist, long search): test_features.py
     feats = [c for c in cases if c.get("kind") == "feature"]
