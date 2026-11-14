@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from . import llm
+from .android_coverage import full_run
 from .safety import redact
 
 METHODS = {"open_screen", "assert_visible", "assert_enabled", "assert_text", "tap", "assert_screen", "assert_destination",
@@ -90,7 +91,7 @@ def design_cases(state: dict) -> dict:
 
     cases = contract_cases(parse_contract(state["config"].get("qa_contract")))
     if state["config"].get("contract_only"):
-        limit = state["config"].get("max_test_cases", 100)
+        limit = len(cases) if full_run(state["config"]) else state["config"].get("max_test_cases", 300)
         return {"screens": screens, "test_cases": [normalize(c) for c in cases[:limit]],
                 "cases_left_out": max(0, len(cases) - limit),
                 "log": state.get("log", []) + [f"Designed {min(limit, len(cases))} explicit QA contract cases."]}
@@ -364,7 +365,7 @@ def design_cases(state: dict) -> dict:
             if case.get("generation_source") == "llm"
             else 3
         )
-    limit = state["config"].get("max_test_cases", 100)
+    limit = len(cases) if full_run(state["config"]) else state["config"].get("max_test_cases", 300)
     omitted = max(0, len(cases) - limit)
     cases = cases[:limit]
     # User-like flows change app data (a cart, a switch): run them after the read-only checks. Each one starts

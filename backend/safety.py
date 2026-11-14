@@ -306,6 +306,18 @@ def redact(text, values: list[str] | None = None, include_username: bool = False
     return URL_USERINFO.sub(r"\1" + REDACTED + "@", text)
 
 
+def redact_data(data, values: list[str] | None = None):
+    """Mask string values while preserving JSON keys, numbers, booleans and nulls."""
+    values = secret_values() if values is None else values
+    if isinstance(data, str):
+        return redact(data, values)
+    if isinstance(data, list):
+        return [redact_data(item, values) for item in data]
+    if isinstance(data, dict):
+        return {key: redact_data(value, values) for key, value in data.items()}
+    return data
+
+
 # App package ids often contain a short test username (com.blowai.demo + username "demo").
 # Machine-readable Android artifacts still need a valid package for reset/activate/terminate.
 ANDROID_PACKAGE_KEYS = frozenset({"package_name", "appPackage", "app_package", "package", "android_package"})

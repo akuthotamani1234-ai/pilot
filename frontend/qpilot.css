@@ -109,3 +109,8 @@ body[data-test-mode=android][data-setup-state=configure] .workspace-steps {paddi
   .live-explanation{font-size:11px}.repository-workspace{padding:16px}.repo-heading h2{font-size:23px}
 }
 @media(prefers-reduced-motion:reduce) {*{transition:none!important;scroll-behavior:auto!important}}
+.flow-dialog>form{display:grid;gap:14px}.flow-dialog textarea{width:100%;min-width:0;max-width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:inherit;font:inherit}
+.flow-dialog .http-fields,.flow-dialog .db-fields{display:grid;gap:12px}.flow-dialog [hidden]{display:none!important}
+#androidCoverage .coverage-counts{flex-wrap:wrap;margin:14px 0}#androidCoverage .coverage-cases{margin:14px 0}
+#androidCoverage .coverage-gaps{max-height:300px;overflow:auto;overflow-wrap:anywhere}#androidCoverage details p{white-space:pre-wrap;overflow-wrap:anywhere}
+.live-timeline small{overflow-wrap:anywhere}.event-started .event-state{color:#315cc9}.event-passed .event-state{color:#16714d}.event-blocked .event-state,.event-inconclusive .event-state{color:#865c13}

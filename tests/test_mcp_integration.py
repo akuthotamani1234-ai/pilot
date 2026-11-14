@@ -142,9 +142,12 @@ def test_stdio_tools_register_without_contacting_ui(monkeypatch):
     for name in ("crawl_website", "start_web_test"):
         props = tools[name].parameters["properties"]
         assert props["max_pages"]["default"] == 0
-        assert props["max_depth"]["default"] == 12
+        assert props["max_depth"]["default"] == 0  # zero means no selected depth cap
         assert props["max_pages"]["minimum"] == 0
     assert tools["get_run_status"].annotations.read_only_hint is True
+    android = tools["start_android_test"].parameters["properties"]
+    assert android["test_build"]["default"] is False
+    assert android["test_all_discovered"]["default"] is True
     assert tools["stop_run"].parameters["properties"]["confirmed"]["default"] is False
 
 
@@ -182,7 +185,7 @@ def test_mcp_web_start_posts_thorough_budgets(monkeypatch):
         assert body["explore_repeated_controls"] is True
         assert body["max_interactions_per_page"] == THOROUGH_INTERACTIONS
         assert body["max_pages"] == 0
-        assert body["max_depth"] == 12
+        assert body["max_depth"] == 0
         assert body["authorized"] is True
         assert body["website_only"] is True
 

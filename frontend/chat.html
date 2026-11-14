@@ -172,6 +172,7 @@
           <div id="androidFlowToolsSlot"></div>
         </div>
         <p class="muted small android-scope-note">Whole-app mode checks visible text, control visibility and enabled state, and safe navigation within the limits below. Build a test flow for actions that change app data.</p>
+        <label class="tick"><input type="checkbox" id="androidAllDiscovered" checked><span><b>Test all discovered scenarios</b><small>In authorized test-build mode, remove interaction-count and test-case-count cutoffs. Time and Stop guards still apply. Uncheck to use custom counts below.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
         <div class="fields">
@@ -292,6 +293,8 @@
 <script src="/static/workflow.js"></script>
 <script src="/static/contract-builder.js"></script>
 <script src="/static/execution.js"></script>
+<script src="/static/android-scenarios.js"></script>
+<script src="/static/android-workspace.js"></script>
 <script src="/static/repository.js"></script>
 <script src="/static/workspace.js"></script>
 <script src="/static/chat.js"></script>

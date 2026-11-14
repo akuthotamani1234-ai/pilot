@@ -459,7 +459,8 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
 # ------------------------------------------------------------------ API
 
 def _ui_asset_digests() -> dict[str, str]:
-    names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css")
+    names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css", "qpilot.css",
+             "execution.js", "repository.js", "workspace.js", "android-workspace.js", "android-scenarios.js")
     return {name: hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12] for name in names}
 
 
@@ -874,6 +875,7 @@ async def start_mobile_run(
     qa_contract: str = Form(""),
     contract_only: bool = Form(False),
     interaction_testing: bool = Form(False),
+    test_all_discovered: bool = Form(False),
     max_interactions: int = Form(300),
     interaction_timeout_s: int = Form(2700),
     bot_check_wait_s: int = Form(30),
@@ -922,6 +924,7 @@ async def start_mobile_run(
             "expected_destinations": expected_destinations, "expected_values": expected_values, "requirements": requirements, "qa_contract": qa_contract, "contract_only": contract_only,
             "max_test_cases": max_test_cases, "allow_rules_fallback": allow_rules_fallback,
             "interaction_testing": interaction_testing, "max_interactions": max_interactions,
+            "test_all_discovered": test_all_discovered,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
             "human_wait_s": human_wait_s,
         })
@@ -1044,6 +1047,59 @@ async def start_mobile_run(
 @app.get("/api/runs/latest")
 def latest_run():
     return _public(jobs[max(jobs)]) if jobs else None
+
+
+@app.get("/api/android/runs/{run}/coverage")
+def android_coverage_dashboard(run: str):
+    from .android_coverage import dashboard
+    d = _run_dir(run)
+    if not (d / ".private/android_config.json").is_file():
+        raise HTTPException(400, "This is not an Android run.")
+    return dashboard(d)
+
+
+@app.post("/api/android/runs/{run}/resume")
+async def resume_android_run(run: str):
+    from .android_resume import snapshot
+    d = _run_dir(run)
+    config_path = d / ".private/android_config.json"
+    if not config_path.is_file():
+        raise HTTPException(400, "The saved Android configuration is unavailable.")
+    if not snapshot(d)["can_resume"]:
+        raise HTTPException(409, "No safely resumable unexecuted cases remain.")
+    config = _read_json(config_path, {})
+    # Reuse the original selected device and authorization, never substitute a phone.
+    await prepare_android_device(AndroidPrepareRequest(device_id=config["device_id"],
+                                 appium_url=config["appium_url"], authorized=True))
+    from .qa_contracts import parse_contract
+    from .qa_oracles import resolve_private_inputs
+    try:
+        inputs = resolve_private_inputs(parse_contract(config.get("qa_contract")))
+    except ValueError as error:
+        raise HTTPException(409, "Restore the original private input references before resuming.") from error
+    env = os.environ.copy()
+    # Resuming executes saved, validated cases; no new AI exploration is requested.
+    env.update(LLM_PROVIDER="none", PYTHONUTF8="1", PYTHONUNBUFFERED="1")
+    privacy = _worker_privacy(env, "none")
+    command = [sys.executable, "-u", "-m", "backend.android_runner", "--config", str(config_path), "--resume"]
+    kwargs = {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)} if IS_WINDOWS else {"start_new_session": True}
+    with lock:
+        if any(job["status"] == "running" for job in jobs.values()):
+            raise HTTPException(409, "A test is already running.")
+        (d / "STOP").unlink(missing_ok=True)
+        try:
+            proc = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, encoding="utf-8", errors="replace", **kwargs)
+        except OSError as error:
+            raise HTTPException(500, "Could not start the Android resume worker.") from error
+        job_id = max(jobs, default=0) + 1
+        jobs[job_id] = {"id": job_id, "source": "Resume Android " + run, "status": "running", "proc": proc,
+                        "lines": [], "pages": [], "stages": {}, "current": None, "run": run, "started": time.time(),
+                        "llm": {"provider": "none", "model": ""}, "secrets": list(inputs["secrets"].values()),
+                        "target_type": "android", "workflow": "standard", "privacy_mode": privacy["mode"]}
+    _audit("resume_android_test", job=job_id, run=run)
+    threading.Thread(target=_reader, args=(jobs[job_id],), daemon=True).start()
+    return _public(jobs[job_id])
 
 
 @app.get("/api/runs/{job_id}")
@@ -1681,6 +1737,28 @@ def qa_lab():
 def qa_contract_schema():
     from backend.qa_contracts import Contract
     return Contract.model_json_schema()
+
+
+@app.post("/api/android/runs/{run}/scenario-draft")
+def android_scenario_draft(run: str, payload: dict):
+    from .android_scenarios import draft
+    from .config import settings
+    from .llm import LLMError
+    root = _run_dir(run)
+    if not (root / ".private/android_config.json").is_file():
+        raise HTTPException(400, "Select an Android discovery run.")
+    if any(job["status"] == "running" for job in jobs.values()):
+        raise HTTPException(409, "Wait for the current run before drafting another scenario.")
+    _privacy_provider(settings.llm_provider)
+    if settings.llm_provider == "none":
+        raise HTTPException(409, "Configure an AI provider first, or use Build a test flow.")
+    instructions = payload.get("instructions")
+    if not isinstance(instructions, str):
+        raise HTTPException(400, "Describe the scenario and its expected result.")
+    try:
+        return draft(root, instructions)
+    except (ValueError, LLMError) as error:
+        raise HTTPException(400, "Could not produce a validated scenario draft. Check requirements and observed controls.") from error
 
 
 CONTRACT_EXAMPLES = {

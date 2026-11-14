@@ -26,6 +26,15 @@ SCREENS = json.loads((RUN / "screens.json").read_text(encoding="utf-8"))
 UNAVAILABLE = RUN / "android_execution_unavailable.json"
 
 
+def pytest_collection_modifyitems(config, items):
+    selected = os.environ.get("ANDROID_PENDING_CASES")
+    if selected is not None:
+        allowed = set(json.loads(selected))
+        kept = [item for item in items if item.name.removeprefix("test_") in allowed]
+        config.hook.pytest_deselected(items=[item for item in items if item not in kept])
+        items[:] = kept
+
+
 def _app_package():
     """Prefer the run config package; screens.json is only a fallback if config omitted it."""
     return (CONFIG.get("package_name") or "").strip() or SCREENS[0]["package_name"]
@@ -117,6 +126,7 @@ def appium_driver():
 @pytest.fixture
 def mobile(request, appium_driver):
     case = next(c for c in CASES if "test_" + c["id"] == request.node.name)
+    _append("android_attempts.jsonl", {"id": case["id"], "state": "started"})
     if (RUN / "STOP").exists():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = appium_driver
