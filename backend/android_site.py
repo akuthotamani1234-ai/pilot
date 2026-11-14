@@ -26,6 +26,7 @@ from collections import Counter, deque
 from urllib.parse import urlsplit
 
 from .android import AndroidEnvironmentError
+from .android_coverage import full_run
 from .android_design import normalize_screens
 from .android_interact import (
     SEARCH,
@@ -37,6 +38,7 @@ from .android_interact import (
     assertion_steps,
     build_form,
     describe,
+    family,
     field_kind,
     fill,
     label,
@@ -61,7 +63,7 @@ NOT_SUBMIT = re.compile(r"\b(continue shopping|go shopping|keep shopping|back|ca
 PROTECTED_PATH = re.compile(r"check-?out|payment|place-?order|purchase|billing|delete-?account|close-?account", re.I)
 TEXT_TYPES = {"", "text", "email", "password", "tel", "url", "search", "number", "textarea", "date"}
 MENU_REGIONS = ("nav", "header", "footer")
-MENU_CAP, FOOTER_CAP, CONTROLS_PER_PAGE, PRODUCT_TRIES = 40, 30, 12, 3
+MENU_CAP, FOOTER_CAP, PRODUCT_TRIES = 40, 30, 3
 PURPOSES = (("code", CODE_BOX), ("newsletter", re.compile(r"\b(newsletter|subscribe)\b", re.I)),
             ("friend", re.compile(r"\bfriend\b", re.I)), ("review", re.compile(r"\breview", re.I)),
             ("contact", re.compile(r"\b(contact|enquiry|inquiry|message)\b", re.I)))
@@ -415,7 +417,7 @@ class SiteSession(Session):
             region = entry["region"]
             what = f"{'Footer link' if region == 'footer' else 'Menu entry'} '{nm(entry['element'])}'"
             counts[region] += 1
-            if counts[region] > (FOOTER_CAP if region == "footer" else MENU_CAP):
+            if not full_run(self.device.config) and counts[region] > (FOOTER_CAP if region == "footer" else MENU_CAP):
                 self.cover(region, what, "not tested", f"over the limit of {FOOTER_CAP if region == 'footer' else MENU_CAP} "
                            f"{region} entries checked in one run", where="start page")
                 continue
@@ -448,7 +450,7 @@ class SiteSession(Session):
             return
         self.collect_entries(after, chain, only=links)
         if len(chain) < 3:
-            self.toggle_queue.extend(chain + [toggle] for toggle in nested[:12])
+            self.toggle_queue.extend(chain + [toggle] for toggle in (nested if full_run(self.device.config) else nested[:12]))
         first = (links or nested)[0]
         flow = self.build("menu", f"{what}: '{nm(first)}' appears",
                           steps + [{"action": "assert_visible", "locator": first["locators"][0]}])
@@ -696,7 +698,7 @@ class SiteSession(Session):
                  and label(e) and label(e).casefold() not in known
                  and not any(value in label(e).casefold() for value in private)]
         found = 0
-        for element in fresh[:12]:
+        for element in fresh if full_run(self.device.config) else fresh[:12]:
             reason = self.outside(element) or self.never(element)
             if reason:
                 self.excluded(after, element, reason)
@@ -728,7 +730,7 @@ class SiteSession(Session):
             labels = {label(e).casefold() for e in before.get("elements", []) if usable(e)}
             side = [e for e in after.get("elements", []) if usable(e) and e.get("href") and e.get("region") in ("main", "aside")
                     and label(e) and label(e).casefold() not in labels and not self.outside(e)]
-            for link in side[:8]:
+            for link in side if full_run(self.device.config) else side[:8]:
                 reason = self.never(link)
                 if reason:
                     self.excluded(after, link, reason)
@@ -985,7 +987,7 @@ class SiteSession(Session):
             if (not usable(element) or element.get("class_name") != "select"
                     or (target["id"], element.get("id")) in self.form_boxes):
                 continue
-            key = ("select", element.get("name") or element["locators"][0]["value"])
+            key = ("select", target["id"], element.get("name") or element["locators"][0]["value"])
             if key in self.done:
                 continue
             self.done.add(key)
@@ -997,10 +999,9 @@ class SiteSession(Session):
         return out
 
     def controls(self, target: dict) -> list[dict]:
-        """Buttons, links and filter boxes not yet covered: one per repeated kind, links to new pages first."""
+        """Every distinct eligible control, scoped to its page or dialog."""
         elements = [e for e in target.get("elements", []) if usable(e)]
-        counts = Counter(pattern(e) for e in elements if e.get("clickable"))
-        out, skipped = [], 0
+        out = []
         for element in elements:
             tickable = element.get("input_capable") and element.get("input_type") in ("checkbox", "radio")
             if not (element.get("clickable") and not element.get("input_capable") or tickable):
@@ -1019,31 +1020,13 @@ class SiteSession(Session):
             if reason:
                 self.excluded(target, element, reason)
                 continue
-            href = element.get("href") or ""
-            if href and urlsplit(href).scheme in ("http", "https") and "#" not in href:
-                if page_key(href) in self.pages:
-                    skipped += 1
-                    continue
-                key = ("pattern", pattern(element)) if counts[pattern(element)] >= 3 else ("href", page_key(href))
-            elif counts[pattern(element)] >= 3:
-                key = ("pattern", element.get("class_name"), label(element).casefold()[:40], pattern(element))
-            else:
-                key = ("words", element.get("class_name"), label(element).casefold())
+            key = ("control", target["id"], family(element))
             if key in self.done:
-                skipped += 1
                 continue
             self.done.add(key)
             out.append(element)
         out.sort(key=lambda e: (not (e.get("href") and e.get("region") == "main"), e.get("region") != "main"))
-        if len(out) > CONTROLS_PER_PAGE:
-            self.cover("control", f"{len(out) - CONTROLS_PER_PAGE} more controls on {target['screen_name']}",
-                       "not tested", f"over the limit of {CONTROLS_PER_PAGE} controls tried per page",
-                       where=target["screen_name"])
-        if skipped:
-            self.cover("control", f"{skipped} more controls on {target['screen_name']}", "not tested",
-                       "the same kind as a control already tried, or a link to a page already checked",
-                       where=target["screen_name"])
-        return out[:CONTROLS_PER_PAGE]
+        return out
 
     def has_shop(self) -> bool:
         return self.cart_link() is not None or any(self.main_add(p) or any(
@@ -1063,7 +1046,8 @@ class SiteSession(Session):
             forms = [(t, f) for t in batch for f in self.web_forms(t)]
             forms.sort(key=lambda item: ORDER.get(item[1]["purpose"], 9))
             for target, form in forms:
-                key = ("form", form["purpose"], tuple(sorted(label(b).casefold() for b in form["inputs"])))
+                key = ("form", target["id"], form["submit"]["id"],
+                       tuple(sorted(label(b).casefold() for b in form["inputs"])))
                 if key in self.done:
                     continue
                 self.done.add(key)

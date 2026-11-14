@@ -230,6 +230,7 @@ class Flow(Model):
     authentication: bool = False
     steps: list[Step] = Field(min_length=1, max_length=40)
     setup_flow: str | None = Field(default=None, pattern=ID)
+    backend_checks: list[str] = Field(default_factory=list, max_length=10)
     timeout_s: int = Field(default=90, ge=10, le=300)
 
     @model_validator(mode="after")
@@ -348,6 +349,15 @@ class Contract(Model):
         if len(ids) != len(set(ids)):
             raise ValueError("Flow, rule and backend-check IDs must be unique")
         flow_ids = {f.id for f in self.flows}
+        checks = {check.id: check for check in self.checks}
+        attached = set()
+        for flow in self.flows:
+            for identifier in flow.backend_checks:
+                if identifier not in checks or checks[identifier].setup_flow:
+                    raise ValueError("Attached backend checks must exist and cannot have a setup_flow")
+                if identifier in attached:
+                    raise ValueError("A backend check can attach to only one workflow")
+                attached.add(identifier)
         for item in [*self.flows, *self.rules, *self.checks]:
             if item.setup_flow and item.setup_flow not in flow_ids:
                 raise ValueError("Unknown setup_flow")
@@ -461,13 +471,18 @@ def contract_case_budget(contract, contract_id):
 
 def contract_cases(contract):
     result = []
+    attached = {identifier for flow in contract.flows for identifier in flow.backend_checks}
     for kind, items in (("flow", contract.flows), ("rule", contract.rules), ("backend", contract.checks)):
         for item in items:
+            if kind == "backend" and item.id in attached:
+                continue  # the check runs after its UI workflow, without repeating a mutation
             approved = contract.test_environment and (kind != "flow" or item.approved)
             if getattr(item, "setup_flow", None):
                 approved = approved and all(f.approved for f in flow_chain(contract, item.setup_flow))
             if kind == "flow":
                 expected = "; ".join(step.action + (" = " + step.value if step.value is not None else "") for step in item.steps if step.action.startswith("assert_"))
+                if item.backend_checks:
+                    expected += "; backend checks: " + ", ".join(item.backend_checks)
             elif kind == "rule":
                 expected = "Displayed number = " + item.expression + " (tolerance " + item.tolerance + ")"
             else:

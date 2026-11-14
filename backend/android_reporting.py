@@ -283,7 +283,8 @@ def control_coverage(state: dict, features: dict, cases: list[dict], results: li
             row.update(status="failed", reason=f"{titles.get(failed[0], failed[0])}: {first[0][:200] if first else ''}",
                        screenshot=result.get("screenshot"))
         elif component.get("visibility_checked"):
-            row.update(status="passed", reason="shown as expected (only its presence was checked; it was not used)")
+            row.update(status="not tested", presence_checked=True,
+                       reason="Its presence was checked, but the control was not exercised in a passing functional test.")
         else:
             reason = (unvisited.get(component["element_id"]) or why.get(str(row["name"]).casefold())
                       or ("not reached by the checks of this run" if test_mode else
@@ -361,7 +362,13 @@ def report(state: dict) -> dict:
         "unvisited": state.get("unvisited", []),
     }
     config = state.get("config", {})
+    from .android_features import feature_matrix
+
+    features = feature_matrix(state)
     coverage_reasons = []
+    if features['controls_needing_functional_checks_count']:
+        coverage_reasons.append(f"{features['controls_needing_functional_checks_count']} discovered interactive controls "
+                                "still need passing functional checks")
     if state.get("discovery_issues"):
         coverage_reasons.append("screen discovery reported an issue")
     if state.get("unvisited"):
@@ -388,9 +395,6 @@ def report(state: dict) -> dict:
         for outcome in ("passed", "failed", "error", "blocked", "inconclusive", "skipped")
     }
     screens = state.get("screens", [])
-    from .android_features import feature_matrix
-
-    features = feature_matrix(state)
     summary = {
         "source": state.get("source", "Android application"),
         "url": config.get("start_url") or state.get("source", "Android application"),

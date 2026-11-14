@@ -512,6 +512,8 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("Contract-only mode must be true or false.")
     if not isinstance(config.get("interaction_testing", False), bool):
         raise AndroidEnvironmentError("Test-build mode must be true or false.")
+    if not isinstance(config.get("test_all_discovered", False), bool):
+        raise AndroidEnvironmentError("Test-all-discovered mode must be true or false.")
     if contract.get("test_mode") and not config.get("interaction_testing"):
         # Flows recorded in test mode may press undoable shop actions; they run only when this run is confirmed too.
         raise AndroidEnvironmentError("These flows were recorded in test mode. Tick the test-mode box to run them.")
@@ -973,6 +975,13 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
             owner = parents.get(owner)
         if owner is not None:
             drawer_nodes.update(candidate.iter())
+    dialog_nodes = set()
+    for candidate in root.iter():
+        if (candidate.attrib.get("resource-id") == "android:id/parentPanel"
+                or candidate.attrib.get("class") in ("android.app.Dialog", "android.app.AlertDialog")) and rendered(candidate):
+            dialog_nodes.update(candidate.iter())
+    if dialog_nodes:
+        drawer_nodes.clear()
     # Native tab widgets and React Native bottom bars expose sibling buttons.
     # Require a Home anchor and at least three buttons in the same direct group;
     # a standalone Login/Submit button is never promoted to navigation.
@@ -1046,6 +1055,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 "navigation_role": "tab" if node in tab_nodes or class_name == "android.app.ActionBar$Tab"
                     else "menu_item" if node in drawer_nodes and clickable and kind != "input" else "",
                 "outside_active_drawer": bool(drawer_nodes and node not in drawer_nodes),
+                "outside_active_dialog": bool(dialog_nodes and node not in dialog_nodes),
                 "bounds": attrs.get("bounds"),
                 "within_webview": within_webview,
                 "text_comparable": kind != "input" and len(text) <= 160 and any(c.isalnum() for c in text),
@@ -1117,7 +1127,11 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     signatures = sorted(
         (e["class_name"], e["resource_id"], e["accessibility_id"], e["text"]) for e in elements if e["visible"]
     )
-    first_text = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]), "")
+    def title_text(element):
+        return (element["type"] == "text" and element["visible"] and not element["outside_active_dialog"]
+                and any(char.isalpha() for char in element["text"]))
+
+    first_text = next((e["text"] for e in elements if title_text(e)), "")
     loading = bool(re.fullmatch(r"\s*(?:loading|please wait|starting|splash)[.\s…!]*", first_text, re.I))
     screen_name = first_text or activity or "Android screen"
     containers = sorted({e["accessibility_id"] for e in elements if e["visible"] and e["type"] == "element"
@@ -1130,10 +1144,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     # without the native screen changing.
     # Only text that stays put while the list scrolls (a toolbar title) names the screen: run
     # android_20261109_181718_321078 lost "the same screen" after a scroll because the first visible text had moved.
-    fixed_heading = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]
+    fixed_heading = next((e["text"] for e in elements if title_text(e)
                           and not e["within_webview"] and not e.get("in_scroller")), "")
     scroller = next((e["in_scroller"] for e in elements if e.get("in_scroller")), "")
-    native_heading = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]
+    native_heading = next((e["text"] for e in elements if title_text(e)
                            and not e["within_webview"]), "")
     if identity and fixed_heading and not loading:
         # One scroll-view description can be shared by many screens (My Demo App: "Scrollview manages views in
@@ -1151,7 +1165,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     # forms distinct without putting entered values into the screen identity.
     form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
                          for e in elements if e["input_capable"] and not e["within_webview"]
-                         and not e["outside_active_drawer"])
+                         and not e["outside_active_drawer"] and not e["outside_active_dialog"])
     if form_fields and not drawer_nodes and not loading:
         form_actions = sorted((e["resource_id"] or e["accessibility_id"], e["text"].casefold())
                               for e in elements if e["clickable"] and not e["input_capable"]
@@ -1166,7 +1180,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         screen_name = "Navigation menu"
         identity = ["drawer", *sorted({e["accessibility_id"] for e in elements if not e["outside_active_drawer"] and e["accessibility_id"]})]
     if any(e["visible"] and e["resource_id"] in ("android:id/alertTitle", "android:id/parentPanel") for e in elements):
-        identity = ["dialog", *identity]
+        identity = ["dialog", first_text.casefold()[:120], *identity]
     fingerprint = json.dumps(signatures, ensure_ascii=True, separators=(",", ":"))
     return {
         "platform": "android",
@@ -1232,6 +1246,7 @@ def safe_navigation_elements(screen: dict) -> list[dict]:
         if (
             element.get("visible")
             and not element.get("outside_active_drawer")
+            and not element.get("outside_active_dialog")
             and element.get("enabled")
             and element.get("clickable")
             and not element.get("input_capable")

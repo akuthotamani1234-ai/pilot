@@ -21,6 +21,7 @@ from tests.test_android_site import VirtualClock
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mda_screens_20261109_170355.json"
 CONFIG = {"app_mode": "installed", "package_name": PACKAGE, "device_id": "emulator-5554", "interaction_testing": True,
+          "test_all_discovered": True,
           "max_actions": 60, "max_screens": 40, "discovery_timeout_s": 600, "max_depth": 3, "max_interactions": 400,
           "interaction_timeout_s": 3600}
 
@@ -203,7 +204,7 @@ def test_products_quantity_and_the_cart_are_used_like_a_user(run):
     assert "The cart lists 'Sauce Labs Backpack' after Add To Cart" in titles
     assert any(t.startswith("Tap 'Remove Item'") and "'No Items' appears" in t for t in titles)
     assert any(t.startswith("Tap 'Go Shopping' on No Items") for t in titles)
-    assert sum(t.startswith("Tap 'start") for t in titles) == 1  # one rating star stands for all
+    assert {t.split("'")[1] for t in titles if t.startswith("Tap 'start")} == {f"start{i}IV" for i in range(1, 6)}
 
 
 def test_every_sort_option_is_tried_and_must_change_the_order(run):
@@ -257,7 +258,7 @@ def test_kept_flows_become_readable_tests_and_every_control_is_listed(run):
 
 def test_a_run_that_runs_out_of_time_says_so_with_what_was_not_reached(tmp_path):
     from backend.android_reporting import early_stop
-    result = explore(tmp_path, FakeDemoApp(), max_interactions=6)
+    result = explore(tmp_path, FakeDemoApp(), max_interactions=6, test_all_discovered=False)
     assert result["interaction"]["stopped"] == "User-like test limit reached"
     assert "planned checks were not reached" in early_stop(result)
 
