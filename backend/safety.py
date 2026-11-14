@@ -277,7 +277,7 @@ def guard_context(context, scope: Scope, blocked: list) -> None:
 def secret_values(include_username: bool = False) -> list[str]:
     """The secret values known to this process (from the environment), longest first."""
     names = SECRET_ENV + (("TEST_USERNAME",) if include_username else ())
-    names += tuple(k for k in os.environ if k.startswith("BLOWAI_SECRET_"))
+    names += tuple(k for k in os.environ if k.startswith(("QPILOT_SECRET_", "BLOWAI_SECRET_")))
     vals = {os.environ.get(n, "") for n in names}
     try:
         worker_inputs = json.loads(os.environ.get("ANDROID_CONTRACT_INPUTS", "{}"))
@@ -366,7 +366,8 @@ def redact_json(data, values: list[str] | None = None, include_username: bool = 
 def clean_env(env: dict, keep_test_account: bool = False) -> dict:
     """A copy of the environment without API keys / tokens (and without the test account unless needed).
     Used for the generated tests and for apps started from a GitHub repo or folder."""
-    out = {k: v for k, v in env.items() if k not in API_KEY_ENV and not k.startswith(("BLOWAI_SECRET_", "BLOWAI_DB_"))}
+    out = {k: v for k, v in env.items() if k not in API_KEY_ENV and
+           not k.startswith(("QPILOT_SECRET_", "QPILOT_DB_", "BLOWAI_SECRET_", "BLOWAI_DB_"))}
     out.pop("ANDROID_CONTRACT_INPUTS", None)
     out.pop("TEST_ACCOUNTS", None)  # (the role tests use the saved logins of the roles - never their passwords)
     if not keep_test_account:

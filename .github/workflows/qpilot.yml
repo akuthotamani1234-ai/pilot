@@ -1,4 +1,4 @@
-# Continuous testing: runs Blow AI against your website after a push, after a deployment, every day, or by hand.
+# Continuous testing: runs Qpilot against your website after a push, after a deployment, every day, or by hand.
 #
 # Set up once (repository Settings -> Secrets and variables -> Actions):
 #   Variables: QA_URL (the website to test), optional LLM_PROVIDER (openai / gemini / anthropic; default: none = no AI),
@@ -8,9 +8,9 @@
 # Trigger after a deployment from another repository / your deploy script:
 #   POST https://api.github.com/repos/<owner>/<repo>/dispatches  {"event_type": "deployed", "client_payload": {"url": "https://..."}}
 # The job fails when the verdict is 'Not Ready' or 'Insufficient Evidence' (main.py --exit-code). The report, the
-# Excel test cases and the evidence are attached to the workflow run (artifact 'blow-ai-report').
+# Excel test cases and the evidence are attached to the workflow run (artifact 'qpilot-report').
 # Until QA_URL is set (or a url is given), the job is skipped: a push of the tester's own code then only runs ci.yml.
-name: Blow AI
+name: Qpilot
 
 on:
   workflow_dispatch:
@@ -88,7 +88,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: blow-ai-report
+          name: qpilot-report
           path: |
             runs/*/report.html
             runs/*/summary.json

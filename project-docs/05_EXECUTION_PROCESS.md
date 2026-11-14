@@ -2,7 +2,7 @@
 
 # ⚙️ Execution Process
 
-### Blow AI – From "Paste a Link" to "Final Report"
+### Qpilot – From "Paste a Link" to "Final Report"
 
 | **Version** | 1.0 |
 |---|---|
@@ -171,7 +171,7 @@ cd runs\<site>_<time>\generated_tests
 
 ### 6.1 Terminal Commands
 ```powershell
-cd blow-ai
+cd qpilot
 .venv\Scripts\python.exe main.py https://the-internet.herokuapp.com --max-pages 15
 .venv\Scripts\python.exe main.py <source> --show-browser        # watch the browser
 .venv\Scripts\python.exe main.py <source> --fresh               # forget the last run

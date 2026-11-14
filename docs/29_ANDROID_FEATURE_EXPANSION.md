@@ -1,8 +1,9 @@
 # Android functional testing: added features and your next run
 
-The latest additions have unit, protocol and mocked-browser checks. **Live
-execution of these additions is deferred at your request.** A built APK is
-available for your own run; compilation does not prove its tests pass.
+This historical expansion checkpoint records its unit, protocol and mocked-browser checks. **Live execution was
+deferred at that checkpoint.** See [STATUS](../STATUS.md) for current verification and
+[the coverage workspace](33_ANDROID_COVERAGE_WORKSPACE.md) for later features. A built APK, when retained locally,
+is available for your own run; compilation does not prove its tests pass.
 The earlier live evidence is recorded separately in
 [the reliability audit](28_APPIUM_RELIABILITY_AUDIT.md).
 
@@ -50,7 +51,7 @@ The earlier live evidence is recorded separately in
 
 ## Start the studio
 
-1. Finish or stop any existing job. Restart the Blow AI terminal and double-click
+1. Finish or stop any existing job. Restart the Qpilot terminal and double-click
    **ui.bat** so the server loads the latest code. Keep its terminal open.
 2. Select **Android testing — Appium**, then **Standard testing**.
 3. Refresh device status. Select `blowai-api36` (automatic emulator start) or an
@@ -96,7 +97,7 @@ and locators need their own configuration; a WebdriverIO sample is app-specific.
 4. Enter a disposable test email such as `blowai-demo@example.test` in the private
    test-username field and a disposable password of at least eight characters
    in the private test-password field. These supply
-   `BLOWAI_SECRET_TEST_USERNAME` and `BLOWAI_SECRET_TEST_PASSWORD` for this run.
+   `QPILOT_SECRET_TEST_USERNAME` and `QPILOT_SECRET_TEST_PASSWORD` for this run.
    WebdriverIO's sample login/signup uses local demo alerts, not a real account backend.
 5. Tick **Run only the configured test flows and business checks**. Set Maximum
    test cases to at least **33**. The configured flows have their own bounded
@@ -121,7 +122,7 @@ must be investigated; it is not evidence of a product defect by itself.
 2. Choose `demo-apps/blow-ai-controlled-demo-v1.2.apk`.
    Its offline build and checksum are recorded in `demo-apps/controlled-apk-build.json`.
    It has not been installed or live tested after these additions.
-3. In Advanced settings, load **Blow AI fixture — protected flows and safe previews**.
+3. In Advanced settings, load **Qpilot fixture — protected flows and safe previews**.
 4. Enter **demo** and **demo123** in the private test-account fields.
 5. Enable configured-flows-only and set Maximum test cases to at least **7**.
 6. Review authorization, start the test and review every actual outcome.

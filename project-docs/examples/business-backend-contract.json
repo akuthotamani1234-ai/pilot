@@ -63,7 +63,7 @@
       "title": "Read-only database confirms expected cart total",
       "kind": "sqlite",
       "setup_flow": "open_cart",
-      "database_ref": "BLOWAI_DB_QA",
+      "database_ref": "QPILOT_DB_QA",
       "query": "SELECT total FROM cart WHERE cart_id = ?",
       "parameters": [
         "qa-cart"

@@ -12,6 +12,9 @@ files at `/static/...` and the page at http://127.0.0.1:8000/.
 | `execution.js` | durable live-event timeline, cursor recovery and follow controls |
 | `repository.js` | selected findings, asynchronous AI preparation, reviewed diffs and pull-request publication |
 | `workspace.js` | navigation between setup, execution, results and repository review |
+| `workflow.js` | platform/workflow selection, privacy consent, assistant presence and prepared-request preview |
+| `mcp-settings.js` | moves the existing configuration controls into MCP setup; stages private settings locally and copies only an expiring reference |
+| `contract-builder.js`, `android-scenarios.js` | guided approved flows, read-only API/SQLite checks and reviewed Android scenario drafts |
 
 The page loads its fonts from Google Fonts. Without internet it still works, with the PC's own fonts.
 
@@ -23,6 +26,8 @@ Only through the JSON API of `backend/server.py`:
 | `GET /api/check?source=...` | is the website reachable (title, HTTP status, load time) |
 | `GET /api/providers` | which AI providers and models can be chosen, and which keys exist in `.env` |
 | `POST /api/runs` | start a run (the settings of the form) |
+| `POST /api/settings/mcp-requests`, `DELETE /api/settings/mcp-requests/{id}` | Studio-only preparation/revocation of private MCP configurations; does not start testing |
+| `POST /api/mcp/prepared/{id}/start` | assistant starts the exact reviewed configuration with explicit permission |
 | `GET /api/android/environment` | check installed Android tools and devices without starting them; `can_prepare` allows stopped Appium/emulators |
 | `POST /api/android/prepare` | authorized local setup: `stage=appium`, then `stage=device`; omitted stage prepares both |
 | `GET /api/runs/{job}` | the live progress: log lines, stages, pages |
@@ -53,6 +58,12 @@ Standard Android testing prepares Appium and the selected device sequentially, d
 time with controls disabled. It submits `/api/mobile/runs` only after preparation succeeds, using the returned real
 device serial. Preparation errors preserve the entered settings and let the user retry. Mode selection and refresh
 remain read-only. Missing installations and unauthorized physical phones still require user setup.
+
+MCP setup reuses these controls and launchers. Web configuration opens the existing account/provider/advanced form;
+Android configuration moves the existing provider and advanced controls rather than creating duplicate IDs. Prepared
+settings remain in server memory for 15 minutes. Passwords, usernames, keys and authenticator secrets are excluded
+from copied text and cleared from input fields after preparation. Editing settings revokes the reference.
+See [MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md) for lifecycle and compatibility details.
 
 ## Rules for changing the page
 - Show text from a website or a run only through the escape helper (`esc(...)`): it may contain HTML.

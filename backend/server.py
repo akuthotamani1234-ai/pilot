@@ -115,7 +115,7 @@ def _worker_privacy(env, provider=None, expected_mode=None):
 async def local_only(request: Request, call_next):
     """Only answer on 127.0.0.1 / localhost, and every change (POST / DELETE) needs the X-Agentic-QA header -
     browsers can't send that header from another website, so other sites can't start, stop or delete tests."""
-    mcp_request = request.headers.get("x-blowai-client") == "mcp"
+    mcp_request = request.headers.get("x-qpilot-client", request.headers.get("x-blowai-client")) == "mcp"
     if mcp_request:
         control = request.url.path in {"/api/mcp/info", "/api/mcp/heartbeat"}
         if request.url.path.startswith("/api/settings/"):
@@ -460,7 +460,7 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
 
 def _ui_asset_digests() -> dict[str, str]:
     names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css", "qpilot.css",
-             "execution.js", "repository.js", "workspace.js", "android-workspace.js", "android-scenarios.js")
+             "execution.js", "repository.js", "workspace.js", "android-workspace.js", "android-scenarios.js", "mcp-settings.js")
     return {name: hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12] for name in names}
 
 
@@ -517,7 +517,7 @@ def check_source(source: str):
         r, hop = None, url
         for _ in range(6):
             r = requests.get(hop, timeout=12, allow_redirects=False, stream=True,
-                             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) BlowAI/1.0"})
+                             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Qpilot/1.0"})
             if not r.is_redirect:
                 break
             hop = urljoin(hop, r.headers.get("location", ""))
@@ -1010,8 +1010,10 @@ async def start_mobile_run(
         env[KEY_ENV[llm_provider]] = api_key.strip()
     if test_username:
         env['BLOWAI_SECRET_TEST_USERNAME'] = test_username
+        env['QPILOT_SECRET_TEST_USERNAME'] = test_username
     if test_password:
         env['BLOWAI_SECRET_TEST_PASSWORD'] = test_password
+        env['QPILOT_SECRET_TEST_PASSWORD'] = test_password
     from .qa_contracts import parse_contract
     from .qa_oracles import resolve_private_inputs
     try:
@@ -1865,6 +1867,11 @@ from backend.mcp_api import register_mcp_api  # noqa: E402 - register views afte
 register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence)
 register_privacy_api(app, jobs, lock, mcp_presence,
                      lambda: any(r.get("running") for r in rechecks.values()))
+
+from backend.mcp_prepared import register_prepared_api  # noqa: E402 - uses existing start handlers
+
+register_prepared_api(app, RunRequest, start_run, start_mobile_run, prepare_android_device,
+                      AndroidPrepareRequest, _privacy_provider, key_provider, KEY_ENV)
 
 
 if __name__ == "__main__":

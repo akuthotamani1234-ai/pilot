@@ -1,4 +1,4 @@
-# Testing with Appium in Blow AI
+# Testing with Appium in Qpilot
 
 Start the product by double-clicking `ui.bat`. Choose Android/Appium, then Standard testing or your approved
 MCP workflow. Select a connected emulator/device and upload an APK or enter its installed package.

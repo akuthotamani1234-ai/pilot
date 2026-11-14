@@ -1,4 +1,4 @@
-# Contributing to Blow AI
+# Contributing to Qpilot
 
 How to set up the code, check a change and hand it in. What the tool does and how to use it is in
 [README.md](README.md); how the code is built is in [backend/README.md](backend/README.md) and
@@ -8,8 +8,8 @@ How to set up the code, check a change and hand it in. What the tool does and ho
 Windows 10 / 11 with Python 3.13 (see [README, Requirements](README.md#1-requirements)).
 
 ```powershell
-git clone <repository-url> blow-ai
-cd blow-ai
+git clone <repository-url> qpilot
+cd qpilot
 setup\install.bat                                                  # .venv, packages, Chromium, .env from .env.example
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt   # + ruff (checker), vulture, httpx (server tests)
 ```
@@ -25,7 +25,7 @@ setup\install.bat                                                  # .venv, pack
 - The checker's rules are in `pyproject.toml`: errors, likely bugs (bugbear), security (bandit), sorted imports and
   modern syntax. `ruff check . --fix` fixes the simple ones. A deliberate exception is a `# noqa: <rule>` with its
   reason on the same line.
-- The whole suite (330 tests, one to two hours or more on a 16 GB laptop) is for changes to the pipeline itself:
+- The whole suite (runtime depends on selected tests and local resources) is for changes to the pipeline itself:
   `.venv\Scripts\python.exe -m pytest -q -n 3 --dist loadfile`. Don't edit `backend/` while it runs: its tests start
   fresh `main.py` processes that would mix two versions of the code.
 - Unused code: `.venv\Scripts\python.exe -m vulture backend main.py --min-confidence 60`. Check every hit by hand:

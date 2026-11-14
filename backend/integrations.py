@@ -9,7 +9,7 @@
 Only APPLICATION DEFECTS are sent - never a test-script / automation problem, an inconclusive result or a visual
 change. Whatever happens (no network, a wrong token), the run is not affected: the outcome is in integrations.json.
 
-Continuous testing: .github/workflows/blow-ai.yml runs the tester after a push / a deployment (main.py --exit-code
+Continuous testing: .github/workflows/qpilot.yml runs the tester after a push / a deployment (main.py --exit-code
 fails the job when the verdict is 'Not Ready'), and POST /api/hooks/run (WEBHOOK_TOKEN) starts a run in the open UI
 from a deploy script (backend/server.py).
 """
@@ -150,7 +150,7 @@ def create_jira_issues(state: QAState, failures: list[dict]) -> dict:
         summary, text = issue_text(f, state)
         r = s.post(f"{settings.jira_url}/rest/api/2/issue", timeout=30, json={"fields": {
             "project": {"key": settings.jira_project}, "summary": summary, "description": text,
-            "issuetype": {"name": settings.jira_issue_type}, "labels": ["blow-ai", f"severity-{f.get('severity')}"]}})
+            "issuetype": {"name": settings.jira_issue_type}, "labels": ["qpilot", f"severity-{f.get('severity')}"]}})
         if r.status_code >= 300:
             errors.append(f"HTTP {r.status_code}: {redact(r.text[:200])}")
             if r.status_code in (401, 403, 404):  # wrong token / project / address: every other one fails the same way

@@ -1,6 +1,6 @@
 # Approved functional flows, backend oracles and QA accuracy
 
-Blow AI uses Python for these features. The Java application under tests/android_demo is a controlled Android fixture,
+Qpilot uses Python for these features. The Java application under tests/android_demo is a controlled Android fixture,
 separate from the reusable framework and generated customer tests.
 
 ## What is implemented
@@ -15,7 +15,7 @@ separate from the reusable framework and generated customer tests.
 | Demonstration | /qa-lab builds an evidence presentation from actual saved runs and user-supplied ground truth |
 
 These are framework features. Each application needs its own locators, approved account references and expected behavior.
-Blow AI does not invent domain rules, credentials, API endpoints or database connections.
+Qpilot does not invent domain rules, credentials, API endpoints or database connections.
 
 ## Configure the same contract in web or Android mode
 
@@ -46,19 +46,19 @@ enable their approvals. They contain placeholder application selectors; replace 
 Store account values in the server process environment or the existing local .env, never in the JSON contract:
 
 ~~~powershell
-$env:BLOWAI_SECRET_LOGIN_USERNAME = "<approved test username>"
-$env:BLOWAI_SECRET_LOGIN_PASSWORD = "<approved test password>"
-$env:BLOWAI_DB_QA = "C:\QA\test-data.sqlite"
+$env:QPILOT_SECRET_LOGIN_USERNAME = "<approved test username>"
+$env:QPILOT_SECRET_LOGIN_PASSWORD = "<approved test password>"
+$env:QPILOT_DB_QA = "C:\QA\test-data.sqlite"
 .\ui.bat
 ~~~
 
 The example contracts contain only secret_ref names. Password-like inputs reject inline values. Runtime input
 contents are omitted from screenshots and generated code; filled forms are not captured. Approved credential values
 are passed only to the trusted Android worker through its process environment; no credential file is written. These values
-are redacted from the framework's logs and results. Generated workers do not inherit API keys or BLOWAI_SECRET_
+are redacted from the framework's logs and results. Generated workers do not inherit API keys or QPILOT_SECRET_
 environment values. The selected Appium server must also be configured appropriately for handling test credentials.
 
-Database paths are configured by the machine operator using BLOWAI_DB_ variables. The UI accepts only a reference,
+Database paths are configured by the machine operator using QPILOT_DB_ variables. The UI accepts only a reference,
 not an arbitrary server-side database path. SQLite connections use mode=ro, query_only, a SELECT-only authorizer,
 disabled extension loading, a progress deadline and evidence-size limits. Queries are parameterized. This release
 supports SQLite; direct PostgreSQL, SQL Server and MySQL connections are not implemented.
@@ -90,7 +90,7 @@ The Android application must expose a debuggable Chrome-based WebView. Use an Ap
 matches that WebView's version. Configure its executable on the same machine:
 
 ~~~powershell
-$env:BLOWAI_CHROMEDRIVER = "C:\QA\chromedriver.exe"
+$env:QPILOT_CHROMEDRIVER = "C:\QA\chromedriver.exe"
 ~~~
 
 Automatic binary downloading and arbitrary executable paths from an API request are not enabled. The adapter selects

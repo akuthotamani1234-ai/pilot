@@ -15,7 +15,7 @@
     <div class="fields"><label>Run this setup flow first<select id="flowSetup"><option value="">Start from the launch screen</option></select></label><label>Flow timeout (seconds)<input id="flowTimeout" type="number" min="10" max="300" value="90" required></label></div>
     <label>Approved WebView origins (optional)<input id="flowOrigins" placeholder="https://your-test-site.example, one origin per line"></label>
     <div id="flowSteps"></div><button type="button" class="secondary" id="flowAdd">Add step</button>
-    <p class="note">For passwords or tokens, enter a reference such as <code>secret:BLOWAI_SECRET_TEST_PASSWORD</code>. Configure its value privately in the test environment. Do not type passwords here.</p>
+    <p class="note">For passwords or tokens, enter a reference such as <code>secret:QPILOT_SECRET_TEST_PASSWORD</code>. Configure its value privately in the test environment. Do not type passwords here.</p>
     <label class="tick"><input type="checkbox" id="flowAuth">This flow verifies login (requires a submission and a result assertion)</label>
     <label class="tick"><input type="checkbox" id="flowApproved">I approve this flow and its test data</label>
     <label class="tick"><input type="checkbox" id="flowEnvironment">This is an approved test environment</label>
@@ -40,7 +40,7 @@
       <label class="flow-wide flow-locator-field">Locator<input class="flow-locator" maxlength="500" placeholder="${web?"#username":"Observed unique locator"}"></label>
       <label class="flow-target-field">Destination locator type<select class="flow-target-strategy">${strategies.map(s=>`<option>${s}</option>`).join("")}</select></label>
       <label class="flow-wide flow-target-field">Destination locator<input class="flow-target" maxlength="500" placeholder="Target control for drag or scroll-to"></label>
-      <label class="flow-wide flow-value-field">Test value or expected result<input class="flow-value" maxlength="1000" autocomplete="off" placeholder="Expected text, dropdown value, or secret:BLOWAI_SECRET_..."></label>
+      <label class="flow-wide flow-value-field">Test value or expected result<input class="flow-value" maxlength="1000" autocomplete="off" placeholder="Expected text, dropdown value, or secret:QPILOT_SECRET_..."></label>
       <label class="flow-permission-field">Android permission<select class="flow-permission">${permissionNames.map(p=>`<option value="android.permission.${p}">${p}</option>`).join("")}</select></label>
       <label class="flow-wide flow-permissions-field">All permissions requested together (optional)<input class="flow-permissions" maxlength="700" placeholder="Comma-separated full Android permission names, including the selected one"></label>
       <label class="flow-purpose-field">Click purpose<select class="flow-purpose"><option value="navigation">Navigation</option><option value="test_form">Approved form or test-data action</option></select></label>
@@ -56,7 +56,7 @@
       show('purpose', selected === 'tap');
       show('value', ['fill','select','assert_text','assert_screen','assert_enabled','assert_checked','context','swipe','scroll_to','permission_state','handle_permission','assert_permission','rotate','background','open','assert_alert'].includes(selected));
       const hint = row.querySelector('.flow-value');
-      hint.placeholder = selected === 'open' ? 'https:// address of a page on the approved website' : selected === 'assert_alert' ? 'Expected browser message, for example Product added.' : selected === 'rotate' ? 'portrait or landscape' : selected === 'background' ? 'seconds in the background (1-30)' : selected === 'context' ? 'native or webview' : ['swipe','scroll_to'].includes(selected) ? 'up, down, left or right' : selected === 'handle_permission' ? 'allow_while_using, allow_once, allow or deny' : ['permission_state','assert_permission'].includes(selected) ? 'granted or denied' : ['assert_checked','assert_enabled'].includes(selected) ? 'true or false' : 'Expected value, or secret:BLOWAI_SECRET_...';
+      hint.placeholder = selected === 'open' ? 'https:// address of a page on the approved website' : selected === 'assert_alert' ? 'Expected browser message, for example Product added.' : selected === 'rotate' ? 'portrait or landscape' : selected === 'background' ? 'seconds in the background (1-30)' : selected === 'context' ? 'native or webview' : ['swipe','scroll_to'].includes(selected) ? 'up, down, left or right' : selected === 'handle_permission' ? 'allow_while_using, allow_once, allow or deny' : ['permission_state','assert_permission'].includes(selected) ? 'granted or denied' : ['assert_checked','assert_enabled'].includes(selected) ? 'true or false' : 'Expected value, or secret:QPILOT_SECRET_...';
       refreshPermissionSettings();
     };
     row.querySelector('.flow-action').onchange = refresh;
@@ -199,6 +199,6 @@
       };
     });
   }
-  new MutationObserver(mount).observe(document.getElementById("thread"), {childList:true,subtree:true});
+  new MutationObserver(mount).observe(document.querySelector('.chat') || document.getElementById("thread"), {childList:true,subtree:true});
   mount();
 })();

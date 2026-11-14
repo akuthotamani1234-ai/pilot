@@ -3,7 +3,7 @@
     <application
         android:usesCleartextTraffic="true"
         android:allowBackup="false"
-        android:label="Blow Android QA Demo"
+        android:label="Qpilot Android QA Demo"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"

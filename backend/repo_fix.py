@@ -249,7 +249,7 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
     repo = plan["repo"]
     base = _gh("GET", f"/repos/{repo}", token)["default_branch"]
     sha = _gh("GET", f"/repos/{repo}/git/ref/heads/{base}", token)["object"]["sha"]
-    branch = f"blow-ai/fixes-{run_id[-15:]}".replace(":", "-")
+    branch = f"qpilot/fixes-{run_id[-15:]}".replace(":", "-")
     _gh("POST", f"/repos/{repo}/git/refs", token, json={"ref": f"refs/heads/{branch}", "sha": sha})
 
     sent, stale = [], []

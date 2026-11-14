@@ -1,6 +1,6 @@
 # deep_validation/
 
-Compact live-validation notes for Blow AI.
+Compact live-validation notes for Qpilot.
 
 | Path | Purpose |
 | --- | --- |

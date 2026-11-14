@@ -148,5 +148,5 @@ using them as verification evidence.
 
 Apps are installed separately on each emulator. The same downloaded APK can be
 used again on a new emulator. After installation, choose the installed-app method
-on that same emulator. Stop a test in Blow AI before closing its emulator or
+on that same emulator. Stop a test in Qpilot before closing its emulator or
 stopping the Appium server.

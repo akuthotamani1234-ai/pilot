@@ -14,7 +14,7 @@
             "strategy": "resource_id",
             "value": "com.example.app:id/username"
           },
-          "secret_ref": "BLOWAI_SECRET_LOGIN_USERNAME"
+          "secret_ref": "QPILOT_SECRET_LOGIN_USERNAME"
         },
         {
           "action": "fill",
@@ -22,7 +22,7 @@
             "strategy": "resource_id",
             "value": "com.example.app:id/password"
           },
-          "secret_ref": "BLOWAI_SECRET_LOGIN_PASSWORD"
+          "secret_ref": "QPILOT_SECRET_LOGIN_PASSWORD"
         },
         {
           "action": "tap",

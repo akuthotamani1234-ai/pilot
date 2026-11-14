@@ -1,4 +1,4 @@
-# Blow AI — Copilot / assistant instructions
+# Qpilot — Copilot / assistant instructions
 
 These instructions mirror `ARCHITECTURE.md`. Follow them for every suggestion in this repository.
 

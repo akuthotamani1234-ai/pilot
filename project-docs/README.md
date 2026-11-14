@@ -1,12 +1,12 @@
 <div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
 
-# 📚 Blow AI – Project Documents
+# 📚 Qpilot – Project Documents
 
 ### All project documents in one place
 
 | **Version** | 1.0 |
 |---|---|
-| **Date** | Oct 23, 2026 (all documents checked against the code Nov 4, 2026) |
+| **Date** | Created Oct 23, 2026; documentation reviewed Nov 14, 2026 |
 
 ---
 
@@ -21,8 +21,14 @@
 7. **[Architecture & Demo](09_ARCHITECTURE_AND_DEMO.md)** – architecture, status and a demo of the core loop (written Oct 27 for a review; status and limits kept current)
 8. **[Reliable Results](11_RELIABLE_RESULTS.md)** – one feature per test, reconciled report numbers, the AutomationTestStore baseline and its fixes, measured before and after (a dated record of Oct 28: its numbers are not updated)
 
-The file numbers have gaps (07, 08, 10, 12, 13): those were history documents, deleted on Nov 2 and 3, 2026. The
-README and the git history replace them.
+9. **[Android](12_ANDROID.md)** – native APK, installed-package and Android Chrome setup and evidence
+10. **[Advanced QA](13_ADVANCED_QA.md)** – approved flows, business rules, API/SQLite checks and accuracy
+11. **[Component inventory](14_PAGE_COMPONENT_INVENTORY.md)** – observed page and nested-control inventory
+12. **[Current MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md)** – shared settings and private requests
+
+Numbers 07, 08 and 10 are historical gaps. Current implementation and verification live in
+[STATUS](../STATUS.md); the [documentation review](../docs/35_DOCUMENTATION_REVIEW.md) distinguishes current guides
+from dated evidence.
 
 ## 2. Where to Start
 
