@@ -28,6 +28,8 @@ RISKY_ACTION = re.compile(
     r"crash|force close)\b",
     re.I,
 )
+# Emergency wall-clock when discovery_timeout_s / interaction_timeout_s is 0 (until exhausted).
+EXHAUSTIVE_WALL_CLOCK_S = 6 * 60 * 60
 
 
 def repeat_family(element: dict):
@@ -425,29 +427,26 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("Select a connected Android device.")
     server_url = _local_appium_url(config.get("appium_url") or DEFAULT_APPIUM_URL)
     try:
-        max_screens = int(config.get("max_screens", 40))
-        max_actions = int(config.get("max_actions", 60))
+        # 0 = until exhausted (no soft screen/action budget); hard max still applies when > 0.
+        max_screens = int(config.get("max_screens", 0))
+        max_actions = int(config.get("max_actions", 0))
     except (TypeError, ValueError) as e:
         raise AndroidEnvironmentError("Exploration limits must be whole numbers.") from e
-    if not 1 <= max_screens <= 100 or not 0 <= max_actions <= 200:
-        raise AndroidEnvironmentError("Exploration limits must be 1-100 screens and 0-200 actions.")
+    if not 0 <= max_screens <= 100 or not 0 <= max_actions <= 200:
+        raise AndroidEnvironmentError("Exploration limits must be 0-100 screens and 0-200 actions (0 = until exhausted).")
     limits = {}
     for key, default, low, high in (
-        ("max_depth", 5, 0, 10),
-        ("discovery_timeout_s", 600, 10, 900),
+        # 0 depth / timeout / interactions = until exhausted (emergency wall-clock applied in the pipeline)
+        ("max_depth", 0, 0, 10),
+        ("discovery_timeout_s", 0, 0, 900),
         ("command_timeout_s", 60, 10, 120),
         ("session_timeout_s", 300, 60, 300),
         ("max_test_cases", 300, 1, 300),
-        ("max_scroll_actions", 30, 0, 100),
-        ("max_scrolls_per_screen", 4, 0, 12),
-        # Native discovery: controls explored per screen (menu items and tabs first); the rest are listed
-        ("max_candidates_per_screen", 12, 1, 100),
-        # User-like testing of a test build or test website: tries (probe + replay each count) and its own time
-        # budget. The defaults cover a demo shop such as nopCommerce (about 10 menu entries, 20 footer links and the
-        # shop's features); the maximums keep every run finite so it always ends with a report.
-        ("max_interactions", 300, 0, 500),
-        ("interaction_timeout_s", 2700, 30, 3600),
-        # A website's bot check: how long to wait for it to finish by itself, then for a person to complete it
+        ("max_scroll_actions", 0, 0, 100),
+        ("max_scrolls_per_screen", 0, 0, 12),
+        ("max_candidates_per_screen", 0, 0, 100),
+        ("max_interactions", 0, 0, 500),
+        ("interaction_timeout_s", 0, 0, 3600),
         ("bot_check_wait_s", 30, 0, 120),
         ("human_wait_s", 180, 0, 900),
     ):
@@ -456,7 +455,7 @@ def validate_mobile_config(config: dict) -> dict:
         except (TypeError, ValueError) as e:
             raise AndroidEnvironmentError(f"{key} must be a whole number.") from e
         if not low <= value <= high:
-            raise AndroidEnvironmentError(f"{key} must be between {low} and {high}.")
+            raise AndroidEnvironmentError(f"{key} must be between {low} and {high} (0 = until exhausted where allowed).")
         limits[key] = value
     expectations = config.get("expected_destinations") or {}
     if isinstance(expectations, str):
@@ -519,6 +518,27 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("These flows were recorded in test mode. Tick the test-mode box to run them.")
     if config.get("contract_only") and not any(contract[k] for k in ("flows", "rules", "checks")):
         raise AndroidEnvironmentError("Contract-only mode needs at least one configured check.")
+    thorough = bool(config.get("thorough", False))
+    if thorough:
+        # Thorough with soft budgets still set: raise floors. With 0 (= until exhausted), leave as exhaustive.
+        if max_screens:
+            max_screens = max(max_screens, 80)
+        if max_actions:
+            max_actions = max(max_actions, 150)
+        if limits["max_depth"]:
+            limits["max_depth"] = max(limits["max_depth"], 8)
+        if limits["discovery_timeout_s"]:
+            limits["discovery_timeout_s"] = max(limits["discovery_timeout_s"], 900)
+        if limits["max_scroll_actions"]:
+            limits["max_scroll_actions"] = max(limits["max_scroll_actions"], 60)
+        if limits["max_scrolls_per_screen"]:
+            limits["max_scrolls_per_screen"] = max(limits["max_scrolls_per_screen"], 8)
+        if limits["max_candidates_per_screen"]:
+            limits["max_candidates_per_screen"] = max(limits["max_candidates_per_screen"], 24)
+        if limits["max_interactions"]:
+            limits["max_interactions"] = max(limits["max_interactions"], 500)
+        if limits["interaction_timeout_s"]:
+            limits["interaction_timeout_s"] = max(limits["interaction_timeout_s"], 3600)
     return {
         **config,
         "qa_contract": contract,
@@ -533,6 +553,7 @@ def validate_mobile_config(config: dict) -> dict:
         "appium_url": server_url,
         "max_screens": max_screens,
         "max_actions": max_actions,
+        "thorough": thorough,
         "verify_observed_navigation": bool(config.get("verify_observed_navigation", True)),
     }
 

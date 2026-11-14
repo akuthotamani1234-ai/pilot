@@ -14,6 +14,7 @@ The MCP Android start tool exposes the same `test_all_discovered` setting. It ta
 confirmed `test_build=true`; it does not authorize test-build interactions by itself.
 
 Stop, time limits, selected discovery depth/screens/actions, external-target scope, and action guards still apply.
+Zero discovery soft caps mean until no new eligible controls remain; emergency phase and run-time guards still apply.
 Menus, permissions, payments, account deletion, reset/crash buttons and other protected actions retain their rules.
 Full coverage is a request to test discovered work, not a guarantee of infinite exploration or every business rule.
 Unknown expectations require requirements or configured checks. The report must retain real failures and gaps.

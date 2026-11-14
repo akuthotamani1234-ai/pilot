@@ -13,7 +13,7 @@ from .safety import check_target, is_metadata_host
 
 ID = r"^[A-Za-z][A-Za-z0-9_-]{0,63}$"
 SECRET_REF = r"^BLOWAI_SECRET_[A-Z0-9_]{1,80}$"  # noqa: S105 - environment reference pattern, not a credential
-# Explicit test approval never permits irreversible actions.
+# Approved workflows retain protected-action rules in every exploration mode.
 IRREVERSIBLE = re.compile(
     r"\b(pay|payment|purchase|buy|checkout|place ?order|order|delete|remove|erase|transfer|send|permission|"
     r"uninstall|reset|clear app state|log ?out|sign ?out|password change|change password|sort|crash|force close|share)\b",

@@ -166,7 +166,7 @@ class SiteSession(Session):
     def __init__(self, device, environment=None):
         super().__init__(device, environment)
         self.origin = origin(device.config["start_url"])
-        self.max_pages = max(1, int(device.config.get("max_screens", 40)))
+        self.max_pages = int(device.config.get("max_screens", 40)) or float("inf")
         home = self.screens[0]
         home.update(nav_steps=[], open_by_url=True, site_role="start page")
         self.pages = {page_key(home.get("web_url")): home}
