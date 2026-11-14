@@ -114,3 +114,11 @@ body[data-test-mode=android][data-setup-state=configure] .workspace-steps {paddi
 #androidCoverage .coverage-counts{flex-wrap:wrap;margin:14px 0}#androidCoverage .coverage-cases{margin:14px 0}
 #androidCoverage .coverage-gaps{max-height:300px;overflow:auto;overflow-wrap:anywhere}#androidCoverage details p{white-space:pre-wrap;overflow-wrap:anywhere}
 .live-timeline small{overflow-wrap:anywhere}.event-started .event-state{color:#315cc9}.event-passed .event-state{color:#16714d}.event-blocked .event-state,.event-inconclusive .event-state{color:#865c13}
+body[data-workflow=mcp] .chat{overflow-y:auto}
+body[data-workflow=mcp] .mcp-panel,body[data-workflow=mcp] .chat:has(.msg.user) .mcp-panel{flex:none;max-height:none;overflow:visible}
+body[data-workflow=mcp] #mcpSharedSettings #m-ai{display:block!important;margin:0}
+#mcpSharedSettings #aiStart,#mcpSharedSettings #aiChangeTarget{display:none!important}
+.mcp-shared-settings{margin:16px 0;padding:18px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.mcp-shared-settings h3{margin:0 0 8px}.mcp-shared-settings .mobile-advanced{margin-top:14px}
+.mcp-shared-settings .fields{min-width:0}.mcp-shared-settings :is(input,select,textarea){max-width:100%}
+@media(max-width:640px){.mcp-shared-settings{padding:12px}.mcp-shared-settings .fields{grid-template-columns:minmax(0,1fr)}}

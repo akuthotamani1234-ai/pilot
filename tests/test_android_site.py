@@ -240,19 +240,19 @@ def test_register_then_login_with_that_account_explore_behind_login_and_log_out(
     row = next(r for r in run["rows"] if r["name"] == "'Change password'")
     assert row["status"] == "not tested" and "password" in row["reason"]
     signup = flow(run, "Sign-up with valid details")
-    emails = [s for s in signup["steps"] if s.get("secret_ref") == "BLOWAI_SECRET_AUTO_SIGNUP_EMAIL"]
+    emails = [s for s in signup["steps"] if s.get("secret_ref") == "QPILOT_SECRET_AUTO_SIGNUP_EMAIL"]
     assert emails and all("value" not in s or s["value"] is None for s in emails)
 
 
 def test_the_registered_account_is_kept_only_in_the_private_folder(run):
     saved = json.loads((run["dir"] / ".private" / "auto_secrets.json").read_text(encoding="utf-8"))
-    email = saved["BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME"]
+    email = saved["QPILOT_SECRET_AUTO_ACCOUNT_USERNAME"]
     assert email.endswith("@example.com") and email in run["shop"].accounts
     for public in ("screens.json", "android_discovery.json", "android_interaction.json", "auto_flows.json"):
         assert email not in (run["dir"] / public).read_text(encoding="utf-8"), public
     login = flow(run, "Login with the account it just registered")
     refs = {s.get("secret_ref") for s in login["steps"]}
-    assert {"BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME", "BLOWAI_SECRET_AUTO_ACCOUNT_PASSWORD"} <= refs
+    assert {"QPILOT_SECRET_AUTO_ACCOUNT_USERNAME", "QPILOT_SECRET_AUTO_ACCOUNT_PASSWORD"} <= refs
 
 
 def test_search_sort_contact_form_newsletter_wishlist_and_a_product(run):

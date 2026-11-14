@@ -1,6 +1,8 @@
 # Page components and nested menus
 
-Implementation is added; execution and verification remain deferred at the user's request.
+The component inventory and nested-menu support are implemented and included in offline regressions. See
+[STATUS](../STATUS.md) for current completed checks and live-verification limits. Inventory alone does not prove
+that all application components or business states were tested.
 
 The existing Playwright crawler now records an additional per-page DOM component inventory. This is separate from
 the existing feature registry and its functional test evidence. Identifying a component never counts as passing a test.

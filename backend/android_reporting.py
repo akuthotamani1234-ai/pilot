@@ -700,7 +700,7 @@ th{{background:#f6f8fc}}.table{{overflow-x:auto}}.badge{{white-space:nowrap;bord
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}code{{overflow-wrap:anywhere}}a{{color:#5145ce}}.actions a{{display:inline-block;margin-right:12px}}
 .gallery{{display:flex;gap:16px;overflow-x:auto;padding:10px 0}}.shot{{min-width:180px;max-width:220px;text-decoration:none}}.shot img{{width:100%;border:1px solid #ddd;border-radius:12px}}.shot span{{display:block}}
 .scope{{border-left:4px solid #6e65df}}.stop{{border-left-color:#c2410c}}@media(max-width:600px){{main{{padding:12px}}header{{padding:20px}}}}
-</style></head><body><main><header><div class="brand">BLOW AI / ANDROID</div><h1>Test results with evidence</h1>
+</style></head><body><main><header><div class="brand">QPILOT / ANDROID</div><h1>Test results with evidence</h1>
 <p>{esc(summary["package_name"])} ? Android {esc(summary["android_version"])} ? {esc(summary["device_id"])}</p>
 <span class="verdict">{esc(summary["verdict"])}</span><p>{esc(" ".join(summary["reasons"]))}</p></header>
 {bot_section}{early}{ai_warning}{incomplete_warning}<div class="metrics">{cards}</div>{interaction_section}<section class="scope"><b>Coverage has limits</b><p>Only discovered controls and approved expectations were checked.

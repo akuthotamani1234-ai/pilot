@@ -82,7 +82,7 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
 
 
 def test_mcp_android_settings_mirror_standard_essentials():
-    """Android MCP panel must expose device/Appium/test-build controls and prepare start_android_test text."""
+    """Android MCP exposes shared settings through a private, exact prepared start."""
     html = (FRONTEND / "chat.html").read_text(encoding="utf-8")
     script = (FRONTEND / "workflow.js").read_text(encoding="utf-8")
     assert 'id="mcpAndroidControls"' in html
@@ -104,12 +104,11 @@ def test_mcp_android_settings_mirror_standard_essentials():
     assert 'id="mcpTargetLabel">Target<' in html or 'id="mcpTargetLabel">Target</label>' in html
     assert "updateMcpTargetLabel" in script
     assert "/path/to/app.apk" in script
-    assert "get_android_environment" in script
-    assert "start_android_test" in script
-    assert "authorized=true" in script
-    assert "test_build=" in script
-    assert "apk_path=" in script
-    assert "package_name=" in script
+    shared = (FRONTEND / 'mcp-settings.js').read_text(encoding='utf-8')
+    assert "start_prepared_test" in shared and "authorized=true" in shared
+    assert '/api/settings/mcp-requests' in shared
+    assert 'androidRequest(false)' in shared and 'webRequest()' in shared
+    assert 'androidTestPassword' in shared and 'androidApiKey' in shared
     assert "syncFromStandard" in script and "syncToStandard" in script
     assert "function refreshMcpAndroidEnvironment" in script
     assert "/api/android/environment" in script

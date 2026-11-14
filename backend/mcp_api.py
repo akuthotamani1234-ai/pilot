@@ -8,8 +8,10 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
     def info(request: Request):
         from .privacy import public_policy
         if presence is not None:
-            presence.touch(request.headers.get("x-blowai-client-id", ""), active=True)
-        return {"privacy": public_policy(), "product": "blow-ai", "bridge_version": 1, "transport": "stdio",
+            presence.touch(request.headers.get("x-qpilot-client-id", request.headers.get("x-blowai-client-id", "")), active=True)
+        legacy = request.headers.get("x-blowai-client") == "mcp" and not request.headers.get("x-qpilot-client")
+        return {"privacy": public_policy(), "product": "blow-ai" if legacy else "qpilot", "display_name": "Qpilot",
+                "bridge_version": 1, "transport": "stdio",
                 "ui_required": True, "automation_starts_on_connection": False}
 
     def metadata(job):

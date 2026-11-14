@@ -5,8 +5,8 @@
     {"id": "fixture_login", "title": "Local demo credentials open Dashboard", "approved": true, "authentication": true,
       "steps": [
         {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Open login screen"}},
-        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Username"}, "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"},
-        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Password"}, "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"},
+        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Username"}, "secret_ref": "QPILOT_SECRET_TEST_USERNAME"},
+        {"action": "fill", "locator": {"strategy": "accessibility_id", "value": "Password"}, "secret_ref": "QPILOT_SECRET_TEST_PASSWORD"},
         {"action": "tap", "locator": {"strategy": "accessibility_id", "value": "Login"}, "purpose": "test_form"},
         {"action": "assert_screen", "value": "Dashboard"}
       ]},

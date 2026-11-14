@@ -2,7 +2,7 @@
 
 # 🏛️ System Architecture
 
-### Blow AI – AI Agents That Test Your Website
+### Qpilot – AI Agents That Test Your Website
 
 | **Version** | 1.0 |
 |---|---|
@@ -16,7 +16,7 @@ data flow and key design decisions.
 
 ## 1. High-Level Architecture
 
-Blow AI is a **local full-stack application** that runs on your own PC.
+Qpilot is a **local full-stack application** that runs on your own PC.
 
 ![High-level architecture](images/architecture.svg)
 
@@ -50,7 +50,7 @@ Blow AI is a **local full-stack application** that runs on your own PC.
 ## 3. Folder Structure
 
 ```text
-blow-ai/
+qpilot/
 ├── frontend/                 # The web page (served at /static)
 │   └── chat.html/.css/.js    #   Chat view – the page at /
 │

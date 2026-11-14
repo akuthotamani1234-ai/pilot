@@ -88,7 +88,10 @@ def resolve_private_inputs(contract, environment=None):
     secret_refs = {s.secret_ref for f in active_flows for s in f.steps if s.secret_ref}
     secret_refs.update(c.token_ref for c in active_checks if c.token_ref)
     database_refs = {c.database_ref for c in active_checks if c.database_ref}
-    missing = [name for name in secret_refs | database_refs if not environment.get(name)]
+    def value(name):
+        alias = name.replace('QPILOT_', 'BLOWAI_', 1) if name.startswith('QPILOT_') else name.replace('BLOWAI_', 'QPILOT_', 1)
+        return environment.get(name) or environment.get(alias)
+    missing = [name for name in secret_refs | database_refs if not value(name)]
     if missing:
         raise ValueError("Configure these environment references before execution: " + ", ".join(sorted(missing)))
-    return {"secrets": {k: environment[k] for k in secret_refs}, "databases": {k: environment[k] for k in database_refs}}
+    return {"secrets": {k: value(k) for k in secret_refs}, "databases": {k: value(k) for k in database_refs}}

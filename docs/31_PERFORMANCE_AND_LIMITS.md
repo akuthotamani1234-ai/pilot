@@ -48,7 +48,7 @@ A run that hits a crawl or time limit is incomplete by design. Coverage claims m
 | `PATTERN_SAMPLES` | `0` (every URL pattern) |
 | `QA_THOROUGH` | `1` (job log notes Thorough budgets) |
 
-Studio defaults intensity to Thorough (`max_pages=0` within `HARD_PAGE_CAP`). MCP `crawl_website` / `start_web_test` post the same Thorough fields with depth default `12`. Coverage stays finite: closed shadow DOM, pay/delete/logout, and cross-origin frames remain out of reach. Scripted controls ≠ business-verified checks.
+Studio defaults intensity to Thorough (`max_pages=0` within `HARD_PAGE_CAP`). MCP `crawl_website` / `start_web_test` post the same Thorough fields with depth default `0` (no soft depth cap). Coverage stays finite: closed shadow DOM, pay/delete/logout, and cross-origin frames remain out of reach. Scripted controls ≠ business-verified checks.
 
 ## Test volume and parallelism
 

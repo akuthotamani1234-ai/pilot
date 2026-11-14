@@ -1,17 +1,15 @@
 # Run Android tests yourself
 
-For the latest 33-flow example, private credential fields and optional emulator
-permission checks, follow the [expanded Android workflow](29_ANDROID_FEATURE_EXPANSION.md).
-Those additions await your live verification; the smaller workflows below
-describe the earlier verified examples.
+For current full discovered-scenario mode, private inputs, continuation and backend checks, follow the
+[Android coverage workspace](33_ANDROID_COVERAGE_WORKSPACE.md). The
+[expanded Android workflow](29_ANDROID_FEATURE_EXPANSION.md) records an earlier 33-flow example and its original
+verification limits. The smaller workflows below describe earlier verified examples.
 
-The on-screen picture-guide links have been removed. Use this written workflow.
-The previous run history has been cleared; downloaded demo apps and
-the checks used in the successful live demonstration are kept in `demo-apps`.
+Example checks live in `demo-apps`. Downloaded APKs and run history are local data and may differ by installation.
 
 ## 1. Start the tools
 
-1. Open your **Blow Ai** project folder.
+1. Open your **Qpilot** project folder.
 2. You can leave the emulator closed. Select its name in the studio's
    **Android device** list; **Start Android test** opens it automatically and
    waits for Android to finish booting. To open it manually instead, run:
@@ -24,16 +22,17 @@ the checks used in the successful live demonstration are kept in `demo-apps`.
    Keep the emulator running throughout the test. You may minimize its window;
    clicking its X button shuts Android down and disconnects it from Appium.
    Android Studio users can also start the device from **Device Manager**.
-3. Start Appium in another PowerShell window:
+3. Standard Start and a prepared MCP start can launch installed local Appium automatically. For manual startup
+   or troubleshooting, open another PowerShell window and run:
 
    ```powershell
    & "$env:LOCALAPPDATA\BlowAI\AndroidTools\node_modules\.bin\appium.cmd" --address 127.0.0.1
    ```
 
-   Keep that terminal open. If the studio already reports that Appium is ready,
+   If started manually, keep that terminal open. If the studio already reports that Appium is ready,
    reuse the running server instead of starting a second one on port 4723.
 4. Double-click **ui.bat** in the project root. Keep its terminal open while
-   using Blow AI. It opens the studio in your browser, normally at
+   using Qpilot. It opens the studio in your browser, normally at
    <http://127.0.0.1:8000/>.
 5. Select **Android testing — Appium**, then **Standard testing**.
 6. Click **Refresh device status**. Under **Android device**, select the running
@@ -57,7 +56,7 @@ manually before choosing this method.
    demo-apps\android.wdio.native.app.v2.2.0.apk
    ```
 
-   This path is relative to your Blow Ai project folder. A second demo is
+   This path is relative to your Qpilot project folder. A second demo is
    `demo-apps\mda-2.3.0-27.apk`; use the WebdriverIO APK for the steps here.
 3. Leave **Launch activity** blank for automatic launcher detection.
 4. Expand **Advanced checks and exploration settings**.
@@ -79,7 +78,7 @@ manually before choosing this method.
    actions inside the explicitly approved functional flows.
 10. Tick the app permission checkbox above **Start Android test**.
 11. Click **Start Android test**.
-12. Watch the emulator. Blow AI installs and launches the APK, then checks typed
+12. Watch the emulator. Qpilot installs and launches the APK, then checks typed
     input echo, switching on and off, and empty-login validation.
 13. Wait for the final report and review all results. The saved example contains
     three functional tests; their result depends on the actual execution.
@@ -131,7 +130,7 @@ on one emulator does not install it on a different emulator.
 
 1. Open Chrome on the emulator once. Finish any first-use prompts and confirm
    the emulator can load a website.
-2. Start a new Android test in Blow AI.
+2. Start a new Android test in Qpilot.
 3. Select **App source → Website in Android Chrome**.
 4. Select your emulator.
 5. In **Website URL**, enter:

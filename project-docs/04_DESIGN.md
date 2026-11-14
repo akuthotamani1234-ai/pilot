@@ -2,7 +2,7 @@
 
 # 🎨 Design Document
 
-### Blow AI – Screens, Visual Style and Data
+### Qpilot – Screens, Visual Style and Data
 
 | **Version** | 1.0 |
 |---|---|
@@ -22,7 +22,7 @@ because they had fallen behind the chat view: no human review, no GitHub fix, no
 
 ```text
 ┌──────────────┬───────────────────────────────────────────┬──────────────┐
-│ Blow AI      │  example.com                 [Testing…] ■ │ To-do   3/9  │
+│ Qpilot      │  example.com                 [Testing…] ■ │ To-do   3/9  │
 │ ＋ New test   │                                           │ ▓▓▓░░░░░░    │
 │              │  QA  ✓ I found 12 pages…                  │ ☑ Open site  │
 │ Recent tests │  QA  ⏳ Now generating the test cases…     │ ☑ Find pages │

@@ -2,12 +2,12 @@
 
 # 📋 Product Requirements Document (PRD)
 
-### Blow AI – AI Agents That Test Your Website
+### Qpilot – AI Agents That Test Your Website
 
 | **Version** | 1.0 |
 |---|---|
 | **Date** | Oct 23, 2026 (feature status and roadmap updated Nov 4, 2026) |
-| **Author** | Blow AI Team |
+| **Author** | Qpilot Team |
 | **Status** | MVP built, plus the v1.0 additions in section 6 |
 | **Target Launch** | MVP (v1.0) |
 
@@ -15,7 +15,7 @@
 
 ## 1. Product Overview
 
-- **Blow AI** is a web application that tests any website automatically.
+- **Qpilot** is a web application that tests any website automatically.
 - You give it a **website link**, a **GitHub repo** or a **project folder**.
 - A team of AI agents then:
   - finds every page of the website

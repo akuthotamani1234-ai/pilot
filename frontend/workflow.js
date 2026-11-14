@@ -69,6 +69,7 @@
       : "List dashboard menus and dropdowns, then test the approved login flow.";
     updateAndroidProviders();
     renderConnection();
+    window.QpilotMcpSettings?.mount(state.engine, state.workflow, state.busy);
   }
 
   function updateAndroidProviders() {
@@ -271,7 +272,7 @@
       }
       if (data.ok) note.textContent = "Android tools and a device are ready. Appium stays local to this computer.";
       else if (data.can_prepare || data.can_start_emulator) {
-        note.textContent = "Appium or Android is stopped. Standard testing can start them automatically; an MCP run requires both to be ready first.";
+        note.textContent = "Installed tools are ready. Starting the prepared MCP request can launch local Appium and the selected emulator automatically.";
       } else {
         note.textContent = (data.errors || ["Android environment is not ready."])
           .map(message => message.replaceAll("`", "")).join(" ");
@@ -304,7 +305,7 @@
     } else if (source === "apk") {
       // MCP keeps a path string (not a file upload). Prefer an existing MCP path; else neutral placeholder.
       if (!($("mcpTarget").value || "").trim() || !/\.apk$/i.test($("mcpTarget").value)) {
-        $("mcpTarget").value = "/path/to/app.apk";
+        $("mcpTarget").value = "";
       }
     }
     if ($("androidAppiumUrl") && $("mcpAndroidAppiumUrl")) {
@@ -365,32 +366,6 @@
     }
   }
 
-  function buildAndroidPrepareText(target, task) {
-    const source = androidSource();
-    const device = ($("mcpAndroidDevice") && $("mcpAndroidDevice").value.trim()) || "<device_id>";
-    const appium = ($("mcpAndroidAppiumUrl") && $("mcpAndroidAppiumUrl").value.trim()) || "http://127.0.0.1:4723";
-    const activity = ($("mcpAndroidActivity") && $("mcpAndroidActivity").value.trim()) || "";
-    const testBuild = !!($("mcpAndroidTestBuild") && $("mcpAndroidTestBuild").checked);
-    const lines = [
-      "Use Qpilot MCP for Android Appium testing.",
-      "Task: " + task,
-      "1. Call get_android_environment with appium_url=" + appium + ".",
-      "2. After confirming readiness and my permission, call start_android_test with:",
-      "   - device_id=" + device,
-      "   - app_mode=" + source,
-      source === "apk" ? "   - apk_path=" + target
-        : source === "web" ? "   - start_url=" + target
-        : "   - package_name=" + target,
-      "   - authorized=true",
-      "   - appium_url=" + appium,
-      "   - test_build=" + (testBuild ? "true" : "false"),
-    ];
-    if (source === "installed" && activity) lines.push("   - app_activity=" + activity);
-    lines.push("Check privacy settings and connection first. Confirm my permission and scope before starting.");
-    lines.push("Use approved expected results; report untested components and discovery limits. Show progress and the final report in Qpilot Studio.");
-    return lines.join("\n");
-  }
-
   async function prepareRequest() {
     const target = $("mcpTarget").value.trim(), task = $("mcpTask").value.trim();
     if (!target || !task) {
@@ -423,17 +398,18 @@
       $("mcpPanelMessage").textContent = "Enter an installed Android package, such as com.example.myapp.";
       return;
     }
-    const text = state.engine === "android"
-      ? buildAndroidPrepareText(target, task)
-      : ("Use Qpilot with Playwright for " + target + ".\nTask: " + task
-        + "\nCheck the current privacy settings and connection first. Confirm my permission and scope before starting."
-        + "\nUse approved expected results; report untested components and discovery limits. Show progress and the final report in Qpilot.");
-    $("mcpRequestPreview").value = text;
-    $("mcpRequestPreview").hidden = false;
-    const copied = await copyText(text);
-    $("mcpPanelMessage").textContent = copied
-      ? "Request prepared and copied. Review it, then paste it into your connected assistant."
-      : "Request prepared below. Review and copy it into your connected assistant.";
+    const button = $("copyMcpRequest"); button.disabled = true;
+    $("mcpPanelMessage").textContent = "Validating and preparing the local configuration...";
+    try {
+      if (!window.QpilotMcpSettings) throw new Error("Reload the latest Qpilot Studio to prepare a private request.");
+      const text = await window.QpilotMcpSettings.prepare(state.engine, target, task);
+      $("mcpRequestPreview").value = text; $("mcpRequestPreview").hidden = false;
+      const copied = await copyText(text);
+      $("mcpPanelMessage").textContent = copied
+        ? "Request prepared and copied. Private inputs stay local for up to 15 minutes. Paste it into your connected assistant; nothing has executed yet."
+        : "Request prepared below. Copy it into your connected assistant. Private inputs stay local for up to 15 minutes; nothing has executed yet.";
+    } catch(error) { $("mcpPanelMessage").textContent = error.message; }
+    finally { button.disabled = state.busy; }
   }
 
   function setEngine(engine) {
@@ -474,7 +450,7 @@
   $("mcpAndroidSource").addEventListener("change", () => {
     const source = androidSource();
     if (source === "apk" && !/\.apk$/i.test(($("mcpTarget").value || "").trim())) {
-      $("mcpTarget").value = "/path/to/app.apk";
+      $("mcpTarget").value = "";
     } else if (source !== "apk") {
       $("mcpTarget").value = "";
     }
@@ -498,7 +474,7 @@
     }
   });
 
-  window.BlowAIWorkflow = {
+  window.QpilotWorkflow = {
     ready: null, providerAllowed, setEngine, setWorkflow, syncFromStandard, syncToStandard,
     refreshMcpAndroidEnvironment,
     setBusy(value) { state.busy = !!value; render(); },
@@ -508,7 +484,8 @@
     get engine() { return state.engine; },
     openPrivacy,
   };
-  window.BlowAIWorkflow.ready = loadPrivacy();
+  window.BlowAIWorkflow = window.QpilotWorkflow; // Legacy extension alias.
+  window.QpilotWorkflow.ready = loadPrivacy();
   loadConnection();
   window.setInterval(() => { if (state.workflow === "mcp" && !document.hidden) loadConnection(); }, 5000);
 })();

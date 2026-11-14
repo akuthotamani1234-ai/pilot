@@ -213,6 +213,7 @@ def test_slack_and_jira_get_only_application_defects_once(tmp_path, monkeypatch)
     assert "Cart total ignores the quantity" in text and "test_broken_locator" not in text and "Not Ready" in text
     assert len(issues) == 1, [json.loads(i["body"]) for i in issues]  # the 2nd run: already reported, not again
     fields = json.loads(issues[0]["body"])["fields"]
+    assert fields["labels"] == ["qpilot", "severity-high"]
     assert fields["project"] == {"key": "QA"} and fields["summary"] == "[high] Cart total ignores the quantity"
     for part in ("*Steps to reproduce:*\n# Open /cart\n# Set quantity 3", "*Expected:* Total 30", "TC-7",
                  "*Severity:* high", "*Next action:* Fix the website."):

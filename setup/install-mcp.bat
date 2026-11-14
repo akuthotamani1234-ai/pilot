@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0.."
 call "%~dp0install.bat" mcp
 if errorlevel 1 goto :fail
-echo Installing optional Blow AI MCP support...
+echo Installing optional Qpilot MCP support...
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -r requirements-mcp.txt
 if errorlevel 1 goto :fail
 ".venv\Scripts\python.exe" -m pip check

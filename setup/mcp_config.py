@@ -7,10 +7,10 @@ from pathlib import Path
 
 def configuration(root: Path) -> dict:
     python = root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    return {"mcpServers": {"blow-ai": {
+    return {"mcpServers": {"qpilot": {
         "command": str(python.resolve()),
         "args": ["-u", "-B", str((root / "mcp_entry.py").resolve())],
-        "env": {"BLOWAI_UI_URL": "http://127.0.0.1:8000"},
+        "env": {"QPILOT_UI_URL": "http://127.0.0.1:8000"},
     }}}
 
 

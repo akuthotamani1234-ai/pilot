@@ -14,7 +14,7 @@ class DraftStep(Model):
     action: Literal["tap", "fill", "assert_text", "assert_visible", "assert_not_visible", "assert_enabled", "hide_keyboard"]
     target: str | None = Field(default=None, max_length=20)
     value: str | None = Field(default=None, max_length=300)
-    secret_ref: str | None = Field(default=None, pattern=r"^BLOWAI_SECRET_[A-Z0-9_]+$")
+    secret_ref: str | None = Field(default=None, pattern=r"^(?:QPILOT|BLOWAI)_SECRET_[A-Z0-9_]+$")
 
 
 class Draft(Model):
@@ -55,7 +55,7 @@ def draft(root, instructions: str, ask=None):
     prompt = ("Draft ONE Android QA workflow from the request. Return title, expected_basis, steps. "
               "Use ONLY target aliases below, never invent a locator, credentials, account, or a successful outcome. "
               "Include explicit result assertions based on the user's requirements. All fill steps must use "
-              "BLOWAI_SECRET_* references supplied in the request; omit flows requiring unknown credentials. "
+              "QPILOT_SECRET_* references supplied in the request; omit flows requiring unknown credentials. "
               "No payment, purchase, destructive actions or permissions. This is an unexecuted draft for human review. "
               "Screen paths may require extra navigation: include it only when established by these controls.\nRequest:\n"
               + redact(instructions) + "\nObserved controls (first 300 maximum; not exhaustive):\n"

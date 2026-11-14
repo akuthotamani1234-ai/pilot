@@ -295,9 +295,9 @@ def test_a_page_recorded_by_test_mode_opens_by_its_address_in_the_final_run(tmp_
 
 
 def test_the_registered_account_reaches_the_final_runs_secrets():
-    saved = {"BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME": "qa1@example.com", "BLOWAI_SECRET_TEST_PASSWORD": "not-allowed"}
+    saved = {"QPILOT_SECRET_AUTO_ACCOUNT_USERNAME": "qa1@example.com", "BLOWAI_SECRET_TEST_PASSWORD": "not-allowed"}
     secrets = android_interact.flow_secrets({}, saved)
-    assert secrets["BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME"] == "qa1@example.com"
+    assert secrets["QPILOT_SECRET_AUTO_ACCOUNT_USERNAME"] == "qa1@example.com"
     assert "BLOWAI_SECRET_TEST_PASSWORD" not in secrets  # only generated values come from the saved file
 
 

@@ -78,5 +78,5 @@ def register_privacy_api(app, jobs, lock, presence: MCPPresence, busy_rechecks=l
         from .privacy import ROOT
         data = configuration(ROOT)
         # Match the actual UI port, including the fallback port selected by ui.bat.
-        data["mcpServers"]["blow-ai"]["env"]["BLOWAI_UI_URL"] = str(request.base_url).rstrip("/")
+        data["mcpServers"]["qpilot"]["env"]["QPILOT_UI_URL"] = str(request.base_url).rstrip("/")
         return data

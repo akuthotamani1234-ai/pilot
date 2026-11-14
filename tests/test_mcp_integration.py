@@ -133,8 +133,8 @@ def test_stdio_tools_register_without_contacting_ui(monkeypatch):
     monkeypatch.setattr(BlowAIBridge, "_send", lambda *a, **k: pytest.fail("Registration must not contact UI"))
     server = build_server()
     tools = {t.name: t for t in server._tool_manager.list_tools()}
-    assert len(tools) == 11
-    for name in ("crawl_website", "start_web_test", "start_android_test"):
+    assert len(tools) == 12
+    for name in ("crawl_website", "start_web_test", "start_android_test", "start_prepared_test"):
         tool = tools[name]
         assert tool.parameters["properties"]["authorized"]["default"] is False
         assert tool.annotations.read_only_hint is False
@@ -188,6 +188,36 @@ def test_mcp_web_start_posts_thorough_budgets(monkeypatch):
         assert body["max_depth"] == 0
         assert body["authorized"] is True
         assert body["website_only"] is True
+
+
+def test_mcp_prepared_start_forwards_only_reviewed_reference_and_permission(monkeypatch):
+    import asyncio
+
+    pytest.importorskip("mcp.server")
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from backend.mcp_server import build_server
+
+    posts = []
+    identifier = 'a' * 43
+
+    def send(self, method, route, **kwargs):
+        if method == 'GET' and route == '/api/mcp/info':
+            return {'product':'qpilot','bridge_version':1,'privacy':{'mcp_allowed':True}}
+        posts.append((method,route,kwargs['body']))
+        return {'id':17,'status':'running'}
+
+    monkeypatch.setattr(BlowAIBridge,'_send',send)
+    instance = build_server()
+
+    async def launch():
+        with pytest.raises(ToolError,match='Permission required'):
+            await instance.call_tool('start_prepared_test',{'request_id':identifier})
+        assert not posts
+        await instance.call_tool('start_prepared_test',{'request_id':identifier,'authorized':True})
+
+    asyncio.run(launch())
+    assert posts == [('POST',f'/api/mcp/prepared/{identifier}/start',{'authorized':True})]
 
 
 def test_bridge_error_surfaces_as_tool_error_not_unexpected(monkeypatch):
@@ -272,7 +302,7 @@ def test_mcp_views_paginate_logs_and_refuse_private_sections(tmp_path):
 
 def test_generated_client_paths_are_absolute_and_no_credentials_are_embedded(tmp_path):
     from setup.mcp_config import configuration
-    config = configuration(tmp_path)["mcpServers"]["blow-ai"]
+    config = configuration(tmp_path)["mcpServers"]["qpilot"]
     assert Path(config["command"]).is_absolute()
     assert Path(config["args"][-1]).is_absolute()
-    assert config["env"] == {"BLOWAI_UI_URL": "http://127.0.0.1:8000"}
+    assert config["env"] == {"QPILOT_UI_URL": "http://127.0.0.1:8000"}

@@ -5,6 +5,25 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-14
 
+## Shared MCP settings and Qpilot branding
+
+MCP setup now reuses Standard account, provider/model/key, exploration and approved-flow controls. Studio keeps
+private prepared configurations in memory for 15 minutes; the assistant receives an opaque reference and starts
+the exact reviewed settings through `start_prepared_test`. Android startup prepares installed local Appium and
+the selected emulator. Preparing, connecting and refreshing do not start automation. Current privacy and explicit
+permission remain required; editing settings revokes the reference and successful repeat starts return the same job.
+
+Public labels, generated report/launcher/package names, GitHub fix-branch and Jira labels, and current examples use
+Qpilot. Legacy clients/contracts and installed-tool paths remain compatible. Demo source labels are updated for
+future builds; existing APK binaries and recorded run evidence retain their original identity.
+
+Validation: **1,015 offline tests passed on Windows in 23m 16s**; **76 final affected checks passed**, including
+desktop/mobile MCP settings and generated integration names. Ruff and changed JavaScript syntax checks passed.
+The documentation review covers **57 Markdown/HTML files**, with **zero broken local file links**. Browser fixtures
+cover shared configuration, private-input omission, invalidation and responsive layouts. These checks do not claim
+a fresh arbitrary-APK run, physical-device Inspector attachment or paid-provider/third-party-host acceptance.
+See [MCP setup](docs/34_MCP_SHARED_CONFIGURATION.md) and [documentation review](docs/35_DOCUMENTATION_REVIEW.md).
+
 ## Android coverage workspace
 
 Implemented full discovered-scenario mode, screen-scoped control coverage, durable masked Android action events,
@@ -28,7 +47,7 @@ an actual Inspector attachment are separate verification; real app defects and b
 | Android Appium pipeline | Implemented | Offline + live emulator demos recorded |
 | Studio UI | Implemented | Characterization tests; Windows `ui.bat` primary; MCP Android settings parity + incomplete-run delete |
 | Optional LLM providers | Implemented | Rules-only (`LLM_PROVIDER=none`) fails closed with clear error |
-| Optional MCP bridge | Implemented | Install `requirements-mcp.txt`; offline suite green; **11 tools** register via `build_server()`; `BridgeError` → `ToolError` so clients see actionable text |
+| Optional MCP bridge | Implemented | Install `requirements-mcp.txt`; offline suite green; **12 tools** register via `build_server()`; `BridgeError` → `ToolError` so clients see actionable text |
 | Release gates / reports | Implemented | Counts from run files only |
 | Web apply-fixes (GitHub) | Implemented | Prepare scans repo; UI shows scan summary + next-steps checklist |
 
@@ -36,7 +55,8 @@ an actual Inspector attachment are separate verification; real app defects and b
 
 | Evidence | Result |
 | --- | --- |
-| Offline pytest `-m "not slow"` (Linux) | **816 passed**, 2 skipped, 65 slow deselected |
+| Offline pytest `-m "not slow"` (Windows, 2026-11-14) | **1,015 passed**; current shared MCP/branding implementation |
+| Earlier offline checkpoint (Linux) | **816 passed**, 2 skipped, 65 slow deselected; historical |
 | Ruff | Clean |
 | MCP + LLM + privacy offline | **60 passed** (`test_mcp_integration`, `test_llm_provider_errors`, `test_privacy_workflow`) |
 | `LLM_PROVIDER=none` | Fails closed with explicit rules-fallback message |

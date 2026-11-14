@@ -106,7 +106,7 @@
           <input id="mcpAndroidAppiumUrl" type="url" value="http://127.0.0.1:4723" spellcheck="false">
           <label for="mcpAndroidActivity" id="mcpAndroidActivityLabel">Launch activity (optional)</label>
           <input id="mcpAndroidActivity" type="text" spellcheck="false" placeholder=".MainActivity">
-          <label class="tick"><input type="checkbox" id="mcpAndroidTestBuild"><span><b>This is a test build</b> — test it like a real user (menus, forms, cart; never pay/delete/logout).</span></label>
+          <label class="tick"><input type="checkbox" id="mcpAndroidTestBuild"><span><b>This is a test build</b> — test menus, forms, cart and approved login/logout flows. Payment and destructive actions remain blocked.</span></label>
           <label class="tick"><input type="checkbox" id="mcpAndroidAuthorized"><span>I own this app or have permission to test it, and trust the APK.</span></label>
         </div>
         <label for="mcpTarget" id="mcpTargetLabel">Target</label>
@@ -180,7 +180,7 @@
           <label>Test account username or email<input id="androidTestUsername" type="text" maxlength="1024" autocomplete="off" placeholder="Optional, used by test-build login checks"></label>
           <label>Test account password<input id="androidTestPassword" type="password" maxlength="4096" autocomplete="new-password" placeholder="Optional, private for this run"></label>
         </div>
-        <p class="muted small">Test-build mode uses these only when it discovers a login form. Flows can reference <code>secret:BLOWAI_SECRET_TEST_USERNAME</code> and <code>secret:BLOWAI_SECRET_TEST_PASSWORD</code>. Values are cleared after submission and excluded from reports and AI prompts.</p>
+        <p class="muted small">Test-build mode uses these only when it discovers a login form. Flows can reference <code>secret:QPILOT_SECRET_TEST_USERNAME</code> and <code>secret:QPILOT_SECRET_TEST_PASSWORD</code>. Values are cleared after submission and excluded from reports and AI prompts.</p>
         <div class="fields">
           <label>Appium server URL<input id="androidAppiumUrl" type="url" value="http://127.0.0.1:4723" required></label>
           <label>Maximum exploration depth (0 = until exhausted)<input id="androidDepth" type="number" min="0" max="10" value="0"></label>
@@ -292,6 +292,7 @@
 </div>
 
 <script src="/static/workflow.js"></script>
+<script src="/static/mcp-settings.js"></script>
 <script src="/static/contract-builder.js"></script>
 <script src="/static/execution.js"></script>
 <script src="/static/android-scenarios.js"></script>

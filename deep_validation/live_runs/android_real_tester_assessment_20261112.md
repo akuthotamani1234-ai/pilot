@@ -45,4 +45,4 @@ Final post-fix run: `runs/android_live_20261112_091845` (rules-only `LLM_PROVIDE
 
 ## Bottom line
 
-Blow AI on Android **does perform like a careful automated tester**: it explores broadly, avoids dangerous actions, exercises navigation and device behavior, builds replayable flows, and fails closed with evidence. It is **not yet equivalent to an expert manual tester** on fragile locators, hybrid WebView, and some form negative paths — and the product correctly reports **Not Ready** when those gaps remain.
+Qpilot on Android **does perform like a careful automated tester**: it explores broadly, avoids dangerous actions, exercises navigation and device behavior, builds replayable flows, and fails closed with evidence. It is **not yet equivalent to an expert manual tester** on fragile locators, hybrid WebView, and some form negative paths — and the product correctly reports **Not Ready** when those gaps remain.
