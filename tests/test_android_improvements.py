@@ -230,7 +230,8 @@ def test_locator_recovery_requires_unique_same_element_and_keeps_assertions(tmp_
     assert runtime.checks == 1
     assert len(runtime.healing) == 1
     assert runtime.healing[0]["original_locator"]["value"] == "old"
-    assert runtime.healing[0]["replacement_locator"]["value"] == "About"
+    # Recovery prefers the live element's durable resource_id when unique.
+    assert runtime.healing[0]["replacement_locator"]["value"] == "new"
     assert runtime.healing[0]["lookup_outcome"] == "recovered"
 
 
