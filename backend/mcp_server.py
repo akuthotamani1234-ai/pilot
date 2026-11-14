@@ -159,7 +159,7 @@ def build_server(ui_url: str | None = None):
         requirements: Annotated[str, Field(max_length=4000)] = "",
         qa_contract: dict | None = None, contract_only: bool = False,
         llm_provider: Provider = "ollama", llm_model: str = "",
-        test_build: bool = False,
+        test_build: bool = False, test_all_discovered: bool = True,
         thorough: bool = False,
     ) -> dict:
         """Start native or Android Chrome Appium QA with the shared runner and per-device lock.
@@ -172,6 +172,8 @@ def build_server(ui_url: str | None = None):
         test): also act like a user - menus, every page, undoable actions, the cart, forms, wrong/real test
         login, log out (apps: rotation/background/Back) - each from a fresh state and replay-verified.
         Checkout, payment, placing an order, deleting an account, sharing and calls are never touched.
+        test_all_discovered removes interaction/generated-test count cutoffs only with test_build=true;
+        Stop, time, discovery and protected-action guards still apply.
         """
         require_permission(authorized)
         if (app_mode == "apk") != bool(apk_path):
@@ -190,6 +192,7 @@ def build_server(ui_url: str | None = None):
             "interaction_timeout_s": interaction_timeout_s, "requirements": requirements,
             "qa_contract": json.dumps(qa_contract) if qa_contract else "", "contract_only": contract_only,
             "llm_provider": llm_provider, "llm_model": llm_model, "interaction_testing": test_build,
+            "test_all_discovered": test_all_discovered,
             "thorough": thorough,
         }, apk_path)
 

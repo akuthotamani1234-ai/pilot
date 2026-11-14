@@ -84,6 +84,14 @@
   $("mobileForm").addEventListener("submit", (e) => { e.preventDefault(); startMobileRun(); });
   $("androidMode").addEventListener("change", updateAndroidFields);
   $("androidWholeApp").addEventListener("change", () => { $("androidContractOnly").checked = !$("androidWholeApp").checked; });
+  const syncAndroidCoverage = () => {
+    const all = $("androidTestBuild").checked && $("androidAllDiscovered").checked;
+    $("androidMaxCases").disabled = all;
+    $("androidMaxInteractions").disabled = all;
+  };
+  $("androidTestBuild").addEventListener("change", syncAndroidCoverage);
+  $("androidAllDiscovered").addEventListener("change", syncAndroidCoverage);
+  syncAndroidCoverage();
   $("androidContract").addEventListener('input', () => {
     refreshAndroidPermissionPolicy();
     if ($("androidContract").value.trim()) {
@@ -441,6 +449,7 @@
     data.append("contract_only", $("androidContractOnly").checked ? "true" : "false");
     // Websites too: the ticked box is the person's confirmation that it is a test / demo site they may test
     data.append("interaction_testing", $("androidTestBuild").checked ? "true" : "false");
+    data.append("test_all_discovered", $("androidAllDiscovered").checked ? "true" : "false");
     data.append("thorough", $("androidThorough") && $("androidThorough").checked ? "true" : "false");
     data.append("max_test_cases", $("androidMaxCases").value);
     // Test mode's limits are sent explicitly, so a run never falls back to an older server's smaller defaults
@@ -555,6 +564,8 @@
     poll();
   }
 
+  document.addEventListener('qpilot:android-resume', event => beginMobileJob(event.detail));
+
   function renderMobileTodo(stages) {
     const labels = {setup:"Connect to Android device",discovery:"Explore screens and extract controls",
       ...(Object.hasOwn(stages, "test_build") ? {test_build:"Exercise and replay safe test-build checks"} : {}),
@@ -575,6 +586,8 @@
       if (!response.ok) return;
       const result = await response.json();
       job = Object.assign(job || {}, result);
+      window.QpilotLive?.update(job);
+      window.QpilotAndroid?.update(job);
       renderMobileTodo(result.stages || {});
       $("costNow").textContent = usd((result.cost || {}).cost_usd);
       $("costCalls").textContent = `${(result.cost || {}).calls || 0} AI calls`;
@@ -1686,6 +1699,7 @@
     if (generation !== chainGen) return;
     document.body.dataset.setupState = "results";
     const s = d.summary || {}, c = d.cost;
+    if (s.target_type === 'android') window.QpilotAndroid?.update({run,status:'done',target_type:'android'});
     showQualityStatus(s);
     if (s.discovery_only || s.mode === "discovery") {
       setExcel(null);

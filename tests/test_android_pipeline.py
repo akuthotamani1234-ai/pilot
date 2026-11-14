@@ -5,7 +5,7 @@ from backend import android_pipeline
 
 START_XML = """<hierarchy>
 <node class="android.widget.Button" resource-id="com.example:id/home" text="Home" clickable="true" bounds="[0,0][80,50]"/>
-<node class="android.widget.Button" resource-id="com.example:id/delete" text="Checkout" clickable="true" bounds="[80,0][160,50]"/>
+<node class="android.widget.Button" resource-id="com.example:id/delete" text="Delete account" clickable="true" bounds="[80,0][160,50]"/>
 <node class="android.widget.EditText" resource-id="com.example:id/password" text="private-value" password="true" bounds="[0,50][160,100]"/>
 </hierarchy>"""
 HOME_XML = """<hierarchy>
@@ -88,8 +88,8 @@ def test_test_design_records_safe_cases_and_blocked_controls(tmp_path, monkeypat
     state["screens"].append({
         "fingerprint": "extra", "screen_name": "Extra", "activity": ".Extra",
         "elements": [
-            {"visible": True, "enabled": True, "clickable": True, "input_capable": False, "text": "Place order"},
-            {"visible": True, "enabled": True, "clickable": True, "input_capable": False, "text": "Checkout"},
+            {"visible": True, "enabled": True, "clickable": True, "input_capable": False, "text": "Save settings"},
+            {"visible": True, "enabled": True, "clickable": True, "input_capable": False, "text": "Delete account"},
         ]
     })
 

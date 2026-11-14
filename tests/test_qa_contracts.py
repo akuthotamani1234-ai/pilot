@@ -103,8 +103,8 @@ def test_contract_rejects_inline_password_and_does_not_echo_its_value():
     assert step["value"] not in str(caught.value)
 
 
-@pytest.mark.parametrize("label", ["Pay Now", "Checkout", "Place order", "Buy now"])
-def test_checkout_payment_remain_blocked_even_in_approved_contract(label):
+@pytest.mark.parametrize("label", ["Delete account", "Pay Now", "resetDevice", "send_message"])
+def test_irreversible_actions_remain_blocked_even_in_approved_contract(label):
     with pytest.raises(ValueError):
         parse_contract(
             {
@@ -122,27 +122,6 @@ def test_checkout_payment_remain_blocked_even_in_approved_contract(label):
                 ],
             }
         )
-
-
-@pytest.mark.parametrize("label", ["Delete account", "resetDevice", "send_message"])
-def test_non_payment_labels_may_be_approved_in_contract(label):
-    parse_contract(
-        {
-            "test_environment": True,
-            "test_mode": True,
-            "flows": [
-                {
-                    "id": "ok",
-                    "title": "Ok",
-                    "approved": True,
-                    "steps": [
-                        {"action": "tap", "locator": loc(label, "accessibility_id"), "purpose": "test_form"},
-                        {"action": "assert_screen", "value": "Home"},
-                    ],
-                }
-            ],
-        }
-    )
 
 
 def test_unapproved_flows_are_blocked_not_passes():

@@ -95,6 +95,8 @@ copy .env.example .env
 ## 3. Configure
 All settings are in **`.env`**. Each line of `.env.example` explains its setting. Usually you only set the AI:
 
+Android continuation manages `ANDROID_PENDING_CASES` internally; use **Resume unfinished tests** instead of setting it in `.env`.
+
 | You want | Set in `.env` |
 |---|---|
 | No AI (built-in rules only) | `LLM_PROVIDER=none` |
@@ -445,6 +447,8 @@ the environment. Missing SDK, Java, Appium or UiAutomator2 installations still n
 and authorized. An already running Appium server or emulator is reused.
 Form screens are kept distinct from pages sharing the same native scroll-view shell. In authorized test-build mode,
 Signup validation runs before registration, and empty checks clear password fields privately. See
+[Android coverage workspace](docs/33_ANDROID_COVERAGE_WORKSPACE.md) describes full-coverage mode, durable actions,
+safe continuation, AI drafts, backend checks and known-truth measurement. See
 [Android form validation, Inspector and readiness](docs/32_ANDROID_FORM_VALIDATION_AND_READINESS.md) for current
 coverage limits and recommended improvements.
 See [Android setup, safety, AI generation and live demos](project-docs/12_ANDROID.md) and the

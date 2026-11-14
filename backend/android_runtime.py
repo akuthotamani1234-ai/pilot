@@ -96,7 +96,10 @@ class MobileRuntime:
         self.sensitive = False
         self.contract_evidence = []
         self.authentication_verified = False
-        self.steps = []
+        from .android_events import LiveSteps, Timeline
+        from .safety import secret_values
+        self.timeline = Timeline(run_dir, case, secrets=secret_values())
+        self.steps = LiveSteps(self.timeline)
         self.started = time.monotonic()
 
     def _inspect(self):
@@ -315,11 +318,15 @@ class MobileRuntime:
         if isinstance(raw, dict) and isinstance(package, str) and PACKAGE_NAME.fullmatch(package):
             if not isinstance(current, str) or "[REDACTED]" in current or not PACKAGE_NAME.fullmatch(current):
                 raw["android_package"] = package
+        # Only this generated flow executes. Never parse an unbounded inventory as
+        # a user contract or relax the public contract's input-size guard.
+        raw = {**raw, "flows": [flow for flow in raw.get("flows", []) if flow.get("id") == flow_id]}
         contract = parse_contract(raw)
         if flow_id not in {flow.id for flow in contract.flows}:
             raise ValueError("Unknown test-build flow")
         runtime = ContractRuntime(AndroidContractAdapter(self.driver, self.config, contract, stop_path=self.run_dir / "STOP"),
                                   contract.model_dump(), private_inputs(self.run_dir))
+        runtime.timeline.case = self.case
         try:
             runtime.execute(flow_id)
         finally:
@@ -335,6 +342,7 @@ class MobileRuntime:
 
         contract = parse_contract(self.config.get("qa_contract"))
         runtime = ContractRuntime(AndroidContractAdapter(self.driver, self.config, contract, stop_path=self.run_dir / "STOP"), contract.model_dump(), private_inputs(self.run_dir))
+        runtime.timeline.case = self.case
         try:
             runtime.execute(contract_id)
         finally:

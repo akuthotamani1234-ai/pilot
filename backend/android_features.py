@@ -5,6 +5,10 @@ from .qa_contracts import flow_chain, parse_contract
 
 
 def feature_matrix(state):
+    screens = {screen.get('id', f'observed_{index}'): dict(screen, id=screen.get('id', f'observed_{index}'))
+               for index, screen in enumerate(state.get('screens', []))}
+    for screen in (state.get('interaction') or {}).get('state_inventory', []):
+        screens.setdefault(screen['id'], screen)
     cases = state.get('test_cases', [])
     results = {r['id']: r for r in state.get('results', [])}
     contract = parse_contract(state.get('config', {}).get('qa_contract'))
@@ -15,12 +19,18 @@ def feature_matrix(state):
     auto = {}
     if state.get('auto_flows'):
         # Test-mode flows may press undoable actions (a cart's Remove, Log out, Sort): parse them with those rules.
-        auto_contract = parse_contract({'version': 1, 'test_environment': True, 'test_mode': True,
-                                        'flows': [item['flow'] for item in state['auto_flows']]})
-        auto = {flow.id: flow for flow in auto_contract.flows}
-    bindings = {}
+        for item in state['auto_flows']:
+            flow = parse_contract({'version': 1, 'test_environment': True, 'test_mode': True,
+                                   'flows': [item['flow']]}).flows[0]
+            auto[flow.id] = flow
+    bindings, element_bindings, observed_matches = {}, {}, {}
     configured = []
     ui_bindings = {}
+    for screen in screens.values():
+        for element in screen.get('elements', []):
+            for locator in element.get('locators', []):
+                observed_matches.setdefault((locator['strategy'], locator['value']), set()).add(
+                    (screen['id'], element.get('id')))
 
     def functional(case):
         return case.get('contract_id') or case.get('auto_flow_id')
@@ -42,6 +52,8 @@ def feature_matrix(state):
             outcome = 'inconclusive'
         configured.append({'id': case['id'], 'title': case['title'], 'expected': case.get('expected', ''), 'outcome': outcome,
                            'source': 'test_build' if case.get('auto_flow_id') else 'configured'})
+        for element_id in case.get('element_ids', []):
+            element_bindings.setdefault(element_id, set()).add(case['id'])
         locators = []
         if case.get('auto_flow_id'):
             selected_flows = [auto[identifier]] if identifier in auto else []
@@ -58,7 +70,7 @@ def feature_matrix(state):
         for locator in locators:
             bindings.setdefault((locator.strategy, locator.value), set()).add(case['id'])
     components = {}
-    for screen in state.get('screens', []):
+    for screen in screens.values():
         for element in screen.get('elements', []):
             if not (element.get('input_capable') or element.get('clickable') or element.get('resource_id')
                     or element.get('accessibility_id') or element.get('type') == 'text' and element.get('text')):
@@ -67,7 +79,12 @@ def feature_matrix(state):
                    if element.get('locators') else element.get('id') or element.get('text'), element.get('class_name'))
             if key in components and not element.get('visible'):
                 continue
-            linked = set().union(*(bindings.get((loc['strategy'], loc['value']), set()) for loc in element.get('locators', [])))
+            linked = set(element_bindings.get(element.get('id'), set()))
+            for locator in element.get('locators', []):
+                target = (locator['strategy'], locator['value'])
+                # A shared ID such as "OK" cannot give other screens functional credit.
+                if len(observed_matches.get(target, set())) == 1:
+                    linked.update(bindings.get(target, set()))
             ui_cases = ui_bindings.get(element.get('id'), [])
             passing = [cid for cid in linked if passed(cid)]
             observed = bool(element.get('visible') or element.get('requires_scroll'))

@@ -551,6 +551,7 @@ def discovery_agent(state):
             (run_dir / ".private" / "auto_secrets.json").write_text(json.dumps(saved), encoding="utf-8")
         return {"enabled": True, "flows": session.flows, "tried": session.tried, "findings": session.findings,
                 "coverage": session.coverage, "tries_used": session.used, "stopped": stopped,
+                "state_inventory": session.state_inventory(),
                 "mode": "website" if config.get("app_mode") == "web" else "app",
                 "contract": session.contract() if session.flows else None}
 
@@ -1019,9 +1020,15 @@ def _execute_mobile(state):
     error = validate_mobile_script(script.read_text(encoding="utf-8"), cases)
     if error:
         raise AndroidEnvironmentError("Mobile script validation failed before execution: " + error)
-    # A resumed execution replaces its incomplete attempt rather than duplicating results.
+    from .android_resume import plan as resume_plan
+    resume = resume_plan(run_dir, cases)
+    pending = resume["pending"]
+    preserved = resume["completed"] + resume["uncertain"]
+    if not pending:
+        _save_json(run_dir / "results.json", preserved)
+        return {"results": preserved, "execution_duration_s": 0}
+    # Completed evidence is append-only. An uncertain mutation is never replayed.
     events = run_dir / "android_results.jsonl"
-    events.unlink(missing_ok=True)
     unavailable_path = run_dir / "android_execution_unavailable.json"
     unavailable_path.unlink(missing_ok=True)
     (run_dir / "android_cleanup.jsonl").unlink(missing_ok=True)
@@ -1051,7 +1058,11 @@ def _execute_mobile(state):
         PYTEST_DISABLE_PLUGIN_AUTOLOAD="1",
         ANDROID_MOBILE_CONFIG=str(run_dir / ".private" / "android_config.json"),
         ANDROID_MOBILE_CASES=str(run_dir / "generated_tests" / "android_test_cases.json"),
+        ANDROID_PENDING_CASES=json.dumps([case["id"] for case in pending]),
     )
+    # Refresh the trusted harness when resuming an older generated run.
+    template = Path(__file__).parent / "templates" / "android_conftest.py"
+    (script.parent / "conftest.py").write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
     junit = run_dir / "android_junit.xml"
     junit.unlink(missing_ok=True)
     command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--junitxml=" + str(junit), str(script)]
@@ -1073,7 +1084,10 @@ def _execute_mobile(state):
     finally:
         cleanup_error = _cleanup_worker_session(run_dir, state["config"])
         inputs_path.unlink(missing_ok=True)
-    results = read_jsonl(events) or _parse_junit(junit, cases)
+    recorded = {r["id"]: r for r in [*preserved, *read_jsonl(events)]}
+    if not any(case["id"] in recorded for case in pending):
+        recorded.update({r["id"]: r for r in _parse_junit(junit, pending)})
+    results = list(recorded.values())
     unavailable = json.loads(unavailable_path.read_text(encoding="utf-8")) if unavailable_path.exists() else None
     from . import runctl
     stop_kind = runctl.kind()

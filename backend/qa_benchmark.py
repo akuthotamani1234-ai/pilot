@@ -57,13 +57,14 @@ def measure(root, value):
             for case_id, expected in group.expected.items():
                 hits = by_id.get(case_id, [])
                 assertions = [
-                    r for r in hits if r.get("outcome") == "failed" and r.get("exception_type") == "AssertionError"
+                    r for r in hits if r.get("outcome") == "failed" and
+                    r.get("exception_type") in ("AssertionError", "AppCrash", "AppNotResponding")
                 ]
                 actual = (
                     "failed"
                     if assertions
                     else "passed"
-                    if hits and all(r.get("outcome") == "passed" for r in hits)
+                    if hits and all(r.get("outcome") == "passed" and r.get("checks", 1) > 0 for r in hits)
                     else "unanswered"
                 )
                 category = (

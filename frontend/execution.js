@@ -15,7 +15,7 @@
     node.innerHTML = '<div class="live-heading"><div><span class="eyebrow">LIVE EXECUTION</span>' +
       '<h2>See every action</h2></div><span id="livePhase" class="status-chip">Preparing</span></div>' +
       '<p id="liveCurrent" role="status" aria-live="polite">Preparing the test environment…</p><p id="liveExpected" class="live-explanation"></p>' +
-      '<p class="live-explanation">Watch: one visible Chrome window, one action at a time. Fast: isolated hidden workers.</p>' +
+      '<p id="liveMode" class="live-explanation"></p>' +
       '<div class="live-toolbar"><button id="liveFollow" type="button" class="secondary" aria-pressed="true">Following latest</button>' +
       '<span id="liveCount">0 recorded events</span></div>' +
       '<ol id="liveTimeline" class="live-timeline" aria-label="Recorded actions"></ol>' +
@@ -37,6 +37,8 @@
       `<li class="event-${esc(event.status)}"><span class="event-state">${esc(event.status)}</span>` +
       `<div><b>${esc(event.text)}</b><small>${esc(event.case_title || event.test)} · ${esc(event.worker)} · ${esc(event.elapsed)}s</small>` +
       `${event.url ? `<small>${esc(event.url)}</small>` : ""}` +
+      `${event.expected ? `<small>Expected: ${esc(event.expected)}</small>` : ""}` +
+      `${event.observed ? `<small>Observed: ${esc(event.observed)}</small>` : ""}` +
       `${event.selector ? `<details><summary>Target details</summary><code>${esc(event.selector)}</code></details>` : ""}</div></li>`).join("");
     node.querySelector("#liveCount").textContent = `${rows.length} recorded events`;
     node.querySelector("#liveEarlier").hidden = showAll || rows.length <= 200;
@@ -74,12 +76,14 @@
   }
   window.QpilotLive = {
     update(job) {
-      if (job.target_type && job.target_type !== "web") return;
       if (current !== job.id) {
         current = job.id; cursor = ""; rows = []; seen = new Set(); showAll = false; generation++;
         document.getElementById("qpilotLive")?.remove();
       }
       const node = panel();
+      node.querySelector("#liveMode").textContent = job.target_type === "android" ?
+        "Android actions are saved as they execute. Form input values are hidden. A completed action does not by itself prove the scenario passed." :
+        "Watch: one visible Chrome window, one action at a time. Fast: isolated hidden workers.";
       node.querySelector("#livePhase").textContent = job.status === "running" ?
         (job.current || "Preparing").replaceAll("_", " ") : `Process ${job.status}`;
       if (job.id) poll(job, generation);
