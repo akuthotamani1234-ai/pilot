@@ -46,4 +46,15 @@ footer{padding:14px 34px;background:#eef1f8;color:#5c6880;font-size:14px}a{color
 <div class="note">No application APK or package name is needed. To test successful login or form submission, configure approved flows, test data and expected results.</div>
 </div><footer>All three methods: start device + Appium → select source → configure checks → start → review evidence.</footer>
 </article>
+<article class="guide" id="accuracy">
+<header><div class="eyebrow">ACCURACY PLAYBOOK</div><h1>Explore reachable screens and verify outcomes</h1><p>Default Android exploration continues through eligible controls until exhausted. Stop, time limits and protected-action rules still apply.</p></header>
+<div class="content">
+<div class="step"><span class="number">1</span><div><h2>Day-to-day = Test studio</h2><p>Accuracy Lab only scores whether Qpilot matched known truths. It does not test your app.</p></div></div>
+<div class="step"><span class="number">2</span><div><h2>Add a test login when the app has auth</h2><p>Without credentials, login-walled screens stay unreachable.</p></div></div>
+<div class="step"><span class="number">3</span><div><h2>Use approved QA contracts for must-pass flows</h2><p>Login, cart, and critical screens need expected results — not only “button exists”.</p></div></div>
+<div class="step"><span class="number">4</span><div><h2>Leave soft caps at 0 for until-exhausted</h2><p>Optional numbers in Advanced are soft caps. 0 means keep going until the frontier is empty. Tick test-build mode to exercise forms and cart actions.</p></div></div>
+<div class="step"><span class="number">5</span><div><h2>Read blocked actions and remaining gaps</h2><p>Each protected or unfinished scenario needs a reason. No whole-app accuracy percentage is claimed.</p></div></div>
+<div class="note">Checkout, payment, destructive actions and external device features retain their safeguards. Review the coverage panel for exact reasons.</div>
+</div><footer>Exhaustive exploration + credentials + contracts — not a fake 100% claim.</footer>
+</article>
 </main></html>

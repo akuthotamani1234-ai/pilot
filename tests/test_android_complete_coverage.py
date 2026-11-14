@@ -120,3 +120,18 @@ def test_full_run_removes_count_cutoff_but_preserves_stop_and_time_guards(monkey
     device.deadline = 0
     with pytest.raises(Budget, match="time limit"):
         session.spend()
+
+
+@pytest.mark.parametrize("limit,recorded", [(0, True), (1, False)])
+def test_zero_page_limit_does_not_silently_turn_into_a_one_page_limit(limit, recorded):
+    from backend.android_site import SiteSession
+    home = {"id": "home", "web_url": "https://example.test/", "screen_name": "Home", "elements": []}
+    device = SimpleNamespace(config={"app_mode": "web", "start_url": home["web_url"], "max_screens": limit},
+                             screens=[home], record=lambda page: None)
+    session = SiteSession(device)
+    second = {"id": "account", "web_url": "https://example.test/account", "screen_name": "Account", "elements": []}
+    page = session.add_page(second, "page", "Account link")
+    assert (page is not None) is recorded
+    assert len(session.pages) == (2 if recorded else 1)
+    if not recorded:
+        assert "limit of 1 pages" in session.tried[-1]["reason"]

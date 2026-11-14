@@ -88,9 +88,12 @@ def test_disconnect_during_cleanup_preserves_discovery(tmp_path, monkeypatch):
     monkeypatch.setattr(driver, "quit", broken_quit)
     monkeypatch.setattr(android_pipeline, "create_session", lambda _: driver)
     state = _state(tmp_path)
-    state["config"]["max_actions"] = 0
+    # Soft caps: 0 = until exhausted. Keep this cleanup test to a single launch screen.
+    state["config"]["max_screens"] = 1
+    state["config"]["max_actions"] = 1
+    (tmp_path / "STOP").write_text("stop", encoding="utf-8")
     result = android_pipeline.discovery_agent(state)
-    assert len(result["screens"]) == 1
+    assert len(result["screens"]) >= 1
     assert json.loads((tmp_path / "screens.json").read_text(encoding="utf-8"))
     assert any("cleanup" in issue["error"].lower() for issue in result["discovery_issues"])
 

@@ -344,6 +344,6 @@ def test_an_api_key_names_its_provider_and_the_ui_sends_the_test_mode_limits():
     assert key_provider("AIzaSy-x") == "gemini" and key_provider("ollama-local") is None
     root = Path(android_pipeline.__file__).resolve().parent.parent / "frontend"
     page, script = (root / "chat.html").read_text(encoding="utf-8"), (root / "chat.js").read_text(encoding="utf-8")
-    assert 'id="androidMaxInteractions" type="number" min="0" max="500" value="300"' in page
-    assert 'id="androidInteractionTimeout" type="number" min="30" max="3600" value="2700"' in page
+    assert 'id="androidMaxInteractions" type="number" min="0" max="500" value="0"' in page
+    assert 'id="androidInteractionTimeout" type="number" min="0" max="3600" value="0"' in page
     assert 'data.append("max_interactions"' in script and 'data.append("interaction_timeout_s"' in script

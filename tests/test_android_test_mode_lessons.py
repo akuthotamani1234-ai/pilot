@@ -106,9 +106,9 @@ def test_test_mode_flows_run_only_when_the_run_is_in_test_mode_again():
     assert validate_mobile_config({**config, "interaction_testing": True})["qa_contract"]["test_mode"]
 
 
-def test_the_limits_cover_a_demo_shop_and_stay_finite():
+def test_zero_soft_limits_keep_until_exhausted_and_explicit_limits_are_validated():
     config = validate_mobile_config({"app_mode": "web", "device_id": "emulator-5554", "start_url": BASE + "/"})
-    assert (config["max_interactions"], config["interaction_timeout_s"]) == (300, 2700)
+    assert (config["max_interactions"], config["interaction_timeout_s"]) == (0, 0)
     assert (config["bot_check_wait_s"], config["human_wait_s"]) == (30, 180)
     with pytest.raises(AndroidEnvironmentError):
         validate_mobile_config({**config, "max_interactions": 501})

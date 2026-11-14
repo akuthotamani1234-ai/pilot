@@ -85,7 +85,10 @@ def discovery_agent(state):
     run_dir = _run_dir(state)
     driver = create_session(config)
     screens, actions, issues, unvisited = [], [], [], []
-    deadline = time.monotonic() + config.get("discovery_timeout_s", 120)
+    from .android import EXHAUSTIVE_WALL_CLOCK_S
+    discovery_timeout = int(config.get("discovery_timeout_s") or 0)
+    # 0 = until exhausted; still apply an emergency wall-clock so a stuck driver cannot run forever.
+    deadline = time.monotonic() + (discovery_timeout or EXHAUSTIVE_WALL_CLOCK_S)
     seen = set()
     budget = {"used": 0, "recovery": 0}
     observed_destinations, skipped = {}, []
@@ -123,12 +126,15 @@ def discovery_agent(state):
             # One tap or Back to return (cheap_return): counted on its own, not as a relaunch-and-replay recovery
             budget["cheap"] = budget.get("cheap", 0) + 1
         elif recovery:
-            if not budget.get("interaction_phase") and budget["recovery"] >= max(10, config["max_actions"] * 3):
+            action_cap = int(config.get("max_actions") or 0)
+            recovery_cap = max(10, (action_cap or 200) * 3)
+            if not budget.get("interaction_phase") and budget["recovery"] >= recovery_cap:
                 raise DiscoveryLimitReached("Recovery action limit reached")
             budget["recovery"] += 1
         else:
             key = "authenticated_used" if budget.get("interaction_phase") else "used"
-            if budget.get(key, 0) >= config["max_actions"]:
+            action_cap = int(config.get("max_actions") or 0)
+            if action_cap and budget.get(key, 0) >= action_cap:
                 raise DiscoveryLimitReached("Exploration action limit reached")
             budget[key] = budget.get(key, 0) + 1
         action()
@@ -387,8 +393,8 @@ def discovery_agent(state):
                                                          (e.get("text") or e.get("accessibility_id") or ""), re.I)),
                            rank(e) if config.get("app_mode") != "web" else 0)
         )
-        cap = config.get("max_candidates_per_screen", 12)
-        if config.get("app_mode") != "web" and len(candidates) > cap:
+        cap = int(config.get("max_candidates_per_screen") or 0)
+        if config.get("app_mode") != "web" and cap and len(candidates) > cap:
             for rest in candidates[cap:]:
                 unvisited.append({"screen_id": screen["id"], "element_id": rest["id"],
                                   "label": (rest.get("text") or rest.get("accessibility_id") or "navigation")[:100],
@@ -427,10 +433,13 @@ def discovery_agent(state):
                 continue
             action_count = (budget.get("authenticated_used", 0) if budget.get("interaction_phase")
                             else budget["used"])
+            max_depth = int(config.get("max_depth") or 0)
+            max_screens = int(config.get("max_screens") or 0)
+            max_actions = int(config.get("max_actions") or 0)
             if (
-                depth >= config.get("max_depth", 3)
-                or len(screens) >= config["max_screens"]
-                or action_count >= config["max_actions"]
+                (max_depth and depth >= max_depth)
+                or (max_screens and len(screens) >= max_screens)
+                or (max_actions and action_count >= max_actions)
                 or time.monotonic() >= deadline
                 or (run_dir / "STOP").exists()
             ):
@@ -441,8 +450,8 @@ def discovery_agent(state):
                         "label": label,
                         "reason": ("Stop requested" if (run_dir / "STOP").exists() else
                                    "Discovery time limit reached" if time.monotonic() >= deadline else
-                                   "Exploration action limit reached" if action_count >= config["max_actions"] else
-                                   "Screen limit reached" if len(screens) >= config["max_screens"] else
+                                   "Exploration action limit reached" if max_actions and action_count >= max_actions else
+                                   "Screen limit reached" if max_screens and len(screens) >= max_screens else
                                    "Exploration depth limit reached"),
                     }
                 )
@@ -552,7 +561,8 @@ def discovery_agent(state):
         from . import llm
         from .android_site import SiteDevice, SiteSession
 
-        device = SiteDevice(driver, config, screens, run_dir / "STOP", deadline, config["max_interactions"],
+        tries = int(config.get("max_interactions") or 0) or 10**9
+        device = SiteDevice(driver, config, screens, run_dir / "STOP", deadline, tries,
                             record=lambda screen: record_screen(screen, [], 1))
         session = SiteSession(device, environment=os.environ)
         user_session = session
@@ -561,7 +571,7 @@ def discovery_agent(state):
             def ask(prompt, shape):
                 return llm.ask_structured(prompt, shape, agent="interaction_design", page="android", timeout_s=90)
         print("::stage::test_build::start", flush=True)
-        print("[android] Test mode on a website: every menu first, then every page to its end, then every feature "
+        print("[android] Test mode on a website: explore until exhausted "
               "(checkout and payment are never pressed).", flush=True)
         stopped = ""
         try:
@@ -593,7 +603,9 @@ def discovery_agent(state):
         blocker = interaction_blocker(config)
         if blocker:
             return {"enabled": False, "reason": blocker} if config.get("interaction_testing") else None
-        deadline = time.monotonic() + config["interaction_timeout_s"]
+        from .android import EXHAUSTIVE_WALL_CLOCK_S
+        interaction_timeout = int(config.get("interaction_timeout_s") or 0)
+        deadline = time.monotonic() + (interaction_timeout or EXHAUSTIVE_WALL_CLOCK_S)
         # What exploration itself used; the replays of user-like testing restore screens too, which is not exploring
         budget.setdefault("discovery_recovery", budget["recovery"])
         budget["interaction_phase"] = True  # the session counts its own tries; replays are not "recovery"
@@ -630,8 +642,9 @@ def discovery_agent(state):
 
         from .android_app import AppSession
 
+        tries = int(config.get("max_interactions") or 0) or 10**9
         device = SimpleNamespace(driver=driver, config=config, screens=screens, stop_path=run_dir / "STOP",
-                                 deadline=deadline, max_tries=config["max_interactions"], fresh_start=fresh_start,
+                                 deadline=deadline, max_tries=tries, fresh_start=fresh_start,
                                  go_to=go_to, observe=lambda: limited(lambda: settled(timeout=10)),
                                  hide_keyboard=hide_keyboard)
         # A screen test mode reaches first (Login from the menu) joins the run's screens with its path
