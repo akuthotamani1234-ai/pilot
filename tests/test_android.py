@@ -122,9 +122,10 @@ def test_extract_screen_orders_stable_locators_and_redacts_input_values():
         "strategy": "resource_id",
         "value": "com.example:id/password",
     }
+    # Prefer durable resource_id ahead of accessibility_id / text.
     assert button["locators"] == [
-        {"strategy": "accessibility_id", "value": "Sign in"},
         {"strategy": "resource_id", "value": "com.example:id/login"},
+        {"strategy": "accessibility_id", "value": "Sign in"},
         {"strategy": "text", "value": "Sign in"},
     ]
     assert screen["platform"] == "android"
