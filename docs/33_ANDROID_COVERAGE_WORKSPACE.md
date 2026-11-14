@@ -48,7 +48,7 @@ request is not persisted for reuse. Starting a new full run is separate from con
 ## Reviewable AI scenarios
 
 After discovery completes, choose **Draft a scenario with AI**. Describe navigation, expected behavior and private
-data references, for example `BLOWAI_SECRET_TEST_USERNAME`. Qpilot uses its configured provider under the existing
+data references, for example `QPILOT_SECRET_TEST_USERNAME`. Qpilot uses its configured provider under the existing
 privacy policy and binds draft targets to observed controls (up to 300 controls per draft request). It does not send
 input contents or private files. Invalid references and inline credential fills are rejected.
 
@@ -59,8 +59,8 @@ discovery run or explicit configuration; AI output is not evidence of a successf
 ## API and database outcomes
 
 **Add API / database check** in the flow tools supports HTTP GET plus status/JSON-pointer/scalar expectations, or a
-read-only SQLite SELECT with parameters and a scalar expectation. Tokens use `BLOWAI_SECRET_*`; local database paths
-use `BLOWAI_DB_*` environment references. Metadata services, unapproved origins, HTTP mutations and SQL writes remain
+read-only SQLite SELECT with parameters and a scalar expectation. Tokens use `QPILOT_SECRET_*`; local database paths
+use `QPILOT_DB_*` environment references. Metadata services, unapproved origins, HTTP mutations and SQL writes remain
 blocked by the existing oracle implementation. Other database engines are not implemented by this wizard.
 
 Attach checks to an existing UI workflow to verify its UI assertions followed by backend assertions in the same

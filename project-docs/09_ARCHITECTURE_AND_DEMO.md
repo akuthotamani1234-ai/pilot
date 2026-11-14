@@ -122,10 +122,10 @@ the suite had 74 tests (all passed in 10 minutes); on Nov 4 it has 330, of which
 
 ## 6. Demo script (about 10 minutes)
 
-**Before the demo** (two terminal windows in `blow-ai`):
+**Before the demo** (two terminal windows in `qpilot`):
 ```powershell
 .venv\Scripts\python.exe tests\demo_store.py 8766      # the practice shop (keep this window open)
-ui.bat                                                  # the Blow AI web UI -> opens http://127.0.0.1:8000
+ui.bat                                                  # the Qpilot web UI -> opens http://127.0.0.1:8000
 ```
 
 **On stage:**
@@ -160,7 +160,7 @@ ui.bat                                                  # the Blow AI web UI -> 
   GitHub / folder project).
 - **Storage:** files per run (`runs/<run>/`) plus `baseline/`. Next: PostgreSQL + object storage when several users
   share the system.
-- **Reporting integrations:** JUnit XML, Slack, Jira and GitHub Actions (`.github/workflows/blow-ai.yml`) exist;
+- **Reporting integrations:** JUnit XML, Slack, Jira and GitHub Actions (`.github/workflows/qpilot.yml`) exist;
   Allure is next.
 - **MFA / CAPTCHA** are never bypassed: use a test account without them, or a test environment.
 - **Real third-party sites:** big public sites (e.g. Amazon) block automation and forbid it in their terms. Test only

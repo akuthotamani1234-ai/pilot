@@ -799,7 +799,7 @@
             "strategy": "accessibility_id",
             "value": "input-email"
           },
-          "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"
+          "secret_ref": "QPILOT_SECRET_TEST_USERNAME"
         },
         {
           "action": "fill",
@@ -807,7 +807,7 @@
             "strategy": "accessibility_id",
             "value": "input-password"
           },
-          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+          "secret_ref": "QPILOT_SECRET_TEST_PASSWORD"
         },
         {
           "action": "tap",
@@ -861,7 +861,7 @@
             "strategy": "accessibility_id",
             "value": "input-email"
           },
-          "secret_ref": "BLOWAI_SECRET_TEST_USERNAME"
+          "secret_ref": "QPILOT_SECRET_TEST_USERNAME"
         },
         {
           "action": "fill",
@@ -869,7 +869,7 @@
             "strategy": "accessibility_id",
             "value": "input-password"
           },
-          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+          "secret_ref": "QPILOT_SECRET_TEST_PASSWORD"
         },
         {
           "action": "fill",
@@ -877,7 +877,7 @@
             "strategy": "accessibility_id",
             "value": "input-repeat-password"
           },
-          "secret_ref": "BLOWAI_SECRET_TEST_PASSWORD"
+          "secret_ref": "QPILOT_SECRET_TEST_PASSWORD"
         },
         {
           "action": "tap",

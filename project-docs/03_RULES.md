@@ -2,7 +2,7 @@
 
 # 🛡️ Rules & Guidelines
 
-### Blow AI – AI Agents That Test Your Website
+### Qpilot – AI Agents That Test Your Website
 
 | **Version** | 1.0 |
 |---|---|

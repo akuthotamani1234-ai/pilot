@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from .mcp_bridge import BlowAIBridge, BridgeError, local_url, require_permission, run_name, website_url
+from .mcp_bridge import BridgeError, QpilotBridge, local_url, require_permission, run_name, website_url
 
 PositiveID = Annotated[int, Field(ge=1)]
 Offset = Annotated[int, Field(ge=0)]
@@ -37,7 +37,7 @@ def build_server(ui_url: str | None = None):
                 raise ToolError(str(err)) from err
         return wrapped
 
-    bridge = BlowAIBridge(ui_url or os.getenv("BLOWAI_UI_URL", "http://127.0.0.1:8000"))
+    bridge = QpilotBridge(ui_url or os.getenv("QPILOT_UI_URL", os.getenv("BLOWAI_UI_URL", "http://127.0.0.1:8000")))
     @asynccontextmanager
     async def lifespan(_server):
         bridge.start_presence()
@@ -63,6 +63,9 @@ def build_server(ui_url: str | None = None):
             "Start tools return immediately; poll get_run_status with the returned cursors. Never retry a "
             "timed-out start without checking list_runs. Job IDs belong to the current UI process. "
             "Credentials stay in the configured local environment; do not ask for secrets in chat."
+            " Studio can prepare a private request; use start_prepared_test with its request_id and explicit "
+            "permission to launch that exact configuration. Do not substitute start_web_test or start_android_test "
+            "for a prepared request: doing so would lose its settings and private inputs."
         ),
     )
     read = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True,
@@ -88,6 +91,18 @@ def build_server(ui_url: str | None = None):
     def get_android_environment(appium_url: str = "http://127.0.0.1:4723") -> dict:
         """Read Android SDK/device/Appium readiness. Does not install tools or start an emulator/session."""
         return bridge.get("/api/android/environment", appium_url=local_url(appium_url, "Appium"))
+
+    @server.tool(annotations=start)
+    @_bridge_as_tool_error
+    def start_prepared_test(request_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{32,80}$")],
+                            authorized: bool = False) -> dict:
+        """Start the exact expiring configuration prepared in Studio, without reading its private inputs.
+        Requires the user's explicit permission. A repeated successful start returns the existing job.
+        Android preparation starts local Appium/its selected emulator only on this start, never on Prepare.
+        Expired/revoked requests must be prepared again; do not retry an uncertain start without checking jobs.
+        """
+        require_permission(authorized)
+        return bridge.post(f"/api/mcp/prepared/{request_id}/start", {"authorized": True})
 
     @server.tool(annotations=start)
     @_bridge_as_tool_error
@@ -247,11 +262,13 @@ def build_server(ui_url: str | None = None):
             raise BridgeError("Stopping interrupts a run. Set confirmed=true only after the user requests it.")
         return bridge.post(f"/api/runs/{job_id}/stop")
 
+    @server.resource("qpilot://workflow", mime_type="text/plain")
     @server.resource("blowai://workflow", mime_type="text/plain")
     def workflow() -> str:
         return ("1. Start ui.bat, then get_connection_info. Connection never starts automation.\n"
                 "Approve assistant access in the UI Privacy settings before reading data or starting runs.\n"
-                "2. Get user permission and scope; choose crawl_website, start_web_test or start_android_test.\n"
+                "2. Get user permission and scope; use start_prepared_test for a reviewed Studio request. "
+                "Otherwise choose crawl_website, start_web_test or start_android_test.\n"
                 "3. Poll get_run_status using next/pnext cursors. Watch the same run in the UI.\n"
                 "4. Use the run folder name for list_page_components and get_run_report.\n"
                 "5. Report evidence, inaccessible areas and limits. Observed controls are not passed tests.\n"
@@ -262,7 +279,7 @@ def build_server(ui_url: str | None = None):
 
 def main():
     parser = argparse.ArgumentParser(description="Qpilot local stdio MCP bridge")
-    parser.add_argument("--ui-url", default=None, help="Existing local UI origin; default BLOWAI_UI_URL or port 8000")
+    parser.add_argument("--ui-url", default=None, help="Existing local UI origin; default QPILOT_UI_URL (legacy BLOWAI_UI_URL also accepted) or port 8000")
     args = parser.parse_args()
     try:
         server = build_server(args.ui_url)

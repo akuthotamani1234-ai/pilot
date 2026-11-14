@@ -1,7 +1,8 @@
 # Feature audit and live Android verification
 
-This is the current audit for 6 November 2026. It distinguishes implemented code, regression checks,
-live execution and scope limits. Historical reports remain historical; they do not prove every current feature.
+This is the historical audit for 6 November 2026. It distinguishes that phase's implementation, regressions,
+live execution and scope limits. See [STATUS](../STATUS.md) and [current MCP settings](34_MCP_SHARED_CONFIGURATION.md)
+for subsequent changes. These recorded runs do not prove every current feature.
 
 ## Coverage matrix
 

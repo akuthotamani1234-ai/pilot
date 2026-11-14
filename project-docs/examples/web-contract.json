@@ -14,7 +14,7 @@
             "strategy": "css",
             "value": "#username"
           },
-          "secret_ref": "BLOWAI_SECRET_LOGIN_USERNAME"
+          "secret_ref": "QPILOT_SECRET_LOGIN_USERNAME"
         },
         {
           "action": "fill",
@@ -22,7 +22,7 @@
             "strategy": "css",
             "value": "#password"
           },
-          "secret_ref": "BLOWAI_SECRET_LOGIN_PASSWORD"
+          "secret_ref": "QPILOT_SECRET_LOGIN_PASSWORD"
         },
         {
           "action": "tap",

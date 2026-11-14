@@ -1,6 +1,6 @@
 # Security
 
-Blow AI opens websites, types into their forms, runs AI-written test code and holds API keys and test accounts,
+Qpilot opens websites, types into their forms, runs AI-written test code and holds API keys and test accounts,
 so security problems matter. This page says how to report one and what the tool protects.
 
 ## Reporting a problem

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationIn
 from .safety import check_target, is_metadata_host
 
 ID = r"^[A-Za-z][A-Za-z0-9_-]{0,63}$"
-SECRET_REF = r"^BLOWAI_SECRET_[A-Z0-9_]{1,80}$"  # noqa: S105 - environment reference pattern, not a credential
+SECRET_REF = r"^(?:QPILOT|BLOWAI)_SECRET_[A-Z0-9_]{1,80}$"  # noqa: S105 - reference pattern, not a credential
 # Approved workflows retain protected-action rules in every exploration mode.
 IRREVERSIBLE = re.compile(
     r"\b(pay|payment|purchase|buy|checkout|place ?order|order|delete|remove|erase|transfer|send|permission|"
@@ -290,7 +290,7 @@ class BackendCheck(Model):
     token_ref: str | None = Field(default=None, pattern=SECRET_REF)
     status: int = Field(default=200, ge=100, le=599)
     json_pointer: str = Field(default="", max_length=500)
-    database_ref: str | None = Field(default=None, pattern=r"^BLOWAI_DB_[A-Z0-9_]{1,80}$")
+    database_ref: str | None = Field(default=None, pattern=r"^(?:QPILOT|BLOWAI)_DB_[A-Z0-9_]{1,80}$")
     query: str | None = Field(default=None, max_length=2000)
     parameters: list[Any] = Field(default_factory=list, max_length=30)
     expected: Any

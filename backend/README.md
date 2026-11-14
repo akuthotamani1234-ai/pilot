@@ -1,6 +1,6 @@
 # backend/ – the testing engine
 
-All of the Python code that tests a website. `main.py` (in the project root) runs it from the command line;
+The Python engines for website and Android testing. `main.py` (in the project root) runs them from the command line;
 `server.py` runs it for the web UI.
 
 ## The pipeline
@@ -46,6 +46,8 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `state.py` | `QAState`: the data passed from agent to agent |
 | `runctl.py` | stopping a run on purpose (Ctrl+C, the UI's STOP file, the run time limit) so it still reports |
 | `server.py` | the web UI's server (FastAPI): starts `main.py`, streams its progress, serves reports; `POST /api/hooks/run` (with `WEBHOOK_TOKEN`) lets a deploy script start a run; scheduled tests (`schedules.json`, checked every 30 s while it runs) |
+| `mcp_prepared.py` | Studio-only validation and expiring in-memory private configurations; atomic/idempotent MCP startup through the existing web/mobile launchers |
+| `mcp_server.py`, `mcp_bridge.py`, `mcp_api.py` | optional stdio tools, loopback transport, public bounded views and assistant presence; never a second execution engine |
 
 **The AI**
 | File | What it does |
@@ -134,6 +136,11 @@ working when you change the console output.
 AI-written test code is also checked before it runs (an import allow-list in `script_generator.py`).
 
 ## Rules for changing this code
+
+Current configuration uses `QPILOT_UI_URL`, `QPILOT_SECRET_*` and `QPILOT_DB_*`. Legacy aliases remain accepted for
+saved contracts and installed clients. Never remove their redaction or leak them into generated-code environments.
+See [private MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md).
+
 - **Rules decide, the AI only explains.** The verdict, the failure categories and the severities come from code.
   (One written exception: with `VISION` on, `failure_analysis.classify` lets the AI's look at a failed test's
   screenshots clear it as a *test mistake* or raise it to *suspect* - never to a proven website bug.)

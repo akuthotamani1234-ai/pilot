@@ -1,6 +1,6 @@
 # tests/ – testing the tester
 
-These tests check Blow AI itself. They need **no internet, no AI and no test account**. `conftest.py` switches the
+These tests check Qpilot itself. They need **no internet, no AI and no test account**. `conftest.py` switches the
 AI off and resets every setting that `.env` could change, and the websites they test are practice websites that run
 on this PC.
 
@@ -8,8 +8,8 @@ on this PC.
 First install the test-only packages once: `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
 
 ```powershell
-.venv\Scripts\python.exe -m pytest -q -n 3 --dist loadfile -m "not slow"   # quick check: 276 tests
-.venv\Scripts\python.exe -m pytest -q -n 3 --dist loadfile                 # everything: 330 tests
+.venv\Scripts\python.exe -m pytest -q -n 3 --dist loadfile -m "not slow"   # offline regressions; current result in STATUS.md
+.venv\Scripts\python.exe -m pytest -q -n 3 --dist loadfile                 # all collected tests, including slow/live-marked checks
 .venv\Scripts\python.exe -m pytest -q tests/test_safety.py                 # one file
 ```
 - `-n 3 --dist loadfile` runs 3 test files at the same time (pytest-xdist), keeping each file's tests together.

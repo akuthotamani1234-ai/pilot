@@ -1,4 +1,4 @@
-# Qpilot – AI website tester
+# Qpilot – AI website and Android tester
 
 Give it a **website URL**, a **GitHub link** or a **project folder**. It tests the website the way a QA tester would
 and ends with a plain-English report. A run has these steps:
@@ -22,8 +22,8 @@ works with the built-in rules.
 ## Quick start
 On Windows 10 / 11 with [Python 3.13](https://www.python.org/downloads/):
 ```powershell
-git clone <repository-url> blow-ai
-cd blow-ai
+git clone <repository-url> qpilot
+cd qpilot
 .\ui.bat
 ```
 The first start installs everything (a few minutes), then opens http://127.0.0.1:8000. Paste a website you may test
@@ -71,7 +71,7 @@ Python 3.13 · FastAPI · LangGraph · Playwright · Appium · pytest · ruff ·
   - Node.js / Python, if you test a project from its code (whatever that project needs to run)
 
 ## 2. Install
-Get the code with `git clone <repository-url> blow-ai` (or download the ZIP from GitHub and unzip it), then
+Get the code with `git clone <repository-url> qpilot` (or download the ZIP from GitHub and unzip it), then
 double-click **`ui.bat`** in that folder: it installs whatever is missing and then starts the tester. To only
 install, open the **`setup`** folder and double-click **`install.bat`**. The first time, the installer:
 1. installs Python 3.13 if it is missing, and creates the Python environment `.venv`
@@ -85,7 +85,7 @@ it was deleted. Double-clicked by itself, `install.bat` waits for a key at the e
 
 By hand, the same steps are:
 ```powershell
-cd blow-ai
+cd qpilot
 py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m playwright install chromium
@@ -94,6 +94,10 @@ copy .env.example .env
 
 ## 3. Configure
 All settings are in **`.env`**. Each line of `.env.example` explains its setting. Usually you only set the AI:
+
+MCP uses `QPILOT_UI_URL`; `QPILOT_SECRET_*` / `QPILOT_DB_*` hold private flow references and
+`QPILOT_CHROMEDRIVER` optionally selects an existing driver. Legacy names remain accepted. See the
+[shared MCP settings and migration guide](docs/34_MCP_SHARED_CONFIGURATION.md).
 
 Android continuation manages `ANDROID_PENDING_CASES` internally; use **Resume unfinished tests** instead of setting it in `.env`.
 
@@ -299,7 +303,7 @@ is, you are asked whether that is allowed, the same way as the rules between fie
 types the login code itself. E-mail / SMS codes still need you in the Chrome window.
 
 **Continuous testing and team tools** (all optional, set in `.env`; see `.env.example`):
-- `.github/workflows/blow-ai.yml` tests the website in GitHub Actions after a push, a deployment, every day or by hand, and
+- `.github/workflows/qpilot.yml` tests the website in GitHub Actions after a push, a deployment, every day or by hand, and
   fails the job when the verdict is *Not Ready* or *Insufficient Evidence*. The report is attached to the run.
 - `SLACK_WEBHOOK_URL`: one Slack message when a run finds application defects at or above `SLACK_MIN_SEVERITY`.
 - `JIRA_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` + `JIRA_PROJECT`: one Jira issue per application defect (steps,
@@ -340,7 +344,7 @@ details, what never to copy, checking that it works, and why a shared server is 
 
 ### Project structure
 ```
-blow-ai/
+qpilot/
 ├── backend/              the Python engine: agents, AI wrapper, web server        → backend/README.md
 ├── frontend/             the web page of the UI (plain HTML / CSS / JS, no build)  → frontend/README.md
 ├── tests/                tests of the tester + practice websites with planted bugs → tests/README.md
@@ -360,7 +364,7 @@ blow-ai/
 ├── CONTRIBUTING.md       setting up the code, checking a change, coding rules, commits and Pull Requests
 ├── SECURITY.md           reporting a security problem, what the tool protects
 ├── .github/workflows/    ci.yml: ruff + the quick tests on every push to main / Pull Request
-│                         blow-ai.yml: test YOUR website in GitHub Actions after a push / deployment (optional)
+│                         qpilot.yml: test YOUR website in GitHub Actions after a push / deployment (optional)
 ├── .gitignore            keeps secrets, runs and caches out of git
 ├── .gitattributes        line endings (the .bat files keep CRLF)
 ├── .editorconfig         indent, line length and line endings for your editor
@@ -415,7 +419,7 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 
 ## 13. Repository layout
 ```
-blow-ai/
+qpilot/
 ├── main.py                 # CLI entry for a single run
 ├── ui.bat / run.bat        # Windows launchers (install + studio)
 ├── backend/                # FastAPI server, LangGraph agents, Android/web engines
@@ -458,12 +462,17 @@ See the [implementation and verification report](project-docs/ANDROID_IMPLEMENTA
 
 Advanced application checks: [approved flows, business/backend checks, hybrid testing and accuracy lab](project-docs/13_ADVANCED_QA.md).
 
-[Page components, hidden controls and nested-menu inventory](project-docs/14_PAGE_COMPONENT_INVENTORY.md) describes the new crawler inventory. Verification remains deferred.
+[Page components, hidden controls and nested-menu inventory](project-docs/14_PAGE_COMPONENT_INVENTORY.md) describes the crawler inventory. Current regression evidence and live-verification limits are recorded in [STATUS](STATUS.md).
 
 
 ## Local MCP integration
 
 Optional AI-client access to the existing Playwright/Appium services: install with **setup/install-mcp.bat**, start **ui.bat**, then configure your MCP client using **mcp-config.local.json**. Connection alone never starts a test. See [MCP setup and tools](docs/15_MCP_INTEGRATION.md).
+
+The MCP panel shares Standard testing's account, AI, exploration and approved-flow controls. **Prepare assistant
+request** validates settings and keeps private inputs in Studio memory; the assistant receives an expiring reference
+and starts that exact configuration with `start_prepared_test`. Prepared Android starts also prepare installed local
+Appium and the selected emulator. Restart Studio and reconnect the MCP client after updating.
 
 
 ## Choose your workflow and privacy

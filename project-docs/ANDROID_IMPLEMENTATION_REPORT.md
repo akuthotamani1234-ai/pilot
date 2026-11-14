@@ -3,7 +3,8 @@
 This is the historical first-phase report. Subsequent approved-flow, backend, hybrid and accuracy features are described in [13_ADVANCED_QA.md](13_ADVANCED_QA.md); see [current verification status](ADVANCED_QA_VERIFICATION.md).
 
 Verified 5 November 2026. This report distinguishes implemented code, actual execution and remaining limits.
-The original source checkpoint is `.snapshots/android_before_20261105_155703.zip`; this workspace has no Git repository.
+The original source checkpoint was `.snapshots/android_before_20261105_155703.zip`; the workspace was not yet a Git
+repository at that historical checkpoint. Current source and changes are versioned in Git.
 
 ## Architecture and preserved web behavior
 
@@ -79,10 +80,10 @@ screenshots of filled inputs/external apps are skipped. Private APK/checkpoint/c
 ## Remaining limits and accuracy improvements
 
 - Physical phones, other Android versions and cloud-provider live Android generation: **NOT VERIFIED**. Shared provider paths remain available.
-- Native credential entry, login submission, registration and form submission are **not implemented as approved executable flows**; they remain blocked by default. The empty-form seeded defect is therefore **NOT VERIFIED**. Add explicit secret-safe flow contracts and fixture-only approvals before extending this coverage.
-- Native iOS is outside this Android/Windows scope. Hybrid WebView context switching and general mobile-web AI discovery are not implemented; the recorded Chrome run is a separate handwritten demo.
-- Discovery is bounded; most real applications require additional app-specific expected outcomes. AI-generated mobile proposals are currently restricted to observed UI evidence, at most three scenarios/two controls per proposal. They do not independently prove transactional correctness.
-- Add read-only API/database checks and domain rules for totals, permissions and state transitions to obtain stronger correctness evidence than visible UI alone.
+- Historical snapshot: native credential entry, login/registration and form submission were initially unavailable. Current approved/test-build flows implement these with permission and expected-outcome checks; see [current coverage](../docs/33_ANDROID_COVERAGE_WORKSPACE.md). The original empty-form seeded defect was **NOT VERIFIED in this first-phase run**; later checks have their own evidence.
+- Native iOS is outside this Android/Windows scope. Hybrid WebView context switching and Android Chrome DOM/AI flows are now implemented; the historical recorded Chrome run is a separate handwritten demo.
+- Discovery requires app-specific expected outcomes. The original small AI proposal limits describe this first phase; current discovered-scenario mode and reviewed AI drafts are documented in the coverage guide. Neither independently proves transactional correctness.
+- Read-only API/SQLite checks and domain rules for totals and state transitions are now implemented. Configure them explicitly to obtain evidence beyond visible UI; see [advanced QA](13_ADVANCED_QA.md).
 - Expand the clean/known-defect benchmark across multiple apps and repeated runs. Track false alarms, missed defects and flaky outcomes before publishing an accuracy figure.
 - For presentation, show a clean run, enable a documented defect, display the exact failed assertion and screenshot, then clear the defect and rerun. Show locator recovery separately, preserving the same assertion. Label all seeded behavior.
 

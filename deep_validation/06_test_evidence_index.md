@@ -2,7 +2,9 @@
 
 Current verification status lives in [`STATUS.md`](../STATUS.md).
 
-## Current offline evidence (Linux)
+## Historical offline evidence (Linux)
+
+The counts below belong to an earlier checkpoint. Current completed suite results and their CI links are in STATUS.
 
 | Check | Result |
 | --- | --- |

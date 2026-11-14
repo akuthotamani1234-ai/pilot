@@ -4,7 +4,7 @@
   const dialog = document.createElement('dialog'); dialog.className = 'flow-dialog';
   dialog.setAttribute('aria-label','Draft an Android scenario');
   dialog.innerHTML = '<form method="dialog"><h2>Draft an Android scenario</h2><p>Use a completed discovery run. Describe the workflow, expected result and private test-data references. The configured AI provider and privacy policy apply.</p>' +
-    '<label>Requirements<textarea id="scenarioRequest" rows="4" maxlength="6000" placeholder="Open login, fill secret:BLOWAI_SECRET_TEST_USERNAME and secret:BLOWAI_SECRET_TEST_PASSWORD, then verify the account screen."></textarea></label>' +
+    '<label>Requirements<textarea id="scenarioRequest" rows="4" maxlength="6000" placeholder="Open login, fill secret:QPILOT_SECRET_TEST_USERNAME and secret:QPILOT_SECRET_TEST_PASSWORD, then verify the account screen."></textarea></label>' +
     '<button type="button" class="secondary scenario-generate">Generate draft</button>' +
     '<label>Review and edit the proposed configuration<textarea id="scenarioReview" rows="12" spellcheck="false"></textarea></label>' +
     '<p class="scenario-basis"></p><label class="tick"><input type="checkbox" id="scenarioApprove">I reviewed navigation, expected outcomes and test-data references, and approve this test environment.</label>' +
@@ -61,8 +61,8 @@
     '<label>Check title<input name="title" required maxlength="180"></label><label>UI workflow<select name="flow"></select></label>' +
     '<label>Source<select name="kind"><option value="http">HTTP GET</option><option value="sqlite">Read-only SQLite</option></select></label>' +
     '<div class="http-fields"><label>Approved API URL<input name="url" placeholder="https://test.example/api/status"></label><label>Expected HTTP status<input name="status" type="number" value="200" min="100" max="599"></label>' +
-    '<label>JSON pointer<input name="pointer" placeholder="/state"></label><label>Optional bearer token reference<input name="token" placeholder="BLOWAI_SECRET_API_TOKEN"></label></div>' +
-    '<div class="db-fields" hidden><label>Database reference<input name="database" placeholder="BLOWAI_DB_TEST"></label><label>SELECT query<textarea name="query" placeholder="SELECT status FROM orders WHERE id = ?"></textarea></label>' +
+    '<label>JSON pointer<input name="pointer" placeholder="/state"></label><label>Optional bearer token reference<input name="token" placeholder="QPILOT_SECRET_API_TOKEN"></label></div>' +
+    '<div class="db-fields" hidden><label>Database reference<input name="database" placeholder="QPILOT_DB_TEST"></label><label>SELECT query<textarea name="query" placeholder="SELECT status FROM orders WHERE id = ?"></textarea></label>' +
     '<label>Parameters as a JSON array<input name="parameters" value="[]"></label></div><label>Expected scalar as JSON<input name="expected" required placeholder="&quot;active&quot;, 3, true or null"></label>' +
     '<label class="tick"><input name="approved" type="checkbox" required>I approve this read-only source in my test environment.</label>' +
     '<p class="backend-message" role="status"></p><div class="actions"><button class="primary" type="submit">Add check</button><button class="secondary backend-close" type="button">Cancel</button></div></form>';
@@ -108,5 +108,5 @@
       };
     });
   }
-  new MutationObserver(mount).observe(document.getElementById('thread'),{subtree:true,childList:true}); mount();
+  new MutationObserver(mount).observe(document.querySelector('.chat') || document.getElementById('thread'),{subtree:true,childList:true}); mount();
 })();
