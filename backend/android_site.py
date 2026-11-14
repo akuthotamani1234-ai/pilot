@@ -596,7 +596,9 @@ class SiteSession(Session):
         texts = [b for b in boxes if b.get("class_name") != "select" and (b.get("input_type") or "") in TEXT_TYPES]
         if not texts:
             return None
-        form = build_form(texts, [submit])
+        form = build_form(texts, [submit], native=False)
+        if form is None:
+            return None
         form["ticks"] = [b for b in boxes if b.get("input_type") == "checkbox" and b.get("required") and not b.get("checked")]
         form["choices"] = [step for b in boxes if b.get("class_name") == "select" for step in self.choice(b)]
         words = " ".join([label(submit), *(label(b) for b in boxes), target.get("screen_name", "")])

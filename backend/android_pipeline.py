@@ -579,7 +579,12 @@ def discovery_agent(state):
         except Exception as error:  # the checks already kept stand even when one part breaks
             from .android_runtime import device_unavailable
             if device_unavailable(error):
-                raise
+                stopped = "Android device/session loss during test-build: incomplete, no blind resubmit"
+                issues.append({"error": "Test mode stopped after device/session loss: "
+                                        + redact(str(error))[:250], "session_loss": True})
+                result = finish_session(session, stopped)
+                result.update(session_loss=True, incomplete=True, incomplete_reason=stopped)
+                return result
             stopped = "Stopped by an error: " + redact(str(error))[:200]
             issues.append({"error": "Test mode stopped: " + redact(str(error))[:250]})
         finally:
@@ -701,7 +706,15 @@ def discovery_agent(state):
         except Exception as error:  # the checks already kept stand even when one part breaks
             from .android_runtime import device_unavailable
             if device_unavailable(error):
-                raise
+                # Preserve partial form evidence; never auto-resubmit an unknown outcome.
+                stopped = "Android device/session loss during test-build: incomplete, no blind resubmit"
+                issues.append({"error": "Test-build mode stopped after device/session loss: "
+                                        + redact(str(error))[:250], "session_loss": True})
+                result = finish_session(session, stopped)
+                result["session_loss"] = True
+                result["incomplete"] = True
+                result["incomplete_reason"] = stopped
+                return result
             stopped = "Stopped by an error: " + redact(str(error))[:200]
             issues.append({"error": "Test-build mode stopped: " + redact(str(error))[:250]})
         finally:
@@ -794,9 +807,23 @@ def discovery_agent(state):
             try:
                 interaction = user_like_testing()
             except Exception as e:  # the safe exploration's evidence stands even if user-like testing breaks
+                from .android_runtime import device_unavailable
                 issues.append({"error": "Test-build mode stopped: " + redact(str(e))[:250]})
-                interaction = {"enabled": True, "flows": [], "tried": [], "findings": [], "tries_used": 0,
-                               "stopped": "Stopped by an error: " + redact(str(e))[:200], "contract": None}
+                if user_session is not None:
+                    # Keep flows/tried already recorded; do not invent a resubmit.
+                    interaction = finish_session(
+                        user_session,
+                        "Android device/session loss during test-build: incomplete, no blind resubmit"
+                        if device_unavailable(e) else "Stopped by an error: " + redact(str(e))[:200])
+                    if device_unavailable(e):
+                        interaction.update(session_loss=True, incomplete=True,
+                                           incomplete_reason=interaction["stopped"])
+                else:
+                    interaction = {"enabled": True, "flows": [], "tried": [], "findings": [], "tries_used": 0,
+                                   "stopped": "Stopped by an error: " + redact(str(e))[:200], "contract": None,
+                                   "session_loss": device_unavailable(e), "incomplete": device_unavailable(e),
+                                   "incomplete_reason": ("Android device/session loss during test-build"
+                                                         if device_unavailable(e) else "")}
     finally:
         exploring_recovery = budget.get("discovery_recovery", budget["recovery"])
         if exploring_recovery > 2 * max(1, budget["used"]) and unvisited:
@@ -866,6 +893,10 @@ def discovery_agent(state):
         "bot_check": bot_check_result(bot_gate),
         "log": state.get("log", []) + log,
     }
+    if interaction and interaction.get("session_loss"):
+        result.update(incomplete=True,
+                      incomplete_reason=interaction.get("incomplete_reason")
+                      or "Android device/session loss during test-build: incomplete, no blind resubmit")
     if not screens:
         result["setup_error"] = issues[0]["error"] if issues else "No Android screen was discovered."
     return result
