@@ -1,7 +1,7 @@
 # Project metadata and tool settings. The packages themselves are pinned in requirements.txt (the app) and
 # requirements-dev.txt (checking and testing the tester itself).
 [project]
-name = "blow-ai"
+name = "qpilot"
 version = "1.0.0"
 description = "Agentic AI website tester: explores a website, writes Playwright + pytest tests, runs them and reports"
 readme = "README.md"

@@ -10,7 +10,7 @@ In the test configuration, use **Build a test flow** to add actions and expected
 
 **Validate configured checks** reviews the flow/rule/check counts, required private references and approvals without starting automation. A click by itself is not a passing functional check. Unknown business rules still need requirements; the product does not invent a correct expected outcome.
 
-For passwords/tokens, enter a reference such as `secret:BLOWAI_SECRET_TEST_PASSWORD` in the builder. Configure the corresponding value privately in the launch environment or local `.env`, and restart the UI after changing it. Actual secrets must not be entered in contract JSON. They are resolved only for trusted execution and omitted from generated test data, screenshots and model input. The existing web account fields remain available for discovery login.
+For passwords/tokens, enter a reference such as `secret:QPILOT_SECRET_TEST_PASSWORD` in the builder. Configure the corresponding value privately in the launch environment or local `.env`, and restart the UI after changing it. Actual secrets must not be entered in contract JSON. They are resolved only for trusted execution and omitted from generated test data, screenshots and model input. The existing web account fields remain available for discovery login.
 
 ## What Android Chrome discovers
 
@@ -29,11 +29,11 @@ The Android report now includes **Control inventory** with observed locators and
 - Accessibility skip links are keyboard-focused before a generated journey clicks them.
 - Browser contract cleanup returns to its browser context; native and hybrid cleanup retain their native default.
 - Browser dropdown steps select the configured value and assert it was retained, in both Playwright and Appium.
-- Appium session startup has a separate bounded 180-second default (configurable from 60–300 seconds), followed by the ordinary command timeout. A live Chrome startup took 58.32 seconds, explaining the previous fragile 60-second limit.
+- Appium session startup has a separate bounded 300-second default (configurable from 60–300 seconds), followed by the ordinary command timeout. A live Chrome startup took 58.32 seconds, explaining the previous fragile 60-second limit.
 - The environment checker verifies Appium's registered UiAutomator2 package and actual entrypoint before invoking the CLI. A CLI timeout is reported as an inability to verify, not proof that the driver is absent. The corrected local check completed in 0.38 seconds.
 - Native startup requires meaningful controls/text, rather than accepting an empty activity hierarchy. Multi-window inspection exposes blocking platform dialogs. Only the known Android **System UI isn't responding → Wait** control can be recovered automatically, at most twice per session; recovery is recorded and makes coverage carry risk. Permission prompts, application ANRs and destructive system actions are not approved by this recovery.
 
-Chrome must be installed on the device and have a compatible ChromeDriver on the host. An explicit `BLOWAI_CHROMEDRIVER` takes priority. Otherwise, the product can reuse a matching driver from `tools/chromedriver/chromedriver.exe` or the existing managed verification-tool folder after comparing major versions. Appium's own driver selection remains the fallback when no managed match is found. No driver download or system-wide change is silently performed. See the [official UiAutomator2 capabilities reference](https://appium.github.io/appium-uiautomator2-driver/latest/reference/capabilities/) for Chrome mode and driver requirements.
+Chrome must be installed on the device and have a compatible ChromeDriver on the host. An explicit `QPILOT_CHROMEDRIVER` takes priority (the legacy `BLOWAI_CHROMEDRIVER` is also accepted). Otherwise, the product can reuse a matching driver from `tools/chromedriver/chromedriver.exe` or the existing managed verification-tool folder after comparing major versions. Appium's own driver selection remains the fallback when no managed match is found. No driver download or system-wide change is silently performed. See the [official UiAutomator2 capabilities reference](https://appium.github.io/appium-uiautomator2-driver/latest/reference/capabilities/) for Chrome mode and driver requirements.
 
 ## Verification evidence
 

@@ -595,8 +595,9 @@ def build_capabilities(config: dict) -> dict:
         "appium:settings[disableIdLocatorAutocompletion]": True,
         "appium:settings[enableMultiWindows]": True,
     }
-    if os.environ.get("BLOWAI_CHROMEDRIVER"):
-        caps["appium:chromedriverExecutable"] = str(Path(os.environ["BLOWAI_CHROMEDRIVER"]).resolve(strict=True))
+    chromedriver = os.environ.get("QPILOT_CHROMEDRIVER") or os.environ.get("BLOWAI_CHROMEDRIVER")
+    if chromedriver:
+        caps["appium:chromedriverExecutable"] = str(Path(chromedriver).resolve(strict=True))
     if config["app_mode"] == "web":
         caps["browserName"] = "Chrome"
         if "appium:chromedriverExecutable" not in caps:

@@ -41,7 +41,7 @@ Live stdio MCP client (AI tool sequence) against Studio UI + Appium + Sauce Labs
     ],
     "assistant_location_verified": false
   },
-  "product": "blow-ai",
+  "product": "qpilot",
   "bridge_version": 1,
   "transport": "stdio",
   "ui_required": true,

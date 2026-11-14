@@ -1,7 +1,8 @@
 # Advanced QA implementation status
 
-The six planned feature areas are implemented in Python. Full execution is deferred at the user's request.
-The final small changes to expectation descriptions, response bounds, in-memory credential delivery and stop handling have not been rerun.
+This is the historical 2026-11-05 advanced-QA checkpoint. The deferrals and test results below describe that phase,
+not a current instruction to stop verification. See [STATUS](../STATUS.md) for current completed regressions and
+[the coverage guide](../docs/33_ANDROID_COVERAGE_WORKSPACE.md) for subsequent functionality.
 
 | Area | Code and integration | Current validation status |
 |---|---|---|
@@ -37,7 +38,8 @@ The final small changes to expectation descriptions, response bounds, in-memory 
 5. Run the complete non-slow regression suite.
 6. Build the presentation from completed runs and independently supplied expected outcomes.
 
-Do not start tests or live demonstrations until the user is ready for the execution phase.
+The original live demonstrations were deferred pending readiness; current execution follows the user's current
+instructions and target permission.
 
 ## Main implementation files
 
@@ -60,4 +62,6 @@ See 13_ADVANCED_QA.md for configuration and startup instructions.
 Checkpoint: .snapshots/before_advanced_qa_20261105_190809.zip.
 
 
-The subsequent page-component inventory and nested-menu changes are documented in 14_PAGE_COMPONENT_INVENTORY.md. They are implemented but have not been executed; include their prepared tests in the later verification phase.
+The subsequent page-component inventory and nested-menu changes are documented in
+[14_PAGE_COMPONENT_INVENTORY.md](14_PAGE_COMPONENT_INVENTORY.md). Their original pending-verification note is
+historical; consult STATUS for current regression evidence.

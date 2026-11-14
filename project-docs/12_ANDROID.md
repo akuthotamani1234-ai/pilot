@@ -1,6 +1,6 @@
 # Android testing and live Appium demonstrations
 
-Blow AI retains its existing Playwright website pipeline and adds an Android adapter selected by
+Qpilot retains its existing Playwright website pipeline and adds an Android adapter selected by
 `build_graph(target_type="mobile")`. Shared test-design, script-generation, failure-analysis and report entry points
 select the appropriate adapter. The existing deterministic verdict engine evaluates platform-specific evidence gates.
 The HTML/CSS/JavaScript UI and its polling/status/report APIs are retained.

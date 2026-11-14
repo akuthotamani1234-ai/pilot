@@ -2,6 +2,20 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-14 — Shared MCP configuration and Qpilot naming
+
+- MCP setup reuses Standard account, provider/model/key, exploration, expected-result and approved-flow controls.
+  Android settings move between workflows without duplicated IDs; Web opens the existing configuration form.
+- Studio prepares an exact private configuration in memory for 15 minutes. The new `start_prepared_test` tool
+  consumes its opaque reference with explicit permission, checks current privacy, and uses the existing launchers.
+  Preparation starts no automation. Android startup prepares installed local Appium and the selected emulator.
+- Credentials stay out of copied requests/storage and are discarded from the preparation store after startup/failure.
+  Edits revoke the reference, expiry/restart invalidates it, and successful repeat starts return the same job.
+- Public UI, report/launcher/package names, current example references and guides use Qpilot. `QPILOT_*` references
+  are preferred; legacy saved contracts, clients and installed-tool paths remain compatible and redacted.
+- Reviewed documentation, corrected stale limitations/deferrals, regenerated the contract schema and Android setup
+  illustrations, and checked local document links. See [the review](docs/35_DOCUMENTATION_REVIEW.md).
+
 ## 2026-11-13 — Evidence linkage + run-time reserves (P9 / P6)
 
 - Findings from `ensure_findings_from_results` / classify retain control/container, URL/state, expected vs

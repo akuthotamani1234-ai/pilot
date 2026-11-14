@@ -2,7 +2,7 @@
 
 # 🧰 Installation Guide
 
-### Blow AI – What to Install and How to Run It
+### Qpilot – What to Install and How to Run It
 
 | **Version** | 1.0 |
 |---|---|
@@ -77,7 +77,7 @@ For working on the tester itself, `requirements-dev.txt` adds **ruff** 0.14.10 (
 ### 3.6 Native Android testing (optional)
 - **JDK 17 or newer** (JDK 21 recommended), **Android SDK Platform-Tools**, Android command-line tools, and **Node.js 20.19+ (20.x), 22.12+ (22.x), or 24+; npm 10+**.
 - A connected Android device with USB debugging enabled, or an emulator. Android Studio is optional.
-- Appium Server and the UiAutomator2 driver. Blow AI uses the server only on `127.0.0.1`; it does not install or start global Node packages automatically.
+- Appium Server and the UiAutomator2 driver. Qpilot uses the server only on `127.0.0.1`; it does not install or start global Node packages automatically.
 - Emulator acceleration must be enabled in the PC firmware/Windows hypervisor. If it is unavailable, use an authorized physical device.
 
 ## 4. First-Time Setup
@@ -99,7 +99,7 @@ Then `ui.bat` starts the server and opens **http://127.0.0.1:8000**.
 
 ### 4.2 By Hand (PowerShell)
 ```powershell
-cd blow-ai
+cd qpilot
 py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe -m playwright install chromium
@@ -198,12 +198,13 @@ appium --address 127.0.0.1
 In the UI choose **Test an Android app**, refresh device status, select an APK upload or an installed package, and
 confirm authorization. Uploads are stored under the run's private folder and are not served as static files. The
 APK is installed and executed on the selected device; upload only trusted apps and prefer a disposable emulator.
-The pipeline explores/replays only visible, clearly navigational controls. It does not enter form data or perform payments,
-deletes, account changes, uploads, or other consequential actions. Such controls are reported as blocked, so the
-result is a bounded smoke assessment rather than full app certification.
+Safe discovery explores navigation and records its scope. Authorized test-build mode also executes permitted form,
+login, signup, cart and other regression checks; approved contracts supply explicit business outcomes. Payments,
+destructive actions and other protected controls retain their guards. A smoke/presence result is not full app certification.
 
-The server does not install or start Appium for you. The UI shows missing prerequisites, including when no authorized
-device is connected. If Appium cannot create a session, the report records an infrastructure problem instead of a pass.
+On Start Android test, or a prepared MCP start, Qpilot can start installed local Appium and the selected emulator.
+Selection and refresh are read-only. Missing prerequisites and unauthorized physical devices require user setup.
+Direct legacy MCP starts require readiness first. Session failures produce infrastructure evidence, not a pass.
 Use Android Studio's Device Manager only when emulator acceleration is available; otherwise connect a device with USB
 debugging enabled and approve its ADB prompt.
 

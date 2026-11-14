@@ -410,13 +410,8 @@
     }
   }
 
-  async function startMobileRun() {
-    if (!await standardReady()) return;
-    const form = $("mobileForm");
-    if (!form.reportValidity() || timer || mobilePreparing) return;
+  function androidRequest(includeUpload = true) {
     const mode = $("androidMode").value;
-    const app = mode === "web" ? $("androidUrl").value.trim() : mode === "installed" ? $("androidPackage").value.trim() :
-      (($("androidApk").files[0] || {}).name || "Uploaded APK");
     const data = new FormData();
     data.append("workflow", "standard");
     data.append("privacy_mode", workflow.mode);
@@ -469,7 +464,19 @@
     data.append("max_screens", $("androidMaxScreens").value);
     data.append("max_actions", $("androidMaxActions").value);
     data.append("authorized", $("androidAuthorized").checked ? "true" : "false");
-    if (mode === "apk") data.append("apk", $("androidApk").files[0]);
+    if (mode === "apk" && includeUpload) data.append("apk", $("androidApk").files[0]);
+    return data;
+  }
+
+  async function startMobileRun() {
+    if (!await standardReady()) return;
+    const form = $("mobileForm");
+    if (!form.reportValidity() || timer || mobilePreparing) return;
+    const mode = $("androidMode").value;
+    const app = mode === "web" ? $("androidUrl").value.trim() : mode === "installed" ? $("androidPackage").value.trim() :
+      (($("androidApk").files[0] || {}).name || "Uploaded APK");
+    const data = androidRequest();
+    if (!data) return;
     const selectedDevice = $("androidDevice").value;
     const selectedAvd = $("androidDevice").selectedOptions[0]?.dataset.avd || "";
     const controls = [...form.querySelectorAll("input,select,textarea,button"), $("newBtn"), $("resultsNewBtn")];
@@ -1070,8 +1077,7 @@
   }
 
   // ------------------------------------------------------------ 2) start the run
-  async function startRun() {
-    if (!await standardReady()) return;
+  function webRequest() {
     if (chosen && !workflow.providerAllowed(chosen)) {
       $("aiNote").hidden = false;
       $("aiNote").textContent = "This AI provider is disabled by Privacy settings.";
@@ -1142,6 +1148,14 @@
       body.test_password = $("aiPass").value;
     }
     if (accountMode === "existing" && val("aiTotp")) body.test_totp_secret = val("aiTotp");  // (this run only, never saved)
+    return body;
+  }
+
+  async function startRun() {
+    if (!await standardReady()) return;
+    const body = webRequest();
+    if (!body) return;
+    const p = (providers || []).find((x) => x.id === chosen);
     savePrefs({ providerChoiceVersion: 2, provider: chosen, model: body.llm_model || "", pages: body.max_pages,
                 crawlPrefsVersion: CRAWL_PREFS_VERSION, watch: body.show_browser,
                 adv: { env: body.environment, depth: body.max_depth, timeout: body.page_timeout_s, video: body.record_video } });
@@ -2254,5 +2268,14 @@
     }
   }
 
-  window.BlowAIChat = { updateAndroidFields };
+  window.QpilotChat = {
+    updateAndroidFields, androidRequest, webRequest,
+    async configureMcpWeb(source) {
+      if (timer) throw new Error("Wait for the running test.");
+      pendingSource = source; lastCheck = {};
+      await askForAi();
+      return $("m-ai");
+    }
+  };
+  window.BlowAIChat = window.QpilotChat; // Existing integrations keep their global alias.
 })();

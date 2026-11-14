@@ -1,6 +1,6 @@
-# Deploying Blow AI
+# Deploying Qpilot
 
-This guide is for whoever installs Blow AI on a tester's PC or updates it there.
+This guide is for whoever installs Qpilot on a tester's PC or updates it there.
 
 ## How it is deployed
 Each tester runs **their own copy on their own Windows PC**. The web UI only answers on that PC
@@ -11,7 +11,7 @@ A shared server or a Docker container is **not supported in this version**. See
 [Not supported yet](#not-supported-yet-a-shared-server-or-docker).
 
 ## 1. Get a clean copy
-**From git (recommended):** `git clone <repository-url> blow-ai`. The repository never holds a tester's data or
+**From git (recommended):** `git clone <repository-url> qpilot`. The repository never holds a tester's data or
 secrets: `.gitignore` keeps out everything in the right-hand column below. Before the first push of a new
 repository, check with `git status` that no `.env`, `accounts/`, `runs/` or `logs/` is listed.
 
@@ -27,7 +27,7 @@ repository, check with `git status` that no `.env`, `accounts/`, `runs/` or `log
 
 One command that makes such a copy (change both paths):
 ```powershell
-robocopy C:\path\to\blow-ai D:\release\blow-ai /E /XD .venv runs baseline logs workspace accounts __pycache__ .pytest_cache .ruff_cache /XF .env schedules.json *.pyc
+robocopy C:\path\to\qpilot D:\release\qpilot /E /XD .venv runs baseline logs workspace accounts __pycache__ .pytest_cache .ruff_cache /XF .env schedules.json *.pyc
 ```
 `robocopy` reports success with exit codes 0 to 7. Before you hand the copy over, check that it has **no `.env`
 file**.
@@ -36,7 +36,7 @@ file**.
 1. Install **Python 3.13** from python.org (classic installer: tick *Add python.exe to PATH*). With the *Python
    install manager* (the `py` command) or winget this step can be skipped: the installer installs 3.13 by itself.
    Python 3.15 can't install the packages yet, so the installer never uses it.
-2. Put the folder anywhere the tester can write, for example `C:\Users\<name>\blow-ai`.
+2. Put the folder anywhere the tester can write, for example `C:\Users\<name>\qpilot`.
 3. Double-click **`ui.bat`** (or first `setup\install.bat`, to only install). The first time, the installer creates
    `.venv`, installs the pinned packages and the Chromium browser, and copies `.env.example` to `.env`. This takes a
    few minutes and needs internet. Later starts install only what is missing.
@@ -69,14 +69,14 @@ again only if `requirements.txt` / `constraints.txt` changed. Look at `.env.exam
 
 **Without git:**
 1. Wait for any running test to finish, then close the UI window.
-2. Rename the old folder, for example `blow-ai` to `blow-ai-old`, and put the new clean copy in its place as
-   `blow-ai`.
+2. Rename the old folder, for example `qpilot` to `qpilot-old`, and put the new clean copy in its place as
+   `qpilot`.
 3. Move the tester's data from the old folder into the new one: `.env`, `runs/`, `baseline/`, `logs/`, `accounts/`
    and `workspace/` (whichever exist).
 4. Look at the new `.env.example` for new settings, and copy any you want into `.env`.
 5. Double-click `ui.bat`. The new folder has no `.venv` yet, so the installer installs the packages again (a few
    minutes).
-6. When it works, delete `blow-ai-old`.
+6. When it works, delete `qpilot-old`.
 
 ## 5. Move a tester to a new PC
 - `runs/` and `baseline/` can be copied: old reports stay readable, and the next run compares with the baseline.

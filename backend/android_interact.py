@@ -44,16 +44,16 @@ VOLATILE = re.compile(r"\b\d{1,2}:\d{2}\b|\b(ago|today|yesterday|now|seconds?|mi
 SUCCESS = re.compile(r"\b(success\w*|welcome|created|registered|verify|check your email|saved|updated|applied|"
                      r"submitted|complete\w*|sent|thank(?:s| you)|subscribed|signing up|added)\b", re.I)
 
-WRONG_PASSWORD = "BLOWAI_SECRET_AUTO_WRONG_PASSWORD"  # noqa: S105 - reference names, not credentials
-STRONG_PASSWORD = "BLOWAI_SECRET_AUTO_STRONG_PASSWORD"  # noqa: S105
-EMPTY_PASSWORD = "BLOWAI_SECRET_AUTO_EMPTY_PASSWORD"  # noqa: S105 - private reference used only to clear a field
-TEST_USERNAME = "BLOWAI_SECRET_TEST_USERNAME"
-TEST_PASSWORD = "BLOWAI_SECRET_TEST_PASSWORD"  # noqa: S105
-SIGNUP_EMAIL = "BLOWAI_SECRET_AUTO_SIGNUP_EMAIL"
-SIGNUP_USERNAME = "BLOWAI_SECRET_AUTO_SIGNUP_USERNAME"
+WRONG_PASSWORD = "QPILOT_SECRET_AUTO_WRONG_PASSWORD"  # noqa: S105 - reference names, not credentials
+STRONG_PASSWORD = "QPILOT_SECRET_AUTO_STRONG_PASSWORD"  # noqa: S105
+EMPTY_PASSWORD = "QPILOT_SECRET_AUTO_EMPTY_PASSWORD"  # noqa: S105 - private reference used only to clear a field
+TEST_USERNAME = "QPILOT_SECRET_TEST_USERNAME"
+TEST_PASSWORD = "QPILOT_SECRET_TEST_PASSWORD"  # noqa: S105
+SIGNUP_EMAIL = "QPILOT_SECRET_AUTO_SIGNUP_EMAIL"
+SIGNUP_USERNAME = "QPILOT_SECRET_AUTO_SIGNUP_USERNAME"
 # The account test mode registered itself (when no test account was given): kept privately for the final run.
-ACCOUNT_USERNAME = "BLOWAI_SECRET_AUTO_ACCOUNT_USERNAME"
-ACCOUNT_PASSWORD = "BLOWAI_SECRET_AUTO_ACCOUNT_PASSWORD"  # noqa: S105
+ACCOUNT_USERNAME = "QPILOT_SECRET_AUTO_ACCOUNT_USERNAME"
+ACCOUNT_PASSWORD = "QPILOT_SECRET_AUTO_ACCOUNT_PASSWORD"  # noqa: S105
 GENERATED_SECRETS = (WRONG_PASSWORD, STRONG_PASSWORD, EMPTY_PASSWORD, SIGNUP_EMAIL, SIGNUP_USERNAME)
 
 
@@ -78,13 +78,16 @@ def flow_secrets(environment: dict, saved: dict | None = None) -> dict:
     """Secrets the auto flows may use: generated throwaways, the account test mode registered (saved privately
     during exploration), and the person's private test account, if given."""
     values = generated_secrets()
-    for name, value in (saved or {}).items():
-        if name.startswith("BLOWAI_SECRET_AUTO_") and isinstance(value, str) and value:
+    for name, value in sorted((saved or {}).items()):
+        name = name.replace("BLOWAI_SECRET_", "QPILOT_SECRET_", 1)
+        if name.startswith("QPILOT_SECRET_AUTO_") and isinstance(value, str) and value:
             values[name] = value
     for name in (TEST_USERNAME, TEST_PASSWORD):
-        if environment.get(name):
-            values[name] = environment[name]
-    return values
+        value = environment.get(name) or environment.get(name.replace("QPILOT_", "BLOWAI_", 1))
+        if value:
+            values[name] = value
+    # Old saved contracts remain executable using the same private values.
+    return {**values, **{name.replace("QPILOT_", "BLOWAI_", 1): value for name, value in values.items()}}
 
 
 # ------------------------------------------------------------------ element helpers

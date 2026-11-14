@@ -1,4 +1,7 @@
-# Blow AI Studio UI redesign
+# Qpilot Studio UI redesign
+
+Historical frontend review from 2026-11-05. Later browser/engine regressions are recorded in [STATUS](../STATUS.md);
+current shared MCP controls are described in [the configuration guide](../docs/34_MCP_SHARED_CONFIGURATION.md).
 
 Saved changes:
 - Modern light workspace with dark navigation, vector icons, clearer typography and consistent spacing.
@@ -16,4 +19,4 @@ Validation performed only on the frontend with stubbed read-only API responses:
 - No backend jobs, live crawls, Appium sessions or test engines were started.
 
 Static previews: .snapshots/studio_preview_20261105_230125/
-Full application verification remains deferred. Launch ui.bat and refresh the browser to view the updated UI.
+Full application verification was deferred at this checkpoint. Restart ui.bat and refresh the browser after updates.
