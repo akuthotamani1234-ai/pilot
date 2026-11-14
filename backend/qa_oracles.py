@@ -83,7 +83,8 @@ def resolve_private_inputs(contract, environment=None):
         return {"secrets": {}, "databases": {}}
     active_ids = {c["contract_id"] for c in contract_cases(contract) if not c["blocked"]}
     active_flows = [f for f in contract.flows if f.id in active_ids]
-    active_checks = [c for c in contract.checks if c.id in active_ids]
+    attached = {identifier for flow in active_flows for identifier in flow.backend_checks}
+    active_checks = [c for c in contract.checks if c.id in active_ids or c.id in attached]
     secret_refs = {s.secret_ref for f in active_flows for s in f.steps if s.secret_ref}
     secret_refs.update(c.token_ref for c in active_checks if c.token_ref)
     database_refs = {c.database_ref for c in active_checks if c.database_ref}

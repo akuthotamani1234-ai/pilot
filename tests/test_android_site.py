@@ -19,6 +19,7 @@ from backend.qa_contracts import origin, parse_contract
 from tests.android_fake_site import BASE, FakeShop
 
 CONFIG = {"app_mode": "web", "device_id": "emulator-5554", "start_url": BASE + "/", "interaction_testing": True,
+          "test_all_discovered": True,
           "max_actions": 60, "max_screens": 40, "discovery_timeout_s": 600, "max_interactions": 500,
           "interaction_timeout_s": 3600, "bot_check_wait_s": 30, "human_wait_s": 60}
 
@@ -236,6 +237,8 @@ def test_register_then_login_with_that_account_explore_behind_login_and_log_out(
     assert any(t.startswith("After logging in, 'My account': 'Shop. Customer info' opens") for t in titles)
     assert any(t.startswith("After logging in, 'My account' > 'Orders'") for t in titles)
     assert "Log out with 'Log out': 'Log in' appears" in titles
+    row = next(r for r in run["rows"] if r["name"] == "'Change password'")
+    assert row["status"] == "not tested" and "password" in row["reason"]
     signup = flow(run, "Sign-up with valid details")
     emails = [s for s in signup["steps"] if s.get("secret_ref") == "BLOWAI_SECRET_AUTO_SIGNUP_EMAIL"]
     assert emails and all("value" not in s or s["value"] is None for s in emails)
@@ -279,7 +282,10 @@ def test_flows_never_leave_the_approved_website(run):
     assert contract["test_mode"] and contract["allowed_origins"] == [origin(BASE)]
     opened = [s["value"] for f in contract["flows"] for s in f["steps"] if s["action"] == "open"]
     assert opened and all(guard_url(url, CONFIG) is None for url in opened)
-    parse_contract(contract)  # still valid as a whole
+    # The internal full inventory can exceed the public contract's 100-flow input
+    # limit. Each executed flow still passes that same contract validation.
+    for flow in contract["flows"]:
+        parse_contract({**contract, "flows": [flow]})
 
 
 # ------------------------------------------------------------------ 5. no silent gaps: the coverage list and report
@@ -325,7 +331,7 @@ def test_kept_flows_become_tests_and_the_report_lists_every_result(run, tmp_path
 
 
 def test_a_run_that_runs_out_of_tries_lists_every_check_it_did_not_reach(tmp_path):
-    result = explore(tmp_path, FakeShop(), max_interactions=12)
+    result = explore(tmp_path, FakeShop(), max_interactions=12, test_all_discovered=False)
     interaction = result["interaction"]
     assert interaction["stopped"] == "User-like test limit reached"
     unreached = [r for r in interaction["coverage"] if "limit of user-like tries" in r["reason"]]
@@ -337,5 +343,4 @@ def test_without_test_mode_a_website_is_only_explored_safely(tmp_path):
     shop = FakeShop()
     result = explore(tmp_path, shop, interaction_testing=False)
     assert result["auto_flows"] == [] and not result["interaction"]
-    # Pay-only never-press: cart/register/login may be opened in discovery; checkout must stay out.
-    assert not any("checkout" in p.casefold() or "place order" in p.casefold() for p in shop.pressed)
+    assert not any(p in ("Add to cart", "Register", "Log in", "Subscribe") for p in shop.pressed)

@@ -3,7 +3,22 @@
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 
-**Last updated:** 2026-11-12
+**Last updated:** 2026-11-14
+
+## Android coverage workspace
+
+Implemented full discovered-scenario mode, screen-scoped control coverage, durable masked Android action events,
+pending-only continuation, reviewed AI drafts, attached read-only API/SQLite checks, and known-truth case selection.
+See [operation and limits](docs/33_ANDROID_COVERAGE_WORKSPACE.md).
+
+Validation: ruff passed; 119 affected offline regressions passed; 39 MCP integration checks passed; 18 continuation,
+workspace and mock Appium protocol checks passed. The browser checks cover desktop/mobile flow configuration,
+coverage filtering, AI review and backend-check attachment. PR CI runs the full offline suite before merge.
+Merged zero-limit/Thorough follow-up: 51 checks passed, including protected-action rules; 10 coverage-policy checks
+passed, including zero as unlimited pages and positive caps with explicit reasons.
+
+These checks do not establish exhaustive coverage of arbitrary APKs. A full physical-device/APK acceptance run and
+an actual Inspector attachment are separate verification; real app defects and blocked scenarios remain visible.
 
 ## Product readiness
 

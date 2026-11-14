@@ -20,14 +20,12 @@ DEFAULT_APPIUM_URL = "http://127.0.0.1:4723"
 ANDROID_EXECUTION_REVISION = 2
 MAX_APK_BYTES = 500 * 1024 * 1024
 PACKAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
-# Exploration never-press: checkout and payment only (place-order / paid plans included).
-# Other former "risky" labels may be exercised in exhaustive / test-build exploration.
 RISKY_ACTION = re.compile(
-    r"\b(pay|pay ?now|payments?|purchase|buy|buy ?now|checkout|check ?out|"
-    r"place (?:an |the |your |my )?order|(?:confirm|submit|complete|finish) (?:the |your |my |this )?"
-    r"(?:order|purchase|payment)|order now|credit card|card details|"
-    r"(?:paid|premium|monthly|yearly|annual) (?:subscription|plan|membership)|"
-    r"apple ?pay|google ?pay|pay ?pal)\b",
+    r"\b(pay|purchase|buy|checkout|delete|remove|transfer|send|submit|save|create|update|confirm|"
+    r"place order|change password|log ?out|sign ?out|sign ?in|log ?in|sign ?up|register|unsubscribe|deactivate|"
+    r"accept|allow|share|invite|post|publish|upload|install|grant|erase|reset|wipe|add|increase|decrease|clear|register|book|order|subscribe|"
+    r"toggle|favorite|favourite|bookmark|pin|star|permission|camera|photo|gallery|microphone|location|contact|scanner|"
+    r"crash|force close)\b",
     re.I,
 )
 # Emergency wall-clock when discovery_timeout_s / interaction_timeout_s is 0 (until exhausted).
@@ -513,6 +511,8 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("Contract-only mode must be true or false.")
     if not isinstance(config.get("interaction_testing", False), bool):
         raise AndroidEnvironmentError("Test-build mode must be true or false.")
+    if not isinstance(config.get("test_all_discovered", False), bool):
+        raise AndroidEnvironmentError("Test-all-discovered mode must be true or false.")
     if contract.get("test_mode") and not config.get("interaction_testing"):
         # Flows recorded in test mode may press undoable shop actions; they run only when this run is confirmed too.
         raise AndroidEnvironmentError("These flows were recorded in test mode. Tick the test-mode box to run them.")
@@ -996,6 +996,13 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
             owner = parents.get(owner)
         if owner is not None:
             drawer_nodes.update(candidate.iter())
+    dialog_nodes = set()
+    for candidate in root.iter():
+        if (candidate.attrib.get("resource-id") == "android:id/parentPanel"
+                or candidate.attrib.get("class") in ("android.app.Dialog", "android.app.AlertDialog")) and rendered(candidate):
+            dialog_nodes.update(candidate.iter())
+    if dialog_nodes:
+        drawer_nodes.clear()
     # Native tab widgets and React Native bottom bars expose sibling buttons.
     # Require a Home anchor and at least three buttons in the same direct group;
     # a standalone Login/Submit button is never promoted to navigation.
@@ -1069,6 +1076,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 "navigation_role": "tab" if node in tab_nodes or class_name == "android.app.ActionBar$Tab"
                     else "menu_item" if node in drawer_nodes and clickable and kind != "input" else "",
                 "outside_active_drawer": bool(drawer_nodes and node not in drawer_nodes),
+                "outside_active_dialog": bool(dialog_nodes and node not in dialog_nodes),
                 "bounds": attrs.get("bounds"),
                 "within_webview": within_webview,
                 "text_comparable": kind != "input" and len(text) <= 160 and any(c.isalnum() for c in text),
@@ -1140,7 +1148,11 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     signatures = sorted(
         (e["class_name"], e["resource_id"], e["accessibility_id"], e["text"]) for e in elements if e["visible"]
     )
-    first_text = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]), "")
+    def title_text(element):
+        return (element["type"] == "text" and element["visible"] and not element["outside_active_dialog"]
+                and any(char.isalpha() for char in element["text"]))
+
+    first_text = next((e["text"] for e in elements if title_text(e)), "")
     loading = bool(re.fullmatch(r"\s*(?:loading|please wait|starting|splash)[.\s…!]*", first_text, re.I))
     screen_name = first_text or activity or "Android screen"
     containers = sorted({e["accessibility_id"] for e in elements if e["visible"] and e["type"] == "element"
@@ -1153,10 +1165,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     # without the native screen changing.
     # Only text that stays put while the list scrolls (a toolbar title) names the screen: run
     # android_20261109_181718_321078 lost "the same screen" after a scroll because the first visible text had moved.
-    fixed_heading = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]
+    fixed_heading = next((e["text"] for e in elements if title_text(e)
                           and not e["within_webview"] and not e.get("in_scroller")), "")
     scroller = next((e["in_scroller"] for e in elements if e.get("in_scroller")), "")
-    native_heading = next((e["text"] for e in elements if e["type"] == "text" and e["visible"] and e["text"]
+    native_heading = next((e["text"] for e in elements if title_text(e)
                            and not e["within_webview"]), "")
     if identity and fixed_heading and not loading:
         # One scroll-view description can be shared by many screens (My Demo App: "Scrollview manages views in
@@ -1174,7 +1186,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     # forms distinct without putting entered values into the screen identity.
     form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
                          for e in elements if e["input_capable"] and not e["within_webview"]
-                         and not e["outside_active_drawer"])
+                         and not e["outside_active_drawer"] and not e["outside_active_dialog"])
     if form_fields and not drawer_nodes and not loading:
         form_actions = sorted((e["resource_id"] or e["accessibility_id"], e["text"].casefold())
                               for e in elements if e["clickable"] and not e["input_capable"]
@@ -1189,7 +1201,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         screen_name = "Navigation menu"
         identity = ["drawer", *sorted({e["accessibility_id"] for e in elements if not e["outside_active_drawer"] and e["accessibility_id"]})]
     if any(e["visible"] and e["resource_id"] in ("android:id/alertTitle", "android:id/parentPanel") for e in elements):
-        identity = ["dialog", *identity]
+        identity = ["dialog", first_text.casefold()[:120], *identity]
     fingerprint = json.dumps(signatures, ensure_ascii=True, separators=(",", ":"))
     return {
         "platform": "android",
@@ -1205,10 +1217,12 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
 
 
 def safe_navigation_elements(screen: dict) -> list[dict]:
-    """Clickable controls for exploration after checkout/payment filtering."""
-    from .qa_contracts import never_in_test_mode
-
+    """Clickable controls allowed for bounded exploration after risky-action filtering."""
     out = []
+    has_visible_inputs = any(e.get("visible") and e.get("input_capable") for e in screen.get("elements", []))
+    has_login_submit = any(e.get("visible") and e.get("clickable")
+                           and re.search(r"\blog ?in\b|\bsign ?in\b", e.get("text", "") + " " + e.get("accessibility_id", ""), re.I)
+                           for e in screen.get("elements", []))
     # A catalogue: a list widget, or several product pictures (one per card) on the screen. A single product
     # picture belongs to a detail screen, where it may open an image viewer outside the app.
     has_product_list = any(
@@ -1238,26 +1252,30 @@ def safe_navigation_elements(screen: dict) -> list[dict]:
             "open log in screen",
             "open sign in screen",
         }
+        risks = [re.sub(r"\s+", "", match.group().casefold()) for match in RISKY_ACTION.finditer(label)]
         navigation_tab = element.get("navigation_role") == "tab"
         navigation_menu = element.get("navigation_role") == "menu_item"
-        # Exhaustive explore: labelled non-pay controls. Menu items may open in-app screens (QR/Geo);
-        # device-feature buttons that leave the app stay blocked. Checkout/payment never explored.
-        if never_in_test_mode(
-            label,
-            native=not (navigation_menu or navigation_tab or explicit_login_screen),
-        ):
-            continue
-        # Unlabelled look-alikes (rating stars start1..) stay out of discovery; test mode samples one family.
-        has_face = bool(primary.strip()) or navigation_tab or navigation_menu or product_image
+        login_menu = element.get("navigation_role") == "menu_item" and bool(re.search(r"\blog ?in\b|\bsign ?in\b", primary, re.I))
+        signup_menu = element.get("navigation_role") == "menu_item" and bool(
+            re.search(r"\bsign ?up\b|\bregister\b|\bregistration\b", primary, re.I)
+        )
+        signup_entry = bool(re.search(r"\bsign ?up\b|\bregister\b|\bregistration\b|\bcreate account\b", primary, re.I)) \
+            and (not has_visible_inputs or signup_menu or has_login_submit)
+        permitted = not risks or (explicit_login_screen or navigation_tab or login_menu) and set(risks) <= {"login", "signin"}
+        permitted = permitted or signup_menu and set(risks) <= {"signup", "register"}
+        permitted = permitted or signup_entry and set(risks) <= {"signup", "register", "create"}
         if (
             element.get("visible")
             and not element.get("outside_active_drawer")
+            and not element.get("outside_active_dialog")
             and element.get("enabled")
             and element.get("clickable")
             and not element.get("input_capable")
             and element.get("locators")
             and element.get("locator_unique", True)
-            and has_face
+            and permitted
+            and (navigation_tab or navigation_menu or login_menu or signup_menu or signup_entry or explicit_login_screen
+                 or SAFE_NAVIGATION.search(label))
         ):
             out.append(element)
             if product_image:

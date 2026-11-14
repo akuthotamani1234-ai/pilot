@@ -171,7 +171,8 @@
           <label class="tick android-scope"><input type="checkbox" id="androidWholeApp" checked><span><b>Whole app</b><small>Explore reachable screens; check every unique discovered control.</small></span></label>
           <div id="androidFlowToolsSlot"></div>
         </div>
-        <p class="muted small android-scope-note">Whole-app mode explores until no new screens/controls remain (or you hit Stop). Checkout and payment stay blocked. Optional numbers below are soft caps; leave at 0 for until-exhausted.</p>
+        <label class="tick"><input type="checkbox" id="androidAllDiscovered" checked><span><b>Test all discovered scenarios</b><small>In authorized test-build mode, remove interaction-count and test-case-count cutoffs. Time and Stop guards still apply. Uncheck to use custom counts below.</small></span></label>
+        <p class="muted small android-scope-note">Whole-app mode explores until no new screens/controls remain (or you hit Stop). Protected actions remain blocked. Optional numbers below are soft caps; leave at 0 for until-exhausted.</p>
         <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>When you set soft caps above 0, raise them for this run. With 0, exploration already continues until exhausted.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
@@ -293,6 +294,8 @@
 <script src="/static/workflow.js"></script>
 <script src="/static/contract-builder.js"></script>
 <script src="/static/execution.js"></script>
+<script src="/static/android-scenarios.js"></script>
+<script src="/static/android-workspace.js"></script>
 <script src="/static/repository.js"></script>
 <script src="/static/workspace.js"></script>
 <script src="/static/chat.js"></script>

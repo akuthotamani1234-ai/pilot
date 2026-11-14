@@ -410,13 +410,13 @@ def test_authentication_wall_is_insufficient_evidence_even_when_visible_controls
 @pytest.mark.parametrize(
     "resource,label",
     [
-        ("com.example:id/checkout", "Settings"),
-        ("com.example:id/place_order", "Home"),
-        ("com.example:id/payment", "Continue"),
-        ("com.example:id/buy_now", "Settings"),
+        ("com.example:id/delete_account", "Settings"),
+        ("com.example:id/deleteAccount", "Home"),
+        ("com.example:id/delete_account", "Open login screen"),
+        ("com.example:id/resetDevice", "Settings"),
     ],
 )
-def test_payment_identifiers_cannot_hide_behind_safe_navigation_labels(resource, label):
+def test_risky_identifiers_cannot_hide_behind_safe_navigation_labels(resource, label):
     screen = android.extract_screen(
         f'<hierarchy><node class="android.widget.Button" resource-id="{resource}" text="{label}" clickable="true"/></hierarchy>',
         "com.example",

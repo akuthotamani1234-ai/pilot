@@ -81,7 +81,15 @@ def main() -> int:
             graph = build_graph(checkpointer=saver, target_type="mobile")
             try:
                 saved = graph.get_state(thread)
-                if args.resume and saved.values:
+                if args.resume and saved.values and saved.values.get("test_cases"):
+                    from .android_pipeline import execution_agent, failure_analysis_agent
+                    # Discovery is not replayed: it may have created test accounts.
+                    resumed = {**saved.values, "config": config, "incomplete": False,
+                               "incomplete_reason": "", "stop_kind": "", "setup_error": None}
+                    resumed.update(execution_agent(resumed))
+                    resumed.update(failure_analysis_agent(resumed))
+                    final = {**resumed, **reporter_agent(resumed)}
+                elif args.resume and saved.values:
                     final = graph.invoke(None, thread) if saved.next else saved.values
                 else:
                     final = graph.invoke(state, thread)

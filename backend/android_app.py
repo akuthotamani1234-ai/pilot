@@ -19,6 +19,7 @@ import re
 from collections import Counter, deque
 
 from .android import repeat_family
+from .android_coverage import full_run
 from .android_design import normalize_screens
 from .android_interact import (
     Session,
@@ -44,7 +45,6 @@ PLUS = re.compile(r"\b(increase|plus|add one|more)\b|^\+$", re.I)
 MINUS = re.compile(r"\b(decrease|minus|remove one|less)\b|^[-−]$", re.I)
 LOGOUT = re.compile(r"\b(log ?out|sign ?out)\b", re.I)
 LOCKED = re.compile(r"locked\s*out", re.I)
-CONTROLS_PER_SCREEN = 12
 
 
 def nm(element: dict) -> str:
@@ -78,7 +78,9 @@ class AppSession(Session):
 
 
     def add_state(self, screen: dict, steps: list[dict], title: str, role: str) -> dict:
-        key = (role, title.casefold())
+        from .android_runtime import screen_key
+
+        key = (role, screen_key(screen))
         for state in self.states:
             if state.get("state_key") == key:
                 return state
@@ -124,8 +126,6 @@ class AppSession(Session):
                element: dict, role: str = "screen", universal: bool = False) -> dict | None:
         """A tap that opens a screen: its heading is asserted, and the screen is tested in the next phase (unless it
         is a screen already tested, such as Catalog opening Products)."""
-        from .android_runtime import same_screen
-
         mark = self.heading(after, before)
         changes = self.diff(before, after)
         checks = anchor_checks(mark) if mark is not None else assertion_steps(changes)
@@ -134,17 +134,7 @@ class AppSession(Session):
                                "screen": parent["screen_name"]})
             return None
         title = (mark or {}).get("text") or (mark or {}).get("accessibility_id") or after.get("screen_name", "")
-        known = next((k for k in [*self.screens, *self.states] if k.get("package_name") == after.get("package_name")
-                      and same_screen(after, k)), None)
-        if known is not None:
-            # Already recorded by discovery (it is reached by its own path) or already a state: tested once, with
-            # the role this tap revealed (a product screen gets the quantity and cart checks)
-            if role in ("item", "cart") and not known.get("site_role"):
-                known["site_role"] = role
-            state = known
-        else:
-            # Recorded now, while it is on the device (its screenshot), before the replay below
-            state = self.add_state(after, self.nav(parent) + steps, str(title), role)
+        state = self.remember_destination(parent, steps, after, str(title), role)
         flow = self.build(area, f"{what}: '{' '.join(str(title).split())[:50]}' opens" if mark else
                           f"{what}: {describe(changes)}", self.nav(parent) + steps + checks)
         self.keep(flow, {"category": area, "screen_id": parent["id"], "screen": parent["screen_name"],
@@ -152,6 +142,28 @@ class AppSession(Session):
                          "expected": f"{what} opens its screen (as observed).",
                          "requirement": "Observed app behaviour on a test build (regression)"}, universal=universal)
         return state
+
+    def remember_destination(self, parent, steps, after, title, role):
+        from .android_runtime import same_screen
+
+        known = next((k for k in [*self.screens, *self.states] if k.get("package_name") == after.get("package_name")
+                      and same_screen(after, k)), None)
+        if known is not None:
+            # Already recorded by discovery (it is reached by its own path) or already a state: tested once, with
+            # the role this tap revealed (a product screen gets the quantity and cart checks)
+            if role in ("item", "cart") and known.get("site_role") in (None, "screen", "menu"):
+                known["site_role"] = role
+            state = known
+        else:
+            # Recorded now, while it is on the device (its screenshot), before the replay below
+            state = self.add_state(after, self.nav(parent) + steps, str(title), role)
+        return state
+
+    def on_observed_action(self, screen, element, steps, before, after):
+        from .android_runtime import same_screen
+
+        if not same_screen(after, screen):
+            self.remember_destination(screen, steps, after, after.get("screen_name", "Screen"), "screen")
 
     def declined_prompts(self) -> list[str]:
         """Android permission prompts declined since the last call (test mode never allows a device feature)."""
@@ -269,7 +281,7 @@ class AppSession(Session):
                            "status": "passed", "detail": "", "screen": screen["screen_name"],
                            "reason": f"the sheet shows {len(options)} options: "
                                      + ", ".join(nm(o) for o in options[:8])})
-        for option in options[:8]:
+        for option in options if full_run(self.device.config) else options[:8]:
             self.queue.append({"area": "sort", "name": f"Sort by '{nm(option)}' on {screen['screen_name']}",
                                "where": screen["screen_name"], "run": self.sort_option, "args": (screen, button, option)})
 
@@ -388,28 +400,19 @@ class AppSession(Session):
         return cart_state
 
     def controls(self, state: dict) -> list[dict]:
-        """Labelled, undoable controls not yet tried: one of each repeated kind, at most CONTROLS_PER_SCREEN."""
-        out, skipped = [], 0
+        """Every distinct eligible control on this state; the run budget reports any unfinished work."""
+        out = []
         for element in reversible_candidates(state, native=True):
             if element.get("navigation_role") or MENU_BUTTON.search(label(element)) or SORT.search(label(element)):
                 continue  # the menu and the sort sheet have their own checks
             if state.get("site_role") == "item" and MINUS.search(label(element)):
                 continue  # '-' on a product has its own checks (with '+', and at the lowest count)
-            key = repeat_family(element) or (element.get("class_name"), label(element).casefold())
+            key = ("control", state["id"], family(element))
             if key in self.done:
-                skipped += 1
                 continue
             self.done.add(key)
             out.append(element)
-        if len(out) > CONTROLS_PER_SCREEN:
-            self.cover("control", f"{len(out) - CONTROLS_PER_SCREEN} more controls on {state['screen_name']}",
-                       "not tested", f"candidate cap reached: at most {CONTROLS_PER_SCREEN} controls are tried per "
-                       "screen", where=state["screen_name"])
-        if skipped:
-            self.cover("control", f"{skipped} more controls on {state['screen_name']}", "not tested",
-                       "the same kind as a control already tried (one of a kind stands for all)",
-                       where=state["screen_name"])
-        return out[:CONTROLS_PER_SCREEN]
+        return out
 
     # -------- 3. login and log out
     def after_login(self, screen: dict, flow: dict):

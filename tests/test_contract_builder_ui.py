@@ -71,7 +71,7 @@ def test_guided_flow_validates_expected_results_and_keeps_mobile_controls_access
         expect(page.locator("#androidPackage")).to_be_hidden()
         page.locator(".mobile-advanced > summary").click()
         page.locator('[data-flow-tools="androidContract"] .flow-open').click()
-        expect(page.locator("dialog")).to_be_visible()
+        expect(page.locator('dialog[aria-labelledby="flowTitle"]')).to_be_visible()
         page.locator("#flowName").fill("Required username")
         row = page.locator(".flow-step").first
         row.locator(".flow-action").select_option("fill")
@@ -81,7 +81,7 @@ def test_guided_flow_validates_expected_results_and_keeps_mobile_controls_access
         page.locator("#flowEnvironment").check()
         page.locator('#flowForm [type="submit"]').click()
         expect(page.locator("#flowMessage")).to_contain_text("Invalid test flow")
-        expect(page.locator("dialog")).to_be_visible()
+        expect(page.locator('dialog[aria-labelledby="flowTitle"]')).to_be_visible()
         assert page.locator("#androidContract").input_value() == ""
         page.locator("#flowAdd").click()
         row = page.locator(".flow-step").last
@@ -89,7 +89,7 @@ def test_guided_flow_validates_expected_results_and_keeps_mobile_controls_access
         row.locator(".flow-locator").fill("#heading")
         row.locator(".flow-value").fill("Dashboard")
         page.locator('#flowForm [type="submit"]').click()
-        expect(page.locator("dialog")).not_to_be_visible()
+        expect(page.locator('dialog[aria-labelledby="flowTitle"]')).not_to_be_visible()
         contract = json.loads(page.locator("#androidContract").input_value())
         assert contract["test_environment"] and contract["flows"][0]["approved"]
         assert contract["flows"][0]["steps"][1]["value"] == "Dashboard"
@@ -135,7 +135,7 @@ def test_native_flow_builder_exposes_permission_and_gesture_fields_without_runni
         page.locator('#flowApproved').check()
         page.locator('#flowEnvironment').check()
         page.locator('#flowForm [type="submit"]').click()
-        expect(page.locator('dialog')).not_to_be_visible()
+        expect(page.locator('dialog[aria-labelledby="flowTitle"]')).not_to_be_visible()
         contract = json.loads(page.locator('#androidContract').input_value())
         assert contract['android_permissions']['approved']
         assert contract['flows'][0]['steps'][1]['target']['value'] == 'Footer'

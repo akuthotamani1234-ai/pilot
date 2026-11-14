@@ -3,7 +3,7 @@ import base64
 import json
 from pathlib import Path
 
-from .safety import redact
+from .safety import redact, redact_data
 
 
 def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
@@ -30,7 +30,12 @@ def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
                     except ValueError:
                         continue
                     if isinstance(value, dict):
-                        events.append(json.loads(redact(json.dumps(value))))
+                        public = redact_data(value)
+                        # These fields are generated protocol metadata, not user text.
+                        for key in ("id", "timestamp", "elapsed", "worker", "status", "phase"):
+                            if key in value:
+                                public[key] = value[key]
+                        events.append(public)
         except OSError:
             continue
         offsets[path.name] = offset
@@ -43,7 +48,8 @@ def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
     for event in events:
         node = event.get("nodeid", "")
         result = {"nodeid": node, "file": node.split("::")[0], "test": event.get("test", "")}
-        case = next((case for case in cases if case_hits(case, [result])), None)
+        case = next((case for case in cases if
+                     (event.get("case_id") and case.get("id") == event["case_id"]) or case_hits(case, [result])), None)
         if case:
             event["case_title"], event["expected"] = redact(case.get("title", "")), redact(case.get("expected", ""))
     return {"events": sorted(events, key=lambda e: (e.get("timestamp", 0), e.get("id", ""))), "cursor": cursor}

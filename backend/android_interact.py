@@ -27,6 +27,7 @@ import time
 from collections import Counter
 
 from .android import AndroidEnvironmentError
+from .android_coverage import full_run
 from .qa_contracts import TEST_MODE_NEVER, TEST_MODE_NEVER_NATIVE, Flow, never_in_test_mode, parse_contract
 from .safety import redact
 
@@ -104,7 +105,7 @@ def name(element: dict) -> str:
 def usable(element: dict) -> bool:
     return bool(element.get("visible") and element.get("enabled", True) and element.get("locators")
                 and element.get("locator_unique", True) and not element.get("within_webview")
-                and not element.get("outside_active_drawer"))
+                and not element.get("outside_active_drawer") and not element.get("outside_active_dialog"))
 
 
 def _top(element: dict) -> int:
@@ -269,7 +270,8 @@ def _keyed(screen: dict) -> dict:
     groups = {}
     for element in screen.get("elements", []):
         if (not element.get("visible") or element.get("within_webview") or element.get("input_capable")
-                or element.get("outside_active_drawer") or not (element.get("resource_id") or element.get("accessibility_id"))):
+                or element.get("outside_active_drawer") or element.get("outside_active_dialog")
+                or not (element.get("resource_id") or element.get("accessibility_id"))):
             continue
         key = (element.get("class_name"), element.get("resource_id") or "", element.get("accessibility_id") or "")
         groups.setdefault(key, []).append(element)
@@ -291,7 +293,10 @@ def screen_diff(before: dict, after: dict) -> list[dict]:
         elif element.get("checkable") and element.get("checked") != previous.get("checked"):
             changes.append({"kind": "checked", "element": element, "after": bool(element.get("checked"))})
     for key, element in old.items():
-        if key not in new and usable(element):
+        obscured = any(family(e) == family(element) and
+                       (e.get("outside_active_dialog") or e.get("outside_active_drawer"))
+                       for e in after.get("elements", []))
+        if key not in new and usable(element) and not obscured:
             changes.append({"kind": "disappeared", "element": element})
     # A list sorted again: the first item of a repeated kind (the first product title) shows another text.
     def firsts(screen):
@@ -473,7 +478,7 @@ class Session:
     def spend(self):
         if self.device.stop_path.exists():
             raise Budget("Stop requested")
-        if self.used >= self.device.max_tries - self.reserve:
+        if not full_run(self.device.config) and self.used >= self.device.max_tries - self.reserve:
             raise Budget("User-like test limit reached")
         if time.monotonic() >= self.device.deadline:
             raise Budget("User-like testing time limit reached")
@@ -491,26 +496,29 @@ class Session:
         from .qa_contracts import Locator
         contract = parse_contract(self.base)
         adapter = self._adapter(contract)
-        for step in steps:
-            if step["action"] in ("back", "rotate", "background", "hide_keyboard"):
-                adapter.device_action(step["action"], step.get("value"))
-                continue
-            if step["action"] == "open":
-                adapter.open(step["value"])
-                continue
-            if step["action"].startswith("assert_"):
-                continue
-            element = adapter.find(Locator(**step["locator"]))
-            if step["action"] == "scroll_to":
-                adapter.scroll_to(element, Locator(**step["target"]), step["value"])
-            elif step["action"] == "tap":
-                if self.protected(adapter.identity(element), navigation=step.get("purpose") == "navigation"):
-                    raise ValueError("Blocked an irreversible live control")
-                adapter.tap(element)
-            elif step["action"] == "fill":
-                adapter.fill(element, self.secrets[step["secret_ref"]] if step.get("secret_ref") else step["value"])
-            elif step["action"] == "select":
-                adapter.select(element, step["value"])
+        from .android_events import Timeline
+        timeline = Timeline(self.device.stop_path.parent, phase="test_build", secrets=self.secrets.values())
+        for index, step in enumerate(steps, 1):
+            with timeline.action(step, index):
+                if step["action"] in ("back", "rotate", "background", "hide_keyboard"):
+                    adapter.device_action(step["action"], step.get("value"))
+                    continue
+                if step["action"] == "open":
+                    adapter.open(step["value"])
+                    continue
+                if step["action"].startswith("assert_"):
+                    continue
+                element = adapter.find(Locator(**step["locator"]))
+                if step["action"] == "scroll_to":
+                    adapter.scroll_to(element, Locator(**step["target"]), step["value"])
+                elif step["action"] == "tap":
+                    if self.protected(adapter.identity(element), navigation=step.get("purpose") == "navigation"):
+                        raise ValueError("Blocked an irreversible live control")
+                    adapter.tap(element)
+                elif step["action"] == "fill":
+                    adapter.fill(element, self.secrets[step["secret_ref"]] if step.get("secret_ref") else step["value"])
+                elif step["action"] == "select":
+                    adapter.select(element, step["value"])
 
     def replay(self, flow: dict) -> str:
         """'' when the flow passes from cleared app data, else the reason it did not."""
@@ -527,6 +535,8 @@ class Session:
             self.device.fresh_start()
             runtime = ContractRuntime(self._adapter(contract), contract.model_dump(mode="json"),
                                       {"secrets": self.secrets, "databases": {}})
+            runtime.timeline.phase = "test_build"
+            runtime.timeline.case = {"title": flow["title"]}
             runtime.execute(flow["id"])
             return ""
         except Budget:
@@ -557,7 +567,7 @@ class Session:
         it inconclusive."""
         if flow is None:
             return False
-        if len(self.flows) >= 100:  # keep the bounded test-build exploration inside the contract limit
+        if not full_run(self.device.config) and len(self.flows) >= 100:
             raise Budget("User-like test limit reached")
         self.spend()
         error = self.replay(flow)
@@ -698,8 +708,11 @@ class Session:
             self.cover(area, check, "not tested", "no result could be observed", where=where)
 
     # -------- the checks a tester runs
+    def on_observed_action(self, screen, element, steps, before, after):
+        """Platform sessions may add a newly reached state to their remaining plan."""
+
     def tap_check(self, screen: dict, element: dict):
-        key = family(element)
+        key = ("control", screen["id"], family(element))
         if key in self.seen:
             return
         self.seen.add(key)
@@ -709,6 +722,7 @@ class Session:
         if after is None:
             self.tried.append({"check": what, "outcome": "opens another app", "detail": "Not followed.", "screen": screen["screen_name"]})
             return
+        self.on_observed_action(screen, element, steps, before, after)
         changes = self.diff(before, after)
         checks = assertion_steps(changes)
         if not checks:
@@ -1324,9 +1338,10 @@ class Session:
                                          "The supplied account was not entered; check discovery gaps for an unreached login screen."})
         for screen in self.screens:
             for element in reversible_candidates(screen, self.native):
-                if family(element) in planned:
+                key = (screen["id"], family(element))
+                if key in planned:
                     continue
-                planned.add(family(element))
+                planned.add(key)
                 yield {"area": "control", "name": f"Tap '{name(element)}' on {screen['screen_name']}",
                        "where": screen["screen_name"], "run": self.tap_check, "args": (screen, element)}
         yield {"area": "phone", "name": "Rotation, background and Back checks", "where": self.screens[0]["screen_name"],
@@ -1372,7 +1387,23 @@ class Session:
         return stopped
 
     def contract(self) -> dict:
-        return parse_contract({**self.base, "flows": [item["flow"] for item in self.flows]}).model_dump(mode="json")
+        # Generated flows are individually validated by build/replay. The user-supplied
+        # contract still has its input-size limit; it must not truncate this inventory.
+        contract = parse_contract(self.base).model_dump(mode="json")
+        contract["flows"] = [item["flow"] for item in self.flows]
+        return contract
+
+    def state_inventory(self) -> list[dict]:
+        """Report reached panels without exposing their navigation inputs or entered values."""
+        from .safety import redact_data
+
+        keys = ("id", "type", "class_name", "resource_id", "accessibility_id", "text", "visible",
+                "enabled", "clickable", "input_capable", "locators", "requires_scroll")
+        rows = [{"id": state["id"], "screen_name": state.get("screen_name", "State"),
+                 "elements": [{key: element[key] for key in keys if key in element}
+                              for element in state.get("elements", [])]}
+                for state in getattr(self, "states", [])]
+        return redact_data(rows, values=[value for value in self.secrets.values() if value])
 
 
 def auto_cases(auto_flows: list[dict]) -> list[dict]:

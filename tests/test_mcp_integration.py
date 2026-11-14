@@ -142,9 +142,12 @@ def test_stdio_tools_register_without_contacting_ui(monkeypatch):
     for name in ("crawl_website", "start_web_test"):
         props = tools[name].parameters["properties"]
         assert props["max_pages"]["default"] == 0
-        assert props["max_depth"]["default"] == 0
+        assert props["max_depth"]["default"] == 0  # zero means no selected depth cap
         assert props["max_pages"]["minimum"] == 0
     assert tools["get_run_status"].annotations.read_only_hint is True
+    android = tools["start_android_test"].parameters["properties"]
+    assert android["test_build"]["default"] is False
+    assert android["test_all_discovered"]["default"] is True
     assert tools["stop_run"].parameters["properties"]["confirmed"]["default"] is False
 
 

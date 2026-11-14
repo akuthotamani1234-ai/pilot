@@ -21,6 +21,7 @@ from tests.test_android_site import VirtualClock
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mda_screens_20261109_170355.json"
 CONFIG = {"app_mode": "installed", "package_name": PACKAGE, "device_id": "emulator-5554", "interaction_testing": True,
+          "test_all_discovered": True,
           "max_actions": 60, "max_screens": 40, "discovery_timeout_s": 600, "max_depth": 3, "max_interactions": 400,
           "interaction_timeout_s": 3600}
 
@@ -54,17 +55,9 @@ def flow(run, start):
 def test_the_real_my_demo_app_screens_offer_the_menu_first_and_no_rating_stars():
     screens = {s["screen_name"]: s for s in json.loads(FIXTURE.read_text(encoding="utf-8"))}
     names = lambda screen: [e.get("text") or e.get("accessibility_id") for e in safe_navigation_elements(screen)]  # noqa: E731
-    assert names(screens["Products"]) == [
-        "View menu",
-        "Shows current sorting order and displays available sorting options",
-        "View cart",
-        "Product Image",
-    ]
-    # Exhaustive: drawer destinations (including QR/Geo/Reset/Crash) are discovery candidates; pay stays out.
-    assert names(screens["Navigation menu"]) == [
-        "Catalog", "WebView", "QR Code Scanner", "Geo Location", "Drawing", "About",
-        "Reset App State", "FingerPrint", "Virtual USB", "Crash app (debug)", "Log In",
-    ]
+    assert names(screens["Products"]) == ["View menu", "View cart", "Product Image"]
+    assert names(screens["Navigation menu"]) == ["Catalog", "WebView", "Drawing", "About", "FingerPrint",
+                                                 "Virtual USB", "Log In"]
 
 
 def test_a_list_of_product_pictures_is_a_list_even_without_a_list_widget():
@@ -195,10 +188,10 @@ def test_device_feature_screens_open_but_their_feature_is_never_used(run):
 def test_never_pressed_controls_say_exactly_why(run):
     reasons = {r["name"]: r["reason"] for r in run["rows"] if r["status"] == "not tested"}
     assert reasons["'Proceed To Checkout'"] == "checkout, payment and placing an order are never tested"
-    assert "Proceed To Checkout" not in run["app"].pressed
-    # Reset App State is allowed under pay-only never-press; if exercised it should not be "not tested" for payment.
-    if "'Reset App State'" in reasons:
-        assert "checkout" not in reasons["'Reset App State'"].lower()
+    assert reasons["'Reset App State'"].startswith("not pressed: it resets the app's data")
+    assert "Proceed To Checkout" not in run["app"].pressed and "Reset App State" not in run["app"].pressed
+    tried = next(t for t in run["tried"] if t["check"].startswith("Tap 'Reset App State'"))
+    assert tried["reason"].startswith("not pressed")
 
 
 def test_products_quantity_and_the_cart_are_used_like_a_user(run):
@@ -210,8 +203,8 @@ def test_products_quantity_and_the_cart_are_used_like_a_user(run):
     assert "Tap 'Add To Cart' on Sauce Labs Backpack: '1' appears" in titles
     assert "The cart lists 'Sauce Labs Backpack' after Add To Cart" in titles
     assert any(t.startswith("Tap 'Remove Item'") and "'No Items' appears" in t for t in titles)
-    # Go Shopping may be skipped when the interaction budget is spent on newly allowed drawer destinations.
-    assert sum(t.startswith("Tap 'start") for t in titles) == 1  # one rating star stands for all
+    assert any(t.startswith("Tap 'Go Shopping' on No Items") for t in titles)
+    assert {t.split("'")[1] for t in titles if t.startswith("Tap 'start")} == {f"start{i}IV" for i in range(1, 6)}
 
 
 def test_every_sort_option_is_tried_and_must_change_the_order(run):
@@ -265,7 +258,7 @@ def test_kept_flows_become_readable_tests_and_every_control_is_listed(run):
 
 def test_a_run_that_runs_out_of_time_says_so_with_what_was_not_reached(tmp_path):
     from backend.android_reporting import early_stop
-    result = explore(tmp_path, FakeDemoApp(), max_interactions=6)
+    result = explore(tmp_path, FakeDemoApp(), max_interactions=6, test_all_discovered=False)
     assert result["interaction"]["stopped"] == "User-like test limit reached"
     assert "planned checks were not reached" in early_stop(result)
 
@@ -300,8 +293,7 @@ def test_a_screen_first_reached_in_test_mode_is_recorded_and_its_forms_tested(tm
 def test_returning_takes_one_tap_and_is_not_counted_as_recovery(run):
     discovery = json.loads((run["dir"] / "android_discovery.json").read_text(encoding="utf-8"))
     assert discovery["cheap_return_action_count"] > 0
-    # Exhaustive drawer exploration can recover more than once per nav; still must not be recovery-heavy issues.
-    assert discovery["discovery_recovery_action_count"] <= max(2 * discovery["navigation_action_count"], 1)
+    assert discovery["discovery_recovery_action_count"] <= discovery["navigation_action_count"]
     assert not any(i.get("recovery_heavy") for i in run["result"]["discovery_issues"])
 
 

@@ -164,9 +164,7 @@ def test_dom_inventory_lists_inputs_dropdowns_and_safe_navigation_without_input_
         safe = android.safe_navigation_elements(screen)
         assert any(e["text"] == "Products" for e in safe)
         assert any(e["text"] == "Categories" for e in safe)
-        # Pay-only never-press: /delete-all ("More") may be explored; off-site/submit/download/skip stay out.
-        assert any(e["text"] == "More" for e in safe)
-        assert not any(e["text"] in ("Other site", "Search", "Download file", "Skip to content") for e in safe)
+        assert not any(e["text"] in ("More", "Other site", "Search", "Download file", "Skip to content") for e in safe)
         for node in screen["elements"]:
             assert page.locator(node["locators"][0]["value"]).count() == 1
         assert page.evaluate("script => new Function(script)()", DOM_SCRIPT)["title"] == "Example"

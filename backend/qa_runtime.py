@@ -37,6 +37,9 @@ class ContractRuntime:
         self.steps = []
         self.sensitive = False
         self.authentication_verified = False
+        from .android_events import Timeline
+        stop = getattr(adapter, "stop_path", None)
+        self.timeline = Timeline(stop.parent if stop else None, secrets=self.private["secrets"].values())
         self.rotated = False
         self.timeout_s = 90
         self.deadline = time.monotonic() + self.timeout_s
@@ -73,176 +76,187 @@ class ContractRuntime:
         if flow.setup_flow:
             self._flow(flow.setup_flow)
         for index, step in enumerate(flow.steps, 1):
-            self._budget()
-            if isinstance(self.adapter, AndroidContractAdapter):
-                self.adapter.permissions.before_step(step.action)
-            if step.action in {'permission_state', 'handle_permission', 'assert_permission'}:
-                if not isinstance(self.adapter, AndroidContractAdapter):
-                    raise ValueError('Android permission steps require native emulator testing')
-                if step.action == 'permission_state':
-                    self.adapter.permissions.set_state(step.permission, step.value)
-                elif step.action == 'handle_permission':
-                    self.evidence.append({'contract_id': flow.id, 'kind': 'permission_prompt',
-                                          **self.adapter.permissions.handle(step.permission, step.value)})
+            with self.timeline.action(step.model_dump(), index, flow.id):
+                self._budget()
+                if isinstance(self.adapter, AndroidContractAdapter):
+                    self.adapter.permissions.before_step(step.action)
+                if step.action in {'permission_state', 'handle_permission', 'assert_permission'}:
+                    if not isinstance(self.adapter, AndroidContractAdapter):
+                        raise ValueError('Android permission steps require native emulator testing')
+                    if step.action == 'permission_state':
+                        self.adapter.permissions.set_state(step.permission, step.value)
+                    elif step.action == 'handle_permission':
+                        self.evidence.append({'contract_id': flow.id, 'kind': 'permission_prompt',
+                                              **self.adapter.permissions.handle(step.permission, step.value)})
+                        self.checks += 1
+                    else:
+                        self.adapter.permissions.assert_state(step.permission, step.value)
+                        self.checks += 1
+                elif step.action == 'relaunch':
+                    if not isinstance(self.adapter, AndroidContractAdapter):
+                        raise ValueError('App relaunch steps require native Android testing')
+                    self.adapter.relaunch()
+                elif step.action == "context":
+                    self.adapter.context(step.value)
+                elif step.action == "open":
+                    opener = getattr(self.adapter, "open", None)
+                    if opener is None:
+                        raise ValueError("Open steps need a browser (Android Chrome or a website run)")
+                    opener(step.value)
+                elif step.action == "assert_alert":
+                    reader = getattr(self.adapter, "alert_text", None)
+                    if reader is None:
+                        raise ValueError("Browser-message checks need Android Chrome")
+                    shown = reader(min(8.0, max(0.0, self.deadline - time.monotonic())))
+                    assert shown is not None, f"Expected the browser message {step.value!r}; no message appeared."
+                    assert shown.strip() == step.value.strip(), f"Expected the browser message {step.value!r}; found {shown[:200]!r}."
+                    self.checks += 1
+                elif step.action in ("back", "rotate", "background", "hide_keyboard"):
+                    device = getattr(self.adapter, "device_action", None)
+                    if device is None:
+                        raise ValueError("Back, rotate, background and hide_keyboard steps require Android testing")
+                    if step.action == "rotate":
+                        self.rotated = self.rotated or step.value != "portrait"
+                    device(step.action, step.value)
+                elif step.action == "assert_screen":
+                    self.adapter.assert_screen(step.value)
+                    self.checks += 1
+                elif step.action == "assert_not_visible":
+                    # A closing dialog or a list update can take a moment: wait (bounded) for it to go.
+                    deadline = min(self.deadline, time.monotonic() + 5)
+                    while self._find(step.locator, optional=True) and time.monotonic() < deadline:
+                        self._budget()
+                        time.sleep(.2)
+                    assert not self._find(step.locator, optional=True), (
+                        "The configured control should not be visible."
+                    )
                     self.checks += 1
                 else:
-                    self.adapter.permissions.assert_state(step.permission, step.value)
-                    self.checks += 1
-            elif step.action == 'relaunch':
-                if not isinstance(self.adapter, AndroidContractAdapter):
-                    raise ValueError('App relaunch steps require native Android testing')
-                self.adapter.relaunch()
-            elif step.action == "context":
-                self.adapter.context(step.value)
-            elif step.action == "open":
-                opener = getattr(self.adapter, "open", None)
-                if opener is None:
-                    raise ValueError("Open steps need a browser (Android Chrome or a website run)")
-                opener(step.value)
-            elif step.action == "assert_alert":
-                reader = getattr(self.adapter, "alert_text", None)
-                if reader is None:
-                    raise ValueError("Browser-message checks need Android Chrome")
-                shown = reader(min(8.0, max(0.0, self.deadline - time.monotonic())))
-                assert shown is not None, f"Expected the browser message {step.value!r}; no message appeared."
-                assert shown.strip() == step.value.strip(), f"Expected the browser message {step.value!r}; found {shown[:200]!r}."
-                self.checks += 1
-            elif step.action in ("back", "rotate", "background", "hide_keyboard"):
-                device = getattr(self.adapter, "device_action", None)
-                if device is None:
-                    raise ValueError("Back, rotate, background and hide_keyboard steps require Android testing")
-                if step.action == "rotate":
-                    self.rotated = self.rotated or step.value != "portrait"
-                device(step.action, step.value)
-            elif step.action == "assert_screen":
-                self.adapter.assert_screen(step.value)
-                self.checks += 1
-            elif step.action == "assert_not_visible":
-                # A closing dialog or a list update can take a moment: wait (bounded) for it to go.
-                deadline = min(self.deadline, time.monotonic() + 5)
-                while self._find(step.locator, optional=True) and time.monotonic() < deadline:
-                    self._budget()
-                    time.sleep(.2)
-                assert not self._find(step.locator, optional=True), (
-                    "The configured control should not be visible."
-                )
-                self.checks += 1
-            else:
-                # A missing control is a failed visibility/state assertion; an ambiguous locator
-                # remains an automation error. Keeping these separate prevents locator problems
-                # from being reported as app defects, while making missing UI real test evidence.
-                optional_assertion = step.action in ("assert_visible", "assert_text", "assert_enabled", "assert_checked")
-                element = self._find(step.locator, optional=optional_assertion)
-                if step.action == 'request_permission':
-                    if not isinstance(self.adapter, AndroidContractAdapter):
-                        raise ValueError('Android permission requests require native emulator testing')
-                    self.adapter.permissions.request(element, step.permission, self.adapter.identity(element), step.permissions)
-                elif step.action in ("swipe", "drag", "scroll_to"):
-                    # A web page scrolls as a whole (its container is <html>, whose words are the whole page): only
-                    # the control scrolled to is checked there, and again when it is tapped.
-                    web_scroll = step.action == "scroll_to" and getattr(self.adapter, "active", "") == "webview"
-                    identities = [] if web_scroll else [self.adapter.identity(element)]
-                    if step.target:
-                        identities.append(step.target.value)
-                    target = self.adapter.find(step.target) if step.action == "drag" else None
-                    if target is not None:
-                        identities.append(self.adapter.identity(target))
-                    if any(self._blocked(identity) for identity in identities):
-                        raise ValueError("Blocked a gesture on an irreversible control")
-                    if step.action == "swipe":
-                        self.adapter.swipe(element, step.value)
-                    elif step.action == "scroll_to":
-                        attempts = self.adapter.scroll_to(element, step.target, step.value)
-                        self.evidence.append({"contract_id":flow_id,"kind":"bounded_scroll","attempts":attempts})
-                    else:
-                        self.adapter.drag(element, target)
-                elif step.action == "long_press":
-                    identity = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", self.adapter.identity(element)).replace("_", " ")
-                    if self._blocked(identity):
-                        raise ValueError("Blocked an irreversible live control")
-                    if not hasattr(self.adapter, "long_press"):
-                        raise ValueError("Long-press steps require native Android testing")
-                    self.adapter.long_press(element)
-                elif step.action == "tap":
-                    identity = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", self.adapter.identity(element)).replace("_", " ")
-                    if self._blocked(identity, navigation=step.purpose == "navigation"):
-                        raise ValueError("Blocked an irreversible live control")
-                    opens_login_screen = bool(
-                        re.search(r"\b(open|go to)\s+(the\s+)?(login|log in|sign in)\s+(screen|page)\b", identity, re.I)
-                    )
-                    if (
-                        step.purpose == "navigation"
-                        and not opens_login_screen
-                        and re.search(r"\b(login|log in|sign in|submit|register|save|create|add)\b", identity, re.I)
-                    ):
-                        raise ValueError("A form submission must be explicitly marked test_form")
-                    assert self.adapter.enabled(element), "The configured action is disabled."
-                    self.adapter.tap(element)
-                elif step.action == "fill":
-                    self.sensitive = True  # Filled forms never enter screenshots or model input.
-                    value = self.private["secrets"][step.secret_ref] if step.secret_ref else step.value
-                    try:
-                        self.adapter.fill(element, value)
-                    except Exception as error:
-                        if isinstance(self.adapter, AndroidContractAdapter):
-                            from .android_runtime import device_unavailable
-
-                            if device_unavailable(error):
-                                raise RuntimeError("Android device/session is unavailable during the input step.") from None
-                        raise RuntimeError(f"The configured input step failed ({type(error).__name__}); entered values were omitted.") from None
-                elif step.action == "assert_text":
-                    deadline = min(self.deadline, time.monotonic() + 8)
-                    actual = ""
-                    while True:
-                        self._budget()
+                    # A missing control is a failed visibility/state assertion; an ambiguous locator
+                    # remains an automation error. Keeping these separate prevents locator problems
+                    # from being reported as app defects, while making missing UI real test evidence.
+                    optional_assertion = step.action in ("assert_visible", "assert_text", "assert_enabled", "assert_checked")
+                    element = self._find(step.locator, optional=optional_assertion)
+                    if step.action == 'request_permission':
+                        if not isinstance(self.adapter, AndroidContractAdapter):
+                            raise ValueError('Android permission requests require native emulator testing')
+                        self.adapter.permissions.request(element, step.permission, self.adapter.identity(element), step.permissions)
+                    elif step.action in ("swipe", "drag", "scroll_to"):
+                        # A web page scrolls as a whole (its container is <html>, whose words are the whole page): only
+                        # the control scrolled to is checked there, and again when it is tapped.
+                        web_scroll = step.action == "scroll_to" and getattr(self.adapter, "active", "") == "webview"
+                        identities = [] if web_scroll else [self.adapter.identity(element)]
+                        if step.target:
+                            identities.append(step.target.value)
+                        target = self.adapter.find(step.target) if step.action == "drag" else None
+                        if target is not None:
+                            identities.append(self.adapter.identity(target))
+                        if any(self._blocked(identity) for identity in identities):
+                            raise ValueError("Blocked a gesture on an irreversible control")
+                        if step.action == "swipe":
+                            self.adapter.swipe(element, step.value)
+                        elif step.action == "scroll_to":
+                            attempts = self.adapter.scroll_to(element, step.target, step.value)
+                            self.evidence.append({"contract_id":flow_id,"kind":"bounded_scroll","attempts":attempts})
+                        else:
+                            self.adapter.drag(element, target)
+                    elif step.action == "long_press":
+                        identity = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", self.adapter.identity(element)).replace("_", " ")
+                        if self._blocked(identity):
+                            raise ValueError("Blocked an irreversible live control")
+                        if not hasattr(self.adapter, "long_press"):
+                            raise ValueError("Long-press steps require native Android testing")
+                        self.adapter.long_press(element)
+                    elif step.action == "tap":
+                        identity = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", self.adapter.identity(element)).replace("_", " ")
+                        if self._blocked(identity, navigation=step.purpose == "navigation"):
+                            raise ValueError("Blocked an irreversible live control")
+                        opens_login_screen = bool(
+                            re.search(r"\b(open|go to)\s+(the\s+)?(login|log in|sign in)\s+(screen|page)\b", identity, re.I)
+                        )
+                        if (
+                            step.purpose == "navigation"
+                            and not opens_login_screen
+                            and re.search(r"\b(login|log in|sign in|submit|register|save|create|add)\b", identity, re.I)
+                        ):
+                            raise ValueError("A form submission must be explicitly marked test_form")
+                        assert self.adapter.enabled(element), "The configured action is disabled."
+                        self.adapter.tap(element)
+                    elif step.action == "fill":
+                        self.sensitive = True  # Filled forms never enter screenshots or model input.
+                        value = self.private["secrets"][step.secret_ref] if step.secret_ref else step.value
                         try:
-                            if element is not None and self.adapter.input_sensitive(element):
-                                raise ValueError("Input contents cannot be asserted as report text")
-                            actual = self.adapter.text(element) if element is not None else ""
-                            if element is not None and actual == step.value:
-                                break
-                        except StaleElementReferenceException:
-                            pass
-                        if time.monotonic() >= deadline:
-                            detail = "control was not visible" if element is None else f"found {actual[:200]!r}"
-                            raise AssertionError(f"Expected text {step.value!r}; {detail}.")
-                        time.sleep(.15)
-                        element = self._find(step.locator, optional=True)
-                    self.checks += 1
-                elif step.action == "select":
-                    self.adapter.select(element, step.value)
-                    self.checks += 1
-                elif step.action == "assert_visible":
-                    # A dialog fading in or a result arriving after a request: wait (bounded) for it to appear.
-                    deadline = min(self.deadline, time.monotonic() + 5)
-                    uncover = getattr(self.adapter, "uncover", None)
-                    if element is None and uncover and uncover():  # the soft keyboard was covering it
-                        element = self._find(step.locator, optional=True)
-                    while element is None and time.monotonic() < deadline:
-                        self._budget()
-                        time.sleep(.2)
-                        element = self._find(step.locator, optional=True)
-                    if element is None:
-                        raise ControlMissing("The configured control is not visible.")
-                    assert self.adapter.visible(element), "The configured control is not visible."
-                    self.checks += 1
-                elif step.action == "assert_enabled":
-                    expected = (step.value or "true").lower() == "true"
-                    assert element is not None and self.adapter.enabled(element) == expected, (
-                        "Control enabled state does not match the configured expectation."
-                    )
-                    self.checks += 1
-                elif step.action == 'assert_checked':
-                    expected = (step.value or 'true') == 'true'
-                    deadline = min(self.deadline, time.monotonic() + 8)
-                    while element is not None and self.adapter.checked(element) != expected and time.monotonic() < deadline:
-                        time.sleep(.2)
-                        element = self._find(step.locator, optional=True)
-                    assert element is not None and self.adapter.checked(element) == expected, 'Control checked state does not match the expected result'
-                    self.checks += 1
-            self.steps.append({"text": f"{flow.id}: step {index} {step.action}", "ok": True})
+                            self.adapter.fill(element, value)
+                        except Exception as error:
+                            if isinstance(self.adapter, AndroidContractAdapter):
+                                from .android_runtime import device_unavailable
+
+                                if device_unavailable(error):
+                                    raise RuntimeError("Android device/session is unavailable during the input step.") from None
+                            raise RuntimeError(f"The configured input step failed ({type(error).__name__}); entered values were omitted.") from None
+                    elif step.action == "assert_text":
+                        deadline = min(self.deadline, time.monotonic() + 8)
+                        actual = ""
+                        while True:
+                            self._budget()
+                            try:
+                                if element is not None and self.adapter.input_sensitive(element):
+                                    raise ValueError("Input contents cannot be asserted as report text")
+                                actual = self.adapter.text(element) if element is not None else ""
+                                if element is not None and actual == step.value:
+                                    break
+                            except StaleElementReferenceException:
+                                pass
+                            if time.monotonic() >= deadline:
+                                detail = "control was not visible" if element is None else f"found {actual[:200]!r}"
+                                raise AssertionError(f"Expected text {step.value!r}; {detail}.")
+                            time.sleep(.15)
+                            element = self._find(step.locator, optional=True)
+                        self.checks += 1
+                    elif step.action == "select":
+                        self.adapter.select(element, step.value)
+                        self.checks += 1
+                    elif step.action == "assert_visible":
+                        # A dialog fading in or a result arriving after a request: wait (bounded) for it to appear.
+                        deadline = min(self.deadline, time.monotonic() + 5)
+                        uncover = getattr(self.adapter, "uncover", None)
+                        if element is None and uncover and uncover():  # the soft keyboard was covering it
+                            element = self._find(step.locator, optional=True)
+                        while element is None and time.monotonic() < deadline:
+                            self._budget()
+                            time.sleep(.2)
+                            element = self._find(step.locator, optional=True)
+                        if element is None:
+                            raise ControlMissing("The configured control is not visible.")
+                        assert self.adapter.visible(element), "The configured control is not visible."
+                        self.checks += 1
+                    elif step.action == "assert_enabled":
+                        expected = (step.value or "true").lower() == "true"
+                        assert element is not None and self.adapter.enabled(element) == expected, (
+                            "Control enabled state does not match the configured expectation."
+                        )
+                        self.checks += 1
+                    elif step.action == 'assert_checked':
+                        expected = (step.value or 'true') == 'true'
+                        deadline = min(self.deadline, time.monotonic() + 8)
+                        while element is not None and self.adapter.checked(element) != expected and time.monotonic() < deadline:
+                            time.sleep(.2)
+                            element = self._find(step.locator, optional=True)
+                        assert element is not None and self.adapter.checked(element) == expected, 'Control checked state does not match the expected result'
+                        self.checks += 1
+                self.steps.append({"text": f"{flow.id}: step {index} {step.action}", "ok": True})
         if flow.authentication:
             self.authentication_verified = True
+        for identifier in flow.backend_checks:
+            self._backend_check(next(check for check in self.contract.checks if check.id == identifier))
+
+    def _backend_check(self, check):
+        self._budget()
+        with self.timeline.action({"action": "assert_backend"}, flow=check.id):
+            record = (check_http(check, self.contract.allowed_origins, self.private["secrets"])
+                      if check.kind == "http" else check_sqlite(check, self.private["databases"]))
+            self.evidence.append({"contract_id": check.id, **record})
+            self.checks += 1
 
     def execute(self, contract_id):
         if not self.contract.test_environment:
@@ -282,14 +296,7 @@ class ContractRuntime:
                 check = next(c for c in self.contract.checks if c.id == contract_id)
                 if check.setup_flow:
                     self._flow(check.setup_flow)
-                self._budget()
-                record = (
-                    check_http(check, self.contract.allowed_origins, self.private["secrets"])
-                    if check.kind == "http"
-                    else check_sqlite(check, self.private["databases"])
-                )
-                self.evidence.append({"contract_id": check.id, **record})
-                self.checks += 1
+                self._backend_check(check)
         except Exception as error:
             message = redact(str(error), list(self.private["secrets"].values()))
             if isinstance(error, AssertionError):
@@ -308,7 +315,10 @@ class ContractRuntime:
                     if restored:
                         self.evidence.append({'contract_id': contract_id, 'kind': 'permission_cleanup', 'restored': restored})
             finally:
-                self.adapter.context(getattr(self.adapter, "default_context", "native"))
+                try:
+                    self.adapter.context(getattr(self.adapter, "default_context", "native"))
+                finally:
+                    self.timeline.close()
 
 
 class AndroidContractAdapter:
