@@ -1028,9 +1028,17 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         if not (class_name or resource_id or description or text):
             continue
         lower = class_name.lower()
+        # Spinners and radio rows are form choices, not free-text inputs or generic buttons.
+        choice_kind = (
+            "spinner" if "spinner" in lower
+            else "radio" if "radiobutton" in lower or lower.endswith("radiobutton")
+            else ""
+        )
         kind = (
             "input"
             if any(word in lower for word in ("edittext", "textfield"))
+            else "choice"
+            if choice_kind
             else "button"
             if "button" in lower or attrs.get("clickable") == "true"
             else "text"
@@ -1041,10 +1049,12 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         enabled = attrs.get("enabled", "true").lower() == "true"
         clickable = attrs.get("clickable", "false").lower() == "true"
         locators = []
-        if description:
-            locators.append({"strategy": "accessibility_id", "value": description})
+        # resource_id first when present: more durable than accessibility text; unique ranking below
+        # still demotes a shared resource_id behind a unique accessibility_id or text.
         if resource_id:
             locators.append({"strategy": "resource_id", "value": resource_id})
+        if description:
+            locators.append({"strategy": "accessibility_id", "value": description})
         if text and kind != "input" and len(text) <= 160:
             locators.append({"strategy": "text", "value": text})
         if not locators and attrs.get("bounds") and re.fullmatch(r"[A-Za-z0-9_.$]+", class_name):
@@ -1074,6 +1084,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 # What an input box is for (its hint, never its contents) and whether it hides what is typed.
                 "password": attrs.get("password", "false").lower() == "true",
                 "hint": (attrs.get("hint") or "")[:100] if kind == "input" else "",
+                "choice_kind": choice_kind,
                 "navigation_role": "tab" if node in tab_nodes or class_name == "android.app.ActionBar$Tab"
                     else "menu_item" if node in drawer_nodes and clickable and kind != "input" else "",
                 "outside_active_drawer": bool(drawer_nodes and node not in drawer_nodes),
@@ -1188,13 +1199,18 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
                          for e in elements if e["input_capable"] and not e["within_webview"]
                          and not e["outside_active_drawer"] and not e["outside_active_dialog"])
-    if form_fields and not drawer_nodes and not loading:
+    choice_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""),
+                            e.get("choice_kind") or "")
+                           for e in elements if e.get("type") == "choice" and not e["within_webview"]
+                           and not e["outside_active_drawer"] and not e["outside_active_dialog"])
+    if (form_fields or choice_fields) and not drawer_nodes and not loading:
         form_actions = sorted((e["resource_id"] or e["accessibility_id"], e["text"].casefold())
                               for e in elements if e["clickable"] and not e["input_capable"]
-                              and not e["within_webview"] and re.fullmatch(
+                              and e.get("type") != "choice" and not e["within_webview"] and re.fullmatch(
                                   r"\s*(?:log ?in|sign ?in|sign ?up|register|create (?:an? )?account|submit|continue|next|search|save|send)\s*",
                                   e["text"], re.I))
-        schema = json.dumps({"fields": form_fields, "actions": form_actions}, ensure_ascii=True, separators=(",", ":"))
+        schema = json.dumps({"fields": form_fields, "choices": choice_fields, "actions": form_actions},
+                            ensure_ascii=True, separators=(",", ":"))
         identity = [*identity, "form", hashlib.sha256(schema.encode()).hexdigest()[:16]]
     if any(e["visible"] and e["class_name"].endswith("WebView") for e in elements):
         identity, screen_name = ["embedded_webview", *identity], "Embedded web content"
