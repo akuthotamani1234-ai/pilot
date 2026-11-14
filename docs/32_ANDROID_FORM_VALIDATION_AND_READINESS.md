@@ -32,6 +32,29 @@ These capabilities have different prerequisites and do not mean every Appium com
 has been tested. Device-feature screens may be opened while their camera/location/biometric actions remain
 protected or unverified. Filled-form recordings are not retained because they can expose credentials.
 
+## Form reliability rules
+
+Native Spinners and radio rows are classified as **choice** controls during screen extract. Form assembly treats
+them as related fields alongside text inputs.
+
+Submit selection is fail-closed:
+
+- **0** submit candidates → the form is reported **incomplete** (not exercised).
+- **1** candidate that is not pay-blocked → that control is used.
+- **2 or more** possible submits → **AMBIGUITY** is reported; nothing is submitted and the check is not a green pass.
+  “Near the inputs” is evidence only when no labelled submit exists; it never breaks a tie.
+
+Meaningful outcomes are required:
+
+- Selecting a country verifies the **selected value** is shown (not merely that a tap ran).
+- A valid catalog form (country → name → gender) verifies the **products / catalog** screen.
+- A click, a screen-name change or a disappearing form **alone** is never success.
+- An empty name must show validation and must **not** open products.
+
+When ADB or the Appium session is lost mid fill/submit, partial evidence (flows already kept, tried rows, timeline
+events) is preserved, the run is marked **incomplete**, and the same filled form is **never auto-resubmitted**.
+Checkout and payment controls remain never-pressed. Evidence timelines prefer `resource_id` over brittle xpath.
+
 ## Appium Inspector
 
 Inspector is an optional development/debugging client. It does not replace functional assertions. For the default
@@ -66,5 +89,7 @@ For accessibility coverage, consider Android's [Accessibility Scanner and Access
 alongside manual accessibility checks. These are optional additions, not prerequisites for fixing form discovery.
 
 Offline regressions cover shared-shell form identity, typing stability, form scheduling, private password clearing,
-Signup validation, and the existing native/browser form journeys. A live device smoke check and CI are separate
-evidence; historical reports are preserved rather than relabeled as new successful runs.
+Signup validation, Spinner/choice classification, submit ambiguity, catalog country→name→gender oracles, session-loss
+incomplete handling without blind resubmit, timeline action/expected/actual hooks, and the existing native/browser
+form journeys. A live device smoke check and CI are separate evidence; historical reports are preserved rather than
+relabeled as new successful runs.
