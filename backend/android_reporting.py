@@ -445,6 +445,7 @@ def report(state: dict) -> dict:
         "early_stop": early_stop(state),
         "thorough": bool(config.get("thorough")),
         "interaction": {**(state.get("interaction") or {}), "kept": len(state.get("auto_flows", []))},
+        "account_setup": (state.get("interaction") or {}).get("account_setup", {}),
         "bot_check": bot_check,
         "user_like_coverage": user_coverage(state.get("interaction") or {}, cases, results),
         "user_like_tests": {
@@ -695,6 +696,9 @@ def render_mobile_report(summary, cases, results, failures, screens, healing):
                           + esc(summary.get("incomplete_reason") or "Some planned checks were not completed.")
                           + '</p><p>Passing checks do not mean the whole app was tested.</p></section>'
                           if summary.get("incomplete") else '')
+    account = summary.get("account_setup") or {}
+    account_section = ('<section class="scope"><b>Test account: ' + esc(account.get("status", ""))
+                       + '</b><p>' + esc(account.get("detail", "")) + '</p></section>' if account.get("detail") else '')
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Qpilot ? Android evidence report</title><style>
 *{{box-sizing:border-box}}body{{margin:0;background:#f5f7fb;color:#18223a;font:15px/1.6 system-ui,sans-serif}}
@@ -710,7 +714,7 @@ pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}code{{overflow-
 </style></head><body><main><header><div class="brand">QPILOT / ANDROID</div><h1>Test results with evidence</h1>
 <p>{esc(summary["package_name"])} ? Android {esc(summary["android_version"])} ? {esc(summary["device_id"])}</p>
 <span class="verdict">{esc(summary["verdict"])}</span><p>{esc(" ".join(summary["reasons"]))}</p></header>
-{bot_section}{early}{ai_warning}{incomplete_warning}<div class="metrics">{cards}</div>{interaction_section}<section class="scope"><b>Coverage has limits</b><p>Only discovered controls and approved expectations were checked.
+{bot_section}{early}{ai_warning}{incomplete_warning}{account_section}<div class="metrics">{cards}</div>{interaction_section}<section class="scope"><b>Coverage has limits</b><p>Only discovered controls and approved expectations were checked.
 Blocked, inferred and unexplored functionality is not counted as passed. A changed observed label needs review; business correctness requires explicit requirements.</p>
 <p>{summary["coverage"]["tested"]} controls have passing execution evidence across {summary["screens_visited"]} inspected screens. No whole-app accuracy percentage is claimed.</p></section>
 <p>Configured functional checks passed: <b>{summary.get('functional_checks', {}).get('passed', 0)}</b>. UI checks passed: <b>{summary.get('ui_checks', {}).get('passed', 0)}</b>. Observed controls still needing functional checks: <b>{summary.get('controls_needing_functional_checks_count', 0)}</b>.</p>

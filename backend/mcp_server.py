@@ -176,6 +176,7 @@ def build_server(ui_url: str | None = None):
         llm_provider: Provider = "ollama", llm_model: str = "",
         test_build: bool = False, test_all_discovered: bool = True,
         thorough: bool = False,
+        account_mode: Literal["none", "create"] = "none",
     ) -> dict:
         """Start native or Android Chrome Appium QA with the shared runner and per-device lock.
         Requires an available device/emulator and running local Appium. The user must explicitly
@@ -189,6 +190,9 @@ def build_server(ui_url: str | None = None):
         Checkout, payment, placing an order, deleting an account, sharing and calls are never touched.
         test_all_discovered removes interaction/generated-test count cutoffs only with test_build=true;
         Stop, time, discovery and protected-action guards still apply.
+        account_mode=create registers at most one test account and reuses it for this run; it needs
+        test_build=true. For supplied login details, prepare the private account settings in Studio
+        and use start_prepared_test. Account creation is disabled by default.
         """
         require_permission(authorized)
         if (app_mode == "apk") != bool(apk_path):
@@ -207,6 +211,7 @@ def build_server(ui_url: str | None = None):
             "interaction_timeout_s": interaction_timeout_s, "requirements": requirements,
             "qa_contract": json.dumps(qa_contract) if qa_contract else "", "contract_only": contract_only,
             "llm_provider": llm_provider, "llm_model": llm_model, "interaction_testing": test_build,
+            "account_mode": account_mode,
             "test_all_discovered": test_all_discovered,
             "thorough": thorough,
         }, apk_path)

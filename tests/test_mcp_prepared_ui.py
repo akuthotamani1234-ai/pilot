@@ -39,6 +39,7 @@ def test_android_shared_settings_prepare_exact_private_configuration(ui, prepare
     page.locator('#mcpAndroidTestBuild').check()
     page.locator('#androidProvider').select_option('none')
     page.locator('#mcpSharedSettings .mobile-advanced > summary').click()
+    page.locator('#androidAccountMode').select_option('existing')
     page.locator('#androidTestUsername').fill('private-user')
     page.locator('#androidTestPassword').fill('private-password')
     page.locator('#androidMaxScreens').fill('8')

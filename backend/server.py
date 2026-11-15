@@ -886,6 +886,7 @@ async def start_mobile_run(
     api_key: str = Form("", max_length=4096),
     test_username: str = Form('', max_length=1024),
     test_password: str = Form('', max_length=4096),
+    account_mode: str = Form('legacy', max_length=32),
     llm_provider: str | None = Form(None),
     llm_model: str | None = Form(None),
     apk: Annotated[UploadFile | None, File()] = None,
@@ -925,11 +926,17 @@ async def start_mobile_run(
             "expected_destinations": expected_destinations, "expected_values": expected_values, "requirements": requirements, "qa_contract": qa_contract, "contract_only": contract_only,
             "max_test_cases": max_test_cases, "allow_rules_fallback": allow_rules_fallback,
             "interaction_testing": interaction_testing, "thorough": thorough,
+            "account_mode": account_mode,
             "max_interactions": max_interactions,
             "test_all_discovered": test_all_discovered,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
             "human_wait_s": human_wait_s,
         })
+    except AndroidEnvironmentError as e:
+        raise HTTPException(400, str(e)) from e
+    from .android_accounts import validate_credentials
+    try:
+        validate_credentials(account_mode, test_username, test_password)
     except AndroidEnvironmentError as e:
         raise HTTPException(400, str(e)) from e
     scope_keys = ('max_depth', 'max_screens', 'max_actions', 'max_scroll_actions',

@@ -44,6 +44,16 @@ through the existing preparation service. It does not install missing prerequisi
 Direct legacy `start_android_test` callers still need a ready environment; use a prepared request for this automatic
 preparation flow.
 
+**Account for this test run** is shared by Standard and MCP Android setup. Choose public screens only, an existing
+test account, or permission to create one account. Existing-account mode requires both private login fields and
+never registers an account. Create mode requires test-build confirmation: registration is attempted once, the same
+credentials are reused for login and protected checks, and the next run generates a different account. Login may
+repeat to isolate checks; its valid credentials stay the same. Account modes preserve app data so a local account
+is not deleted between checks. An interrupted or unconfirmed registration is reported and is never blindly retried.
+Verification, CAPTCHA, unavailable registration and failed login remain coverage gaps. Credentials are not copied
+into assistant requests, reports or browser storage. Use a prepared request to supply existing-account details.
+Legacy HTTP clients that omit the account policy retain their previous behavior; new Studio requests always include it.
+
 Zero soft discovery limits mean continue until eligible work is exhausted. Stop, run/phase time guards, scope checks,
 and protected-action rules remain. Test-build confirmation is required for form submission and other permitted test
 interactions. Discovery, passing visibility checks, and exhaustive business verification are different claims.

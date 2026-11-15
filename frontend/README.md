@@ -14,6 +14,7 @@ files at `/static/...` and the page at http://127.0.0.1:8000/.
 | `workspace.js` | navigation between setup, execution, results and repository review |
 | `workflow.js` | platform/workflow selection, privacy consent, assistant presence and prepared-request preview |
 | `mcp-settings.js` | moves the existing configuration controls into MCP setup; stages private settings locally and copies only an expiring reference |
+| `android-account.js` | shared account choice, private supplied credentials, and single-account creation policy |
 | `contract-builder.js`, `android-scenarios.js` | guided approved flows, read-only API/SQLite checks and reviewed Android scenario drafts |
 
 The page loads its fonts from Google Fonts. Without internet it still works, with the PC's own fonts.

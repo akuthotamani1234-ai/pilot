@@ -446,6 +446,16 @@
     data.append("contract_only", $("androidContractOnly").checked ? "true" : "false");
     // Websites too: the ticked box is the person's confirmation that it is a test / demo site they may test
     data.append("interaction_testing", $("androidTestBuild").checked ? "true" : "false");
+    const accountMode = $("androidAccountMode").value;
+    data.append("account_mode", accountMode);
+    if (accountMode === "existing" && (!$("androidTestUsername").value.trim() || !$("androidTestPassword").value)) {
+      $("androidRunNote").textContent = "Enter both test-account username/email and password.";
+      return;
+    }
+    if (accountMode === "create" && !$("androidTestBuild").checked) {
+      $("androidRunNote").textContent = "Confirm test-build mode before allowing account creation.";
+      return;
+    }
     data.append("test_all_discovered", $("androidAllDiscovered").checked ? "true" : "false");
     data.append("thorough", $("androidThorough") && $("androidThorough").checked ? "true" : "false");
     data.append("max_test_cases", $("androidMaxCases").value);
@@ -456,8 +466,10 @@
     if ($("androidProvider").value) data.append("llm_provider", $("androidProvider").value);
     if ($("androidModel").value.trim()) data.append("llm_model", $("androidModel").value.trim());
     if ($("androidApiKey").value.trim()) data.append("api_key", $("androidApiKey").value.trim());
-    if ($("androidTestUsername").value) data.append('test_username', $("androidTestUsername").value);
-    if ($("androidTestPassword").value) data.append('test_password', $("androidTestPassword").value);
+    if (accountMode === "existing") {
+      data.append('test_username', $("androidTestUsername").value);
+      data.append('test_password', $("androidTestPassword").value);
+    }
     data.append("app_mode", mode);
     data.append("device_id", $("androidDevice").value);
     data.append("package_name", mode === "installed" ? $("androidPackage").value.trim() : "");
@@ -648,11 +660,13 @@
           $("todoMeta").textContent = "Stages finished. Review the test outcome.";
           const reasons = (summary.reasons || []).map((reason) => `<li>${esc(reason)}</li>`).join("");
           const aiWarnings = (summary.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("");
+          const account = summary.account_setup;
           const reportUrl = `/runs/${encodeURIComponent(result.run)}/report.html`;
           const casesUrl = `/api/cases/${encodeURIComponent(result.run)}/download`;
           const excelUrl = `/api/excel/${encodeURIComponent(result.run)}/download`;
           say(`<div class="card"><p><b>${esc(summary.verdict || "Android run finished")}</b></p>
             ${summary.functional_checks ? `<p>${esc(summary.functional_checks.passed)} configured functional checks passed · ${esc(summary.ui_checks?.passed || 0)} UI checks passed · ${esc(summary.controls_needing_functional_checks_count ?? (Array.isArray(summary.controls_needing_functional_checks) ? summary.controls_needing_functional_checks.length : summary.controls_needing_functional_checks || 0))} observed controls still need functional checks.</p>` : ''}
+            ${account?.detail ? `<p><b>Test account: ${esc(account.status)}</b> — ${esc(account.detail)}</p>` : ''}
             ${aiWarnings}${reasons ? `<ul>${reasons}</ul>` : ""}<p class="actions">
             <a class="secondary" href="${reportUrl}" target="_blank" rel="noopener">📄 Android report</a>
             ${summary.functional_checks ? `<a class="secondary" href="/runs/${encodeURIComponent(result.run)}/features.json" target="_blank" rel="noopener">Feature coverage</a>` : ''}

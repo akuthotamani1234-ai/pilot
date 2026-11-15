@@ -511,6 +511,12 @@ def validate_mobile_config(config: dict) -> dict:
         raise AndroidEnvironmentError("Contract-only mode must be true or false.")
     if not isinstance(config.get("interaction_testing", False), bool):
         raise AndroidEnvironmentError("Test-build mode must be true or false.")
+    from .android_accounts import MODES
+    account_mode = config.get("account_mode", "legacy")
+    if not isinstance(account_mode, str) or account_mode not in MODES:
+        raise AndroidEnvironmentError("Choose no account, an existing test account, or create one account for this run.")
+    if account_mode == "create" and not config.get("interaction_testing"):
+        raise AndroidEnvironmentError("Creating a test account requires confirmation that this is an authorized test build.")
     if not isinstance(config.get("test_all_discovered", False), bool):
         raise AndroidEnvironmentError("Test-all-discovered mode must be true or false.")
     if contract.get("test_mode") and not config.get("interaction_testing"):
@@ -555,6 +561,7 @@ def validate_mobile_config(config: dict) -> dict:
         "max_actions": max_actions,
         "thorough": thorough,
         "verify_observed_navigation": bool(config.get("verify_observed_navigation", True)),
+        "account_mode": account_mode,
     }
 
 
@@ -612,6 +619,9 @@ def build_capabilities(config: dict) -> dict:
         return caps
     if config["app_mode"] == "apk":
         caps["appium:app"] = str(validate_apk(Path(config["apk_path"])))
+        if config.get("account_mode") in {"existing", "create"}:
+            caps["appium:noReset"] = True
+            caps["appium:forceAppLaunch"] = True
     else:
         caps["appium:appPackage"] = config["package_name"]
         caps["appium:noReset"] = True

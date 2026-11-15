@@ -251,11 +251,11 @@ def discovery_agent(state):
             if not same_screen(current, auth_root):
                 # Start clean before replaying the approved login, then explore only
                 # controls reachable from that authenticated root.
-                from .android import reset_app_data
+                from .android_accounts import reset_for_check
                 from .qa_contracts import parse_contract
                 from .qa_runtime import AndroidContractAdapter, ContractRuntime
 
-                reset_app_data(driver, config["package_name"])
+                reset_for_check(driver, config, config["package_name"])
                 wait_for_app(30)
                 settled(screens[0], timeout=30)
                 contract = parse_contract({**user_session.base, "flows": [flow]})
@@ -556,7 +556,7 @@ def discovery_agent(state):
             (run_dir / ".private" / "auto_secrets.json").write_text(json.dumps(saved), encoding="utf-8")
         return {"enabled": True, "flows": session.flows, "tried": session.tried, "findings": session.findings,
                 "coverage": session.coverage, "tries_used": session.used, "stopped": stopped,
-                "state_inventory": session.state_inventory(),
+                "state_inventory": session.state_inventory(), "account_setup": getattr(session, "account_setup", {}),
                 "mode": "website" if config.get("app_mode") == "web" else "app",
                 "contract": session.contract() if session.flows else None}
 
@@ -607,7 +607,8 @@ def discovery_agent(state):
         from types import SimpleNamespace
 
         from . import llm
-        from .android import interaction_blocker, reset_app_data
+        from .android import interaction_blocker
+        from .android_accounts import reset_for_check
         from .android_interact import Budget
 
         blocker = interaction_blocker(config)
@@ -631,7 +632,7 @@ def discovery_agent(state):
 
         def fresh_start():
             def run():
-                reset_app_data(driver, package)
+                reset_for_check(driver, config, package)
                 wait_for_app(30)
                 return settled(screens[0], timeout=30)
             return limited(run)
@@ -731,7 +732,7 @@ def discovery_agent(state):
             issues.append({"error": "Test-build mode stopped: " + redact(str(error))[:250]})
         finally:
             try:
-                reset_app_data(driver, package)  # restore the disposable test app to a clean launch state
+                reset_for_check(driver, config, package)
             except Exception:
                 pass
         return finish_session(session, stopped)
@@ -739,11 +740,12 @@ def discovery_agent(state):
     interaction, lost = None, False
     try:
         try:
-            from .android import interaction_blocker, reset_app_data
+            from .android import interaction_blocker
 
             if config.get("app_mode") == "installed" and not interaction_blocker(config):
                 # Test-build mode starts every user-like test from cleared data: explore that same fresh app.
-                reset_app_data(driver, config["package_name"])
+                from .android_accounts import reset_for_check
+                reset_for_check(driver, config, config["package_name"])
                 wait_for_app(30)
             initial = inspect_driver(driver, config)
             launch_deadline = time.monotonic() + 30
