@@ -25,9 +25,20 @@ The earlier live evidence is recorded separately in
 
 - Native discovery visits sibling routes before deeper routes, recognizes
   semantic menu drawers and keeps separate embedded-WebView containers.
-- Bounded vertical scrolling inventories controls actually rendered below the
-  fold. Recorded scroll containers allow tests to find those controls again.
-  Unknown containers, exhausted budgets and unvisited routes stay reported as gaps.
+- Android routes exposed as accessibility labels receive readable names from
+  selected tabs, stable semantic headings, form actions and search fields.
+  Those labels refine shared Activity/container identities so replay can
+  distinguish screens without treating greetings or changing IDs as routes.
+- Bounded vertical and horizontal scrolling inventories controls actually
+  rendered outside the first viewport. Native `ScrollView` classes identify
+  vertical orientation, explicit horizontal containers keep their axis, and
+  unknown axes are probed reversibly. Scrolling can use unique locators or verified
+  scroll-container bounds. A bounds-free scrollable can use a unique class XPath
+  locator. Viewport signatures ignore changing request IDs and, when the
+  container has no bounds, compare the matching scroller's visible controls and
+  geometry. Dynamic backend request identifiers, including loading labels that
+  embed a request token, do not count as viewport movement. Scrollables without a safe target, unknown movement, failed
+  restoration, exhausted budgets and unvisited routes stay reported as gaps.
 - Approved flows support setup/login dependencies, relaunch without clearing app
   data, switch/checkbox state assertions, gestures and scroll-to-target actions.
 - Private test-account fields supply credentials to the worker for that run.

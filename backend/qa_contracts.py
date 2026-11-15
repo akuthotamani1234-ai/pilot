@@ -125,6 +125,7 @@ class Step(Model):
         "drag",
         "scroll_to",
         "assert_checked",
+        "assert_toast",
         "relaunch",
         "permission_state",
         "request_permission",
@@ -161,6 +162,8 @@ class Step(Model):
                 if parts.scheme not in ("http", "https") or parts.username or parts.password:
                     raise ValueError("Open needs an http(s) address without credentials")
                 check_target(self.value, resolve=False)
+        if self.action == "assert_toast" and (self.locator is not None or self.target is not None or not self.value):
+            raise ValueError("Android Toast assertions need only the expected message")
         if self.permissions is not None and (self.action != 'request_permission'
                 or self.permission not in self.permissions or len(set(self.permissions)) != len(self.permissions)
                 or not set(self.permissions) <= ANDROID_TEST_PERMISSIONS):
@@ -193,9 +196,9 @@ class Step(Model):
             if self.action in ("back", "hide_keyboard") and self.value is not None:
                 raise ValueError("Back and hide_keyboard steps take no value")
         if self.action not in ("context", "assert_screen", "relaunch", "permission_state", "handle_permission", "assert_permission",
-                               "open", "assert_alert", *DEVICE_ACTIONS) and self.locator is None:
+                               "open", "assert_alert", "assert_toast", *DEVICE_ACTIONS) and self.locator is None:
             raise ValueError("This step needs a locator")
-        if self.action in ("context", "assert_screen", "assert_text", "select") and self.value is None:
+        if self.action in ("context", "assert_screen", "assert_text", "select", "assert_toast") and self.value is None:
             raise ValueError("This step needs an expected value")
         if self.action == "context" and self.value not in ("native", "webview"):
             raise ValueError("Context must be native or webview")

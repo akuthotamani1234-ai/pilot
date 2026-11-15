@@ -3,7 +3,7 @@
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const actions = ["tap", "fill", "select", "assert_text", "assert_visible", "assert_not_visible", "assert_enabled", "assert_checked", "assert_screen", "open", "assert_alert"];
   const nativeActions = ["context", "swipe", "drag", "scroll_to", "relaunch", "permission_state", "request_permission", "handle_permission", "assert_permission",
-    "back", "rotate", "background", "hide_keyboard", "long_press"];
+    "back", "rotate", "background", "hide_keyboard", "long_press", "assert_toast"];
   const permissionNames = ["CAMERA", "RECORD_AUDIO", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "POST_NOTIFICATIONS", "READ_MEDIA_IMAGES", "READ_MEDIA_VIDEO", "READ_MEDIA_AUDIO", "READ_MEDIA_VISUAL_USER_SELECTED", "READ_EXTERNAL_STORAGE"];
   let field, previousFocus;
   const dialog = document.createElement("dialog");
@@ -34,7 +34,7 @@
     row.className = "flow-step";
     const web = field.id === "webContract" || document.getElementById("androidMode")?.value === "web";
     const strategies = web ? ["css"] : ["accessibility_id", "resource_id", "text", "xpath", "css"];
-    const availableActions = web ? actions : [...actions.filter(a => a !== "select"), ...nativeActions];
+    const availableActions = web ? actions : [...actions, ...nativeActions];
     row.innerHTML = `<legend>Step</legend><label>Action<select class="flow-action">${availableActions.map(a=>`<option ${a===action?"selected":""}>${a}</option>`).join("")}</select></label>
       <label class="flow-locator-field">Locator type<select class="flow-strategy">${strategies.map(s=>`<option>${s}</option>`).join("")}</select></label>
       <label class="flow-wide flow-locator-field">Locator<input class="flow-locator" maxlength="500" placeholder="${web?"#username":"Observed unique locator"}"></label>
@@ -49,15 +49,16 @@
       const selected = row.querySelector('.flow-action').value;
       const permission = ['permission_state','request_permission','handle_permission','assert_permission'].includes(selected);
       const show = (name, visible) => row.querySelectorAll('.flow-'+name+'-field').forEach(label => { label.hidden = !visible; label.querySelectorAll('input,select').forEach(input => input.disabled = !visible); });
-      show('locator', !['assert_screen','context','relaunch','permission_state','handle_permission','assert_permission','back','rotate','background','hide_keyboard','open','assert_alert'].includes(selected));
+      show('locator', !['assert_screen','context','relaunch','permission_state','handle_permission','assert_permission','back','rotate','background','hide_keyboard','open','assert_alert','assert_toast'].includes(selected));
       show('target', ['drag','scroll_to'].includes(selected));
       show('permission', permission);
       show('permissions', selected === 'request_permission');
       show('purpose', selected === 'tap');
-      show('value', ['fill','select','assert_text','assert_screen','assert_enabled','assert_checked','context','swipe','scroll_to','permission_state','handle_permission','assert_permission','rotate','background','open','assert_alert'].includes(selected));
+      show('value', ['fill','select','assert_text','assert_screen','assert_enabled','assert_checked','context','swipe','scroll_to','permission_state','handle_permission','assert_permission','rotate','background','open','assert_alert','assert_toast'].includes(selected));
       const hint = row.querySelector('.flow-value');
-      hint.placeholder = selected === 'open' ? 'https:// address of a page on the approved website' : selected === 'assert_alert' ? 'Expected browser message, for example Product added.' : selected === 'rotate' ? 'portrait or landscape' : selected === 'background' ? 'seconds in the background (1-30)' : selected === 'context' ? 'native or webview' : ['swipe','scroll_to'].includes(selected) ? 'up, down, left or right' : selected === 'handle_permission' ? 'allow_while_using, allow_once, allow or deny' : ['permission_state','assert_permission'].includes(selected) ? 'granted or denied' : ['assert_checked','assert_enabled'].includes(selected) ? 'true or false' : 'Expected value, or secret:QPILOT_SECRET_...';
+      hint.placeholder = selected === 'open' ? 'https:// address of a page on the approved website' : selected === 'assert_alert' ? 'Expected browser message, for example Product added.' : selected === 'assert_toast' ? 'Expected Android Toast text, for example Name is required.' : selected === 'rotate' ? 'portrait or landscape' : selected === 'background' ? 'seconds in the background (1-30)' : selected === 'context' ? 'native or webview' : ['swipe','scroll_to'].includes(selected) ? 'up, down, left or right' : selected === 'handle_permission' ? 'allow_while_using, allow_once, allow or deny' : ['permission_state','assert_permission'].includes(selected) ? 'granted or denied' : ['assert_checked','assert_enabled'].includes(selected) ? 'true or false' : 'Expected value, or secret:QPILOT_SECRET_...';
       refreshPermissionSettings();
+      if (selected === 'select' && !web) hint.placeholder = 'Visible option text in a standard Android Spinner';
     };
     row.querySelector('.flow-action').onchange = refresh;
     row.querySelector(".flow-remove").onclick = () => { row.remove(); refreshPermissionSettings(); };
@@ -88,12 +89,13 @@
         const get = name => row.querySelector(".flow-"+name).value.trim();
         const action = get("action"), value = get("value");
         const step = {action};
-        if (!['assert_screen','context','relaunch','permission_state','handle_permission','assert_permission','back','rotate','background','hide_keyboard','open','assert_alert'].includes(action)) step.locator = {strategy:get("strategy"),value:get("locator")};
+        if (!['assert_screen','context','relaunch','permission_state','handle_permission','assert_permission','back','rotate','background','hide_keyboard','open','assert_alert','assert_toast'].includes(action)) step.locator = {strategy:get("strategy"),value:get("locator")};
         if (action === "tap") step.purpose = get("purpose");
+        if (action === 'select' && field.id === 'androidContract' && document.getElementById('androidMode')?.value !== 'web') step.purpose = 'test_form';
         if (['drag','scroll_to'].includes(action)) step.target = {strategy:get('target-strategy'),value:get('target')};
         if (['permission_state','request_permission','handle_permission','assert_permission'].includes(action)) step.permission = get('permission');
         if (action === 'request_permission' && get('permissions')) step.permissions = get('permissions').split(',').map(value=>value.trim()).filter(Boolean);
-        if (["fill","select","assert_text","assert_screen","assert_enabled","assert_checked","context","swipe","scroll_to","permission_state","handle_permission","assert_permission","rotate","background","open","assert_alert"].includes(action)) {
+        if (["fill","select","assert_text","assert_screen","assert_enabled","assert_checked","context","swipe","scroll_to","permission_state","handle_permission","assert_permission","rotate","background","open","assert_alert","assert_toast"].includes(action)) {
           if (action === "fill" && value.startsWith("secret:")) step.secret_ref = value.slice(7);
           else step.value = value;
         }

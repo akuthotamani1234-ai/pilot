@@ -172,8 +172,8 @@
           <div id="androidFlowToolsSlot"></div>
         </div>
         <label class="tick"><input type="checkbox" id="androidAllDiscovered" checked><span><b>Test all discovered scenarios</b><small>In authorized test-build mode, remove interaction-count and test-case-count cutoffs. Time and Stop guards still apply. Uncheck to use custom counts below.</small></span></label>
-        <p class="muted small android-scope-note">Whole-app mode explores until no new screens/controls remain (or you hit Stop). Protected actions remain blocked. Optional numbers below are soft caps; leave at 0 for until-exhausted.</p>
-        <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>When you set soft caps above 0, raise them for this run. With 0, exploration already continues until exhausted.</small></span></label>
+        <p class="muted small android-scope-note">Whole-app mode explores reachable screens and scrollable viewports. Protected actions remain blocked; inaccessible areas and safety caps are reported as gaps.</p>
+        <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>Raise positive soft caps for this run. Zero explores until exhausted within the built-in safety caps.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
         <div class="fields">
@@ -187,7 +187,7 @@
           <label>Exploration timeout seconds (0 = until exhausted)<input id="androidDiscoveryTimeout" type="number" min="0" max="900" value="0"></label>
           <label>Maximum screens (0 = until exhausted)<input id="androidMaxScreens" type="number" min="0" max="100" value="0"></label>
           <label>Maximum navigation actions (0 = until exhausted)<input id="androidMaxActions" type="number" min="0" max="200" value="0"></label>
-          <label>Maximum discovery scrolls (0 = until exhausted)<input id="androidMaxScrolls" type="number" min="0" max="100" value="0"></label>
+          <label>Maximum discovery scrolls (0 = until exhausted; hard cap 100)<input id="androidMaxScrolls" type="number" min="0" max="100" value="0"></label>
           <label>Maximum test cases<input id="androidMaxCases" type="number" min="1" max="300" value="300"></label>
           <label>Test mode: user-like tries (0 = until exhausted)<input id="androidMaxInteractions" type="number" min="0" max="500" value="0"></label>
           <label>Test mode: time limit seconds (0 = until exhausted)<input id="androidInteractionTimeout" type="number" min="0" max="3600" value="0"></label>

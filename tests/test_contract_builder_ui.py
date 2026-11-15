@@ -14,6 +14,35 @@ def browser():
     yield from shared_browser.__wrapped__()
 
 
+@pytest.mark.parametrize('width,height', [(1024,529),(390,844)])
+def test_native_spinner_builder_marks_selection_as_an_approved_form_action(browser,width,height):
+    context,page,errors,calls = studio(browser,viewport={'width':width,'height':height})
+    page.route('**/api/contracts/validate',lambda route: route.fulfill(json=validate_qa_contract(route.request.post_data_json)))
+    try:
+        page.locator('#mobileModeBtn').click()
+        page.locator('.mobile-advanced > summary').click()
+        page.locator('[data-flow-tools="androidContract"] .flow-open').click()
+        page.locator('#flowName').fill('Choose a country')
+        row=page.locator('.flow-step').first
+        row.locator('.flow-action').select_option('select')
+        row.locator('.flow-locator').fill('com.example:id/country')
+        row.locator('.flow-value').fill('Albania')
+        page.locator('#flowAdd').click()
+        row=page.locator('.flow-step').last
+        row.locator('.flow-action').select_option('assert_visible')
+        row.locator('.flow-locator').fill('com.example:id/country')
+        page.locator('#flowApproved').check()
+        page.locator('#flowEnvironment').check()
+        page.locator('#flowForm [type=submit]').click()
+        expect(page.locator('dialog[aria-labelledby="flowTitle"]')).not_to_be_visible()
+        contract=json.loads(page.locator('#androidContract').input_value())
+        selected=contract['flows'][0]['steps'][0]
+        assert selected['action']=='select' and selected['value']=='Albania' and selected['purpose']=='test_form'
+        assert '/api/mobile/runs' not in calls and not errors
+    finally:
+        context.close()
+
+
 def test_accessibility_skip_link_is_focused_before_journey_click(browser):
     import re
 

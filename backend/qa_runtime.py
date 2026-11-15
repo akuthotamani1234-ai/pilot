@@ -111,6 +111,11 @@ class ContractRuntime:
                     assert shown is not None, f"Expected the browser message {step.value!r}; no message appeared."
                     assert shown.strip() == step.value.strip(), f"Expected the browser message {step.value!r}; found {shown[:200]!r}."
                     self.checks += 1
+                elif step.action == "assert_toast":
+                    if not isinstance(self.adapter, AndroidContractAdapter) or self.adapter.active != "native":
+                        raise ValueError("Android Toast assertions require native Android testing")
+                    self.adapter.assert_toast(step.value, min(2.5, max(0.0, self.deadline - time.monotonic())))
+                    self.checks += 1
                 elif step.action in ("back", "rotate", "background", "hide_keyboard"):
                     device = getattr(self.adapter, "device_action", None)
                     if device is None:
@@ -214,6 +219,8 @@ class ContractRuntime:
                             element = self._find(step.locator, optional=True)
                         self.checks += 1
                     elif step.action == "select":
+                        if isinstance(self.adapter, AndroidContractAdapter) and self.adapter.active == 'native' and step.purpose != 'test_form':
+                            raise ValueError('Native selection must be explicitly marked test_form')
                         self.adapter.select(element, step.value)
                         self.checks += 1
                     elif step.action == "assert_visible":
@@ -498,6 +505,32 @@ class AndroidContractAdapter:
                 raise AssertionError("Expected native screen " + title + " was not reached.")
             time.sleep(0.2)
 
+    def assert_toast(self, expected, wait_s=2.5):
+        """Read Android's live UI hierarchy for a short-lived Toast; element handles go stale too quickly."""
+        if self.active != "native" or self.config.get("app_mode") == "web":
+            raise ValueError("Android Toast assertions require native Android testing")
+        from defusedxml import ElementTree
+
+        deadline = time.monotonic() + max(0.0, min(float(wait_s), 3.0))
+        while True:
+            self.guard()
+            source = self.driver.page_source
+            try:
+                root = ElementTree.fromstring(source)
+            except (ElementTree.ParseError, ValueError):
+                root = None
+            if root is not None and any(
+                (node.get("class") == "android.widget.Toast" or node.tag == "android.widget.Toast")
+                and node.get("text") == expected
+                and node.get("displayed", "true").casefold() != "false"
+                for node in root.iter()
+            ):
+                return
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.08)
+        raise AssertionError(f"Expected Android validation message {expected!r} was not visible.")
+
     def identity(self, element):
         if self.active == "webview":
             # A button's words can be in its title or (for <input type=submit>) its value, a link's in its address.
@@ -574,7 +607,8 @@ class AndroidContractAdapter:
 
     def select(self, element, value):
         if self.active != "webview":
-            raise ValueError("Select steps require a browser context; native lists use approved tap steps")
+            from .android_forms import select_native
+            return select_native(self, element, value)
         from selenium.webdriver.support.ui import Select
         options = Select(element)
         options.select_by_value(value)

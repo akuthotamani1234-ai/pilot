@@ -594,6 +594,9 @@ def build_capabilities(config: dict) -> dict:
         "appium:autoGrantPermissions": False,
         "appium:settings[disableIdLocatorAutocompletion]": True,
         "appium:settings[enableMultiWindows]": True,
+        # Keep transient Android validation toasts queryable; rendered-screen stability is checked separately.
+        "appium:settings[enableNotificationListener]": True,
+        "appium:settings[waitForIdleTimeout]": 250,
     }
     chromedriver = os.environ.get("QPILOT_CHROMEDRIVER") or os.environ.get("BLOWAI_CHROMEDRIVER")
     if chromedriver:
@@ -938,6 +941,19 @@ def _safe_text(node, kind: str) -> str:
     return (node.attrib.get("text") or "")[:160]
 
 
+def _android_scroll_axis(attributes: dict) -> str:
+    """Read an exposed Android scroll orientation; unknown is handled by bounded runtime probes."""
+    value = str(attributes.get("orientation", "")).strip().casefold()
+    class_name = str(attributes.get("class", ""))
+    if value in {"horizontal", "horizontalorientation", "h", "0"} or "Horizontal" in class_name or "ViewPager" in class_name:
+        return "horizontal"
+    if (value in {"vertical", "verticalorientation", "v", "1"}
+            or "Vertical" in class_name
+            or class_name.endswith("ScrollView")):
+        return "vertical"
+    return ""
+
+
 def extract_screen(xml: str, package_name: str, device_id: str, activity: str = "") -> dict:
     """Normalize visible Android XML nodes; input contents are intentionally never copied."""
     try:
@@ -947,8 +963,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     elements = []
     element_nodes = []
     parents = {child: parent for parent in root.iter() for child in parent}
-    def bounds(node):
-        match = re.fullmatch(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", node.attrib.get("bounds", ""))
+    def bounds(node_or_value):
+        value = (node_or_value.attrib.get("bounds", "")
+                 if hasattr(node_or_value, "attrib") else node_or_value)
+        match = re.fullmatch(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", str(value or ""))
         return tuple(map(int, match.groups())) if match else None
 
     # Multi-window hierarchies may list the bottom system bar before the app.
@@ -1011,16 +1029,38 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     for parent in root.iter():
         buttons = [child for child in parent if child.attrib.get("class") in
                    ("android.widget.Button", "android.widget.TabWidget")]
-        if len(buttons) >= 3 and any((child.attrib.get("content-desc") or child.attrib.get("text") or "").casefold() == "home" for child in buttons):
+        has_home_anchor = any(
+            re.match(r"\s*home(?=\s*(?:$|tab\b))",
+                     child.attrib.get("content-desc") or child.attrib.get("text") or "", re.I)
+            for child in buttons
+        )
+        if len(buttons) >= 3 and has_home_anchor:
             tab_nodes.update(buttons)
+
+    def xpath_literal(value):
+        if "'" not in value:
+            return "'" + value + "'"
+        if '"' not in value:
+            return '"' + value + '"'
+        return "concat(" + ', "\'", '.join("'" + part + "'" for part in value.split("'")) + ")"
+
+    node_positions = {node: str(index) for index, node in enumerate(root.iter())}
+    seen_toasts = set()
     for node in root.iter():
         attrs = node.attrib
-        if attrs.get("package") and attrs["package"] != package_name:
-            continue
         class_name = attrs.get("class", "")
+        android_toast = class_name == "android.widget.Toast"
+        if attrs.get("package") and attrs["package"] != package_name and not android_toast:
+            continue
         resource_id = attrs.get("resource-id", "")
         description = attrs.get("content-desc", "")
         text = attrs.get("text", "")
+        if android_toast and text.strip().casefold() == "toast message":
+            continue  # UiAutomator2 adds this placeholder alongside the actual notification text.
+        if android_toast and text in seen_toasts:
+            continue
+        if android_toast:
+            seen_toasts.add(text)
         if attrs.get("password", "false").lower() == "true":
             if description == text:
                 description = ""
@@ -1034,20 +1074,23 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
             else "button"
             if "button" in lower or attrs.get("clickable") == "true"
             else "text"
-            if "textview" in lower
+            if "textview" in lower or android_toast
             else "element"
         )
         visible = rendered(node)
         enabled = attrs.get("enabled", "true").lower() == "true"
         clickable = attrs.get("clickable", "false").lower() == "true"
         locators = []
-        if description:
+        if android_toast and text:
+            locators.append({"strategy": "xpath", "value": f"//android.widget.Toast[@text={xpath_literal(text)}]"})
+        elif description:
             locators.append({"strategy": "accessibility_id", "value": description})
-        if resource_id:
+        if resource_id and not android_toast:
             locators.append({"strategy": "resource_id", "value": resource_id})
-        if text and kind != "input" and len(text) <= 160:
+        if text and kind != "input" and len(text) <= 160 and not android_toast:
             locators.append({"strategy": "text", "value": text})
-        if not locators and attrs.get("bounds") and re.fullmatch(r"[A-Za-z0-9_.$]+", class_name):
+        if (not locators and (attrs.get("bounds") or attrs.get("scrollable") == "true")
+                and re.fullmatch(r"[A-Za-z0-9_.$]+", class_name)):
             locators.append({"strategy": "xpath", "value": f"//*[@class='{class_name}']"})
         ancestor = node
         within_webview = False
@@ -1067,12 +1110,14 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 "enabled": enabled,
                 "clickable": clickable,
                 "scrollable": attrs.get("scrollable", "false").lower() == "true",
+                "scroll_axis": _android_scroll_axis(attrs),
                 "checkable": attrs.get("checkable", "false").lower() == "true",
                 "checked": attrs.get("checked", "false").lower() == "true",
                 "selected": attrs.get("selected", "false").lower() == "true",
                 "input_capable": kind == "input",
                 # What an input box is for (its hint, never its contents) and whether it hides what is typed.
                 "password": attrs.get("password", "false").lower() == "true",
+                "required": attrs.get("required", "false").lower() == "true",
                 "hint": (attrs.get("hint") or "")[:100] if kind == "input" else "",
                 "navigation_role": "tab" if node in tab_nodes or class_name == "android.app.ActionBar$Tab"
                     else "menu_item" if node in drawer_nodes and clickable and kind != "input" else "",
@@ -1081,20 +1126,39 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 "bounds": attrs.get("bounds"),
                 "within_webview": within_webview,
                 "text_comparable": kind != "input" and len(text) <= 160 and any(c.isalnum() for c in text),
+                "android_toast": android_toast,
                 "locators": locators,
             }
         )
         element_nodes.append(node)
+        owner = parents.get(node)
+        ancestors = []
+        while owner is not None:
+            ancestors.append(node_positions[owner])
+            owner = parents.get(owner)
+        elements[-1]['form_ancestors'] = ancestors
+        owner = parents.get(node)
+        in_list = False
+        while owner is not None:
+            in_list = in_list or 'ListView' in owner.attrib.get('class', '')
+            owner = parents.get(owner)
+        if class_name.endswith('TextView') and resource_id == 'android:id/text1' and in_list:
+            elements[-1]['native_choice_option'] = True
+        if class_name.endswith('Spinner'):
+            labels = [child.attrib.get('text', '') for child in node.iter()
+                      if child is not node and child.attrib.get('class', '').endswith('TextView')
+                      and rendered(child) and child.attrib.get('text')]
+            elements[-1]['selected_text'] = labels[0] if len(labels) == 1 else ''
+        if class_name.endswith('RadioButton'):
+            owner = parents.get(node)
+            while owner is not None and not owner.attrib.get('class', '').endswith('RadioGroup'):
+                owner = parents.get(owner)
+            if owner is not None:
+                elements[-1]['choice_group'] = owner.attrib.get('resource-id') or node_positions[owner]
     locator_counts = Counter((loc["strategy"], loc["value"]) for e in elements if e["visible"] for loc in e["locators"])
     text_counts = Counter(e["text"] for e in elements if e["visible"] and e["type"] == "text" and e["text"])
 
-    def xpath_literal(value):
-        if "'" not in value:
-            return "'" + value + "'"
-        if '"' not in value:
-            return '"' + value + '"'
-        return "concat(" + ', "\'", '.join("'" + part + "'" for part in value.split("'")) + ")"
-
+    node_elements = dict(zip(element_nodes, elements))
     for node, element in zip(element_nodes, elements):
         unique = [loc for loc in element["locators"] if locator_counts[(loc["strategy"], loc["value"])] == 1]
         if not unique and (element["resource_id"] or element["accessibility_id"]):
@@ -1133,16 +1197,28 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         ancestor = parents.get(node)
         while ancestor is not None:
             if (ancestor.attrib.get('scrollable') == 'true'
-                    and ancestor.attrib.get('class', '').endswith(('ScrollView', 'RecyclerView'))
-                    and 'Horizontal' not in ancestor.attrib.get('class', '')):
+                    or ancestor.attrib.get('class', '').endswith(('ScrollView', 'RecyclerView', 'ViewPager', 'ViewPager2'))):
                 description = ancestor.attrib.get('content-desc', '')
                 resource = ancestor.attrib.get('resource-id', '')
                 container = ({'strategy': 'accessibility_id', 'value': description}
                              if description and locator_counts[('accessibility_id', description)] == 1 else
                              {'strategy': 'resource_id', 'value': resource}
                              if resource and locator_counts[('resource_id', resource)] == 1 else None)
+                ancestor_element = node_elements.get(ancestor)
+                if (container is None and ancestor_element and ancestor_element.get('locator_unique')
+                        and ancestor_element.get('locators')):
+                    container = ancestor_element['locators'][0]
+                axis = _android_scroll_axis(ancestor.attrib)
+                target = {'container': container} if container else (
+                    {'bounds': ancestor.attrib.get('bounds')} if bounds(ancestor) else None
+                )
+                if target:
+                    direction = ('left' if element['visible'] else 'right') if axis == 'horizontal' else (
+                        'up' if element['visible'] else 'down'
+                    )
+                    element['scroll_hint'] = {**target, 'direction': direction, 'axis': axis}
                 if container:
-                    element['scroll_hint'] = {'container': container, 'direction': 'up' if element['visible'] else 'down'}
+                    element['scroll_container_locator'] = container
                 element['in_scroller'] = description or resource or ancestor.attrib.get('class', '')
                 break
             ancestor = parents.get(ancestor)
@@ -1151,26 +1227,57 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     )
     def title_text(element):
         return (element["type"] == "text" and element["visible"] and not element["outside_active_dialog"]
-                and any(char.isalpha() for char in element["text"]))
+                and not element.get("android_toast") and any(char.isalpha() for char in element["text"]))
 
-    first_text = next((e["text"] for e in elements if title_text(e)), "")
+    def screen_label(value):
+        label = " ".join(str(value or "").split())
+        if (not label or len(label) > 100 or not any(char.isalpha() for char in label)
+                or re.search(r"(?:failed to load|exception|request[_ -]?id|trace[_ -]?id)", label, re.I)
+                or re.search(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", label)
+                or re.search(r"\+?\d[\d\s().-]{7,}\d", label)):
+            return ""
+        return label
+
+    def stable_heading(value):
+        label = screen_label(value)
+        if (not label
+                or re.match(r"^(?:hello|hi|hey|welcome|good (?:morning|afternoon|evening))\b", label, re.I)
+                or re.search(r"\b(?:today|yesterday|just now|\d{1,2}:\d{2}|\d{4}-\d{2}-\d{2})\b", label, re.I)):
+            return ""
+        return label
+
+    first_text = ""
+    for element in elements:
+        if title_text(element):
+            first_text = stable_heading(element["text"])
+            if first_text:
+                break
     loading = bool(re.fullmatch(r"\s*(?:loading|please wait|starting|splash)[.\s…!]*", first_text, re.I))
     screen_name = first_text or activity or "Android screen"
+    tab_element = next((e for e in elements if e["navigation_role"] == "tab" and e["selected"]
+                        and e["visible"] and not e["outside_active_dialog"] and not e["outside_active_drawer"]), None)
+    tab_label = (tab_element.get("accessibility_id") or tab_element.get("text") or "") if tab_element else ""
+    tab_label = re.sub(r"\btab\s+\d+\s+of\s+\d+\b", "", tab_label, flags=re.I)
+    selected_tab = screen_label(tab_label)
     containers = sorted({e["accessibility_id"] for e in elements if e["visible"] and e["type"] == "element"
                          and re.search(r"(?:^|[-_\s])(?:screen|page)(?:$|[-_\s])", e["accessibility_id"], re.I)
                          and not e["within_webview"]})
     identity = ["container", *containers] if containers else []
+    if selected_tab and activity and not loading:
+        identity = ([*identity, "tab", selected_tab.casefold()[:80]] if identity else
+                    ["activity", activity, "tab", selected_tab.casefold()[:80]])
     # Native apps often omit a labelled page container. A stable heading plus
     # activity keeps the same page identifiable while a scroll reveals new rows.
     # The heading comes from the app's own views: text inside an embedded web page (a rotating banner) changes
     # without the native screen changing.
     # Only text that stays put while the list scrolls (a toolbar title) names the screen: run
     # android_20261109_181718_321078 lost "the same screen" after a scroll because the first visible text had moved.
-    fixed_heading = next((e["text"] for e in elements if title_text(e)
-                          and not e["within_webview"] and not e.get("in_scroller")), "")
+    fixed_heading = next((stable_heading(e["text"]) for e in elements if title_text(e)
+                          and not e["within_webview"] and not e.get("in_scroller")
+                          and stable_heading(e["text"])), "")
     scroller = next((e["in_scroller"] for e in elements if e.get("in_scroller")), "")
-    native_heading = next((e["text"] for e in elements if title_text(e)
-                           and not e["within_webview"]), "")
+    native_heading = next((stable_heading(e["text"]) for e in elements if title_text(e)
+                           and not e["within_webview"] and stable_heading(e["text"])), "")
     if identity and fixed_heading and not loading:
         # One scroll-view description can be shared by many screens (My Demo App: "Scrollview manages views in
         # given screen size" on Products AND Login, run android_20261110_110821_90cd6d, so Login was taken for
@@ -1188,14 +1295,52 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
                          for e in elements if e["input_capable"] and not e["within_webview"]
                          and not e["outside_active_drawer"] and not e["outside_active_dialog"])
+    action_pattern = r"\s*(?:log ?in|sign ?in|sign ?up|register|create (?:an? )?account|submit|continue|next|search|save|send)\s*"
+    form_action = next((screen_label(e.get("accessibility_id") or e["text"])
+                        for e in elements if e["clickable"] and not e["input_capable"]
+                        and not e["within_webview"] and not e["outside_active_dialog"]
+                        and re.fullmatch(action_pattern, screen_label(e.get("accessibility_id") or e["text"]), re.I)), "")
     if form_fields and not drawer_nodes and not loading:
-        form_actions = sorted((e["resource_id"] or e["accessibility_id"], e["text"].casefold())
+        form_actions = sorted((e["resource_id"] or e["accessibility_id"],
+                               screen_label(e.get("accessibility_id") or e["text"]).casefold())
                               for e in elements if e["clickable"] and not e["input_capable"]
-                              and not e["within_webview"] and re.fullmatch(
-                                  r"\s*(?:log ?in|sign ?in|sign ?up|register|create (?:an? )?account|submit|continue|next|search|save|send)\s*",
-                                  e["text"], re.I))
+                              and not e["within_webview"] and not e["outside_active_dialog"]
+                              and re.fullmatch(action_pattern, screen_label(e.get("accessibility_id") or e["text"]), re.I))
         schema = json.dumps({"fields": form_fields, "actions": form_actions}, ensure_ascii=True, separators=(",", ":"))
         identity = [*identity, "form", hashlib.sha256(schema.encode()).hexdigest()[:16]]
+    search_input = next((e for e in elements if e["visible"] and e["input_capable"] and not e["within_webview"]
+                         and re.search(r"search", e.get("hint", "") + " " + e.get("accessibility_id", ""), re.I)), None)
+    search_overlay = bool(search_input and (search_input["outside_active_dialog"] or not selected_tab))
+    if search_overlay and activity and not drawer_nodes and not loading:
+        identity = [*identity, "search_overlay"] if identity else ["activity", activity, "search_overlay"]
+    heading_candidates = []
+    for index, element in enumerate(elements):
+        label = stable_heading(element.get("accessibility_id") or element["text"])
+        if (not label or not element["visible"] or element["clickable"] or element["input_capable"]
+                or element["within_webview"] or element["outside_active_drawer"]
+                or element["outside_active_dialog"] or element.get("android_toast") or element.get("in_scroller")):
+            continue
+        if (element["type"] == "element"
+                and re.search(r"(?:^|[-_\s])(?:screen|page)(?:$|[-_\s])", element.get("accessibility_id", ""), re.I)):
+            continue
+        rect = bounds(element.get("bounds"))
+        heading_candidates.append((rect[1] if rect else 0, index, label))
+    semantic_heading = min(heading_candidates)[2] if heading_candidates else ""
+    if semantic_heading and activity and not loading:
+        normalized_heading = semantic_heading.casefold()[:120]
+        if (selected_tab or identity[:1] == ["container"]) and not search_overlay and not drawer_nodes \
+                and normalized_heading not in identity:
+            identity = [*identity, "semantic_heading", normalized_heading]
+        elif not identity:
+            identity = ["activity", activity, "heading", normalized_heading]
+    form_title = ("Sign Up" if re.fullmatch(r"\s*sign ?up\s*", form_action, re.I) else
+                  "Login" if re.fullmatch(r"\s*(?:log ?in|sign ?in)\s*", form_action, re.I) else
+                  form_action.title())
+    screen_name = (first_text or (form_title + " form" if form_title and form_fields else "")
+                   or ("Search" if search_overlay else "")
+                   or (f"{selected_tab} — {semantic_heading}" if selected_tab and semantic_heading
+                       and semantic_heading.casefold() != selected_tab.casefold() else selected_tab)
+                   or semantic_heading or activity or "Android screen")
     if any(e["visible"] and e["class_name"].endswith("WebView") for e in elements):
         identity, screen_name = ["embedded_webview", *identity], "Embedded web content"
     if drawer_nodes:
