@@ -604,6 +604,8 @@ class Session:
             self.base["allowed_origins"] = [origin(device.config["start_url"])]
         else:
             self.base["android_package"] = self.screens[0]["package_name"]
+        from .android_accounts import initialize
+        initialize(self)
 
     @property
     def has_account(self) -> bool:
@@ -646,6 +648,8 @@ class Session:
         from .android_events import Timeline
         timeline = Timeline(self.device.stop_path.parent, phase="test_build", secrets=self.secrets.values())
         for index, step in enumerate(steps, 1):
+            from .android_accounts import guard_registration
+            guard_registration(self, step)
             with timeline.action(step, index):
                 if step["action"] in ("back", "rotate", "background", "hide_keyboard"):
                     adapter.device_action(step["action"], step.get("value"))
@@ -693,7 +697,7 @@ class Session:
         """'' when the flow passes from cleared app data, else the reason it did not."""
         from .qa_runtime import ContractRuntime
         signup_refs = {step.get("secret_ref") for step in flow.get("steps", [])}
-        if SIGNUP_EMAIL in signup_refs or SIGNUP_USERNAME in signup_refs:
+        if self.account_mode == "legacy" and (SIGNUP_EMAIL in signup_refs or SIGNUP_USERNAME in signup_refs):
             # Signup creates a server-side account, which clearing local app data
             # cannot undo. Give each replay a unique address so the replay tests
             # the signup path instead of colliding with its discovery attempt.
@@ -701,6 +705,9 @@ class Session:
             self.secrets[SIGNUP_USERNAME] = _new_signup_username()
         contract = parse_contract({**self.base, "flows": [flow]})
         try:
+            from .android_accounts import guard_registration
+            for step in flow.get("steps", []):
+                guard_registration(self, step)
             self.device.fresh_start()
             runtime = ContractRuntime(self._adapter(contract), contract.model_dump(mode="json"),
                                       {"secrets": self.secrets, "databases": {}})
@@ -946,6 +953,13 @@ class Session:
                                "detail": detail, "screen": screen["screen_name"], "reason": detail})
             self.cover("form", f"Form on {screen['screen_name']}", "not tested", detail, where=screen["screen_name"])
             return
+        if form["kind"] == "signup" and self.account_mode != "legacy":
+            if self.account_mode == "create" and not form.get('choice_error') and not self.account_setup.get("registrations_attempted"):
+                self._positive_form_check(screen, form, "Sign-up")
+            else:
+                self.cover("signup", f"Registration on {screen['screen_name']}", "not tested",
+                           "Account policy permits at most one registration setup; signup is not replayed.", where=screen["screen_name"])
+            return
         if form["kind"] == "login":
             self._login_checks(screen, form, allow_credentials=not bool(form.get('choice_error')))
         elif form["kind"] == "search":
@@ -1132,7 +1146,7 @@ class Session:
             return
         # 2. A wrong password is refused (the real test user when given, so only the password is wrong)
         account_user = self.account[0] if self.account else None
-        app_sample = self._select_app_sample(screen) if not self.has_account else []
+        app_sample = self._select_app_sample(screen) if not self.has_account and self.account_mode == "legacy" else []
         if user:
             if self.has_account:
                 select = self._select_visible_account(screen, self.secrets[account_user])
@@ -1149,7 +1163,7 @@ class Session:
                        "requirement": "Standard login behaviour (wrong credentials are refused)"},
                       "Login with a wrong password was accepted")
         # 2b. An app's own locked-out sample user ("alice@example.com (locked out)") shows its message
-        locked = self._select_locked_sample(screen) if user else []
+        locked = self._select_locked_sample(screen) if user and self.account_mode == "legacy" else []
         if locked:
             steps = locked + reach(submit) + [tap(submit)]
             before, after = self.observe_after(screen, steps)
@@ -1191,6 +1205,8 @@ class Session:
         return [{"action": "assert_not_visible", "locator": preferred_locator(password)}]
 
     def after_login(self, screen: dict, flow: dict):
+        from .android_accounts import authenticated
+        authenticated(self)
         discover = getattr(self.device, "on_authenticated", None)
         if discover:
             self.attempt("Explore screens after test-account login", discover, flow, area="login")
@@ -1242,7 +1258,7 @@ class Session:
         context = " | ".join([label(submit), *(label(element) for element in inputs)])
         password_change = action_name != "Sign-up" and any(element.get("password") for element in inputs)
         payment_form = any(field_kind(element) in PAYMENT_INPUTS for element in inputs)
-        reason = self.protected(context) or ("changing the test account's password is never tested" if password_change
+        reason = self.protected(label(submit)) or never_in_test_mode(context, native=False) or ("changing the test account's password is never tested" if password_change
                                              else "payment forms are never filled" if payment_form else "")
         if reason:
             self.tried.append({"check": f"{action_name} on {screen['screen_name']}",
@@ -1255,9 +1271,16 @@ class Session:
         choice_steps = form.get('choice_steps' if self.native else 'choices', [])
         actions += choice_steps
         actions += reach(submit) + [tap(submit)]
-        before, after = self.observe_after(screen, actions,
-                                            setup=len(inputs) + len(form.get("ticks", []))
-                                            + len(choice_steps))
+        if action_name == "Sign-up" and self.account_mode == "create":
+            from .android_accounts import begin_registration
+            if not begin_registration(self):
+                return
+        self._account_registration_active = action_name == "Sign-up" and self.account_mode == "create"
+        try:
+            before, after = self.observe_after(screen, actions,
+                                              setup=len(inputs) + len(form.get("ticks", [])) + len(choice_steps))
+        finally:
+            self._account_registration_active = False
         if after is None:
             self.tried.append({"check": f"{action_name} with valid details on {screen['screen_name']}",
                                "outcome": "opens another app", "detail": "Not followed.",
@@ -1306,6 +1329,12 @@ class Session:
             return
         if not present(after, first):
             checks = [{"action": "assert_not_visible", "locator": preferred_locator(first)}, *checks]
+        if action_name == "Sign-up" and self.account_mode == "create":
+            from .android_accounts import registered
+            registered(self, actions)
+            self.tried.append({"check": title, "outcome": "observed", "screen": screen["screen_name"],
+                               "detail": "Account setup ran once; the login check verifies the same identity next."})
+            return
         category = "signup" if action_name == "Sign-up" else "form"
         flow = self.build(category, title, self.nav(screen) + actions + alerts + checks)
         flow_meta = {"category": category, "screen_id": screen["id"], "screen": screen["screen_name"],
@@ -1338,7 +1367,8 @@ class Session:
 
     def saved_secrets(self) -> dict:
         """The generated account the final run needs again (private file only; never a public report)."""
-        return {name: self.secrets[name] for name in (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+        refs = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD, SIGNUP_EMAIL, SIGNUP_USERNAME, STRONG_PASSWORD) if self.account_mode == "create" else (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+        return {name: self.secrets[name] for name in refs
                 if name in self.secrets and self.account == (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)}
 
     @staticmethod
@@ -1543,7 +1573,11 @@ class Session:
         element_alias, inventory = {}, []
         for alias, screen in screen_alias.items():
             listed = []
+            form = find_form(screen, self.native) if self.account_mode != "legacy" else None
+            managed = {e["id"] for e in [*form["inputs"], form["submit"]] if e} if form and form["kind"] in ("login", "signup") else set()
             for element in screen["elements"]:
+                if element.get("id") in managed:
+                    continue  # Account setup owns credentials; AI journeys exercise other features.
                 if not usable(element) or not (label(element) or element.get("text")):
                     continue
                 if element.get("clickable") and not element.get("input_capable") and self.protected(label(element)):
@@ -1726,6 +1760,8 @@ class Session:
         self.reserve = 6 if ask else 0  # room kept for the AI journeys' replays
         for screen in self.screens:
             self.record_protected_controls(screen)
+        from .android_accounts import prepare_account
+        prepare_account(self)
         stopped = self.execute(self.plan())
         return self.journeys(ask, requirements, stopped)
 

@@ -13,8 +13,8 @@ from backend.android import (
     create_session,
     inspect_driver,
     interaction_blocker,
-    reset_app_data,
 )
+from backend.android_accounts import reset_for_check
 from backend.android_evidence import app_problem, device_time, read_log, save_log, start_recording, stop_recording
 from backend.android_runtime import MobileRuntime, device_unavailable, read_only_case, same_screen
 from backend.safety import redact
@@ -103,7 +103,7 @@ def appium_driver():
         session_file.write_text(json.dumps({"session_id": driver.session_id}), encoding="utf-8")
         if CONFIG.get("app_mode") == "installed" and not interaction_blocker(CONFIG):
             # Test-build mode explored a freshly reset app: the read-only checks start from that same state.
-            reset_app_data(driver, _app_package())
+            reset_for_check(driver, CONFIG, _app_package())
         yield driver
     finally:
         cleanup = close_session(driver)
@@ -158,7 +158,7 @@ def mobile(request, appium_driver):
         driver.get(CONFIG["start_url"])
     elif case.get("reset_app_data"):
         # A test-build flow changes app data: it starts from a freshly reset app, like its discovery replay did.
-        reset_app_data(driver, _app_package())
+        reset_for_check(driver, CONFIG, _app_package())
     elif activity:
         # Prefer the configured activity, but many apps expose only a Splash LAUNCHER activity.
         # Falling back to activate_app avoids Permission Denial on non-exported MainActivity.

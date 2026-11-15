@@ -421,6 +421,8 @@ class AppSession(Session):
 
     # -------- 3. login and log out
     def after_login(self, screen: dict, flow: dict):
+        from .android_accounts import authenticated
+        authenticated(self)
         if self.logged_in is not None:
             return
         self.logged_in = {"screen": screen, "steps": [s for s in flow["steps"] if not s["action"].startswith("assert_")]}
@@ -524,5 +526,7 @@ class AppSession(Session):
         self.reserve = 6 if ask else 0
         for screen in self.screens:
             self.record_protected_controls(screen)
+        from .android_accounts import prepare_account
+        prepare_account(self)
         stopped = self.execute(self.plan())
         return self.journeys(ask, requirements, stopped)

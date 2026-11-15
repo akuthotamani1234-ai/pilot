@@ -138,6 +138,8 @@ def register_prepared_api(app, web_model, web_start, mobile_start, prepare_devic
                     values["app_activity"] = ""
                 values = mobile_model.model_validate(values).model_dump()
                 config = validate_mobile_config({k: v for k, v in values.items() if k not in PRIVATE_FIELDS})
+                from .android_accounts import validate_credentials
+                validate_credentials(config["account_mode"], values.get("test_username", ""), values.get("test_password", ""))
                 for key in values.keys() & config.keys():
                     values[key] = config[key]
                 for key in ("qa_contract", "expected_destinations", "expected_values"):

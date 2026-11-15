@@ -58,6 +58,19 @@ def test_prepare_is_read_only_and_response_never_contains_credentials(prepared):
     assert len(store.entries) == 1
 
 
+def test_android_account_policy_is_preserved_and_existing_requires_private_details(prepared):
+    client, _, launched, devices = prepared
+    invalid = android(account_mode="existing", test_password="")
+    response = client.post('/api/settings/mcp-requests', json=invalid)
+    assert response.status_code == 400 and not launched and not devices
+    data = prepare(client, android(account_mode="existing"))
+    assert data["settings"]["account_mode"] == "existing"
+    assert "private-user" not in str(data) and "private-password" not in str(data)
+    response = client.post(f"/api/mcp/prepared/{data['request_id']}/start", json={"authorized": True})
+    assert response.status_code == 200
+    assert launched[0]["account_mode"] == "existing" and launched[0]["test_username"] == "private-user"
+
+
 def test_start_preserves_configuration_starts_selected_device_and_is_idempotent(prepared):
     client, store, launched, devices = prepared
     data = prepare(client, android(max_actions=70, expected_destinations='About = About', max_test_cases=280))

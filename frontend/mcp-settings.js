@@ -7,6 +7,7 @@
     '<div id="mcpProviderFields" class="fields"></div><div id="mcpAdvancedFields"></div><div id="mcpWebFields"></div>';
   $('copyMcpRequest').closest('.row').before(slot);
   const moved = [], controls = ['androidProvider','androidModel','androidApiKey'].map(id => $(id).closest('label'));
+  controls.push($('androidAccountSettings'));
   controls.push(document.querySelector('.mobile-advanced'));
   let platform = 'web', active = false, configuredFor = '', webMove = null, prepared = '', revision = 0;
   const workflow = () => window.QpilotWorkflow || window.BlowAIWorkflow;
@@ -66,7 +67,7 @@
       if (engine === 'android') {
         workflow().syncToStandard();
         const data = window.QpilotChat.androidRequest(false);
-        if (!data) throw new Error('Review the advanced workflow JSON and expected-result settings.');
+        if (!data) throw new Error($('androidRunNote').textContent || 'Review the advanced workflow JSON and expected-result settings.');
         settings = Object.fromEntries(data);
         ['authorized','contract_only','interaction_testing','test_all_discovered','thorough','allow_rules_fallback'].forEach(key => settings[key] = settings[key] === 'true');
         Object.assign(settings,{app_mode:$('mcpAndroidSource').value,device_id:$('mcpAndroidDevice').value,

@@ -165,6 +165,20 @@
         <label>AI model (optional)<input id="androidModel" type="text" maxlength="200" placeholder="Use configured model"></label>
         <label>API key for this run (optional)<input id="androidApiKey" type="password" maxlength="4096" autocomplete="off" placeholder="Use configured key, or enter a replacement" aria-describedby="androidApiKeyHelp"><span id="androidApiKeyHelp" class="muted small">Used only for this run. Never saved in test files or reports. With "Use configured provider", the provider is taken from the key (sk-ant- = Anthropic).</span></label>
       </div>
+      <section id="androidAccountSettings" class="card">
+        <label>Account for this test run
+          <select id="androidAccountMode">
+            <option value="none">No account — public screens only</option>
+            <option value="existing">Use an existing test account</option>
+            <option value="create">Allow creation of one test account</option>
+          </select>
+        </label>
+        <div id="androidAccountCredentials" class="fields" hidden>
+          <label>Test account username or email<input id="androidTestUsername" type="text" maxlength="1024" autocomplete="off"></label>
+          <label>Test account password<input id="androidTestPassword" type="password" maxlength="4096" autocomplete="new-password"></label>
+        </div>
+        <p id="androidAccountHelp" class="muted small">Public screens are tested without creating an account.</p>
+      </section>
       <details class="mobile-advanced">
         <summary>Advanced checks and exploration settings</summary>
         <div class="android-run-mode">
@@ -176,11 +190,6 @@
         <label class="tick android-scope"><input type="checkbox" id="androidThorough"><span><b>Thorough</b><small>Raise positive soft caps for this run. Zero explores until exhausted within the built-in safety caps.</small></span></label>
         <input id="androidContractOnly" type="checkbox" hidden>
         <p class="muted small">Optional settings for expected behavior, approved test flows and exploration limits.</p>
-        <div class="fields">
-          <label>Test account username or email<input id="androidTestUsername" type="text" maxlength="1024" autocomplete="off" placeholder="Optional, used by test-build login checks"></label>
-          <label>Test account password<input id="androidTestPassword" type="password" maxlength="4096" autocomplete="new-password" placeholder="Optional, private for this run"></label>
-        </div>
-        <p class="muted small">Test-build mode uses these only when it discovers a login form. Flows can reference <code>secret:QPILOT_SECRET_TEST_USERNAME</code> and <code>secret:QPILOT_SECRET_TEST_PASSWORD</code>. Values are cleared after submission and excluded from reports and AI prompts.</p>
         <div class="fields">
           <label>Appium server URL<input id="androidAppiumUrl" type="url" value="http://127.0.0.1:4723" required></label>
           <label>Maximum exploration depth (0 = until exhausted)<input id="androidDepth" type="number" min="0" max="10" value="0"></label>
@@ -293,6 +302,7 @@
 
 <script src="/static/workflow.js"></script>
 <script src="/static/mcp-settings.js"></script>
+<script src="/static/android-account.js"></script>
 <script src="/static/contract-builder.js"></script>
 <script src="/static/execution.js"></script>
 <script src="/static/android-scenarios.js"></script>
