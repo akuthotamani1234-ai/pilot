@@ -21,6 +21,12 @@ def device_unavailable(error):
                      r"uiautomator2.*(?:not running|cannot be proxied)|connection refused|actively refused|"
                      r"failed to establish a new connection|android device/session is unavailable", str(error), re.I):
             return True
+        message = str(error)
+        if re.search(r'could not proxy.*socket hang up|socket hang up.*uiautomator|read ECONNRESET', message, re.I):
+            return True
+        if re.search(r'adbExec|adb(?:\.exe)?', message, re.I) and re.search(
+                r'error:\s*(?:closed|device offline)|device.*not found|transport.*(?:closed|error)', message, re.I):
+            return True
         # User-facing wrappers truncate long driver messages. Classification must
         # retain the original cause without copying its contents into the report.
         error = error.__cause__ or error.__context__
@@ -61,18 +67,43 @@ def settled_screen(inspect, expected=None, timeout=8):
     raise AndroidEnvironmentError("Android did not settle on " + name + ".")
 
 
+def settled_screen_with_toasts(inspect, timeout=8):
+    """Return a stable screen while preserving toast text from its immediate post-action snapshot."""
+    immediate = inspect()
+    toasts = [element for element in immediate.get("elements", [])
+              if element.get("android_toast") and element.get("visible") and element.get("text")]
+    stable = settled_screen(inspect, timeout=timeout)
+    known = {element.get("text") for element in stable.get("elements", []) if element.get("android_toast")}
+    stable["elements"].extend(element for element in toasts if element.get("text") not in known)
+    return stable
+
+
 def same_screen(actual: dict, expected: dict) -> bool:
     if actual["package_name"] != expected["package_name"] or actual.get("activity") != expected.get("activity"):
         return False
+    actual_identity = actual.get("identity")
+    expected_identity = expected.get("identity")
+    if actual_identity and expected_identity:
+        # A screen with a form/container identity must not fall back to its
+        # activity name and Android's shared root IDs when the other screen
+        # has no identity. That made unrelated routes in one Activity appear
+        # identical and caused open_screen() to skip the recorded path.
+        return actual_identity == expected_identity
     if actual["fingerprint"] == expected["fingerprint"]:
         return True
-    if actual.get("identity") and expected.get("identity"):
-        return actual["identity"] == expected["identity"]
 
     # Stable heading and another unchanged identifier allow locator repair on a changed hierarchy.
     def anchors(screen):
-        return {e.get("resource_id") or e.get("accessibility_id") for e in screen["elements"]} - {None, ""}
+        values = {
+            e.get("resource_id") or e.get("accessibility_id")
+            for e in screen["elements"]
+            if e.get("navigation_role") not in ("tab", "menu_item")
+        }
+        return {value for value in values if value and not value.casefold().startswith("android:")}
 
+    # A rendered activity may keep the same screen name and hierarchy while a
+    # backend error changes a request ID. App-specific non-navigation anchors
+    # allow that screen to settle; shared Android roots and bottom tabs cannot.
     return actual["screen_name"] == expected["screen_name"] and bool(anchors(actual) & anchors(expected))
 
 

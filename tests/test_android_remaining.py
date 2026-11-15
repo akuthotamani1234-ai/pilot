@@ -396,7 +396,8 @@ def test_offscreen_inventory_and_replay_use_observed_controls_and_restore_the_to
             return False
 
     driver = Driver()
-    config = {'package_name': PACKAGE, 'device_id': 'emulator-5554', 'max_scroll_actions': 4}
+    config = {'package_name': PACKAGE, 'device_id': 'emulator-5554',
+              'max_scroll_actions': 0, 'max_scrolls_per_screen': 0}
     screen = extract_screen(driver.page_source, PACKAGE, config['device_id'], '.Main')
     normalize_screens([screen])
     budget = {}
@@ -405,7 +406,218 @@ def test_offscreen_inventory_and_replay_use_observed_controls_and_restore_the_to
     assert bottom['visible'] and bottom['requires_scroll'] and driver.viewport == 0
     selected, locator, attempts = seek_observed(driver, screen, bottom, config)
     assert selected.name == 'Bottom' and locator['value'] == 'Bottom' and attempts == 1
-    assert budget == {'scroll': 1, 'scroll_recovery': 1}
+    assert budget == {'scroll': 3, 'scroll_recovery': 1}
+
+
+def test_unknown_axis_carousel_uses_bounded_coordinate_probe_and_replay(tmp_path):
+    from backend.android_design import normalize_screens
+    from backend.android_scroll import discover_viewports, seek_observed
+
+    class Element:
+        def __init__(self, name):
+            self.name = self.id = name
+
+        def is_displayed(self):
+            return True
+
+    class Driver:
+        current_package = PACKAGE
+        current_activity = '.MainActivity'
+        viewport = 0
+        gestures = []
+
+        @property
+        def page_source(self):
+            card_x = 650 if not self.viewport else 120
+            return ('<hierarchy><node class="android.widget.FrameLayout" bounds="[0,0][600,800]">'
+                    '<node class="android.view.View" scrollable="true" bounds="[0,0][600,260]">'
+                    '<node class="android.widget.TextView" text="First card" bounds="[10,20][180,180]"/>'
+                    '<node class="android.widget.Button" content-desc="Next card" clickable="true" '
+                    f'bounds="[{card_x},20][{card_x + 160},180]"/>'
+                    '</node><node class="android.view.View" bounds="[20,300][580,340]"/>'
+                    '<node class="android.widget.TextView" text="Home" bounds="[20,500][200,550]"/>'
+                    '</node></hierarchy>')
+
+        def find_elements(self, by, value):
+            return [Element('Next card')] if by == 'accessibility id' and value == 'Next card' and self.viewport else []
+
+        def execute_script(self, name, args):
+            assert name == 'mobile: scrollGesture'
+            assert 'elementId' not in args
+            assert (args['left'], args['top'], args['width'], args['height']) == (0, 0, 600, 260)
+            self.gestures.append(args['direction'])
+            if args['direction'] in ('down', 'up'):
+                return True
+            if args['direction'] == 'right':
+                self.viewport = 1
+            elif args['direction'] == 'left':
+                self.viewport = 0
+            return False
+
+        def save_screenshot(self, _):
+            return False
+
+    driver = Driver()
+    config = {'package_name': PACKAGE, 'device_id': 'emulator-5554',
+              'max_scroll_actions': 0, 'max_scrolls_per_screen': 0}
+    screen = extract_screen(driver.page_source, PACKAGE, config['device_id'], '.MainActivity')
+    normalize_screens([screen])
+    carousel = next(e for e in screen['elements'] if e['scrollable'])
+    assert carousel['scroll_axis'] == '' and not carousel['locator_unique']
+
+    gaps = discover_viewports(driver, screen, config, {}, time.monotonic() + 20, tmp_path)
+    assert any('Vertical scroll reported more content' in gap['reason'] for gap in gaps)
+    next_card = next(e for e in screen['elements'] if e['accessibility_id'] == 'Next card')
+    assert next_card['visible'] and next_card['requires_scroll']
+    assert next_card['scroll_hint']['direction'] == 'right'
+    assert next_card['scroll_hint']['bounds'] == '[0,0][600,260]'
+    assert driver.viewport == 0 and 'right' in driver.gestures
+
+    selected, locator, attempts = seek_observed(driver, screen, next_card, config)
+    assert selected.name == 'Next card' and locator['value'] == 'Next card' and attempts == 1
+    assert driver.viewport == 1
+
+
+def test_scroll_recovery_is_included_in_the_hard_gesture_cap(tmp_path):
+    from backend.android_design import normalize_screens
+    from backend.android_scroll import discover_viewports
+
+    class ScrollContainer:
+        id = 'scroll-container'
+
+        def is_displayed(self):
+            return True
+
+    class Driver:
+        current_package = PACKAGE
+        current_activity = '.Main'
+        viewport = 0
+        gestures = []
+
+        @property
+        def page_source(self):
+            bottom = '[10,100][300,150]' if self.viewport else '[10,750][300,800]'
+            return ('<hierarchy><node class="android.widget.ScrollView" scrollable="true" '
+                    'bounds="[0,0][500,600]">'
+                    '<node class="android.widget.TextView" text="Heading" bounds="[10,10][300,40]"/>'
+                    '<node class="android.widget.Button" content-desc="Bottom" clickable="true" bounds="' + bottom + '"/>'
+                    '</node></hierarchy>')
+
+        def execute_script(self, name, args):
+            assert name == 'mobile: scrollGesture'
+            self.gestures.append(args['direction'])
+            self.viewport = 1 if args['direction'] == 'down' else 0
+            return False
+
+        def find_elements(self, _strategy, value):
+            return [ScrollContainer()] if value == "//*[@class='android.widget.ScrollView']" else []
+
+        def save_screenshot(self, _):
+            return False
+
+    driver = Driver()
+    config = {'package_name': PACKAGE, 'device_id': 'emulator-5554',
+              'max_scroll_actions': 2, 'max_scrolls_per_screen': 2}
+    screen = extract_screen(driver.page_source, PACKAGE, config['device_id'], '.Main')
+    normalize_screens([screen])
+    budget = {}
+
+    gaps = discover_viewports(driver, screen, config, budget, time.monotonic() + 10, tmp_path)
+
+    assert len(driver.gestures) <= 2
+    assert budget['scroll'] == len(driver.gestures)
+    assert budget['scroll_recovery'] == 1
+    assert driver.viewport == 0
+    assert gaps and 'limit was reached' in gaps[0]['reason']
+
+
+def test_dynamic_backend_request_ids_do_not_look_like_scroll_movement():
+    from backend.android_scroll import _viewport_signature
+
+    container = {'id': 'scroll', 'bounds': '[0,0][600,260]', 'class_name': 'android.widget.ScrollView',
+                 'accessibility_id': 'product-list'}
+
+    def viewport(request_id):
+        return {'elements': [
+            container,
+            {'id': 'error', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+             'accessibility_id': f'Failed to fetch: {{"request_id":"{request_id}"}}', 'text': '',
+             'bounds': '[10,20][500,180]', 'in_scroller': 'product-list'},
+            {'id': 'sibling', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+             'accessibility_id': f'Loading {request_id}', 'text': '', 'bounds': '[10,200][500,240]',
+             'in_scroller': 'another-list'},
+        ]}
+
+    assert _viewport_signature(viewport('first-123'), container) == _viewport_signature(viewport('second-456'), container)
+    no_bounds = {'id': 'scroll', 'class_name': 'android.widget.ScrollView', 'accessibility_id': 'product-list'}
+    assert _viewport_signature(viewport('first-123'), no_bounds) == _viewport_signature(viewport('second-456'), no_bounds)
+    shifted = {'elements': [
+        no_bounds,
+        {'id': 'row', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+         'accessibility_id': 'Same row', 'text': '', 'bounds': '[10,70][500,130]', 'in_scroller': 'product-list'},
+    ]}
+    initial = {'elements': [
+        no_bounds,
+        {'id': 'row', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+         'accessibility_id': 'Same row', 'text': '', 'bounds': '[10,20][500,80]', 'in_scroller': 'product-list'},
+    ]}
+    assert _viewport_signature(initial, no_bounds) != _viewport_signature(shifted, no_bounds)
+
+
+def test_locator_only_viewport_signature_uses_the_selected_scroll_locator():
+    from backend.android_scroll import _viewport_signature
+
+    target_locator = {'strategy': 'resource_id', 'value': 'scroll-a'}
+    container = {'id': 'scroll-a', 'class_name': 'android.widget.ScrollView', 'resource_id': 'scroll-a',
+                 'accessibility_id': 'shared-list', 'locator_unique': True, 'locators': [target_locator]}
+    sibling_locator = {'strategy': 'resource_id', 'value': 'scroll-b'}
+
+    def screen(target_top, sibling_top):
+        return {'elements': [
+            container,
+            {'id': 'target-row', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+             'accessibility_id': 'Target row', 'text': '', 'bounds': f'[10,{target_top}][500,{target_top + 50}]',
+             'in_scroller': 'shared-list', 'scroll_container_locator': target_locator},
+            {'id': 'sibling-row', 'visible': True, 'class_name': 'android.view.View', 'resource_id': '',
+             'accessibility_id': 'Sibling row', 'text': '', 'bounds': f'[10,{sibling_top}][500,{sibling_top + 50}]',
+             'in_scroller': 'shared-list', 'scroll_container_locator': sibling_locator},
+        ]}
+
+    assert _viewport_signature(screen(20, 20), container) == _viewport_signature(screen(20, 100), container)
+    assert _viewport_signature(screen(20, 20), container) != _viewport_signature(screen(100, 20), container)
+
+
+def test_android_hierarchy_preserves_explicit_scroll_axis():
+    xml = ('<hierarchy><node class="android.widget.HorizontalScrollView" scrollable="true" '
+           'orientation="horizontal" bounds="[0,0][500,200]">'
+           '<node class="android.widget.TextView" text="Card" bounds="[10,10][250,180]"/>'
+           '</node></hierarchy>')
+    parsed = extract_screen(xml, PACKAGE, 'emulator-5554', '.Main')
+    container = next(e for e in parsed['elements'] if e['scrollable'])
+    assert container['scroll_axis'] == 'horizontal'
+
+
+def test_android_scroll_view_class_infers_vertical_axis_without_orientation_attribute():
+    xml = ('<hierarchy><node class="android.widget.ScrollView" scrollable="true" '
+           'bounds="[0,0][500,600]">'
+           '<node class="android.widget.TextView" text="Content" bounds="[10,10][300,60]"/>'
+           '</node></hierarchy>')
+    parsed = extract_screen(xml, PACKAGE, 'emulator-5554', '.Main')
+    container = next(e for e in parsed['elements'] if e['scrollable'])
+    assert container['scroll_axis'] == 'vertical'
+
+
+def test_bounds_free_scrollable_uses_a_unique_class_locator_for_children():
+    xml = ('<hierarchy><node class="android.widget.ScrollView" scrollable="true">'
+           '<node class="android.widget.TextView" text="Content" bounds="[10,10][300,60]"/>'
+           '</node></hierarchy>')
+    parsed = extract_screen(xml, PACKAGE, 'emulator-5554', '.Main')
+    container = next(e for e in parsed['elements'] if e['scrollable'])
+    child = next(e for e in parsed['elements'] if e.get('text') == 'Content')
+    assert container['locator_unique']
+    assert container['locators'][0]['strategy'] == 'xpath'
+    assert child['scroll_container_locator'] == container['locators'][0]
+    assert child['scroll_hint']['container'] == container['locators'][0]
 
 
 def test_visibility_does_not_count_as_functionality_and_zero_assertions_do_not_pass():

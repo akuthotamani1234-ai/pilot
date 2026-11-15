@@ -2,6 +2,33 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-15 - Native Android exploration coverage
+
+- Distinguish routes that share one Android Activity, while allowing stable app controls to identify a screen when volatile backend error text changes.
+- Name native screens from stable selected-tab, semantic-heading, form-action and search semantics when apps expose accessibility labels instead of text views; use those labels in route identity while filtering greetings and volatile labels.
+- Treat zero discovery scrolls as until exhausted within a 100-gesture hard cap. Infer vertical `ScrollView` orientation, explore horizontal viewports, probe unknown axes, and use recorded bounds when a scrollable node has no unique locator.
+- Count restoration gestures inside the scroll cap, continue to the other axis when a probe cannot read movement, and ignore changing backend request IDs, including IDs embedded in loading labels, in scoped viewport signatures. Use visible bounds when a unique scroll container lacks its own bounds. Verify viewport changes and restoration; report unknown movement, incomplete scrolls and unvisited controls instead of silently treating them as covered.
+- See [Android exploration and testing limits](docs/29_ANDROID_FEATURE_EXPANSION.md) and [real-user Android test limits](docs/30_TEST_LIKE_A_REAL_USER.md).
+
+## 2026-11-15 — Native Android form reliability
+
+- Use native geometry and shared ancestry to distinguish one submit button below
+  the fields from form-mode selectors above them, following the live WebdriverIO
+  run; retain ambiguity when several lower submissions or missing bounds remain.
+
+- Recognize an unambiguous safe primary submission button with an unfamiliar label and scope inputs to its container.
+  Protected actions, Cancel and ambiguous submissions remain excluded from automatic fallback.
+- Group standard native Spinners and radio selections with the form. Observe and verify dropdown choices rather than
+  generating a separate navigation workflow for each country. Guided flows also support approved native selection.
+- Preserve Android validation Toast text from the immediate UIA snapshot while filtering other system UI; reduce UIA's
+  idle wait so short-lived messages remain verifiable. Form destinations that contain lists now enter product/item
+  and screen-control exploration.
+- Require a destination or non-error success result for native positive submissions. A disappeared form or an error
+  message cannot establish success. Preserve verified form setup when exploring the resulting screen.
+- Reject AI submissions without recognized-form input setup. Recognize recorded UiAutomator/ADB transport losses and
+  propagate interrupted input without values or blind submission retries.
+- See [implementation, operation and verification limits](docs/36_ANDROID_NATIVE_FORM_RELIABILITY.md).
+
 ## 2026-11-14 — Shared MCP configuration and Qpilot naming
 
 - MCP setup reuses Standard account, provider/model/key, exploration, expected-result and approved-flow controls.

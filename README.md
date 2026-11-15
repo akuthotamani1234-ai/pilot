@@ -443,6 +443,11 @@ Local-only (never commit): `.env`, `.venv/`, `runs/`, `logs/`, `accounts/`, `art
 
 ## Native Android testing
 
+Native form recognition, grouped country/radio selection, submission outcome checks and session-loss handling are
+described in [Android form reliability](docs/36_ANDROID_NATIVE_FORM_RELIABILITY.md). Short-lived Android validation
+toasts are retained for assertions, and list screens reached by a successful form continue into safe item/control
+exploration. The engine remains Python/Appium.
+
 Appium + UiAutomator2 testing is available alongside the existing Playwright website workflow.
 In Standard testing, **Start Android test** starts the installed local Appium server and boots the selected installed
 emulator automatically, then waits for both to be ready before uploading the APK or creating a test run. The setup

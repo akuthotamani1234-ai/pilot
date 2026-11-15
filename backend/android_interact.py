@@ -211,13 +211,13 @@ def family(element: dict) -> tuple:
 def reversible_candidates(screen: dict, native: bool = True) -> list[dict]:
     out = []
     form = find_form(screen, native)
-    submit_id = form["submit"]["id"] if form else None
+    form_controls = set(form.get('control_ids', [form['submit']['id']])) if form else set()
     for element in screen.get("elements", []):
         if not usable(element) or element.get("input_capable"):
             continue
         if not (element.get("clickable") or element.get("checkable")):
             continue
-        if element.get("id") == submit_id:
+        if element.get("id") in form_controls:
             continue  # form-specific probes already test the submit action with deliberate data
         words = label(element)
         if not words or never_in_test_mode(words, native):
@@ -238,8 +238,32 @@ def find_form(screen: dict, native: bool = True) -> dict | None:
     buttons = [e for e in screen.get("elements", [])
                if usable(e) and e.get("clickable") and not e.get("input_capable")
                and e.get("navigation_role") not in ("tab", "menu_item")
-               and SUBMIT.search(label(e)) and not never_in_test_mode(label(e), native)]
-    return build_form(inputs, buttons)
+               and SUBMIT.search(label(e)) and not never_in_test_mode(label(e), native)
+               and not re.search(r'\b(cancel|close|back|dismiss|skip)\b', name(e), re.I)]
+    if native and len(buttons) == 1 and not SUBMIT.search(name(buttons[0])):
+        buttons = []  # An id containing "submit" cannot override an ambiguous visible primary action.
+    if native and not buttons:
+        from .android_forms import fallback_submit
+        fallback = fallback_submit(screen.get('elements', []), usable, label)
+        buttons = [fallback] if fallback else []
+    if native and len(buttons) > 1:
+        from .android_forms import submission_below_fields
+        primary = submission_below_fields(inputs, buttons)
+        if primary is None:
+            return None  # Multiple submissions still require an explicitly scoped approved flow.
+        buttons = [primary]
+    scope = None
+    if native and buttons:
+        from .android_forms import scope_inputs
+        inputs, scope = scope_inputs(inputs, buttons[0])
+        if not inputs:
+            return None
+    form = build_form(inputs, buttons)
+    if form and native:
+        from .android_forms import attach_controls
+        form['scope'] = scope
+        form = attach_controls(form, screen, usable)
+    return form
 
 
 def build_form(inputs: list[dict], buttons: list[dict]) -> dict | None:
@@ -326,7 +350,7 @@ def screen_diff(before: dict, after: dict) -> list[dict]:
         if (element.get("type") == "text" and text and not seen[text] and usable(element)
                 and not (element.get("resource_id") or element.get("accessibility_id"))
                 and element.get("text_comparable", True) and not VOLATILE.search(text)
-                and element["locators"][0]["strategy"] == "text"):
+                and (element.get("android_toast") or element["locators"][0]["strategy"] == "text")):
             changes.append({"kind": "message", "element": element})
     return changes
 
@@ -355,7 +379,9 @@ def assertion_steps(changes: list[dict], limit: int = 3) -> list[dict]:
             steps.append({"action": "assert_text", "locator": locator, "value": change["after"]})
         elif change["kind"] in ("message", "appeared"):
             text = element.get("text") or ""
-            if text and element.get("text_comparable", True) and locator["strategy"] != "text":
+            if element.get("android_toast"):
+                steps.append({"action": "assert_toast", "value": text})
+            elif text and element.get("text_comparable", True) and locator["strategy"] != "text":
                 steps.append({"action": "assert_text", "locator": locator, "value": text})
             else:
                 steps.append({"action": "assert_visible", "locator": locator})
@@ -741,20 +767,32 @@ class Session:
         if key in self.seen:
             return
         self.seen.add(key)
+        if self.native:
+            from .android_forms import prepare_choices
+            prepare_choices(self, screen, form)
+            if form.get('choice_error'):
+                self.tried.append({'check':f"Form choices on {screen['screen_name']}", 'outcome':'inconclusive',
+                                   'detail':form['choice_error'], 'screen':screen['screen_name']})
         if form.get("captcha"):
             self.tried.append({"check": f"{form['kind'].title()} form on {screen['screen_name']}",
                                "outcome": "protected by a CAPTCHA", "detail": "", "screen": screen["screen_name"]})
             return
         if form["kind"] == "login":
-            self._login_checks(screen, form)
+            self._login_checks(screen, form, allow_credentials=not bool(form.get('choice_error')))
         elif form["kind"] == "search":
-            self._search_check(screen, form)
+            if form.get('choice_error'):
+                self.tried.append({'check':f"Search on {screen['screen_name']}", 'outcome':'not attempted',
+                                   'detail':form['choice_error'], 'screen':screen['screen_name']})
+            else:
+                self._search_check(screen, form)
         elif form["kind"] == "signup":
             self._form_negative_checks(screen, form)
-            self._positive_form_check(screen, form, "Sign-up")
+            if not form.get('choice_error'):
+                self._positive_form_check(screen, form, "Sign-up")
         else:
             self._form_negative_checks(screen, form)
-            self._positive_form_check(screen, form, "Form submission")
+            if not form.get('choice_error'):
+                self._positive_form_check(screen, form, "Form submission")
 
     def record_protected_controls(self, screen: dict):
         for element in screen.get("elements", []):
@@ -843,8 +881,12 @@ class Session:
         account) appeared - and no error text appeared. '' when there is none."""
         error = re.compile(r"\b(error|invalid|wrong|incorrect|required|not match|do not match|locked|failed|"
                            r"unsuccessful|try again)\b", re.I)
-        old = {e.get("text") for e in before.get("elements", []) if e.get("visible")}
-        new_texts = [e.get("text") or "" for e in after.get("elements", []) if e.get("visible") and e.get("text") not in old]
+        def display_label(element):
+            return element.get("text") or element.get("accessibility_id") or ""
+
+        old = {display_label(e) for e in before.get("elements", []) if e.get("visible")}
+        new_texts = [display_label(e) for e in after.get("elements", [])
+                     if e.get("visible") and display_label(e) not in old]
         if any(error.search(text) for text in new_texts):
             return ""
         signs = [label(e) for e in after.get("elements", []) if e.get("visible")
@@ -902,7 +944,7 @@ class Session:
         options.sort(key=lambda item: item[0])
         return [tap(options[0][1])] if options else []
 
-    def _login_checks(self, screen, form):
+    def _login_checks(self, screen, form, allow_credentials=True):
         password, user, submit = form["password"], form["username"], form["submit"]
         meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
                 "element_ids": [e["id"] for e in (user, password, submit) if e], "source": "interaction"}
@@ -912,6 +954,11 @@ class Session:
                       {**meta, "expected": "The login form stays; the app does not log in with empty fields.",
                        "requirement": "Standard login behaviour (empty fields are refused)"},
                       "Login with empty fields was accepted")
+        if not allow_credentials:
+            self.tried.append({"check": "Credential login checks", "outcome": "not attempted",
+                               "reason": form.get('choice_error', "Form choices could not be verified."),
+                               "detail": "", "screen": screen["screen_name"]})
+            return
         # 2. A wrong password is refused (the real test user when given, so only the password is wrong)
         account_user = self.account[0] if self.account else None
         app_sample = self._select_app_sample(screen) if not self.has_account else []
@@ -1036,7 +1083,9 @@ class Session:
         actions += [tap(box) for box in form.get("ticks", [])]  # required boxes such as "I agree to the terms"
         actions += form.get("choices", [])  # a required drop-down still on its empty first option
         actions += reach(submit) + [tap(submit)]
-        before, after = self.observe_after(screen, actions)
+        before, after = self.observe_after(screen, actions,
+                                            setup=len(inputs) + len(form.get("ticks", []))
+                                            + len(form.get("choices", [])))
         if after is None:
             self.tried.append({"check": f"{action_name} with valid details on {screen['screen_name']}",
                                "outcome": "opens another app", "detail": "Not followed.",
@@ -1050,7 +1099,10 @@ class Session:
         alerts = [{"action": "assert_alert", "value": c["text"]} for c in changes
                   if c["kind"] == "alert" and not any(v.casefold() in c["text"].casefold() for v in private)][:1]
         checks = []
-        if not present(after, first):
+        if self.native:
+            from .android_forms import destination_check
+            checks = destination_check(self, before, after, form)
+        elif not present(after, first):
             checks = [{"action": "assert_not_visible", "locator": first["locators"][0]}]
         for change in changes:
             # A successful registration may keep the form open and show a status.
@@ -1058,13 +1110,21 @@ class Session:
             if change["kind"] == "alert":
                 continue
             element = change.get("element") or {}
-            message = element.get("text", "") or change.get("after", "")
+            message = element.get("text", "") or element.get("accessibility_id", "") or change.get("after", "")
+            if self.native:
+                from .android_forms import outcome_error
+                if outcome_error(message):
+                    continue
             if (change["kind"] in ("message", "appeared", "text", "title") and SUCCESS.search(message)
                     and not any(value.casefold() in message.casefold() for value in private)):
                 checks += assertion_steps([change], limit=1)
                 break
         success_message = bool(alerts and SUCCESS.search(alerts[0]["value"]))
         if not checks and not success_message:
+            if self.native:
+                self.tried.append({'check':title,'outcome':'inconclusive','screen':screen['screen_name'],
+                                   'detail':'No verified destination or success message. Configure the expected result; disappearance alone is not success.'})
+                return
             # A valid test submission that leaves the form open without a success
             # signal is a finding; retain an assertion so the result cannot go green.
             checks = [{"action": "assert_not_visible", "locator": first["locators"][0]}]
@@ -1074,12 +1134,18 @@ class Session:
         category = "signup" if action_name == "Sign-up" else "form"
         flow = self.build(category, title, self.nav(screen) + actions + alerts + checks)
         flow_meta = {"category": category, "screen_id": screen["id"], "screen": screen["screen_name"],
-                     "element_ids": [e["id"] for e in [*inputs, submit]], "source": "interaction",
+                     "element_ids": form.get('control_ids', [e["id"] for e in [*inputs, submit]]), "source": "interaction",
                      "expected": f"{action_name} with valid data is accepted and the form closes or shows a success result.",
                      "requirement": "Valid form submission on an authorized test build"}
-        if self.keep(flow, flow_meta, universal=True) and action_name == "Sign-up" \
+        kept = self.keep(flow, flow_meta, universal=not self.native or bool(form.get('configured_destination')))
+        if kept and flow_meta.get('discovery_replay') == 'passed' and self.native:
+            self.on_form_success(screen, actions, before, after)
+        if kept and action_name == "Sign-up" \
                 and flow_meta.get("discovery_replay") == "passed" and not self.has_account:
             self.remember_account(actions)
+
+    def on_form_success(self, screen, actions, before, after):
+        """Native sessions may continue discovery beyond a verified form submission."""
 
     def remember_account(self, actions: list[dict]):
         """The sign-up just worked twice: log in with the account the replay registered (no test account given)."""
@@ -1108,14 +1174,15 @@ class Session:
         meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
                 "element_ids": [e["id"] for e in form["inputs"]] + [submit["id"]], "source": "interaction",
                 "requirement": "Observed form validation on a test build (regression)"}
-        empty = [fill(e, "") for e in form["inputs"]] + reach(submit) + [tap(submit)]
+        choices = [] if form.get('choice_error') else form.get('choices', [])
+        empty = choices + [fill(e, "") for e in form["inputs"]] + reach(submit) + [tap(submit)]
         tries = [("empty", "Submitting the form empty is refused", empty)]
         target = next((e for e in form["inputs"] if not e.get("password")
                        and any(v["expect"] == "reject" for v in BASE.get(field_kind(e), []))), None)
         if target is not None:
             kind = field_kind(target)
             bad = next(v for v in BASE[kind] if v["expect"] == "reject")
-            steps = []
+            steps = list(choices)
             for element in form["inputs"]:
                 if element is target:
                     steps.append(fill(element, bad["value"]))
@@ -1126,8 +1193,11 @@ class Session:
                     steps.append(fill(element, good["value"]))
             steps += reach(submit) + [tap(submit)]
             tries.append(("invalid", f"An invalid {kind.replace('_', ' ')} ('{bad['value']}') in '{name(target)}' is refused", steps))
-        for _, title, steps in tries:
-            before, after = self.observe_after(screen, steps)
+        for _kind, title, steps in tries:
+            # Compare the app only after submission. Dropdown/radio selection and the
+            # field values are setup; counting them as a result creates false passes.
+            before, after = self.observe_after(screen, steps,
+                                                setup=len(choices) + len(form["inputs"]))
             if after is None:
                 continue
             if not present(after, first):
@@ -1142,7 +1212,8 @@ class Session:
             others = [s for s in checks if s["action"] != "assert_alert"]
             if checks:
                 self.keep(self.build("form", f"{title}: {describe(changes)}",
-                                     nav + steps + alerts + [{"action": "assert_visible", "locator": first["locators"][0]}] + others),
+                                     nav + steps + alerts + others
+                                     + [{"action": "assert_visible", "locator": first["locators"][0]}]),
                           {**meta, "expected": f"The form stays and shows its validation message ({describe(changes)})."})
             else:
                 self.tried.append({"check": title, "outcome": "no visible change", "detail": "",
@@ -1289,6 +1360,15 @@ class Session:
             _, element = element_alias[step.element]
             ids.append(element["id"])
             if step.action == "tap":
+                if self.native:
+                    owner = element_alias[step.element][0]
+                    form = find_form(owner, True)
+                    filled = {s['locator']['value'] for s in steps if s['action'] == 'fill'}
+                    if (form and form['submit']['id'] == element['id']
+                            and not {e['locators'][0]['value'] for e in form['inputs']} <= filled):
+                        self.tried.append({'check':'AI journey: '+journey.title,'outcome':'rejected',
+                                           'detail':'Submission journey lacks the form input setup. Empty/invalid inputs require an explicit validation check.'})
+                        return
                 if self.protected(label(element)):
                     self.tried.append({"check": "AI journey: " + journey.title, "outcome": "rejected",
                                        "detail": f"'{name(element)}' is not tapped while acting like a user."})

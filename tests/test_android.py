@@ -101,6 +101,9 @@ def test_build_capabilities_supports_apk_and_installed_app(tmp_path):
     assert installed_caps["appium:appActivity"] == ".MainActivity"
     assert installed_caps["appium:noReset"] is True
     assert apk_caps["appium:autoGrantPermissions"] is False
+    for capabilities in (apk_caps, installed_caps):
+        assert capabilities["appium:settings[enableNotificationListener]"] is True
+        assert capabilities["appium:settings[waitForIdleTimeout]"] == 250
 
 
 def test_extract_screen_orders_stable_locators_and_redacts_input_values():
@@ -129,3 +132,29 @@ def test_extract_screen_orders_stable_locators_and_redacts_input_values():
     ]
     assert screen["platform"] == "android"
     assert screen["activity"] == ".LoginActivity"
+
+
+def test_extract_screen_recognizes_flutter_bottom_navigation_tabs():
+    labels = (
+        "Home\nTab 1 of 4",
+        "Trial\nTab 2 of 4",
+        "Cart\nTab 3 of 4",
+        "Account\nTab 4 of 4",
+    )
+    def button(index, label):
+        accessible_label = label.replace("\n", "&#10;")
+        return (
+            f'<node class="android.widget.Button" content-desc="{accessible_label}" clickable="true" '
+            f'bounds="[{index * 100},0][{(index + 1) * 100},80]"/>'
+        )
+
+    buttons = "".join(button(index, label) for index, label in enumerate(labels))
+    screen = extract_screen(
+        f'<hierarchy><node class="android.widget.LinearLayout" bounds="[0,0][400,80]">{buttons}</node></hierarchy>',
+        "com.example.shop",
+        "emulator-5554",
+        ".MainActivity",
+    )
+
+    tabs = [element for element in screen["elements"] if element["navigation_role"] == "tab"]
+    assert [element["accessibility_id"] for element in tabs] == list(labels)

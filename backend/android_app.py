@@ -165,6 +165,11 @@ class AppSession(Session):
         if not same_screen(after, screen):
             self.remember_destination(screen, steps, after, after.get("screen_name", "Screen"), "screen")
 
+    def on_form_success(self, screen, actions, before, after):
+        from .android_runtime import same_screen
+        if not same_screen(before, after):
+            self.remember_destination(screen, actions, after, after.get('screen_name', 'Screen'), 'screen')
+
     def declined_prompts(self) -> list[str]:
         """Android permission prompts declined since the last call (test mode never allows a device feature)."""
         prompts = getattr(self.device.driver, "_blowai_declined", None)
@@ -480,7 +485,7 @@ class AppSession(Session):
                     yield {"area": "form", "name": f"{form['kind'].title()} form on {target['screen_name']}",
                            "where": target["screen_name"], "run": self.form_checks, "args": (target, form)}
             for target in batch:
-                if target is launch or target.get("site_role") in ("menu",):
+                if target is launch or target.get("site_role") in ("menu", "screen"):
                     item = self.first_item(target)
                     if item is not None and ("item", target["screen_name"]) not in self.done:
                         self.done.add(("item", target["screen_name"]))

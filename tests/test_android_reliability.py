@@ -41,6 +41,102 @@ def test_shared_navigation_does_not_make_different_screen_containers_equal():
     assert not android_runtime.same_screen(home, forms)
 
 
+def test_same_activity_and_android_root_ids_do_not_prove_two_routes_are_equal():
+    def native_route(fingerprint, identity, labels, tabs=()):
+        elements = [
+            {"resource_id": "android:id/content", "accessibility_id": ""},
+            {"resource_id": "android:id/navigationBarBackground", "accessibility_id": ""},
+            *({"resource_id": "", "accessibility_id": label,
+               "navigation_role": "tab" if label in tabs else ""} for label in labels),
+        ]
+        return {"package_name": "com.example", "activity": ".MainActivity", "screen_name": ".MainActivity",
+                "fingerprint": fingerprint, "identity": identity, "elements": elements}
+
+    home = native_route("home hierarchy", [], ["Home", "Trial", "Search", "Top Deals"], tabs=("Home", "Trial"))
+    signup = native_route("signup hierarchy", ["form", "signup-schema"], ["Sign Up", "Login"])
+    same_home_with_a_changed_backend_message = native_route(
+        "home hierarchy with a new request id", [], ["Home", "Trial", "Search", "Top Deals"],
+        tabs=("Home", "Trial"),
+    )
+    another_activity_route = native_route("another route", [], ["Home", "Trial", "Profile"], tabs=("Home", "Trial"))
+
+    assert not android_runtime.same_screen(home, signup)
+    assert android_runtime.same_screen(home, same_home_with_a_changed_backend_message)
+    assert not android_runtime.same_screen(home, another_activity_route)
+
+
+def test_accessibility_only_android_routes_get_distinct_names_and_tab_identity():
+    def route(selected, heading="Top Deals"):
+        tabs = "".join(
+            f'<node class="android.widget.Button" content-desc="{name} Tab {index} of 4" '
+            f'clickable="true" selected="{str(name == selected).lower()}" '
+            f'bounds="[{(index - 1) * 125},700][{index * 125},780]"/>'
+            for index, name in enumerate(("Home", "Trial", "Cart", "Account"), start=1)
+        )
+        return extract_screen('<hierarchy><node class="android.widget.FrameLayout" bounds="[0,0][500,800]">'
+                              f'<node class="android.view.View" content-desc="{heading}" bounds="[0,80][300,140]"/>'
+                              + tabs + '</node></hierarchy>', "com.example", "fixture", ".MainActivity")
+
+    home, trial = route("Home"), route("Trial")
+    home_details = route("Home", "Product Details")
+    assert home["screen_name"] == "Home — Top Deals"
+    assert trial["screen_name"] == "Trial — Top Deals"
+    assert home_details["screen_name"] == "Home — Product Details"
+    assert home["identity"] != trial["identity"]
+    assert home["identity"] != home_details["identity"]
+    assert not android_runtime.same_screen(home, trial)
+    assert not android_runtime.same_screen(home, home_details)
+
+
+def test_accessibility_form_action_and_search_hint_name_android_screens():
+    signup = extract_screen(
+        '<hierarchy><node class="android.widget.ScrollView" scrollable="true" bounds="[0,0][500,700]">'
+        '<node class="android.view.View" content-desc="Hello" bounds="[20,30][200,80]"/>'
+        '<node class="android.view.View" content-desc="there!" bounds="[20,80][200,130]"/>'
+        '<node class="android.widget.EditText" hint="Email" bounds="[20,150][480,200]"/>'
+        '<node class="android.widget.EditText" hint="First Name" bounds="[20,210][480,260]"/>'
+        '<node class="android.widget.EditText" hint="Password" password="true" bounds="[20,270][480,320]"/>'
+        '<node class="android.view.View" content-desc="Sign Up" clickable="true" bounds="[20,350][480,410]"/>'
+        '</node></hierarchy>', "com.example", "fixture", ".MainActivity")
+    search = extract_screen(
+        '<hierarchy><node class="android.widget.EditText" hint="Search anything..." '
+        'bounds="[20,20][480,80]"/></hierarchy>', "com.example", "fixture", ".MainActivity")
+
+    assert signup["screen_name"] == "Sign Up form"
+    assert search["screen_name"] == "Search"
+    assert signup["identity"] != search["identity"]
+
+
+def test_accessibility_heading_refines_a_shared_native_container_identity():
+    def route(heading):
+        return extract_screen(
+            '<hierarchy><node class="android.view.View" content-desc="shared-page-shell" bounds="[0,0][500,800]">'
+            f'<node class="android.view.View" content-desc="{heading}" bounds="[20,20][300,80]"/>'
+            '</node></hierarchy>', "com.example", "fixture", ".MainActivity")
+
+    account, orders = route("Account overview"), route("Order history")
+    assert account["identity"] != orders["identity"]
+    assert orders["screen_name"] == "Order history"
+    assert not android_runtime.same_screen(account, orders)
+
+
+def test_personalized_textview_greetings_do_not_change_android_screen_identity():
+    def route(greeting):
+        tabs = "".join(
+            f'<node class="android.widget.Button" content-desc="{name} Tab {index} of 4" '
+            f'clickable="true" selected="{str(name == "Home").lower()}" '
+            f'bounds="[{(index - 1) * 125},700][{index * 125},780]"/>'
+            for index, name in enumerate(("Home", "Trial", "Cart", "Account"), start=1)
+        )
+        return extract_screen('<hierarchy><node class="android.widget.FrameLayout" bounds="[0,0][500,800]">'
+                              f'<node class="android.widget.TextView" text="{greeting}" bounds="[20,20][300,80]"/>'
+                              + tabs + '</node></hierarchy>', "com.example", "fixture", ".MainActivity")
+
+    morning, evening = route("Good morning"), route("Good evening")
+    assert morning["identity"] == evening["identity"]
+    assert morning["screen_name"] == evening["screen_name"] == "Home"
+
+
 def test_webview_banner_changes_do_not_create_new_native_routes():
     def web(label):
         return extract_screen('<hierarchy><node class="android.webkit.WebView" bounds="[0,0][500,800]">'

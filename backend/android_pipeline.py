@@ -97,7 +97,7 @@ def discovery_agent(state):
     active_authentication_flow = None
     authentication_root_id = None
     user_session = None
-    from .android_runtime import screen_key, settled_screen
+    from .android_runtime import screen_key, settled_screen, settled_screen_with_toasts
 
     web_test_mode = config.get("app_mode") == "web" and bool(config.get("interaction_testing"))
     bot_gate = None
@@ -480,14 +480,17 @@ def discovery_agent(state):
 
                         if not isinstance(e, NoSuchElementException):
                             raise
-                if selected is None or not selected.is_enabled():
-                    if selected is None and element.get('scroll_hint'):
-                        from .android_scroll import seek_observed
+                if selected is None and element.get('scroll_hint'):
+                    from .android_scroll import seek_observed
 
-                        selected, used_locator, _ = seek_observed(driver, screen, element, config, run_dir / 'STOP')
-                        record['locator'] = used_locator
-                    if selected is None or not selected.is_enabled():
-                        raise AndroidEnvironmentError("Navigation locator is ambiguous, absent or disabled.")
+                    selected, used_locator, _ = seek_observed(driver, screen, element, config, run_dir / 'STOP')
+                    record['locator'] = used_locator
+                if selected is None:
+                    raise AndroidEnvironmentError(
+                        "The observed navigation locator did not resolve to exactly one visible control."
+                    )
+                if not selected.is_enabled():
+                    raise AndroidEnvironmentError("The observed navigation control is disabled.")
                 navigation_action(selected.click)
                 after = settled(timeout=20)
                 record.update(
@@ -640,12 +643,19 @@ def discovery_agent(state):
                 return False
             return False
 
+        def observe():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DiscoveryLimitReached("Interaction time limit reached")
+            return limited(lambda: settled_screen_with_toasts(
+                lambda: inspect_driver(driver, config), timeout=min(10, remaining)))
+
         from .android_app import AppSession
 
         tries = int(config.get("max_interactions") or 0) or 10**9
         device = SimpleNamespace(driver=driver, config=config, screens=screens, stop_path=run_dir / "STOP",
                                  deadline=deadline, max_tries=tries, fresh_start=fresh_start,
-                                 go_to=go_to, observe=lambda: limited(lambda: settled(timeout=10)),
+                                 go_to=go_to, observe=observe,
                                  hide_keyboard=hide_keyboard)
         # A screen test mode reaches first (Login from the menu) joins the run's screens with its path
         device.record = lambda screen, path: record_screen(screen, path, len(path))

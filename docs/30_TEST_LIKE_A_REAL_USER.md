@@ -57,7 +57,8 @@ was blocked; content behind it was not tested.
 
 | Control | Default / interpretation |
 | --- | --- |
-| Screens, actions, depth, scrolls and discovery time | `0` = until eligible work is exhausted; positive configured limits still apply |
+| Screens, actions, depth and discovery time | `0` = until eligible work is exhausted; positive configured limits still apply |
+| Discovery scrolls | `0` = until no readable viewport changes, up to the 100-gesture hard cap; positive limits still apply |
 | Interaction tries / interaction time | `0` = no soft cutoff; full discovered-scenario mode removes the try cutoff |
 | Generated cases | configured cap defaults to 300; full discovered-scenario test mode removes that cutoff |
 | Thorough | raises positive soft limits; preserves zero as until exhausted |
