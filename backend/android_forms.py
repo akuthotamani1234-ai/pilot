@@ -106,12 +106,12 @@ def prepare_choices(session, screen: dict, form: dict) -> None:
         form['choice_error'] = (
             'A required or consent checkbox needs an explicitly approved test flow; Qpilot will not accept it automatically.'
         )
-        form['choices'] = choices
+        form['choice_steps'] = choices
         return
     ungrouped_radios = [e for e in form.get('radios', []) if not e.get('choice_group')]
     if len(ungrouped_radios) > 1:
         form['choice_error'] = 'Multiple radio controls have no exposed native group; configure an approved flow.'
-        form['choices'] = choices
+        form['choice_steps'] = choices
         return
     if form.get('dropdowns'):
         session.spend()
@@ -147,7 +147,7 @@ def prepare_choices(session, screen: dict, form: dict) -> None:
         if device_unavailable(error):
             raise
         form['choice_error'] = f'Native form choices could not be verified ({type(error).__name__}). Configure an approved flow.'
-    form['choices'] = choices
+    form['choice_steps'] = choices
 
 
 def destination_check(session, before: dict, after: dict, form: dict) -> list[dict]:

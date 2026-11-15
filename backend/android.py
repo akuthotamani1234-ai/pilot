@@ -1068,9 +1068,17 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         if not (class_name or resource_id or description or text):
             continue
         lower = class_name.lower()
+        # Spinners and radio rows are form choices, not free-text inputs or generic buttons.
+        choice_kind = (
+            "spinner" if "spinner" in lower
+            else "radio" if "radiobutton" in lower or lower.endswith("radiobutton")
+            else ""
+        )
         kind = (
             "input"
             if any(word in lower for word in ("edittext", "textfield"))
+            else "choice"
+            if choice_kind
             else "button"
             if "button" in lower or attrs.get("clickable") == "true"
             else "text"
@@ -1083,10 +1091,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         locators = []
         if android_toast and text:
             locators.append({"strategy": "xpath", "value": f"//android.widget.Toast[@text={xpath_literal(text)}]"})
-        elif description:
-            locators.append({"strategy": "accessibility_id", "value": description})
         if resource_id and not android_toast:
             locators.append({"strategy": "resource_id", "value": resource_id})
+        if description and not android_toast:
+            locators.append({"strategy": "accessibility_id", "value": description})
         if text and kind != "input" and len(text) <= 160 and not android_toast:
             locators.append({"strategy": "text", "value": text})
         if (not locators and (attrs.get("bounds") or attrs.get("scrollable") == "true")
@@ -1119,6 +1127,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 "password": attrs.get("password", "false").lower() == "true",
                 "required": attrs.get("required", "false").lower() == "true",
                 "hint": (attrs.get("hint") or "")[:100] if kind == "input" else "",
+                "choice_kind": choice_kind,
                 "navigation_role": "tab" if node in tab_nodes or class_name == "android.app.ActionBar$Tab"
                     else "menu_item" if node in drawer_nodes and clickable and kind != "input" else "",
                 "outside_active_drawer": bool(drawer_nodes and node not in drawer_nodes),
@@ -1295,18 +1304,23 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     form_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""), e["password"])
                          for e in elements if e["input_capable"] and not e["within_webview"]
                          and not e["outside_active_drawer"] and not e["outside_active_dialog"])
+    choice_fields = sorted((e["class_name"], e["resource_id"] or e["accessibility_id"] or e.get("hint", ""),
+                            e.get("choice_kind") or "")
+                           for e in elements if e.get("type") == "choice" and not e["within_webview"]
+                           and not e["outside_active_drawer"] and not e["outside_active_dialog"])
     action_pattern = r"\s*(?:log ?in|sign ?in|sign ?up|register|create (?:an? )?account|submit|continue|next|search|save|send)\s*"
     form_action = next((screen_label(e.get("accessibility_id") or e["text"])
                         for e in elements if e["clickable"] and not e["input_capable"]
                         and not e["within_webview"] and not e["outside_active_dialog"]
                         and re.fullmatch(action_pattern, screen_label(e.get("accessibility_id") or e["text"]), re.I)), "")
-    if form_fields and not drawer_nodes and not loading:
+    if (form_fields or choice_fields) and not drawer_nodes and not loading:
         form_actions = sorted((e["resource_id"] or e["accessibility_id"],
                                screen_label(e.get("accessibility_id") or e["text"]).casefold())
                               for e in elements if e["clickable"] and not e["input_capable"]
                               and not e["within_webview"] and not e["outside_active_dialog"]
                               and re.fullmatch(action_pattern, screen_label(e.get("accessibility_id") or e["text"]), re.I))
-        schema = json.dumps({"fields": form_fields, "actions": form_actions}, ensure_ascii=True, separators=(",", ":"))
+        schema = json.dumps({"fields": form_fields, "choices": choice_fields, "actions": form_actions},
+                            ensure_ascii=True, separators=(",", ":"))
         identity = [*identity, "form", hashlib.sha256(schema.encode()).hexdigest()[:16]]
     search_input = next((e for e in elements if e["visible"] and e["input_capable"] and not e["within_webview"]
                          and re.search(r"search", e.get("hint", "") + " " + e.get("accessibility_id", ""), re.I)), None)
