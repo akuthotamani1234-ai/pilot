@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.blowai.demo"
+    namespace = "com.qpilot.demo"
     compileSdk = 36
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.blowai.demo"
+        applicationId = "com.qpilot.demo"
         minSdk = 23
         targetSdk = 35
         versionCode = 2

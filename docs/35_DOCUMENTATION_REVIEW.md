@@ -25,13 +25,19 @@ Dated live runs retain their original measured counts, targets and limitations; 
 
 Legacy environment references, Python/JavaScript globals, wire headers, resource URI and device-lock/tool directory
 names remain accepted where needed for existing installations and saved contracts. The fixture package
-`com.blowai.demo`, observed historical APK labels and this checkout's physical folder name are identities/evidence;
-renaming them would break recorded targets or installed tools. Current UI examples use Qpilot references.
+`com.blowai.demo` and observed historical APK labels remain identities/evidence for existing APKs.
+On 15 November the checkout was renamed to `Qpilot`, the controlled APK file to
+`qpilot-controlled-demo-v1.2.apk`, and the Java source package to `com.qpilot.demo`.
+The prebuilt APK retains its original package and checksum; future source builds use the new package.
+Current UI examples use Qpilot references.
 See [migration details](34_MCP_SHARED_CONFIGURATION.md#qpilot-naming-and-compatibility).
 
-The workspace's two `review_artifacts/*.md` files were also inspected as historical review evidence. Their recorded
-target/run paths remain valid. The old implementation prompt is explicitly labelled historical; neither artifact
-replaces the user's current instructions. These files are outside this Git repository.
+The workspace's `review_artifacts/` folder retains the report/video review and distinct report-rebuild outputs.
+Its README explains their purpose. The superseded implementation prompt and unused Clock retry configuration
+were removed on 15 November. These files are outside this Git repository.
+
+The superseded UI review and advanced-QA deferral checklist were also removed; current operation and verification
+are described by the maintained guides and `STATUS.md`. Their original text remains in Git history.
 
 ## Inventory
 
@@ -87,10 +93,8 @@ may contain dated verification subsections; those subsections preserve actual re
 | [project-docs/13_ADVANCED_QA.md](../project-docs/13_ADVANCED_QA.md) | Current guide / reference |
 | [project-docs/14_PAGE_COMPONENT_INVENTORY.md](../project-docs/14_PAGE_COMPONENT_INVENTORY.md) | Current guide / reference |
 | [project-docs/accuracy/ats_baseline_explained.md](../project-docs/accuracy/ats_baseline_explained.md) | Dated evidence; results preserved |
-| [project-docs/ADVANCED_QA_VERIFICATION.md](../project-docs/ADVANCED_QA_VERIFICATION.md) | Dated evidence; results preserved |
 | [project-docs/ANDROID_IMPLEMENTATION_REPORT.md](../project-docs/ANDROID_IMPLEMENTATION_REPORT.md) | Dated evidence; results preserved |
 | [project-docs/README.md](../project-docs/README.md) | Current guide / reference |
-| [project-docs/UI_REVIEW.md](../project-docs/UI_REVIEW.md) | Dated evidence; results preserved |
 | [README.md](../README.md) | Current guide / reference |
 | [SECURITY.md](../SECURITY.md) | Current guide / reference |
 | [STATUS.md](../STATUS.md) | Current guide / reference |

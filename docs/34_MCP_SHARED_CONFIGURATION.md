@@ -66,9 +66,10 @@ database references resolve and are redacted. New generated contracts and UI exa
 
 Existing `BLOWAI_UI_URL`, `BLOWAI_SECRET_*`, `BLOWAI_DB_*`, Python bridge/global aliases, wire headers and the
 `blowai://workflow` resource remain accepted for older clients and saved contracts. New clients use
-`qpilot://workflow` and Qpilot headers. Existing installation directories, the shared device-lock location and
-`com.blowai.demo` fixture package IDs are not renamed: doing so would break installed tools, cross-version device
-locks or recorded test targets. These identifiers are compatibility data, not current product display names.
+`qpilot://workflow` and Qpilot headers. External tool installation directories, the shared device-lock location and
+the prebuilt v1.2 APK's `com.blowai.demo` package remain compatible with installed tools and recorded targets.
+The checkout folder and fixture source package use `Qpilot` and `com.qpilot.demo` respectively. Renaming the
+checkout requires regenerating MCP paths and reconnecting the client. Existing APK binaries are not rewritten.
 
 The app's public labels, generated Android report header, launchers, package metadata and current guides use Qpilot.
 Historical run files, recorded videos, observed APK labels and measured evidence are not rewritten.

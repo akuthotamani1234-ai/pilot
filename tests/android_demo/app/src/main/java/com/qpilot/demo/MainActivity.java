@@ -1,4 +1,4 @@
-package com.blowai.demo;
+package com.qpilot.demo;
 
 import android.app.Activity;
 import android.content.SharedPreferences;

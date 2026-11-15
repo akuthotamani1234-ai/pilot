@@ -29,7 +29,7 @@
             "value": "text-input"
           },
           "target": null,
-          "value": "Blow AI live demo",
+          "value": "Qpilot live demo",
           "secret_ref": null,
           "purpose": "navigation",
           "sensitive": false
@@ -41,7 +41,7 @@
             "value": "input-text-result"
           },
           "target": null,
-          "value": "Blow AI live demo",
+          "value": "Qpilot live demo",
           "secret_ref": null,
           "purpose": "navigation",
           "sensitive": false

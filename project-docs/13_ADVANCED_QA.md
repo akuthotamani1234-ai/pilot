@@ -135,6 +135,6 @@ $env:BLOWAI_ANDROID_ARTIFACTS = "$PWD\runs"
 .venv\Scripts\python.exe -m pytest -n 3 --dist loadfile -m "not slow" -q
 ~~~
 
-Actual results for this implementation are recorded in ADVANCED_QA_VERIFICATION.md when verification completes.
+Current verified results and remaining limits are recorded in [STATUS](../STATUS.md).
 Physical phones, additional Android/WebView versions and live customer/cloud systems require their own validation.
 Native iOS remains outside this Android/Windows scope.

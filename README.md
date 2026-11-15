@@ -484,6 +484,10 @@ Appium and the selected emulator. Restart Studio and reconnect the MCP client af
 
 Select **Playwright or Appium**, then **Standard testing or AI assistant through MCP**. Privacy & connections defaults to local AI processing; cloud providers and MCP data access require approval. See [Workflow and privacy](docs/16_WORKFLOWS_AND_PRIVACY.md).
 
+The local project folder is `Qpilot`. After moving or renaming a checkout, regenerate the MCP configuration with
+`setup/mcp_config.py` or Studio's **Copy server configuration**, update the client and reconnect it. MCP connects
+that local Python checkout to the running Studio at `http://127.0.0.1:8000`; the run's AI provider is selected separately.
+
 
 ## Clear website setup and crawl verification
 

@@ -2,6 +2,14 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-15 - Workspace naming and cleanup
+
+- Use `Qpilot` for the local checkout, controlled APK filename and Java fixture source package.
+  Preserve the prebuilt APK's original package/checksum and legacy client compatibility.
+- Remove committed Gradle machine caches and superseded UI/advanced-QA review documents; update remaining references.
+- Retain the useful local report/video review and distinct report rebuilds, with an index explaining their purpose.
+- Document MCP checkout paths, Studio connection and the need to reconnect a running client after moving its checkout.
+
 ## 2026-11-15 - Native Android exploration coverage
 
 - Distinguish routes that share one Android Activity, while allowing stable app controls to identify a screen when volatile backend error text changes.

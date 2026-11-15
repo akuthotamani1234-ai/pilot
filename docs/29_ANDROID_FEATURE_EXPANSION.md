@@ -130,7 +130,7 @@ must be investigated; it is not evidence of a product defect by itself.
 ## Run the seven controlled protected-flow and preview checks
 
 1. Start a new Android run and choose **Upload an APK**.
-2. Choose `demo-apps/blow-ai-controlled-demo-v1.2.apk`.
+2. Choose `demo-apps/qpilot-controlled-demo-v1.2.apk`.
    Its offline build and checksum are recorded in `demo-apps/controlled-apk-build.json`.
    It has not been installed or live tested after these additions.
 3. In Advanced settings, load **Qpilot fixture — protected flows and safe previews**.

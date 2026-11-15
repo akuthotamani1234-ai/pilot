@@ -39,7 +39,7 @@ def test_real_native_and_hybrid_contracts(tmp_path, monkeypatch, broken):
         subprocess.run([adb, "-s", device, "reverse", f"tcp:{port}", f"tcp:{port}"], check=True, capture_output=True)
         try:
             subprocess.run(
-                [adb, "-s", device, "shell", "am", "force-stop", "com.blowai.demo"], check=True, capture_output=True
+                [adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"], check=True, capture_output=True
             )
             flags = "validation_accepts_empty,wrong_total" if broken else "none"
             subprocess.run(
@@ -51,7 +51,7 @@ def test_real_native_and_hybrid_contracts(tmp_path, monkeypatch, broken):
                     "am",
                     "start",
                     "-n",
-                    "com.blowai.demo/.MainActivity",
+                    "com.qpilot.demo/.MainActivity",
                     "--es",
                     "blowai_bugs",
                     flags,
@@ -71,7 +71,7 @@ def test_real_native_and_hybrid_contracts(tmp_path, monkeypatch, broken):
                 {
                     "app_mode": "installed",
                     "device_id": device,
-                    "package_name": "com.blowai.demo",
+                    "package_name": "com.qpilot.demo",
                     "app_activity": ".MainActivity",
                     "max_screens": 1,
                     "max_actions": 0,
@@ -123,7 +123,7 @@ def test_real_native_and_hybrid_contracts(tmp_path, monkeypatch, broken):
                 if row["id"] in {"contract_required_name", "contract_valid_login", "contract_invalid_login"}:
                     assert not row.get("screenshot")
             safety = subprocess.run(
-                [adb, "-s", device, "shell", "run-as", "com.blowai.demo", "cat", "shared_prefs/demo.xml"],
+                [adb, "-s", device, "shell", "run-as", "com.qpilot.demo", "cat", "shared_prefs/demo.xml"],
                 check=True,
                 capture_output=True,
                 text=True,
