@@ -26,9 +26,11 @@ These files are kept outside `runs` so clearing history does not remove them.
   Seven permission flows start unapproved. These additions await your live run.
 - `controlled-sandbox-checks.json`: seven local fixture checks for login,
   protected access, session persistence, logout and safe order/removal previews.
-- `blow-ai-controlled-demo-v1.2.apk`: compiled local fixture for those seven
+- `qpilot-controlled-demo-v1.2.apk`: compiled local fixture for those seven
   checks. `controlled-apk-build.json` records its checksum and build provenance.
   It has not been installed or live tested after the expansion.
+  The filename is updated; the binary still has package `com.blowai.demo`.
+  New fixture source builds use `com.qpilot.demo`.
 
 Copy a checks file's contents into the studio's **Approved test flows and
 business checks (JSON)** field. Tick configured-flows-only to reproduce that

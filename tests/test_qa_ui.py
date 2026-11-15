@@ -58,7 +58,7 @@ def test_native_contract_form_and_accuracy_lab(tmp_path):
             page.locator("#mobileModeBtn").click()
             page.wait_for_function("!document.getElementById('androidStart').disabled", timeout=60000)
             page.locator("#androidMode").select_option("installed")
-            page.locator("#androidPackage").fill("com.blowai.demo")
+            page.locator("#androidPackage").fill("com.qpilot.demo")
             page.locator("#androidActivity").fill(".MainActivity")
             page.locator("#androidDevice").select_option("emulator-5554")
             page.locator("#androidProvider").select_option("none")

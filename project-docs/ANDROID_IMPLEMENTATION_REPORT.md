@@ -1,6 +1,6 @@
 # Android implementation and verification report
 
-This is the historical first-phase report. Subsequent approved-flow, backend, hybrid and accuracy features are described in [13_ADVANCED_QA.md](13_ADVANCED_QA.md); see [current verification status](ADVANCED_QA_VERIFICATION.md).
+This is the historical first-phase report. Subsequent approved-flow, backend, hybrid and accuracy features are described in [13_ADVANCED_QA.md](13_ADVANCED_QA.md); see [current verification status](../STATUS.md).
 
 Verified 5 November 2026. This report distinguishes implemented code, actual execution and remaining limits.
 The original source checkpoint was `.snapshots/android_before_20261105_155703.zip`; the workspace was not yet a Git

@@ -19,7 +19,7 @@
             "strategy": "accessibility_id",
             "value": "text-input"
           },
-          "value": "Blow AI live demo"
+          "value": "Qpilot live demo"
         },
         {
           "action": "assert_text",
@@ -27,7 +27,7 @@
             "strategy": "accessibility_id",
             "value": "input-text-result"
           },
-          "value": "Blow AI live demo"
+          "value": "Qpilot live demo"
         }
       ]
     },

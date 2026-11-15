@@ -28,9 +28,9 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
     assert environment["ok"], environment["errors"]
     android.require_device(device, environment["devices"])
     adb = environment["adb"]
-    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.blowai.demo"], check=True, capture_output=True)
+    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"], check=True, capture_output=True)
     subprocess.run(
-        [adb, "-s", device, "shell", "am", "start", "-n", "com.blowai.demo/.MainActivity", "--es", "blowai_bugs", bugs],
+        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity", "--es", "blowai_bugs", bugs],
         check=True,
         capture_output=True,
     )
@@ -41,7 +41,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
     config = android.validate_mobile_config(
         {
             "app_mode": "installed",
-            "package_name": "com.blowai.demo",
+            "package_name": "com.qpilot.demo",
             "app_activity": ".MainActivity",
             "device_id": device,
             "max_screens": 3,
@@ -77,7 +77,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
     assert any(r["outcome"] == "passed" for r in final["results"])
     assert any(r["outcome"] == "blocked" for r in final["results"])
     safety = subprocess.run(
-        [adb, "-s", device, "shell", "run-as", "com.blowai.demo", "cat", "shared_prefs/demo.xml"],
+        [adb, "-s", device, "shell", "run-as", "com.qpilot.demo", "cat", "shared_prefs/demo.xml"],
         check=True,
         capture_output=True,
         text=True,
@@ -94,9 +94,9 @@ def test_real_android_value_contract(tmp_path, monkeypatch, bugs, expected):
     environment = android.android_environment()
     assert environment["ok"], environment["errors"]
     adb = environment["adb"]
-    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.blowai.demo"], check=True, capture_output=True)
+    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"], check=True, capture_output=True)
     subprocess.run(
-        [adb, "-s", device, "shell", "am", "start", "-n", "com.blowai.demo/.MainActivity", "--es", "blowai_bugs", bugs],
+        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity", "--es", "blowai_bugs", bugs],
         check=True,
         capture_output=True,
     )
@@ -107,7 +107,7 @@ def test_real_android_value_contract(tmp_path, monkeypatch, bugs, expected):
     config = android.validate_mobile_config(
         {
             "app_mode": "installed",
-            "package_name": "com.blowai.demo",
+            "package_name": "com.qpilot.demo",
             "app_activity": ".MainActivity",
             "device_id": device,
             "max_screens": 2,
