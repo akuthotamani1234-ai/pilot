@@ -21,6 +21,12 @@ Feature implementation and verification are recorded separately in [STATUS](../S
 
 Preparing is separate from executing. Connecting an assistant or refreshing environment status also starts no test.
 
+Keep Studio open with **AI assistant through MCP** selected to follow execution. When you return from the assistant
+tab, Studio also picks up the latest completed MCP run and shows its recorded actions, test results and full report
+link. A short run can finish before you return; its recorded steps remain available. Web flows, including approved
+contract-only flows, honor **Watch in Chrome** and the configured action delay. A completed run does not reopen its
+browser window.
+
 ## Android controls
 
 Choose a trusted local APK path, an installed package, or an Android Chrome URL. A placeholder such as
