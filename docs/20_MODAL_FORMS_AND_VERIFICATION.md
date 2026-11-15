@@ -34,7 +34,7 @@ Earlier targeted checks that exposed the label error are retained.
 ## Remaining validation
 A fresh full Demoblaze pipeline with the selected OpenAI model is still required.
 OpenAI was subsequently used for actual Android demo design and Python generation with keys entered directly in the app.
-No API key was read or exported by the review tools. See 21_FEATURE_AUDIT_AND_LIVE_ANDROID.md for current evidence.
+No API key was read or exported by the review tools. See [STATUS](../STATUS.md) for current evidence.
 The separate fresh full Playwright retest after the final web fixes remains outstanding.
 The old 93-check report and its 10 failures were not rewritten as passing.
 Login coverage still depends on the selected account mode and approved credentials/signup permissions.

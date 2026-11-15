@@ -1,27 +1,11 @@
-# Android functional testing: added features and your next run
+# Android functional testing guide
 
-This historical expansion checkpoint records its unit, protocol and mocked-browser checks. **Live execution was
-deferred at that checkpoint.** See [STATUS](../STATUS.md) for current verification and
-[the coverage workspace](33_ANDROID_COVERAGE_WORKSPACE.md) for later features. A built APK, when retained locally,
-is available for your own run; compilation does not prove its tests pass.
-The earlier live evidence is recorded separately in
-[the reliability audit](28_APPIUM_RELIABILITY_AUDIT.md).
+This guide describes native controls, approved test flows and the controlled Android fixture.
+See [STATUS](../STATUS.md) for verified results and [the coverage workspace](33_ANDROID_COVERAGE_WORKSPACE.md)
+for discovery, execution and reporting limits. A compiled fixture APK does not prove its tests pass.
 
-## Verification of this expansion
+## Supported behavior
 
-- Final unit, mocked Appium/W3C protocol and intercepted-browser suite:
-  **244 passed, three real-browser cases deliberately deselected**;
-  `logs/appium-feature-expansion-final.xml`.
-- Python lint for the backend and changed test files passed. Both modified
-  frontend scripts passed Node syntax checks.
-- The v1.2 fixture compiled offline. The APK's ZIP integrity and SHA-256 match
-  `demo-apps/controlled-apk-build.json`. No installation or live test of v1.2
-  was performed after expansion.
-- The examples validate as 33 WebdriverIO flows (seven blocked until permission
-  approval), seven controlled fixture flows and two Android Chrome flows.
-  Validation is not a passing live execution result.
-
-## What changed
 
 - Native discovery visits sibling routes before deeper routes, recognizes
   semantic menu drawers and keeps separate embedded-WebView containers.

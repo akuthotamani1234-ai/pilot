@@ -40,5 +40,5 @@ Missing locators, startup failures and incomplete observations remain errors/inc
 remain blocked, and scope limits are listed. Review the HTML report and Excel results, including errors and
 unvisited controls, before treating a run as sufficient for release.
 
-See `21_FEATURE_AUDIT_AND_LIVE_ANDROID.md` for the implemented/verified/remaining feature matrix.
+See [STATUS](../STATUS.md) for implemented capabilities, verified results and remaining limits.
 See `24_ANDROID_CHROME_AND_GUIDED_FLOWS.md` for the integrated Chrome workflow, guided test-flow editor and fresh verification evidence.

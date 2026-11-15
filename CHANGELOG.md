@@ -6,8 +6,8 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 
 - Use `Qpilot` for the local checkout, controlled APK filename and Java fixture source package.
   Preserve the prebuilt APK's original package/checksum and legacy client compatibility.
-- Remove committed Gradle machine caches and superseded UI/advanced-QA review documents; update remaining references.
-- Retain the useful local report/video review and distinct report rebuilds, with an index explaining their purpose.
+- Remove committed Gradle machine caches and superseded proposal, implementation-update and review documents; update remaining references.
+- Retain distinct report rebuilds and linked run evidence. Remove unreferenced recordings, sampled video sheets and disposable preview/test caches.
 - Document MCP checkout paths, Studio connection and the need to reconnect a running client after moving its checkout.
 
 ## 2026-11-15 - Native Android exploration coverage
@@ -49,7 +49,7 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 - Public UI, report/launcher/package names, current example references and guides use Qpilot. `QPILOT_*` references
   are preferred; legacy saved contracts, clients and installed-tool paths remain compatible and redacted.
 - Reviewed documentation, corrected stale limitations/deferrals, regenerated the contract schema and Android setup
-  illustrations, and checked local document links. See [the review](docs/35_DOCUMENTATION_REVIEW.md).
+  illustrations, and checked local document links.
 
 ## 2026-11-13 — Evidence linkage + run-time reserves (P9 / P6)
 

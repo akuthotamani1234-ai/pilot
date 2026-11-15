@@ -463,7 +463,7 @@ coverage limits and recommended improvements.
 See [Android setup, safety, AI generation and live demos](project-docs/12_ANDROID.md) and the
 [controlled Android fixture](tests/android_demo/README.md). Real device tests are opt-in.
 
-See the [implementation and verification report](project-docs/ANDROID_IMPLEMENTATION_REPORT.md) for actual emulator results, remaining limits and startup commands.
+See the [Android guide](project-docs/12_ANDROID.md) for startup commands and [STATUS](STATUS.md) for verified results and remaining limits.
 
 Advanced application checks: [approved flows, business/backend checks, hybrid testing and accuracy lab](project-docs/13_ADVANCED_QA.md).
 
