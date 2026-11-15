@@ -372,6 +372,7 @@
       const response = await fetch("/api/android/environment?appium_url=" + encodeURIComponent($("androidAppiumUrl").value));
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Could not check the Android environment.");
+      window.QpilotAndroidAccount.checkRevision(data);
       device.replaceChildren(new Option("Choose a device", ""));
       (data.devices || []).forEach((item) => {
         const label = `${item.device_id} · ${item.status}${item.details ? " · " + item.details : ""}`;
@@ -509,6 +510,7 @@
     showPreparation();
     const preparationTimer = setInterval(showPreparation, 1000);
     try {
+      await window.QpilotAndroidAccount.ensureCompatible();
       const prepareStep = async stage => {
         const response = await fetch("/api/android/prepare", {
           method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },

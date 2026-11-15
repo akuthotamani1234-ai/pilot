@@ -17,7 +17,7 @@ import requests
 from defusedxml import ElementTree
 
 DEFAULT_APPIUM_URL = "http://127.0.0.1:4723"
-ANDROID_EXECUTION_REVISION = 2
+ANDROID_EXECUTION_REVISION = 3  # explicit account policy must reach the worker unchanged
 MAX_APK_BYTES = 500 * 1024 * 1024
 PACKAGE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
 RISKY_ACTION = re.compile(

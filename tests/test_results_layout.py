@@ -360,7 +360,7 @@ def test_excel_can_be_scrolled_and_filtered_while_execution_updates(browser):
 def test_android_configuration_has_enough_space_and_scrolls_to_start(browser, width, height):
     context, page, errors, calls = studio(browser, viewport={"width": width, "height": height})
     page.route("**/api/android/environment?*", lambda route: route.fulfill(json={
-        "ok": True, "devices": [{"device_id": "fixture", "status": "device"}]}))
+        "ok": True, "execution_revision": 3, "devices": [{"device_id": "fixture", "status": "device"}]}))
     try:
         page.locator("#mobileModeBtn").click()
         form = page.locator("#mobileForm")
@@ -397,7 +397,7 @@ def test_short_navigation_sidebar_scrolls_to_its_footer(browser):
 def test_unavailable_device_explains_disabled_start_at_the_bottom_of_setup(browser):
     context, page, errors, calls = studio(browser, viewport={"width": 1024, "height": 529})
     page.route("**/api/android/environment?*", lambda route: route.fulfill(json={
-        "ok": False, "devices": [], "errors": ["No Android device is connected."]}))
+        "ok": False, "execution_revision": 3, "devices": [], "errors": ["No Android device is connected."]}))
     try:
         page.locator("#mobileModeBtn").click()
         expect(page.locator("#androidRunNote")).to_contain_text("No Android device is connected")

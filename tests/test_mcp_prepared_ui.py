@@ -20,7 +20,7 @@ def bind_profiles(page, client):
     page.route('**/api/settings/mcp-requests',route)
     page.route('**/api/settings/mcp-requests/*',lambda route: route.fulfill(json={'revoked':True}))
     page.route('**/api/android/environment**',lambda route: route.fulfill(json={
-        'ok':True,'devices':[{'device_id':'emulator-5554','status':'device','avd_name':'test-avd'}]}))
+        'ok':True,'execution_revision':3,'devices':[{'device_id':'emulator-5554','status':'device','avd_name':'test-avd'}]}))
     return captured
 
 

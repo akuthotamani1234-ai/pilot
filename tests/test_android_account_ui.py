@@ -36,3 +36,35 @@ def test_account_choices_use_one_set_of_fields_without_storing_credentials(ui, m
     assert "private-fixture" not in storage
     assert page.locator("#androidTestUsername").count() == 1
     assert not requests and not errors
+
+
+def test_stale_backend_cannot_silently_drop_account_policy_or_start_a_test(ui):
+    page, requests, errors = ui
+    environment = {"ok": True, "execution_revision": 3,
+                   "devices": [{"device_id": "emulator-5554", "status": "device"}]}
+    page.route("**/api/android/environment?*", lambda route: route.fulfill(json=environment))
+    page.locator("#mobileModeBtn").click()
+    page.locator("#androidMode").select_option("installed")
+    page.locator("#androidPackage").fill("com.example.fixture")
+    page.locator("#androidDevice").select_option("emulator-5554")
+    page.locator("#androidAuthorized").check()
+    page.locator("#androidTestBuild").check()
+    page.locator("#androidAccountMode").select_option("create")
+    expect(page.locator("#androidStart")).to_be_enabled()
+    environment["execution_revision"] = 2
+    page.locator("#androidStart").click()
+    expect(page.locator("#androidRunNote")).to_contain_text("restart ui.bat")
+    assert not requests and not errors
+
+
+def test_mcp_preparation_rejects_stale_backend_before_storing_private_settings(ui):
+    page, requests, errors = ui
+    page.route("**/api/android/environment?*", lambda route: route.fulfill(json={"execution_revision": 2}))
+    page.locator("#mobileModeBtn").click()
+    page.locator("#mcpWorkflowBtn").click()
+    result = page.evaluate("""async () => {
+      try { await QpilotMcpSettings.prepare('android','com.example.fixture','Verify login'); return ''; }
+      catch (error) { return error.message; }
+    }""")
+    assert "restart ui.bat" in result
+    assert not requests and not errors

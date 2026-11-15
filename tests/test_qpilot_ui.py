@@ -37,6 +37,8 @@ def ui():
                     data = {"mode": "local", "allowed_providers": ["ollama", "none"], "allow_mcp": False}
                 elif path == "/api/history" or path == "/api/schedules":
                     data = []
+                elif path == "/api/android/environment":
+                    data = {"execution_revision": 3}
                 elif path == "/api/providers":
                     data = {"default": "none", "env_provider": "none", "providers": [
                         {"id": "none", "name": "Rules only", "models": [], "ready": True}]}
