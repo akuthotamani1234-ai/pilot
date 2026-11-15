@@ -546,6 +546,8 @@ def discovery_agent(state):
         findings = sum(str(item["meta"].get("discovery_replay", "")).startswith("failed twice:") for item in session.flows)
         print(f"[android] Test mode kept {len(session.flows)} flow(s): {replayed} replay-verified, "
               f"{findings} repeatable assertion failure(s), from {session.used} interaction tries.", flush=True)
+        if stopped:
+            print("::warning::Android functional exploration stopped: " + stopped, flush=True)
         print("::stage::test_build::done", flush=True)
         saved = session.saved_secrets()
         if saved:

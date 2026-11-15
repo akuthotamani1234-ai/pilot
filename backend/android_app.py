@@ -481,7 +481,9 @@ class AppSession(Session):
             processed.update(id(t) for t in batch)
             for target in batch:
                 form = find_form(target, True)
-                if form and ("form", target["id"], form["submit"]["id"]) not in self.seen:
+                submit = form.get("submit") if form else None
+                form_key = ("form", target["id"], submit["id"] if submit else (form or {}).get("submit_status") or "none")
+                if form and form_key not in self.seen:
                     yield {"area": "form", "name": f"{form['kind'].title()} form on {target['screen_name']}",
                            "where": target["screen_name"], "run": self.form_checks, "args": (target, form)}
             for target in batch:

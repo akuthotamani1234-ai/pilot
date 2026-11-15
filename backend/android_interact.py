@@ -316,8 +316,12 @@ def find_form(screen: dict, native: bool = True) -> dict | None:
             return None  # An unsafe or ambiguous primary action needs an approved flow.
     ambiguous = False
     if native and len(buttons) > 1:
-        from .android_forms import submission_below_fields
-        primary = submission_below_fields(inputs, buttons)
+        from .android_forms import fallback_submit, submission_below_fields
+        # Account-navigation TextViews can share the form's ancestor and sit below
+        # its actual Login/Register button. Retain ambiguity between real buttons.
+        primary = fallback_submit(screen.get('elements', []), usable, label)
+        if primary not in buttons or not SUBMIT.search(name(primary)):
+            primary = submission_below_fields(inputs, buttons)
         if primary is None:
             ambiguous = True
         else:

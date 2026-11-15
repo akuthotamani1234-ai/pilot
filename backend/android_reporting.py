@@ -138,6 +138,9 @@ def mobile_quality_gates(state: dict) -> list[dict]:
     inferred = sum(c.get("functionality_status") == "inferred" for c in cases)
     missing_functional = feature_matrix(state)['controls_needing_functional_checks_count']
     return [
+        *([_gate("run_complete", "Android functional exploration finished", "missing",
+                 state.get("incomplete_reason") or "Android testing did not finish.")]
+          if state.get("incomplete") else []),
         _gate('functional_scope', 'Observed functionality has explicit checks', 'risk' if missing_functional else 'pass',
               f'{missing_functional} observed interactive controls have no passing configured functionality check. Visibility checks do not verify business behavior.', mandatory=False),
         _gate("ai_provider", "Selected AI availability", "risk" if state.get("ai_warnings") else "pass",
@@ -326,6 +329,10 @@ def report(state: dict) -> dict:
         result.setdefault("file", "test_android_generated.py")
         result.setdefault("test", "test_" + result["id"])
     state = {**state, "test_cases": cases, "target_type": "mobile"}
+    interaction_stop = (state.get("interaction") or {}).get("stopped")
+    if interaction_stop:
+        state = {**state, "incomplete": True, "incomplete_reason": state.get("incomplete_reason")
+                 or "Android functional exploration stopped: " + str(interaction_stop)}
     verdict, reasons, gates = decide_verdict(state)
     for case in cases:
         case["execution_status"], case["actual_result"] = case_result(case, results)
