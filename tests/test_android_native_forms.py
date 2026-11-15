@@ -74,7 +74,7 @@ def test_required_consent_checkbox_is_not_auto_accepted_or_tested_as_a_separate_
     assert form['required_checkboxes'][0]['id'] in form['control_ids']
     prepare_choices(None, screen, form)
     assert form['choice_error'] and 'will not accept it automatically' in form['choice_error']
-    assert form['choices'] == []
+    assert form['choice_steps'] == []
     assert not reversible_candidates(screen)
 
 
@@ -93,7 +93,7 @@ def test_multiple_ungrouped_radio_buttons_are_not_guessed_as_one_group():
     assert all(not element.get('choice_group') for element in form['radios'])
     prepare_choices(None, screen, form)
     assert 'no exposed native group' in form['choice_error']
-    assert form['choices'] == []
+    assert form['choice_steps'] == []
 
 
 @pytest.mark.parametrize('text_options', [False,True])

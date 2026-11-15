@@ -135,11 +135,11 @@ def reach(element: dict) -> list[dict]:
 
 def tap(element: dict) -> dict:
     # "test_form" marks a deliberate user action; the runtime refuses login/submit/add taps marked as navigation.
-    return {"action": "tap", "locator": element["locators"][0], "purpose": "test_form"}
+    return {"action": "tap", "locator": preferred_locator(element), "purpose": "test_form"}
 
 
 def fill(element: dict, value: str | None = None, secret_ref: str | None = None) -> dict:
-    step = {"action": "fill", "locator": element["locators"][0]}
+    step = {"action": "fill", "locator": preferred_locator(element)}
     if value == "" and not secret_ref and (element.get("password") or re.search(
             r"password|passwd|token|secret", step["locator"]["value"], re.I)):
         secret_ref = EMPTY_PASSWORD
@@ -148,6 +148,18 @@ def fill(element: dict, value: str | None = None, secret_ref: str | None = None)
     else:
         step["value"] = value
     return step
+
+
+def select_choice(element: dict, value: str) -> list[dict]:
+    """Native Spinner / option selection as tap steps, then verify the selected value is shown."""
+    option = {"strategy": "text", "value": value}
+    return [tap(element), {"action": "tap", "locator": option, "purpose": "test_form"},
+            {"action": "assert_text", "locator": preferred_locator(element), "value": value}]
+
+
+def select_radio(element: dict) -> list[dict]:
+    """Select a radio/choice row and verify it stayed checked."""
+    return [tap(element), {"action": "assert_checked", "locator": preferred_locator(element), "value": "true"}]
 
 
 def path_steps(screens: list[dict], screen: dict) -> list[dict]:
@@ -208,12 +220,52 @@ def family(element: dict) -> tuple:
             locator.get("strategy"), locator.get("value"))
 
 
+COUNTRY = re.compile(r"\bcountry\b", re.I)
+GENDER = re.compile(r"\bgender\b|\b(male|female|other|non[- ]?binary)\b", re.I)
+NAME_FIELD = re.compile(r"\b(full )?name\b|\byour name\b", re.I)
+PRODUCTS_SCREEN = re.compile(r"\bproducts?\b|\bcatalog(?:ue)?\b", re.I)
+
+
+def preferred_locator(element: dict) -> dict:
+    """Use extract_screen's unique-first ranking for actions and evidence.
+
+    resource_id is ordered before accessibility_id at extract time, so a unique resource_id stays
+    first (preferred over xpath). A contextual xpath that disambiguates a shared resource_id is
+    ranked first and must be kept — never re-promote the shared resource_id.
+    """
+    locators = element.get("locators") or []
+    return locators[0] if locators else {"strategy": "xpath", "value": ""}
+
+
+def _center(element: dict) -> tuple[float, float] | None:
+    match = re.fullmatch(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", element.get("bounds") or "")
+    if not match:
+        return None
+    left, top, right, bottom = map(int, match.groups())
+    return (left + right) / 2, (top + bottom) / 2
+
+
+def near_inputs(candidate: dict, inputs: list[dict], max_gap: int = 500) -> bool:
+    """Vertical proximity is evidence only - never the sole reason to pick among several submits."""
+    point = _center(candidate)
+    if point is None or not inputs:
+        return False
+    tops = [_center(box) for box in inputs]
+    tops = [item[1] for item in tops if item is not None]
+    if not tops:
+        return False
+    lowest, highest = max(tops), min(tops)
+    return highest - max_gap <= point[1] <= lowest + max_gap
+
+
 def reversible_candidates(screen: dict, native: bool = True) -> list[dict]:
     out = []
     form = find_form(screen, native)
-    form_controls = set(form.get('control_ids', [form['submit']['id']])) if form else set()
+    form_controls = set(form.get('control_ids') or [e['id'] for e in
+                        [*form.get('inputs', []), *form.get('choices', []), *form.get('submit_candidates', [])]
+                        if e.get('id')]) if form else set()
     for element in screen.get("elements", []):
-        if not usable(element) or element.get("input_capable"):
+        if not usable(element) or element.get("input_capable") or element.get("type") == "choice":
             continue
         if not (element.get("clickable") or element.get("checkable")):
             continue
@@ -229,9 +281,22 @@ def reversible_candidates(screen: dict, native: bool = True) -> list[dict]:
     return out
 
 
+def submit_candidates(screen: dict, inputs: list[dict], native: bool = True) -> list[dict]:
+    """Possible submit controls. Labelled matches first; near-input unfamiliar buttons only when none match."""
+    clickable = [e for e in screen.get("elements", [])
+                 if usable(e) and e.get("clickable") and not e.get("input_capable")
+                 and e.get("type") != "choice" and e.get("navigation_role") not in ("tab", "menu_item")]
+    labelled = [e for e in clickable if SUBMIT.search(label(e)) and not never_in_test_mode(label(e), native)]
+    if labelled:
+        return labelled
+    # Unfamiliar buttons near the inputs are evidence only when no labelled submit exists.
+    return [e for e in clickable if near_inputs(e, inputs) and not never_in_test_mode(label(e), native)]
+
+
 def find_form(screen: dict, native: bool = True) -> dict | None:
     inputs = [e for e in screen.get("elements", []) if usable(e) and e.get("input_capable")]
-    if not inputs:
+    choices = [e for e in screen.get("elements", []) if usable(e) and e.get("type") == "choice"]
+    if not inputs and not choices:
         return None
     if any(field_kind(element) in PAYMENT_INPUTS for element in inputs):
         return None  # payment flows are excluded even when their submit button has a generic label
@@ -246,43 +311,91 @@ def find_form(screen: dict, native: bool = True) -> dict | None:
         from .android_forms import fallback_submit
         fallback = fallback_submit(screen.get('elements', []), usable, label)
         buttons = [fallback] if fallback else []
+        if not buttons and any(usable(e) and e.get('clickable') and e.get('class_name', '').endswith(
+                ('.Button', '.MaterialButton', '.AppCompatButton')) for e in screen.get('elements', [])):
+            return None  # An unsafe or ambiguous primary action needs an approved flow.
+    ambiguous = False
     if native and len(buttons) > 1:
         from .android_forms import submission_below_fields
         primary = submission_below_fields(inputs, buttons)
         if primary is None:
-            return None  # Multiple submissions still require an explicitly scoped approved flow.
-        buttons = [primary]
+            ambiguous = True
+        else:
+            buttons = [primary]
     scope = None
-    if native and buttons:
+    if native and len(buttons) == 1 and inputs:
         from .android_forms import scope_inputs
         inputs, scope = scope_inputs(inputs, buttons[0])
         if not inputs:
             return None
-    form = build_form(inputs, buttons)
-    if form and native:
+        choices = [e for e in choices if scope in e.get('form_ancestors', [])]
+    form = build_form(inputs, buttons, choices=choices, native=native)
+    if form and ambiguous:
+        form.update(kind='ambiguous', submit=None, submit_status='ambiguous', submit_candidates=buttons)
+    if form and native and form.get('submit'):
         from .android_forms import attach_controls
         form['scope'] = scope
         form = attach_controls(form, screen, usable)
+        if form['kind'] == 'catalog' and not SUBMIT.search(name(form['submit'])):
+            form['kind'] = 'form'
     return form
 
 
-def build_form(inputs: list[dict], buttons: list[dict]) -> dict | None:
-    """What kind of form these boxes and buttons make (login, search, sign-up or another form), and its submit."""
-    if not inputs or not buttons:
+def build_form(inputs: list[dict], buttons: list[dict], choices: list[dict] | None = None,
+               native: bool = True) -> dict | None:
+    """Assemble a form. Multiple possible submits become AMBIGUITY; never guess which to press."""
+    choices = list(choices or [])
+    if not inputs and not choices:
+        return None
+    if not buttons:
+        return {"kind": "incomplete", "inputs": inputs, "choices": choices, "password": None, "username": None,
+                "submit": None, "submit_status": "missing", "submit_candidates": [],
+                "ticks": [], "choice_steps": []}
+    if len(buttons) > 1:
+        # Prefer a uniquely labelled login/signup/search when present; otherwise report ambiguity.
+        login = [b for b in buttons if LOGIN.search(label(b))]
+        signup = [b for b in buttons if SIGNUP.search(label(b))]
+        search = [b for b in buttons if SEARCH.search(label(b))]
+        if len(login) == 1 and any(e.get("password") for e in inputs):
+            buttons = login
+        elif len(signup) == 1:
+            buttons = signup
+        elif len(search) == 1 and any(SEARCH.search(label(e)) for e in [*inputs, *buttons]):
+            buttons = search
+        else:
+            return {"kind": "ambiguous", "inputs": inputs, "choices": choices, "password": None, "username": None,
+                    "submit": None, "submit_status": "ambiguous", "submit_candidates": buttons,
+                    "ticks": [], "choice_steps": []}
+    submit = buttons[0]
+    if never_in_test_mode(label(submit), native):
         return None
     password = next((e for e in inputs if e.get("password")), None)
-    if password and any(LOGIN.search(label(b)) for b in buttons):
+    if password and LOGIN.search(label(submit)):
         kind = "login"
-        submit = next(b for b in buttons if LOGIN.search(label(b)))
-    elif any(SEARCH.search(label(e)) for e in [*inputs, *buttons]):
+    elif any(SEARCH.search(label(e)) for e in [*inputs, submit]):
         kind = "search"
-        submit = next((b for b in buttons if SEARCH.search(label(b))), buttons[0])
+    elif SIGNUP.search(label(submit)):
+        kind = "signup"
+    elif catalog_fields(inputs, choices):
+        kind = "catalog"
     else:
-        signup = next((b for b in buttons if SIGNUP.search(label(b))), None)
-        kind = "signup" if signup else "form"
-        submit = signup or buttons[0]
+        kind = "form"
     username = next((e for e in inputs if not e.get("password")), None)
-    return {"kind": kind, "inputs": inputs, "password": password, "username": username, "submit": submit}
+    return {"kind": kind, "inputs": inputs, "choices": choices, "password": password, "username": username,
+            "submit": submit, "submit_status": "unique", "submit_candidates": [submit],
+            "ticks": [], "choice_steps": []}
+
+
+def catalog_fields(inputs: list[dict], choices: list[dict]) -> dict | None:
+    """Related country / name / gender controls that gate a products catalog."""
+    country = next((e for e in choices if e.get("choice_kind") == "spinner" and COUNTRY.search(label(e))), None)
+    if country is None:
+        country = next((e for e in choices if COUNTRY.search(label(e))), None)
+    name_box = next((e for e in inputs if not e.get("password") and NAME_FIELD.search(label(e))), None)
+    gender_rows = [e for e in choices if e.get("choice_kind") == "radio" or GENDER.search(label(e))]
+    if country is None or name_box is None or not gender_rows:
+        return None
+    return {"country": country, "name": name_box, "gender": gender_rows}
 
 
 def field_kind(element: dict) -> str:
@@ -374,7 +487,7 @@ def assertion_steps(changes: list[dict], limit: int = 3) -> list[dict]:
                 break
             continue
         element = change["element"]
-        locator = element["locators"][0]
+        locator = preferred_locator(element)
         if change["kind"] == "text":
             steps.append({"action": "assert_text", "locator": locator, "value": change["after"]})
         elif change["kind"] in ("message", "appeared"):
@@ -480,6 +593,7 @@ class Session:
         self.built = 0
         self.seen = set()
         self.reserve = 0
+        self._session_loss = None
         self.base = {"version": 1, "test_environment": True, "test_mode": True, "flows": []}
         if self.web:
             from .qa_contracts import origin
@@ -521,7 +635,7 @@ class Session:
         return AndroidContractAdapter(self.device.driver, config, contract, stop_path=self.device.stop_path)
 
     def perform(self, steps: list[dict]):
-        """Do the action steps (no assertions) with the trusted adapter: unique visible controls only."""
+        """Do action steps (and per-step oracles such as assert_text / assert_checked) with the trusted adapter."""
         from .qa_contracts import Locator
         contract = parse_contract(self.base)
         adapter = self._adapter(contract)
@@ -535,9 +649,18 @@ class Session:
                 if step["action"] == "open":
                     adapter.open(step["value"])
                     continue
-                if step["action"].startswith("assert_"):
+                if step["action"] == "assert_alert":
                     continue
-                element = adapter.find(Locator(**step["locator"]))
+                if step["action"] == "assert_not_visible":
+                    from selenium.common.exceptions import NoSuchElementException
+                    try:
+                        element = adapter.find(Locator(**step["locator"])) if step.get("locator") else None
+                    except NoSuchElementException:
+                        element = None
+                    if element is not None and adapter.visible(element):
+                        raise AssertionError("The configured control is still visible.")
+                    continue
+                element = adapter.find(Locator(**step["locator"])) if step.get("locator") else None
                 if step["action"] == "scroll_to":
                     adapter.scroll_to(element, Locator(**step["target"]), step["value"])
                 elif step["action"] == "tap":
@@ -548,6 +671,19 @@ class Session:
                     adapter.fill(element, self.secrets[step["secret_ref"]] if step.get("secret_ref") else step["value"])
                 elif step["action"] == "select":
                     adapter.select(element, step["value"])
+                elif step["action"] == "assert_text":
+                    actual = adapter.text(element) if element is not None else ""
+                    if actual != step.get("value"):
+                        raise AssertionError(f"Expected text {step.get('value')!r}; found {actual[:200]!r}.")
+                elif step["action"] == "assert_checked":
+                    expected = (step.get("value") or "true") == "true"
+                    if element is None or adapter.checked(element) != expected:
+                        raise AssertionError("Control checked state does not match the expected result")
+                elif step["action"] == "assert_visible":
+                    if element is None or not adapter.visible(element):
+                        raise AssertionError("The configured control is not visible.")
+                elif step["action"].startswith("assert_"):
+                    continue
 
     def replay(self, flow: dict) -> str:
         """'' when the flow passes from cleared app data, else the reason it did not."""
@@ -638,7 +774,7 @@ class Session:
     def observe_after(self, screen: dict, steps: list[dict], fresh: bool = True, setup: int = 0):
         """Open the screen from cleared data, do the steps, and return (before, after); after is None if the app left.
         Leading scroll steps (and the first `setup` steps: log in, fill the cart) happen before the 'before' picture:
-        they are not the action's effect."""
+        they are not the action's effect. Session loss mid fill/submit never auto-resubmits."""
         self.spend()
         before = self.go_to(screen, fresh)
         scrolls = setup
@@ -653,6 +789,13 @@ class Session:
         except AndroidEnvironmentError as error:
             if "left the selected" in str(error) or "contract left the" in str(error) or "left the approved" in str(error):
                 return before, None  # another app (browser, store, launcher) is in front: never inspected
+            raise
+        except Exception as error:
+            from .android_runtime import device_unavailable
+            if device_unavailable(error):
+                # Partial evidence stays on the session; never blind-resubmit an unknown outcome.
+                self._session_loss = {"screen": screen.get("screen_name"), "steps_attempted": len(steps),
+                                      "error": redact(str(error), list(self.secrets.values()))[:200]}
             raise
 
     # -------- the coverage list
@@ -686,6 +829,13 @@ class Session:
             from .android_web import BotCheckBlocked
             if device_unavailable(error):
                 print(f"[android] Check {number} stopped because the Android session became unavailable.", flush=True)
+                detail = "Device/session lost mid check; partial evidence kept; submit was not retried."
+                if self._session_loss:
+                    detail += " " + self._session_loss.get("error", "")
+                self.tried.append({"check": check, "outcome": "incomplete", "detail": detail[:240],
+                                   "screen": where, "reason": "device/session loss", "session_loss": True})
+                self._cover_attempt(check, area, where, before_flows, before_tried,
+                                    "device/session loss: incomplete, no blind resubmit")
                 raise
             if isinstance(error, BotCheckBlocked):
                 self._cover_attempt(check, area, where, before_flows, before_tried, budget_reason(str(error)))
@@ -763,11 +913,12 @@ class Session:
                          "requirement": "Observed app behaviour on a test build (regression)", "source": "interaction"})
 
     def form_checks(self, screen: dict, form: dict):
-        key = ("form", screen["id"], form["submit"]["id"])
+        submit = form.get("submit")
+        key = ("form", screen["id"], submit["id"] if submit else form.get("submit_status") or "none")
         if key in self.seen:
             return
         self.seen.add(key)
-        if self.native:
+        if self.native and submit and form['kind'] != 'catalog':
             from .android_forms import prepare_choices
             prepare_choices(self, screen, form)
             if form.get('choice_error'):
@@ -776,6 +927,20 @@ class Session:
         if form.get("captcha"):
             self.tried.append({"check": f"{form['kind'].title()} form on {screen['screen_name']}",
                                "outcome": "protected by a CAPTCHA", "detail": "", "screen": screen["screen_name"]})
+            return
+        if form.get("submit_status") == "missing" or form["kind"] == "incomplete":
+            self.tried.append({"check": f"Form on {screen['screen_name']}", "outcome": "incomplete",
+                               "detail": "No unique submit control was identified.", "screen": screen["screen_name"],
+                               "reason": "form incomplete: 0 submit candidates"})
+            self.cover("form", f"Form on {screen['screen_name']}", "not tested",
+                       "form incomplete: no submit candidate", where=screen["screen_name"])
+            return
+        if form.get("submit_status") == "ambiguous" or form["kind"] == "ambiguous":
+            names = ", ".join(f"'{name(b)}'" for b in form.get("submit_candidates", [])[:5])
+            detail = f"AMBIGUITY: {len(form.get('submit_candidates') or [])} possible submit controls ({names}). Not submitted."
+            self.tried.append({"check": f"Form on {screen['screen_name']}", "outcome": "inconclusive",
+                               "detail": detail, "screen": screen["screen_name"], "reason": detail})
+            self.cover("form", f"Form on {screen['screen_name']}", "not tested", detail, where=screen["screen_name"])
             return
         if form["kind"] == "login":
             self._login_checks(screen, form, allow_credentials=not bool(form.get('choice_error')))
@@ -789,6 +954,8 @@ class Session:
             self._form_negative_checks(screen, form)
             if not form.get('choice_error'):
                 self._positive_form_check(screen, form, "Sign-up")
+        elif form["kind"] == "catalog":
+            self._catalog_form_checks(screen, form)
         else:
             self._form_negative_checks(screen, form)
             if not form.get('choice_error'):
@@ -848,7 +1015,7 @@ class Session:
         if after is not None and present(after, stays):
             messages, changes = self._messages(before, after)
         alerts = [s for s in messages if s["action"] == "assert_alert"]
-        base = nav + actions + alerts + [{"action": "assert_visible", "locator": stays["locators"][0]}]
+        base = nav + actions + alerts + [{"action": "assert_visible", "locator": preferred_locator(stays)}]
         others = [s for s in messages if s["action"] != "assert_alert"]
         if messages and self.keep(self.build("form", f"{title}: {describe(changes)}", base + others), dict(meta)):
             return
@@ -1017,7 +1184,7 @@ class Session:
 
     def login_evidence(self, screen: dict, steps: list[dict], password: dict) -> list[dict]:
         """What proves the login worked: the login form is replaced."""
-        return [{"action": "assert_not_visible", "locator": password["locators"][0]}]
+        return [{"action": "assert_not_visible", "locator": preferred_locator(password)}]
 
     def after_login(self, screen: dict, flow: dict):
         discover = getattr(self.device, "on_authenticated", None)
@@ -1081,11 +1248,12 @@ class Session:
             return
         actions = [self.fill_valid(element, action_name) for element in inputs]
         actions += [tap(box) for box in form.get("ticks", [])]  # required boxes such as "I agree to the terms"
-        actions += form.get("choices", [])  # a required drop-down still on its empty first option
+        choice_steps = form.get('choice_steps' if self.native else 'choices', [])
+        actions += choice_steps
         actions += reach(submit) + [tap(submit)]
         before, after = self.observe_after(screen, actions,
                                             setup=len(inputs) + len(form.get("ticks", []))
-                                            + len(form.get("choices", [])))
+                                            + len(choice_steps))
         if after is None:
             self.tried.append({"check": f"{action_name} with valid details on {screen['screen_name']}",
                                "outcome": "opens another app", "detail": "Not followed.",
@@ -1102,8 +1270,7 @@ class Session:
         if self.native:
             from .android_forms import destination_check
             checks = destination_check(self, before, after, form)
-        elif not present(after, first):
-            checks = [{"action": "assert_not_visible", "locator": first["locators"][0]}]
+        error_response = False
         for change in changes:
             # A successful registration may keep the form open and show a status.
             # Never copy an email, username, or password into an assertion/report.
@@ -1114,28 +1281,32 @@ class Session:
             if self.native:
                 from .android_forms import outcome_error
                 if outcome_error(message):
+                    error_response = True
                     continue
             if (change["kind"] in ("message", "appeared", "text", "title") and SUCCESS.search(message)
                     and not any(value.casefold() in message.casefold() for value in private)):
                 checks += assertion_steps([change], limit=1)
                 break
         success_message = bool(alerts and SUCCESS.search(alerts[0]["value"]))
+        # A click, screen-name change or disappearing form alone is never success.
         if not checks and not success_message:
-            if self.native:
-                self.tried.append({'check':title,'outcome':'inconclusive','screen':screen['screen_name'],
-                                   'detail':'No verified destination or success message. Configure the expected result; disappearance alone is not success.'})
+            if error_response:
+                self.tried.append({'check': title, 'outcome': 'inconclusive', 'screen': screen['screen_name'],
+                                   'detail': 'The app showed an error instead of a verified success result.'})
                 return
-            # A valid test submission that leaves the form open without a success
-            # signal is a finding; retain an assertion so the result cannot go green.
-            checks = [{"action": "assert_not_visible", "locator": first["locators"][0]}]
             self.findings.append({"screen": screen["screen_name"],
                                   "finding": f"Valid {action_name.casefold()} details did not produce an observable success",
-                                  "detail": "The form remained open without a non-sensitive success result."})
+                                  "detail": "Need a non-sensitive success result; form disappearance alone is not enough."})
+            self.tried.append({"check": title, "outcome": "finding", "screen": screen["screen_name"],
+                               "reason": "no meaningful success oracle after submit", "detail": ""})
+            return
+        if not present(after, first):
+            checks = [{"action": "assert_not_visible", "locator": preferred_locator(first)}, *checks]
         category = "signup" if action_name == "Sign-up" else "form"
         flow = self.build(category, title, self.nav(screen) + actions + alerts + checks)
         flow_meta = {"category": category, "screen_id": screen["id"], "screen": screen["screen_name"],
                      "element_ids": form.get('control_ids', [e["id"] for e in [*inputs, submit]]), "source": "interaction",
-                     "expected": f"{action_name} with valid data is accepted and the form closes or shows a success result.",
+                     "expected": f"{action_name} with valid data shows a meaningful destination or success result.",
                      "requirement": "Valid form submission on an authorized test build"}
         kept = self.keep(flow, flow_meta, universal=not self.native or bool(form.get('configured_destination')))
         if kept and flow_meta.get('discovery_replay') == 'passed' and self.native:
@@ -1166,15 +1337,117 @@ class Session:
         return {name: self.secrets[name] for name in (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
                 if name in self.secrets and self.account == (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)}
 
+    @staticmethod
+    def products_oracle(screen: dict) -> list[dict]:
+        """Meaningful success for a catalog gate: the products/catalog screen, not 'form gone'."""
+        heading = next((e for e in screen.get("elements", []) if e.get("visible") and e.get("type") == "text"
+                        and PRODUCTS_SCREEN.search(e.get("text") or "") and preferred_locator(e).get("strategy") != "xpath"),
+                       None)
+        listing = next((e for e in screen.get("elements", []) if e.get("visible")
+                        and (e.get("class_name") or "").endswith(("RecyclerView", "GridView"))
+                        and preferred_locator(e).get("value")), None)
+        if heading:
+            return [{"action": "assert_visible", "locator": preferred_locator(heading)},
+                    {"action": "assert_text", "locator": preferred_locator(heading), "value": heading["text"]}]
+        if listing:
+            return [{"action": "assert_visible", "locator": preferred_locator(listing)}]
+        return []
+
+    @staticmethod
+    def products_accessible(screen: dict) -> bool:
+        return any(
+            e.get("visible") and (PRODUCTS_SCREEN.search(e.get("text") or "")
+                                  or (e.get("class_name") or "").endswith(("RecyclerView", "GridView")))
+            for e in screen.get("elements", []))
+
+    def _country_option(self, country: dict) -> str:
+        text = (country.get("text") or "").strip()
+        if text and not re.match(r"\s*(-|select|choose|please)", text, re.I):
+            return text
+        return "United States"
+
+    def _catalog_setup(self, fields: dict, *, include_name: bool = True) -> list[dict]:
+        """Country → name → gender as one setup chain with a per-step oracle after each control."""
+        country, name_box, gender = fields["country"], fields["name"], fields["gender"]
+        option = self._country_option(country)
+        gender_pick = next((row for row in gender if re.search(r"\bfemale\b|\bmale\b", label(row), re.I)), gender[0])
+        steps = select_choice(country, option)
+        if include_name:
+            steps.append(fill(name_box, "QA Tester"))
+        steps += select_radio(gender_pick)
+        return steps
+
+    def _catalog_form_checks(self, screen: dict, form: dict):
+        """Catalog gate forms require selected-value and products-screen oracles; click/change alone is not success."""
+        fields = catalog_fields(form.get("inputs") or [], form.get("choices") or [])
+        if not fields or not form.get("submit"):
+            self.tried.append({"check": f"Catalog form on {screen['screen_name']}", "outcome": "incomplete",
+                               "detail": "Country, name and gender controls were not all identified.",
+                               "screen": screen["screen_name"]})
+            return
+        submit = form["submit"]
+        meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
+                "element_ids": [fields["country"]["id"], fields["name"]["id"], *[g["id"] for g in fields["gender"]],
+                                submit["id"]],
+                "source": "interaction", "setup_chain": "catalog_country_name_gender",
+                "requirement": "Catalog form related-field validation on an authorized test build"}
+        # 1. Empty name: validation must appear; products must stay inaccessible.
+        empty_steps = self._catalog_setup(fields, include_name=False) + [fill(fields["name"], "")] + reach(submit) + [tap(submit)]
+        before, after = self.observe_after(screen, empty_steps)
+        title = "Catalog form with an empty name is refused"
+        if after is None:
+            self.tried.append({"check": title, "outcome": "opens another app", "detail": "Not followed.",
+                               "screen": screen["screen_name"]})
+        elif self.products_accessible(after):
+            self.findings.append({"screen": screen["screen_name"],
+                                  "finding": "Empty name opened the products catalog",
+                                  "detail": "Products became accessible without a name."})
+            self.tried.append({"check": title, "outcome": "finding", "screen": screen["screen_name"],
+                               "reason": "products became accessible with an empty name", "detail": ""})
+        else:
+            checks, changes = self._messages(before, after)
+            stay = [{"action": "assert_visible", "locator": preferred_locator(fields["name"])}]
+            if checks:
+                self.keep(self.build("form", f"{title}: {describe(changes)}",
+                                     self.nav(screen) + empty_steps + stay + checks),
+                          {**meta, "expected": "Validation stays on the form; products remain inaccessible.",
+                           "universal": True})
+            else:
+                self.keep(self.build("form", title, self.nav(screen) + empty_steps + stay),
+                          {**meta, "expected": "The name field stays; products remain inaccessible.",
+                           "universal": True})
+        # 2. Valid country + name + gender → selected country verified in-chain; products screen verified.
+        valid_steps = self._catalog_setup(fields, include_name=True) + reach(submit) + [tap(submit)]
+        before, after = self.observe_after(screen, valid_steps)
+        title = "Catalog form with country, name and gender opens products"
+        if after is None:
+            self.tried.append({"check": title, "outcome": "opens another app", "detail": "Not followed.",
+                               "screen": screen["screen_name"]})
+            return
+        oracle = self.products_oracle(after)
+        if not oracle:
+            # A click, screen-name change or disappearing form alone is never success.
+            self.findings.append({"screen": screen["screen_name"],
+                                  "finding": "Valid catalog details did not open a products screen",
+                                  "detail": "No products/catalog oracle was observed after submit."})
+            self.tried.append({"check": title, "outcome": "finding", "screen": screen["screen_name"],
+                               "reason": "no products/catalog oracle after submit", "detail": ""})
+            return
+        flow = self.build("form", title, self.nav(screen) + valid_steps + oracle)
+        self.keep(flow, {**meta, "expected": "Selected country is retained in the setup chain; products/catalog is shown.",
+                         "universal": True})
+
     def _form_negative_checks(self, screen, form):
         """Only values a form must refuse: nothing valid is ever submitted (no account or record is created)."""
         from .testdata import BASE
+        if not form.get("submit") or not form.get("inputs"):
+            return
         submit, first = form["submit"], form["inputs"][0]
         nav = self.nav(screen)
         meta = {"category": "form", "screen_id": screen["id"], "screen": screen["screen_name"],
                 "element_ids": [e["id"] for e in form["inputs"]] + [submit["id"]], "source": "interaction",
                 "requirement": "Observed form validation on a test build (regression)"}
-        choices = [] if form.get('choice_error') else form.get('choices', [])
+        choices = [] if form.get('choice_error') else form.get('choice_steps' if self.native else 'choices', [])
         empty = choices + [fill(e, "") for e in form["inputs"]] + reach(submit) + [tap(submit)]
         tries = [("empty", "Submitting the form empty is refused", empty)]
         target = next((e for e in form["inputs"] if not e.get("password")

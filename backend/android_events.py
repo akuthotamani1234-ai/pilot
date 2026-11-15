@@ -44,6 +44,22 @@ class Timeline:
         self.stream.write(json.dumps(record, ensure_ascii=False) + "\n")
         self.stream.flush()  # live readers see a complete line while the next action is still running
 
+    @staticmethod
+    def _selector(step):
+        """Prefer resource_id in the evidence timeline; hide fill values."""
+        action = step.get("action", "action")
+        if action == "fill":
+            locator = step.get("locator") or {}
+            strategy = locator.get("strategy") or ""
+            # Record durable strategy without the typed value.
+            return {"selector": f"{strategy}: (value hidden)"} if strategy else {}
+        locator = step.get("locator") or {}
+        if not locator:
+            return {}
+        strategy = locator.get("strategy") or ""
+        value = locator.get("value") or ""
+        return {"selector": f"{strategy}: {value}", "locator_strategy": strategy}
+
     @contextmanager
     def action(self, step, index=1, flow=""):
         action = step.get("action", "action")
@@ -51,18 +67,28 @@ class Timeline:
         # Even non-password fill values can contain private account data.
         if action == "fill":
             text += " (value hidden)"
-        expected = "Configured assertion must hold" if action.startswith("assert_") else "Action completes"
-        locator = step.get("locator") or {}
-        target = {} if action == "fill" else {"selector": f"{locator.get('strategy', '')}: {locator.get('value', '')}"} if locator else {}
-        self.emit("started", text, expected=expected, **target)
+        if action.startswith("assert_"):
+            expected = step.get("value") or "Configured assertion must hold"
+        elif action == "tap":
+            expected = "Control responds; follow-up oracle decides success"
+        elif action == "fill":
+            expected = "Input retains the supplied value"
+        elif action == "select":
+            expected = "Selected value is retained"
+        else:
+            expected = "Action completes"
+        target = self._selector(step)
+        self.emit("started", text, expected=str(expected)[:200], **target)
         try:
             yield
         except BaseException as error:
-            self.emit("failed", text, expected=expected, observed=type(error).__name__, **target)
+            self.emit("failed", text, expected=str(expected)[:200], observed=type(error).__name__, **target)
             raise
         else:
-            self.emit("passed", text, expected=expected,
-                      observed="Assertion verified" if action.startswith("assert_") else "Action completed", **target)
+            observed = ("Assertion verified" if action.startswith("assert_")
+                        else "Value retained" if action in ("fill", "select")
+                        else "Action completed")
+            self.emit("passed", text, expected=str(expected)[:200], observed=observed, **target)
 
 
 class LiveSteps(list):
