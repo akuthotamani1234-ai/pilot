@@ -185,7 +185,7 @@ def test_web_screen_names_distinguish_routes_without_exposing_query_data():
 def test_source_guide_and_fields_switch_without_starting_a_run(browser):
     context, page, errors, calls = studio(browser, viewport={"width": 1024, "height": 700})
     page.route("**/api/android/environment?*", lambda route: route.fulfill(json={
-        "ok": True, "devices": [{"device_id": "emulator-5554", "status": "device"}]}))
+        "ok": True, "execution_revision": 3, "devices": [{"device_id": "emulator-5554", "status": "device"}]}))
     try:
         page.locator("#mobileModeBtn").click()
         expect(page.locator("#androidSourceHelp tr")).to_have_count(3)

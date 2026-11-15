@@ -65,6 +65,7 @@
       invalidate();
       const version = revision; let settings;
       if (engine === 'android') {
+        await window.QpilotAndroidAccount.ensureCompatible();
         workflow().syncToStandard();
         const data = window.QpilotChat.androidRequest(false);
         if (!data) throw new Error($('androidRunNote').textContent || 'Review the advanced workflow JSON and expected-result settings.');

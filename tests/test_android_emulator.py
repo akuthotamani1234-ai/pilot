@@ -171,7 +171,7 @@ def browser():
 @pytest.mark.parametrize("previously_connected", [False, True])
 def test_start_button_prepares_android_before_submitting_the_test(browser, failure_stage, previously_connected):
     context, page, errors, calls = studio(browser)
-    environment = {"ok": False, "devices": [], "can_prepare": True, "appium": {"available": False},
+    environment = {"ok": False, "execution_revision": 3, "devices": [], "can_prepare": True, "appium": {"available": False},
                    "emulators": [{"name": "demo", "device_id": "avd:demo"}],
                    "errors": ["Appium server is not running.", "No Android device is connected."]}
     if previously_connected:

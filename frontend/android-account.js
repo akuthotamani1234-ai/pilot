@@ -1,6 +1,19 @@
 /* Explicit account choices shared by Standard and MCP Android settings. */
 (() => {
   const $ = id => document.getElementById(id);
+  const restartMessage = 'Studio backend is outdated. Close the old Studio server and restart ui.bat, then refresh this page. Account settings were not submitted.';
+  function checkRevision(data) {
+    if (!Number.isInteger(data.execution_revision) || data.execution_revision < 3) throw new Error(restartMessage);
+    return data;
+  }
+  window.QpilotAndroidAccount = {
+    checkRevision,
+    async ensureCompatible() {
+      const response = await fetch('/api/android/environment?appium_url=' + encodeURIComponent($('androidAppiumUrl').value), {cache:'no-store'});
+      if (!response.ok) throw new Error('Could not verify the Studio backend. Restart ui.bat and try again.');
+      return checkRevision(await response.json());
+    }
+  };
   function update() {
     const mode = $('androidAccountMode').value;
     $('androidAccountCredentials').hidden = mode !== 'existing';
