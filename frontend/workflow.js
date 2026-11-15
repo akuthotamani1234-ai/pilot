@@ -203,7 +203,8 @@
       renderConnection();
       if (state.workflow === "mcp" && !state.busy) {
         const latest = await api("/api/runs/latest");
-        if (latest && latest.workflow === "mcp" && latest.status === "running"
+        const available = latest && (latest.status === "running" || (latest.run && latest.report_ready));
+        if (state.workflow === "mcp" && !state.busy && available && latest.workflow === "mcp"
             && latest.id !== state.lastAttachedId) {
           state.lastAttachedId = latest.id;
           window.dispatchEvent(new CustomEvent("blowai:mcpjob", { detail: latest }));
@@ -477,6 +478,7 @@
   window.QpilotWorkflow = {
     ready: null, providerAllowed, setEngine, setWorkflow, syncFromStandard, syncToStandard,
     refreshMcpAndroidEnvironment,
+    markAttached(id) { state.lastAttachedId = id; },
     setBusy(value) { state.busy = !!value; render(); },
     get workflow() { return state.workflow; },
     get mode() { return state.loaded ? state.privacy.mode : null; },
@@ -487,5 +489,8 @@
   window.BlowAIWorkflow = window.QpilotWorkflow; // Legacy extension alias.
   window.QpilotWorkflow.ready = loadPrivacy();
   loadConnection();
+  document.addEventListener("visibilitychange", () => {
+    if (state.workflow === "mcp" && !document.hidden) loadConnection();
+  });
   window.setInterval(() => { if (state.workflow === "mcp" && !document.hidden) loadConnection(); }, 5000);
 })();

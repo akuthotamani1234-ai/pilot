@@ -40,7 +40,9 @@
     if (timer || (job && job.id === data.id && job.status === "running")) return;
     pendingSource = data.source;
     userSays(data.source);
-    say("<p>Your MCP assistant started this run. Follow its progress and use Stop here when needed.</p>");
+    say(data.status === "running"
+      ? "<p>Your MCP assistant started this run. Follow its progress and use Stop here when needed.</p>"
+      : "<p>Your MCP run has finished. Here are its recorded execution steps and report.</p>");
     if (data.target_type === "android") beginMobileJob(data);
     else beginJob(data, false);
   });
@@ -544,6 +546,7 @@
   }
 
   function beginMobileJob(data) {
+    workflow.markAttached(data.id);
     document.body.dataset.setupState = "running";
     workflow.setWorkflow(data.workflow || "standard", true);
     setWorkspaceMode("android");
@@ -1182,6 +1185,7 @@
   }
 
   function beginJob(data, watching) {
+    workflow.markAttached(data.id);
     workflow.setWorkflow(data.workflow || "standard", true);
     document.body.dataset.setupState = "running";
     setWorkspaceMode("web");
@@ -1195,9 +1199,10 @@
     $("stopBtn").hidden = false;
     $("costBox").hidden = !data.llm || /^none/.test(data.llm);
     setComposer(false, "Testing… you can stop it at the top");
-    applyUpdate(data);
     clearInterval(timer);
-    timer = setInterval(poll, 900);
+    timer = null;
+    applyUpdate(data);
+    if (data.status === "running") timer = setInterval(poll, 900);
   }
 
   async function poll() {
@@ -1369,11 +1374,11 @@
         if (run) await postCoverage(run);  // what the tests really use - and what they don't
       });
     }
-    if (st.execution === "running" && !posted.exec) {
+    if (started("execution") && !posted.exec) {
       posted.exec = 1;
       later(() => {
         say(execHtml(null), "exec");
-        if (posted.watching) say("<p>👀 Watch the <b>Chrome window</b>: it's opening the website and running each test now.</p>");
+        if (posted.watching && !finished) say("<p>👀 Watch the <b>Chrome window</b>: it's opening the website and running each test now.</p>");
       });
     }
     if (posted.exec && d.run && $("m-exec")) { loadCases(d.run); loadPages(d.run); }

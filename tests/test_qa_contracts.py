@@ -7,7 +7,8 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 
-from backend import qa_benchmark, server
+from backend import qa_benchmark, qa_web, server
+from backend.config import settings
 from backend.qa_contracts import BackendCheck, contract_cases, evaluate, parse_contract
 from backend.qa_oracles import check_http, check_sqlite
 from backend.qa_web import run_contracts
@@ -17,6 +18,32 @@ from tests.qa_contract_fixture import ContractFixture
 
 def loc(value, strategy="css"):
     return {"strategy": strategy, "value": value}
+
+
+@pytest.mark.parametrize("headless", [True, False])
+def test_pipeline_contracts_honor_browser_visibility_and_watch_speed(tmp_path, monkeypatch, headless):
+    from playwright.sync_api import BrowserType
+
+    launches = []
+    launch = BrowserType.launch
+
+    def capture_launch(browser_type, **options):
+        launches.append(options)
+        # Exercise the real local contract runtime without opening test-runner windows.
+        return launch(browser_type, **{**options, "headless": True, "slow_mo": 0})
+
+    monkeypatch.setattr(BrowserType, "launch", capture_launch)
+    monkeypatch.setattr(settings, "headless", headless)
+    monkeypatch.setattr(settings, "slow_mo_ms", 500)
+    with ContractFixture(tmp_path / "browser.sqlite") as fixture:
+        contract = web_contract(fixture.url)
+        contract["flows"] = [contract["flows"][1]]
+        contract["rules"] = []
+        contract["checks"] = []
+        monkeypatch.setenv("QA_CONTRACT_JSON", json.dumps(contract))
+        result = qa_web.execute_pipeline_contracts({"run_dir": str(tmp_path), "url": fixture.url})
+    assert launches == [{"headless": headless, "slow_mo": 0 if headless else 500}]
+    assert result["results"][0]["outcome"] == "passed", result
 
 
 def web_contract(url):

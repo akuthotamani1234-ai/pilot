@@ -116,7 +116,7 @@ class BrowserContractAdapter:
         return element.is_visible()
 
 
-def run_contracts(run_dir, url, contract_value, headless=True, completed=None):
+def run_contracts(run_dir, url, contract_value, headless=True, completed=None, slow_mo_ms=0):
     from playwright.sync_api import sync_playwright
 
     contract = parse_contract(contract_value)
@@ -140,7 +140,7 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None):
     results = []
     secrets = list(private["secrets"].values())
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=headless)
+        browser = playwright.chromium.launch(headless=headless, slow_mo=0 if headless else slow_mo_ms)
         try:
             for case in cases:
                 if "qa_contracts.json::test_" + case["id"] in (completed or set()):
@@ -206,6 +206,8 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None):
 
 
 def execute_pipeline_contracts(state):
+    from .config import settings
+
     path = Path(state["run_dir"]) / ".private" / "qa_contract.json"
     value = path.read_text(encoding="utf-8") if path.exists() else os.environ.get("QA_CONTRACT_JSON", "")
     if not value.strip():
@@ -219,7 +221,10 @@ def execute_pipeline_contracts(state):
             if any(not flow.authentication and any(s.action == "tap" and s.purpose == "test_form" for s in flow.steps)
                    for flow in pending):
                 raise ValueError("Interrupted submissions need reconciliation before resume; write contracts were not replayed.")
-        return run_contracts(state["run_dir"], state["url"], value, completed=set(state.get("resume_completed") or []))
+        return run_contracts(
+            state["run_dir"], state["url"], value, headless=settings.headless,
+            completed=set(state.get("resume_completed") or []), slow_mo_ms=settings.slow_mo_ms,
+        )
     except Exception as error:
         from .android_design import normalize_case
 
