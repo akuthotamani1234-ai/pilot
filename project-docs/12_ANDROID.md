@@ -186,8 +186,8 @@ removing unrelated files. The isolated APK used for verification comes from the 
 
 ### Verification evidence
 
-See `ANDROID_IMPLEMENTATION_REPORT.md` for the completed implementation inventory, actual results and remaining
-limits. The local evidence dashboard is `runs/android_verification_tools/index.html`.
+See [STATUS](../STATUS.md) for current verification and remaining limits, and the compact
+[live-run assessments](../deep_validation/README.md) for measured Android evidence.
 
 The final worker uses the existing Windows Job Object to terminate its process tree on timeout. A private session
 record lets the parent close only that run's Appium session after forced worker termination. Failures preserve the

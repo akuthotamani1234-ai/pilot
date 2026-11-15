@@ -6,7 +6,7 @@
 
 | **Version** | 1.0 |
 |---|---|
-| **Date** | Created Oct 23, 2026; documentation reviewed Nov 14, 2026 |
+| **Date** | Created Oct 23, 2026; documentation reviewed Nov 15, 2026 |
 
 ---
 
@@ -18,17 +18,13 @@
 4. **[Design](04_DESIGN.md)** – how the screens look and behave, and how data is stored
 5. **[Execution Process](05_EXECUTION_PROCESS.md)** – what happens step by step during a run
 6. **[Installation](06_INSTALLATION.md)** – what to install and how to run it
-7. **[Architecture & Demo](09_ARCHITECTURE_AND_DEMO.md)** – architecture, status and a demo of the core loop (written Oct 27 for a review; status and limits kept current)
-8. **[Reliable Results](11_RELIABLE_RESULTS.md)** – one feature per test, reconciled report numbers, the AutomationTestStore baseline and its fixes, measured before and after (a dated record of Oct 28: its numbers are not updated)
+7. **[Android](12_ANDROID.md)** ? native APK, installed-package and Android Chrome setup and evidence
+8. **[Advanced QA](13_ADVANCED_QA.md)** ? approved flows, business rules, API/SQLite checks and accuracy
+9. **[Component inventory](14_PAGE_COMPONENT_INVENTORY.md)** ? observed page and nested-control inventory
+10. **[Current MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md)** ? shared settings and private requests
 
-9. **[Android](12_ANDROID.md)** – native APK, installed-package and Android Chrome setup and evidence
-10. **[Advanced QA](13_ADVANCED_QA.md)** – approved flows, business rules, API/SQLite checks and accuracy
-11. **[Component inventory](14_PAGE_COMPONENT_INVENTORY.md)** – observed page and nested-control inventory
-12. **[Current MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md)** – shared settings and private requests
-
-Numbers 07, 08 and 10 are historical gaps. Current implementation and verification live in
-[STATUS](../STATUS.md); the [documentation review](../docs/35_DOCUMENTATION_REVIEW.md) distinguishes current guides
-from dated evidence.
+Current implementation and verification live in [STATUS](../STATUS.md).
+Dated live execution evidence is kept under [deep_validation](../deep_validation/README.md).
 
 ## 2. Where to Start
 

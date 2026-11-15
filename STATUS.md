@@ -3,7 +3,7 @@
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-15
 
 ## Shared MCP settings and Qpilot branding
 
@@ -19,10 +19,10 @@ future builds; existing APK binaries and recorded run evidence retain their orig
 
 Validation: **1,015 offline tests passed on Windows in 23m 16s**; **76 final affected checks passed**, including
 desktop/mobile MCP settings and generated integration names. Ruff and changed JavaScript syntax checks passed.
-The documentation review covers **57 Markdown/HTML files**, with **zero broken local file links**. Browser fixtures
+The 14 November documentation review found zero broken local file links. Browser fixtures
 cover shared configuration, private-input omission, invalidation and responsive layouts. These checks do not claim
 a fresh arbitrary-APK run, physical-device Inspector attachment or paid-provider/third-party-host acceptance.
-See [MCP setup](docs/34_MCP_SHARED_CONFIGURATION.md) and [documentation review](docs/35_DOCUMENTATION_REVIEW.md).
+See [MCP setup](docs/34_MCP_SHARED_CONFIGURATION.md) for current connection and privacy behavior.
 
 ## Android coverage workspace
 
