@@ -439,7 +439,7 @@ def validate_mobile_config(config: dict) -> dict:
         # 0 depth / timeout / interactions = until exhausted (emergency wall-clock applied in the pipeline)
         ("max_depth", 0, 0, 10),
         ("discovery_timeout_s", 0, 0, 900),
-        ("command_timeout_s", 60, 10, 120),
+        ("command_timeout_s", 20, 10, 120),
         ("session_timeout_s", 300, 60, 300),
         ("max_test_cases", 300, 1, 300),
         ("max_scroll_actions", 0, 0, 100),
@@ -450,7 +450,7 @@ def validate_mobile_config(config: dict) -> dict:
         ("bot_check_wait_s", 30, 0, 120),
         ("human_wait_s", 180, 0, 300),
         # Ceilings for a changing shop page. Zero is not allowed: a wait must end.
-        ("dynamic_wait_s", 12, 1, 45),
+        ("dynamic_wait_s", 12, 1, 20),
         ("dynamic_retries", 1, 0, 1),
         ("overlay_attempts", 1, 0, 2),
         ("repeated_failures", 1, 1, 3),
@@ -760,7 +760,7 @@ def create_session(config: dict):
         client.timeout = cfg["command_timeout_s"]
         if cfg["app_mode"] == "web":
             try:
-                driver.set_page_load_timeout(45)
+                driver.set_page_load_timeout(20)
                 driver.get(cfg["start_url"])
             except BaseException:
                 close_session(driver)

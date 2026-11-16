@@ -48,10 +48,12 @@ def read_only_case(case):
 def settled_screen(inspect, expected=None, timeout=8):
     """Require a rendered, non-loading hierarchy twice before recording/replaying it.
 
-    The timeout is the ceiling. A blank page and a security check are not a successful launch.
+    The timeout is the ceiling, and a tap never waits more than 20 seconds. A blank page and a
+    security check are not a successful launch.
     """
     from .android_dynamic import BLANK_NOTE, SETTLE_NOTE, frame_key, note, security_reason
 
+    timeout = min(float(timeout), 20)
     note(SETTLE_NOTE)
     deadline = time.monotonic() + timeout
     previous = None

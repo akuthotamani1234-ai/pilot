@@ -4,7 +4,7 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 
 ## 2026-11-16 - Android dynamic recovery
 
-- Wait for visible, stable content with a ceiling. A shop page is not held open until ads and analytics go quiet.
+- Wait for visible, stable content with a ceiling of 20 seconds. A shop page is not held open until ads and analytics go quiet, and one tap gives up after 20 seconds.
 - One recovery path for Android Chrome and native apps: handle one exact safe popup, tap, and retry a stale or covered control once.
 - Dismiss only an exact Close, Dismiss, Skip, Not now, Maybe later, No thanks, Cancel, or X. Any other popup needs an approved `overlay_choices` entry, and a protected target is rejected.
 - A blank page is not a successful launch. A security check pauses for the person and does not count as the shop.
