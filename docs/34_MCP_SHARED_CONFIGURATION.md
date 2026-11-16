@@ -39,8 +39,9 @@ configured flows, full discovered-scenario mode, Thorough, depth/screen/action/s
 requirements, flow examples, the guided flow builder, and API/SQLite checks. Permission flows retain separate
 emulator policy approval.
 
-When the prepared Android request starts, Qpilot starts installed local Appium and prepares the selected emulator
-through the existing preparation service. It does not install missing prerequisites or authorize a private phone.
+When the user selects a closed Android emulator and confirms permission, Qpilot starts installed local Appium and
+prepares the selected emulator through the existing preparation service. It does not install missing prerequisites or
+authorize a private phone. Submitting the Android request waits for preparation to finish before starting the run.
 Direct legacy `start_android_test` callers still need a ready environment; use a prepared request for this automatic
 preparation flow.
 

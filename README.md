@@ -449,11 +449,11 @@ toasts are retained for assertions, and list screens reached by a successful for
 exploration. The engine remains Python/Appium.
 
 Appium + UiAutomator2 testing is available alongside the existing Playwright website workflow.
-In Standard testing, **Start Android test** starts the installed local Appium server and boots the selected installed
-emulator automatically, then waits for both to be ready before uploading the APK or creating a test run. The setup
-panel shows the current preparation step and elapsed time. Selecting Android or refreshing device status only checks
-the environment. Missing SDK, Java, Appium or UiAutomator2 installations still need setup; a USB phone must be connected
-and authorized. An already running Appium server or emulator is reused.
+In Standard testing, selecting a closed emulator after confirming permission starts its boot while you finish setup.
+**Start Android test** waits for Appium and the selected device before uploading the APK or creating a test run. The
+setup panel shows the current preparation step and elapsed time. Selecting Android or refreshing device status only
+checks the environment. Missing SDK, Java, Appium or UiAutomator2 installations still need setup; a USB phone must be
+connected and authorized. An already running Appium server or emulator is reused.
 Form screens are kept distinct from pages sharing the same native scroll-view shell. In authorized test-build mode,
 Signup validation runs before registration, and empty checks clear password fields privately. See
 [Android coverage workspace](docs/33_ANDROID_COVERAGE_WORKSPACE.md) describes full-coverage mode, durable actions,
