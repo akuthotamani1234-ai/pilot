@@ -39,7 +39,9 @@ file**.
 2. Put the folder anywhere the tester can write, for example `C:\Users\<name>\qpilot`.
 3. Double-click **`ui.bat`** (or first `setup\install.bat`, to only install). The first time, the installer creates
    `.venv`, installs the pinned packages and the Chromium browser, and copies `.env.example` to `.env`. This takes a
-   few minutes and needs internet. Later starts install only what is missing.
+   few minutes and needs internet. Later starts install only what is missing. The installer does not download the
+   Android JDK, SDK, or Appium. On a PC where those tools are already installed, **Start Android test** starts local
+   Appium and the selected emulator.
 4. Open `.env` and set the AI (see [README, Configure](README.md#3-configure)). Each tester uses their own API keys.
    Without a key, choose **No AI** in the UI: everything still works with the built-in rules.
 5. Optional: install Ollama for a local AI, and git for GitHub repos.

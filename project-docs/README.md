@@ -1,12 +1,10 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# 📚 Qpilot – Project Documents
+# Qpilot – Project Documents
 
 ### All project documents in one place
 
 | **Version** | 1.0 |
 |---|---|
-| **Date** | Created Oct 23, 2026; documentation reviewed Nov 15, 2026 |
+| **Date** | Created Oct 23, 2026; documentation reviewed Nov 16, 2026 |
 
 ---
 
@@ -18,10 +16,10 @@
 4. **[Design](04_DESIGN.md)** – how the screens look and behave, and how data is stored
 5. **[Execution Process](05_EXECUTION_PROCESS.md)** – what happens step by step during a run
 6. **[Installation](06_INSTALLATION.md)** – what to install and how to run it
-7. **[Android](12_ANDROID.md)** ? native APK, installed-package and Android Chrome setup and evidence
-8. **[Advanced QA](13_ADVANCED_QA.md)** ? approved flows, business rules, API/SQLite checks and accuracy
-9. **[Component inventory](14_PAGE_COMPONENT_INVENTORY.md)** ? observed page and nested-control inventory
-10. **[Current MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md)** ? shared settings and private requests
+7. **[Android](12_ANDROID.md)** — native APK, installed-package and Android Chrome setup and evidence
+8. **[Advanced QA](13_ADVANCED_QA.md)** — approved flows, business rules, API/SQLite checks and accuracy
+9. **[Component inventory](14_PAGE_COMPONENT_INVENTORY.md)** — observed page and nested-control inventory
+10. **[Current MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md)** — shared settings and private requests
 
 Current implementation and verification live in [STATUS](../STATUS.md).
 Dated live execution evidence is kept under [deep_validation](../deep_validation/README.md).
@@ -54,5 +52,3 @@ Dated live execution evidence is kept under [deep_validation](../deep_validation
 ## 5. How to View
 
 - In VS Code: open a `.md` file and press **Ctrl+Shift+V** to see the headings, tables and diagrams.
-
-</div>

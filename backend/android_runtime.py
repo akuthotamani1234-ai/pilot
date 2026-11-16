@@ -49,8 +49,8 @@ def settled_screen(inspect, expected=None, timeout=8):
     """Require a rendered, non-loading hierarchy twice before recording/replaying it.
 
     The timeout is the ceiling. A blank page and a security check are not a successful launch.
-    A tap command still gives up after command_timeout_s (20 seconds by default). Launch can
-    keep its own longer ceiling so a splash screen can finish.
+    Launch keeps the caller's ceiling, including the 30 second splash wait. A stuck tap command
+    uses command_timeout_s, which defaults to 20 seconds.
     """
     from .android_dynamic import BLANK_NOTE, SETTLE_NOTE, frame_key, note, security_reason
 

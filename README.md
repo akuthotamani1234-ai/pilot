@@ -83,6 +83,10 @@ This takes a few minutes, once. Every later start checks each part in about 2 se
 missing: the packages again when `requirements.txt` / `constraints.txt` changed or a package is missing, Chromium if
 it was deleted. Double-clicked by itself, `install.bat` waits for a key at the end so you can read what happened.
 
+That installer does not download the Android JDK, SDK, or Appium. Those stay separate because they are large and
+already installed on a PC that tests Android apps. When they are present, **Start Android test** starts the local
+Appium server and the selected emulator. Choosing Android or refreshing device status only checks them.
+
 By hand, the same steps are:
 ```powershell
 cd qpilot
@@ -491,4 +495,4 @@ that local Python checkout to the running Studio at `http://127.0.0.1:8000`; the
 
 ## Clear website setup and crawl verification
 
-After entering a URL, choose **Account ? AI engine ? Exploration ? More checks**. Whole-site exploration is the default; account creation, AI fallback and limited scope are explicit choices. See [verified behavior and remaining coverage limits](docs/17_CLEAR_SETUP_AND_CRAWL_AUDIT.md).
+After entering a URL, choose **Account, AI engine, Exploration, and More checks**. Whole-site exploration is the default; account creation, AI fallback and limited scope are explicit choices. See [verified behavior and remaining coverage limits](docs/17_CLEAR_SETUP_AND_CRAWL_AUDIT.md).

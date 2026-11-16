@@ -1,6 +1,4 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# 🛡️ Rules & Guidelines
+# Rules & Guidelines
 
 ### Qpilot – AI Agents That Test Your Website
 
@@ -208,5 +206,3 @@ Not Ready · other missing evidence → Insufficient Evidence · risks → Ready
 
 **Related documents:** [PRD](01_PRD.md) · [Architecture](02_ARCHITECTURE.md) · [Design](04_DESIGN.md) ·
 [Execution Process](05_EXECUTION_PROCESS.md) · [Installation](06_INSTALLATION.md)
-
-</div>
