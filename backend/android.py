@@ -439,7 +439,7 @@ def validate_mobile_config(config: dict) -> dict:
         # 0 depth / timeout / interactions = until exhausted (emergency wall-clock applied in the pipeline)
         ("max_depth", 0, 0, 10),
         ("discovery_timeout_s", 0, 0, 900),
-        ("command_timeout_s", 60, 10, 120),
+        ("command_timeout_s", 20, 10, 120),
         ("session_timeout_s", 300, 60, 300),
         ("max_test_cases", 300, 1, 300),
         ("max_scroll_actions", 0, 0, 100),
