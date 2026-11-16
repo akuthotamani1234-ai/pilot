@@ -59,7 +59,7 @@ def test_session_start_has_a_separate_bounded_timeout(monkeypatch):
     monkeypatch.setattr(android, "DeviceLock", Lock)
     monkeypatch.setattr(webdriver, "Remote", remote)
     driver = android.create_session({"app_mode": "installed", "package_name": "com.example.demo", "device_id": "fixture"})
-    assert clients[0].timeout == 60
+    assert clients[0].timeout == 20
     driver.quit()
 
 
