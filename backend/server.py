@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -1208,19 +1209,17 @@ def stop_run(job_id: int):
     if job["status"] != "running":
         raise HTTPException(400, "not running")
     job["stopping"] = True
+    job["current"] = "stopping"
     _audit("stop_test", job=job_id, run=job.get("run"))
     run = job.get("run")
     if run and (RUNS / run).is_dir():
-        # main.py sees this file, stops at its next safe point and writes the report with what was done so far;
-        # if it has not ended after STOP_GRACE_S, it is killed as before
-        (RUNS / run / "STOP").write_text("stopped from the web UI", encoding="utf-8")
-        threading.Thread(target=_kill_later, args=(job, STOP_GRACE_S), daemon=True).start()
-    else:  # (not started far enough to have a run folder: nothing to report yet)
-        _kill(job)
-    return {"ok": True}
-
-
-STOP_GRACE_S = 120  # how long a stopped run may take to write its report
+        # Preserve the stop marker for diagnostics, then stop main.py and its browser/pytest/Appium children now.
+        try:
+            (RUNS / run / "STOP").write_text("stopped from the web UI", encoding="utf-8")
+        except OSError:
+            pass  # termination must not wait on a run folder that is being removed or is read-only
+    _kill(job)
+    return {"ok": True, "stopped_immediately": True}
 
 
 def _kill(job: dict) -> None:
@@ -1228,17 +1227,17 @@ def _kill(job: dict) -> None:
     if job["proc"].poll() is not None:
         return
     if IS_WINDOWS:
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(job["proc"].pid)], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        result = subprocess.run(["taskkill", "/F", "/T", "/PID", str(job["proc"].pid)], check=False,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode and job["proc"].poll() is None:
+            job["proc"].kill()
     else:
-        os.killpg(os.getpgid(job["proc"].pid), 15)
-
-
-def _kill_later(job: dict, seconds: float) -> None:
-    try:
-        job["proc"].wait(timeout=seconds)
-    except subprocess.TimeoutExpired:
-        _kill(job)
+        try:
+            os.killpg(os.getpgid(job["proc"].pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            job["proc"].kill()
 
 
 @app.get("/api/history")
