@@ -153,7 +153,7 @@ an actual device recording are saved under `runs/appium_web_live_<time>/`.
 
 ## Changing screens
 
-Android Chrome and a native app share one recovery path. Before an action, Qpilot waits until something visible is stable. The wait has a ceiling (`dynamic_wait_s`, 1–45 seconds, default 12). It does not wait for ads or analytics to go quiet. The studio shows one plain line, such as “Waiting for the page to settle” or “Blocked by an unresolved popup.”
+Android Chrome and a native app share one recovery path. Before an action, Qpilot waits until something visible is stable. The wait has a ceiling (`dynamic_wait_s`, 1–20 seconds, default 12). A single tap also gives up after 20 seconds. It does not wait for ads or analytics to go quiet. The studio shows one plain line, such as “Waiting for the page to settle” or “Blocked by an unresolved popup.”
 
 A popup is dismissed only when its label is exactly Close, Dismiss, Skip, Not now, Maybe later, No thanks, Cancel, or X. “Cancel order” and “Close account” are not dismissals. Any other choice must be an approved `overlay_choices` entry in the QA contract. A target that looks like payment, purchase, delete, permission, or an account action is rejected, the flow is blocked, and the overlay text is kept in `dynamic.json`.
 
