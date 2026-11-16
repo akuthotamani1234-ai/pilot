@@ -385,8 +385,9 @@
         device.add(option);
       });
       const connectedNames = new Set((data.devices || []).filter(item => item.status === "device").map(item => item.avd_name));
-      (data.emulators || []).filter(item => !connectedNames.has(item.name)).forEach(item => {
-        const option = new Option(`${item.name} · start emulator automatically`, item.device_id);
+      (data.emulators || []).forEach(item => {
+        const state = connectedNames.has(item.name) ? "running" : "start emulator automatically";
+        const option = new Option(`${item.name} · ${state}`, item.device_id);
         option.dataset.avd = item.name;
         device.add(option);
       });
@@ -446,10 +447,8 @@
         const result = await response.json();
         if (!response.ok) throw new Error(result.detail || "Could not start the selected emulator.");
         if (device.value === target) {
-          option.value = result.device_id;
-          option.textContent = `${result.device_id} · ready`;
+          option.textContent = `${avdName} · ready`;
           option.dataset.avd = result.avd_name || avdName;
-          device.value = result.device_id;
         }
         $("androidRunNote").textContent = `Emulator ${result.device_id} is ready. Continue setting up your test.`;
       } catch (error) {
