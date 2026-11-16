@@ -186,7 +186,19 @@ class ContractRuntime:
                         ):
                             raise ValueError("A form submission must be explicitly marked test_form")
                         assert self.adapter.enabled(element), "The configured action is disabled."
-                        self.adapter.tap(element)
+                        if isinstance(self.adapter, AndroidContractAdapter) and step.purpose != "navigation":
+                            from .android_dynamic import data_change_blocked
+
+                            locator = step.locator.model_dump() if hasattr(step.locator, "model_dump") else step.locator
+                            write_blocked = data_change_blocked(
+                                identity, test_build=bool(self.adapter.config.get("interaction_testing")),
+                                locator=locator, contract=self.contract)
+                            if write_blocked:
+                                raise ValueError(write_blocked)
+                        if isinstance(self.adapter, AndroidContractAdapter):
+                            self.adapter.tap(element, refind=lambda locator=step.locator: self._find(locator))
+                        else:
+                            self.adapter.tap(element)
                     elif step.action == "fill":
                         self.sensitive = True  # Filled forms never enter screenshots or model input.
                         value = self.private["secrets"][step.secret_ref] if step.secret_ref else step.value
@@ -550,22 +562,50 @@ class AndroidContractAdapter:
             or "edittext" in (element.get_attribute("class") or "").lower()
         )
 
-    def tap(self, element):
-        if self.active == "webview":
-            from selenium.common.exceptions import ElementClickInterceptedException
+    def tap(self, element, refind=None):
+        from .android_dynamic import ActionRecovery, perform_tap
 
-            # Like a user: bring the control into view first (a sticky header can cover it near the screen edge),
-            # and give a closing banner a moment before trying once more. Never a script click past an overlay.
-            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element)
-            try:
-                element.click()
-            except ElementClickInterceptedException:
-                time.sleep(1)
-                element.click()
-            time.sleep(0.3)
-            return
-        element.click()
+        if not hasattr(self, "recovery"):
+            self.recovery = ActionRecovery(retries=int(self.config.get("dynamic_retries", 1) or 0))
+
+        def click(found):
+            if self.active == "webview":
+                # Bring the control into view. Never click through a popup with a script.
+                self.driver.execute_script(
+                    "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", found)
+            found.click()
+
+        def press_label(text):
+            from .android import find_unique
+            find_unique(self.driver, {"strategy": "text", "value": text}).click()
+
+        run_dir = self.stop_path.parent if self.stop_path else None
+
+        def shoot(name):
+            if run_dir is None:
+                return None
+            from .android import capture_screenshot
+            return capture_screenshot(self.driver, Path(run_dir), name, self.config.get("package_name"))
+
+        try:
+            perform_tap(
+                element, click=click, refind=refind or (lambda: element), recovery=self.recovery,
+                contract=getattr(self, "contract", None), run_dir=run_dir, press_label=press_label,
+                inspect=self._live_screen, shoot=shoot,
+            )
+        except RuntimeError as error:
+            raise ValueError(str(error)) from None
         time.sleep(0.2)
+
+    def _live_screen(self):
+        try:
+            from .android import inspect_driver
+            return inspect_driver(self.driver, self.config)
+        except Exception as error:
+            from .android_web import BotCheckBlocked
+            if isinstance(error, BotCheckBlocked):
+                raise
+            return None
 
     def open(self, url):
         """Open a page of the approved website in Android Chrome (a user typing or following its address)."""
