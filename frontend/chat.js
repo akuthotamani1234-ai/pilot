@@ -21,7 +21,7 @@
 
   let providers = null, chosen = "ollama", pendingSource = "", lastCheck = {};
   let job = null, since = 0, timer = null, posted = {}, logLines = [], llmWarnings = 0, casesBusy = false;
-  let mobileRun = false, mobilePreparing = false;
+  let mobileRun = false, mobilePreparing = false, androidWarmupPromise = null, androidWarmupTarget = "";
   let stick = true, casesKey = "";  // follow new messages? / last test-case list drawn
   let messageNumber = 0;
   let psince = 0, livePages = [], pageStats = {}, pagesBusy = false;  // the live page-by-page list
@@ -85,6 +85,8 @@
   $("mobileCancel").addEventListener("click", closeMobileForm);
   $("mobileForm").addEventListener("submit", (e) => { e.preventDefault(); startMobileRun(); });
   $("androidMode").addEventListener("change", updateAndroidFields);
+  $("androidDevice").addEventListener("change", maybeStartAndroidWarmup);
+  $("androidAuthorized").addEventListener("change", maybeStartAndroidWarmup);
   $("androidWholeApp").addEventListener("change", () => { $("androidContractOnly").checked = !$("androidWholeApp").checked; });
   const syncAndroidCoverage = () => {
     const all = $("androidTestBuild").checked && $("androidAllDiscovered").checked;
@@ -344,6 +346,7 @@
     renderMobileTodo({});
     updateAndroidFields();
     await refreshAndroidEnvironment();
+    await maybeStartAndroidWarmup();
   }
 
   function closeMobileForm() {
@@ -399,8 +402,8 @@
         $("androidRunNote").textContent = "";
         start.disabled = false;
       } else if (data.can_prepare || data.can_start_emulator) {
-        note.textContent = "Ready to start. Start Android test will launch local Appium and boot your selected emulator if needed.";
-        $("androidRunNote").textContent = "Appium and Android will start automatically when you click Start Android test.";
+        note.textContent = "Ready to start. Select an emulator and confirm permission to boot it while you finish setup.";
+        $("androidRunNote").textContent = "Appium and a selected emulator start after you confirm permission.";
         start.disabled = false;
       } else {
         const errors = (data.errors || ["Android environment is not ready."]).map(message => message.replaceAll("`", ""));
@@ -410,6 +413,54 @@
     } catch (error) {
       note.textContent = error.message || "Could not check the Android environment.";
       $("androidRunNote").textContent = note.textContent;
+    }
+  }
+
+  async function maybeStartAndroidWarmup() {
+    if (mobilePreparing || $("mobileForm").hidden) return;
+    const device = $("androidDevice");
+    const option = device.selectedOptions[0];
+    const avdName = option?.dataset.avd || "";
+    const target = device.value;
+    if (!target || !target.startsWith("avd:") || !avdName) return;
+    if (!$("androidAuthorized").checked) {
+      $("androidRunNote").textContent = `Confirm permission to start ${avdName} while you finish setup.`;
+      return;
+    }
+    if (androidWarmupPromise) {
+      if (androidWarmupTarget === target) return androidWarmupPromise;
+      await androidWarmupPromise;
+      return maybeStartAndroidWarmup();
+    }
+
+    androidWarmupTarget = target;
+    const appiumUrl = $("androidAppiumUrl").value;
+    $("androidRunNote").textContent = `Starting selected emulator ${avdName}…`;
+    androidWarmupPromise = (async () => {
+      try {
+        const response = await fetch("/api/android/prepare", {
+          method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-QA": "1" },
+          body: JSON.stringify({ device_id: target, avd_name: avdName, appium_url: appiumUrl,
+            authorized: true, stage: "all" })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Could not start the selected emulator.");
+        if (device.value === target) {
+          option.value = result.device_id;
+          option.textContent = `${result.device_id} · ready`;
+          option.dataset.avd = result.avd_name || avdName;
+          device.value = result.device_id;
+        }
+        $("androidRunNote").textContent = `Emulator ${result.device_id} is ready. Continue setting up your test.`;
+      } catch (error) {
+        $("androidRunNote").textContent = error.message || "Could not start the selected emulator.";
+      }
+    })();
+    try {
+      await androidWarmupPromise;
+    } finally {
+      androidWarmupPromise = null;
+      androidWarmupTarget = "";
     }
   }
 
@@ -487,6 +538,7 @@
     if (!await standardReady()) return;
     const form = $("mobileForm");
     if (!form.reportValidity() || timer || mobilePreparing) return;
+    if (androidWarmupPromise) await androidWarmupPromise;
     const mode = $("androidMode").value;
     const app = mode === "web" ? $("androidUrl").value.trim() : mode === "installed" ? $("androidPackage").value.trim() :
       (($("androidApk").files[0] || {}).name || "Uploaded APK");

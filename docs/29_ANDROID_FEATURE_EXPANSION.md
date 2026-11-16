@@ -50,8 +50,9 @@ for discovery, execution and reporting limits. A compiled fixture APK does not p
    **ui.bat** so the server loads the latest code. Keep its terminal open.
 2. Select **Android testing — Appium**, then **Standard testing**.
 3. Refresh device status. Select `blowai-api36` (automatic emulator start) or an
-   available Android device. A closed selected emulator starts when you click
-   **Start Android test**. Keep it running for the entire job; minimizing is okay.
+   available Android device. After permission confirmation, selecting a closed
+   emulator starts it while setup continues. Keep it running for the entire job;
+   minimizing is okay.
 4. Reuse the local Appium server if ready. Otherwise start it in PowerShell:
 
    ```powershell

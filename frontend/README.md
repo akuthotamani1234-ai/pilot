@@ -55,10 +55,10 @@ redacted preview. Publication requires the `proposal_id` of the reviewed diff. F
 or a changed proposal prevents publication. A repeated publication returns the existing PR. Tokens stay in memory;
 full source and patch content live below `.private/`, excluded from public artifact serving.
 
-Standard Android testing prepares Appium and the selected device sequentially, displaying the current step and elapsed
-time with controls disabled. It submits `/api/mobile/runs` only after preparation succeeds, using the returned real
-device serial. Preparation errors preserve the entered settings and let the user retry. Mode selection and refresh
-remain read-only. Missing installations and unauthorized physical phones still require user setup.
+Standard Android testing starts a selected closed emulator as soon as the user confirms permission, so it can boot while
+they finish setup. Submitting the form waits for Appium/device preparation to succeed, then submits `/api/mobile/runs`
+using the returned real device serial. Preparation errors preserve the entered settings and let the user retry. Mode
+selection and refresh remain read-only. Missing installations and unauthorized physical phones still require user setup.
 
 MCP setup reuses these controls and launchers. Web configuration opens the existing account/provider/advanced form;
 Android configuration moves the existing provider and advanced controls rather than creating duplicate IDs. Prepared
