@@ -2,7 +2,7 @@
 
 How to set up the code, check a change and hand it in. What the tool does and how to use it is in
 [README.md](README.md); how the code is built is in [backend/README.md](backend/README.md) and
-[project-docs/02_ARCHITECTURE.md](project-docs/02_ARCHITECTURE.md).
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Set up
 Windows 10 / 11 with Python 3.13 (see [README, Requirements](README.md#1-requirements)).
@@ -111,7 +111,7 @@ Before you request review:
 - [ ] No secrets, `.env`, or local machine paths in the diff
 - [ ] UI changes follow existing `frontend/` patterns (no new CSS framework drive-by)
 - [ ] Android safety blocks (pay / delete / logout / irreversible) remain intact
-- [ ] Docs updated when behavior or setup changed (`ARCHITECTURE.md` / `docs/` as needed)
+- [ ] Docs updated when behavior or setup changed (`README.md` / `ARCHITECTURE.md` as needed)
 - [ ] CI on the PR is green
 
 In the PR body, say how you checked it (which tests, which website or APK). For a fix from a real run, name the

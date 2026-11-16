@@ -8,7 +8,7 @@ Before creating or editing files, read `ARCHITECTURE.md`, `CONTRIBUTING.md`, and
 - Android/Appium in `backend/android*.py` and `backend/templates/`
 - Safety/secrets in `backend/safety.py` (use `redact`)
 - Tests in `tests/`; mark live/emulator work `@pytest.mark.slow`
-- Docs in `docs/` or `project-docs/`; demo contracts in `demo-apps/`
+- Keep user docs in `README.md`, `DEPLOYMENT.md`, and `STATUS.md`; demo contracts in `demo-apps/`
 
 ## Constraints
 - Prefer new modules &lt; 400 lines (&lt; 250 for new JS). Do not casually split existing 2k+ agent files without a full-suite PR.

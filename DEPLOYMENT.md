@@ -19,11 +19,11 @@ repository, check with `git status` that no `.env`, `accounts/`, `runs/` or `log
 
 | Copy | Never copy |
 |---|---|
-| `backend/`, `frontend/`, `tests/`, `project-docs/` | `.env` (API keys, test accounts) |
+| `backend/`, `frontend/`, `tests/`, `demo-apps/` | `.env` (API keys, test accounts) |
 | `main.py`, `setup/`, `ui.bat`, `run.bat` | `.venv/` (built for one PC; `setup\install.bat` creates a new one) |
 | `requirements.txt`, `constraints.txt`, `requirements-dev.txt`, `pyproject.toml`, `pytest.ini` | `runs/`, `baseline/`, `logs/`, `workspace/`, `schedules.json` (one tester's runs and data) |
 | `.env.example`, `.gitignore`, `.gitattributes`, `.editorconfig`, `.github/` | `accounts/` (encrypted for one Windows user, useless anywhere else) |
-| `README.md`, `DEPLOYMENT.md`, `CONTRIBUTING.md`, `SECURITY.md` | `__pycache__/`, `.pytest_cache/`, `.ruff_cache/` (caches) |
+| `README.md`, `DEPLOYMENT.md`, `ARCHITECTURE.md`, `STATUS.md`, `CONTRIBUTING.md`, `SECURITY.md` | `__pycache__/`, `.pytest_cache/`, `.ruff_cache/` (caches) |
 
 One command that makes such a copy (change both paths):
 ```powershell
@@ -122,8 +122,7 @@ tests**. It is **not** a supported product deployment, shared host, or substitut
 assume Job Object memory/process limits or DPAPI account encryption work the same way. Do not run `setup\install.bat`
 (or recreate `.venv`) on a cloud Linux host without a separate owner approval.
 
-Known limits that affect scale and timeouts are listed in [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md)
-(measure a real run before changing defaults).
+Crawl size, workers and timeouts come from `.env` (see [README, Configure](README.md#3-configure)). Measure a real run before changing those defaults.
 
 ## Light troubleshooting (install / first run)
 
@@ -131,6 +130,6 @@ Known limits that affect scale and timeouts are listed in [docs/31_PERFORMANCE_A
 |---|---|
 | `ui.bat` fails looking for Python | Install Python 3.13 and ensure `py -3.13` works; re-run `setup\install.bat` only on the tester’s Windows PC. |
 | Packages or Chromium missing after copy | The copy must not include another PC’s `.venv`; let the Windows installer create a new one. |
-| Tests OOM / PC very slow | Lower `TEST_WORKERS` in `.env` (default 4). See performance limits doc. |
+| Tests OOM / PC very slow | Lower `TEST_WORKERS` in `.env` (default 4). |
 | Run stops early with Insufficient Evidence | A configured time/page/test limit was hit; read the report reasons before raising caps. |
 | Linux-only environment | Use for offline checks only; deploy and live UI/Android verification stay on Windows with Appium/ADB when needed. |

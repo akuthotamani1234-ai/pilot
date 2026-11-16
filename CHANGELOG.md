@@ -2,6 +2,12 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-16 - Remove leftover documentation
+
+- Removed the phase notes in `docs/`, the live-run write-ups in `deep_validation/`, and the duplicate essays, diagrams, and sample copies in `project-docs/`.
+- The product docs that remain are `README.md`, `DEPLOYMENT.md`, `SECURITY.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, `STATUS.md`, and the short folder guides.
+- Contract examples the Studio loads stay in `demo-apps/`.
+
 ## 2026-11-16 - Android dynamic recovery
 
 - Ordinary content waits use `dynamic_wait_s` (1–20 seconds, default 12). A stuck tap or Chrome page load gives up after 20 seconds. A splash screen still has 30 seconds. A shop page is not held open until ads and analytics go quiet.

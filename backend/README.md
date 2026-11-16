@@ -115,11 +115,10 @@ log out) and `android_site.py` explores a website in Android Chrome (every menu 
 page to its end, then every feature; a pop-up dialog an entry opens - a login or sign-up modal - is a state whose
 forms are filled like a page's) and `android_web.py` handles the page reader (what is a menu toggle, a dialog
 opener, a form group), bot checks, browser alerts and a fresh visit.
-See [Android architecture, setup and verification](../project-docs/12_ANDROID.md).
+Android setup and safety rules are in the repository `README.md`.
 
 `android_forms.py` handles native form control grouping, safe unfamiliar-submit fallback, standard Spinner selection
-and destination evidence. It reuses the existing trusted adapter, scope guards and replay machinery. See
-[native form reliability](../docs/36_ANDROID_NATIVE_FORM_RELIABILITY.md) for supported widgets and live-check limits.
+and destination evidence. It reuses the existing trusted adapter, scope guards and replay machinery.
 
 ## How the web UI follows a run
 `server.py` starts `main.py` as its own process with `QA_EVENTS=1`. The run then prints marker lines that the server
@@ -143,7 +142,6 @@ AI-written test code is also checked before it runs (an import allow-list in `sc
 
 Current configuration uses `QPILOT_UI_URL`, `QPILOT_SECRET_*` and `QPILOT_DB_*`. Legacy aliases remain accepted for
 saved contracts and installed clients. Never remove their redaction or leak them into generated-code environments.
-See [private MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md).
 
 - **Rules decide, the AI only explains.** The verdict, the failure categories and the severities come from code.
   (One written exception: with `VISION` on, `failure_analysis.classify` lets the AI's look at a failed test's

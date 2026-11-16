@@ -3,8 +3,8 @@ whose pages, features and planted bugs are known - first clean, then with its pl
 truth manifest (backend/accuracy.py). No AI, hidden browser, its own runs/ and baseline/ folders (your runs/ is not
 touched). Takes several minutes:
 
-    .venv\\Scripts\\python.exe -m tests.accuracy_benchmark --out project-docs/accuracy/after.json
-    .venv\\Scripts\\python.exe -m tests.accuracy_benchmark --site classic --out project-docs/accuracy/classic_after.json
+    .venv\\Scripts\\python.exe -m tests.accuracy_benchmark --out runs/accuracy/after.json
+    .venv\\Scripts\\python.exe -m tests.accuracy_benchmark --site classic --out runs/accuracy/classic_after.json
 
   demo     tests/demo_store.py    a modern shop behind a two-step login (6 planted bugs)
   classic  tests/classic_shop.py  an older template shop: index.php?rt=<route>, plain-list menus (3 planted bugs)

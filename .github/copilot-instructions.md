@@ -6,7 +6,7 @@ These instructions mirror `ARCHITECTURE.md`. Follow them for every suggestion in
 - `ARCHITECTURE.md`
 - `CONTRIBUTING.md`
 - `backend/README.md`
-- For Android: `project-docs/12_ANDROID.md`
+- For Android behavior: `README.md` and `backend/android*.py`
 
 ## Where code belongs
 | Work | Directory |

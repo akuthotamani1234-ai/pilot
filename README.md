@@ -100,8 +100,7 @@ copy .env.example .env
 All settings are in **`.env`**. Each line of `.env.example` explains its setting. Usually you only set the AI:
 
 MCP uses `QPILOT_UI_URL`; `QPILOT_SECRET_*` / `QPILOT_DB_*` hold private flow references and
-`QPILOT_CHROMEDRIVER` optionally selects an existing driver. Legacy names remain accepted. See the
-[shared MCP settings and migration guide](docs/34_MCP_SHARED_CONFIGURATION.md).
+`QPILOT_CHROMEDRIVER` optionally selects an existing driver. Legacy names remain accepted.
 
 Android continuation manages `ANDROID_PENDING_CASES` internally; use **Resume unfinished tests** instead of setting it in `.env`.
 
@@ -326,13 +325,12 @@ Every AI call is logged with its tokens (`runs/<run>/llm_usage.jsonl`); `cost.js
 - Example: on Nov 2, 2026 a run on a small public shop with OpenAI `gpt-4o-mini` cost $0.0062 (9 AI calls).
 
 ## 8. Safety rules
-Details: [project-docs/03_RULES.md](project-docs/03_RULES.md).
 - Only test sites you own or may test (confirmed before every test). Only the website's own host is opened
   (+ `ALLOWED_HOSTS`); private networks and cloud metadata addresses are blocked; logout / delete / pay links and
   buttons are never used; no account is created unless you allow it.
 - AI-written code is checked before it runs (import allow-list) **and** runs in a sandbox: own process, no API keys,
   no programs / network / file writes outside the run, Windows memory + process limits, per-test time limit.
-  This is not a container - see the rules document for the limits.
+  This is not a container.
 - Passwords and keys are never shown: they are removed from logs, results, traces and AI requests.
 - The web UI only answers on this PC (127.0.0.1 / localhost), and every change needs a header that other websites
   can't send, so another website can't start, stop or delete tests.
@@ -352,7 +350,6 @@ qpilot/
 ├── backend/              the Python engine: agents, AI wrapper, web server        → backend/README.md
 ├── frontend/             the web page of the UI (plain HTML / CSS / JS, no build)  → frontend/README.md
 ├── tests/                tests of the tester + practice websites with planted bugs → tests/README.md
-├── project-docs/         product, architecture, rules, design                       → project-docs/README.md
 ├── main.py               command-line entry point: runs the whole pipeline (used by run.bat and the web UI)
 ├── setup/install.bat     the installer: Python 3.13, .venv, the packages, Chromium, .env - only what is missing
 │                         (double-click it, or ui.bat / run.bat call it before every start)
@@ -412,14 +409,11 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 - [STATUS.md](STATUS.md): what is implemented vs verified (single status page)
 - [ARCHITECTURE.md](ARCHITECTURE.md): directory rules, file-size limits, assistant guardrails
 - [DEPLOYMENT.md](DEPLOYMENT.md): install on another PC, update, what never to copy
-- [docs/15_MCP_INTEGRATION.md](docs/15_MCP_INTEGRATION.md): optional MCP assistant bridge
-- [docs/31_PERFORMANCE_AND_LIMITS.md](docs/31_PERFORMANCE_AND_LIMITS.md): configured crawl/test caps
 - [CONTRIBUTING.md](CONTRIBUTING.md): branching, Conventional Commits, PR checklist
 - [SECURITY.md](SECURITY.md): reporting a security problem, and what the tool protects
 - [backend/README.md](backend/README.md): the pipeline and every backend module
 - [frontend/README.md](frontend/README.md): the web page and the API it uses
 - [tests/README.md](tests/README.md): the tests, the practice websites and the accuracy benchmark
-- [project-docs/README.md](project-docs/README.md): product, architecture, rules and design
 
 ## 13. Repository layout
 ```
@@ -433,8 +427,6 @@ qpilot/
 ├── frontend/               # Studio UI (HTML/CSS/JS)
 ├── tests/                  # Offline pytest suite (+ android_demo fixture)
 ├── demo-apps/              # Sample contracts (APKs gitignored)
-├── docs/ / project-docs/   # Operator and design docs
-├── deep_validation/        # Compact validation notes (markdown)
 ├── STATUS.md               # Implementation vs verification
 ├── ARCHITECTURE.md         # Placement + assistant guardrails
 ├── CONTRIBUTING.md         # Branching, commits, PR checklist
@@ -448,7 +440,7 @@ Local-only (never commit): `.env`, `.venv/`, `runs/`, `logs/`, `accounts/`, `art
 ## Native Android testing
 
 Native form recognition, grouped country/radio selection, submission outcome checks and session-loss handling are
-described in [Android form reliability](docs/36_ANDROID_NATIVE_FORM_RELIABILITY.md). Short-lived Android validation
+described below. Short-lived Android validation
 toasts are retained for assertions, and list screens reached by a successful form continue into safe item/control
 exploration. The engine remains Python/Appium.
 
@@ -459,24 +451,15 @@ panel shows the current preparation step and elapsed time. Selecting Android or 
 the environment. Missing SDK, Java, Appium or UiAutomator2 installations still need setup; a USB phone must be connected
 and authorized. An already running Appium server or emulator is reused.
 Form screens are kept distinct from pages sharing the same native scroll-view shell. In authorized test-build mode,
-Signup validation runs before registration, and empty checks clear password fields privately. See
-[Android coverage workspace](docs/33_ANDROID_COVERAGE_WORKSPACE.md) describes full-coverage mode, durable actions,
-safe continuation, AI drafts, backend checks and known-truth measurement. See
-[Android form validation, Inspector and readiness](docs/32_ANDROID_FORM_VALIDATION_AND_READINESS.md) for current
-coverage limits and recommended improvements.
-See [Android setup, safety, AI generation and live demos](project-docs/12_ANDROID.md) and the
-[controlled Android fixture](tests/android_demo/README.md). Real device tests are opt-in.
-
-See the [Android guide](project-docs/12_ANDROID.md) for startup commands and [STATUS](STATUS.md) for verified results and remaining limits.
-
-Advanced application checks: [approved flows, business/backend checks, hybrid testing and accuracy lab](project-docs/13_ADVANCED_QA.md).
-
-[Page components, hidden controls and nested-menu inventory](project-docs/14_PAGE_COMPONENT_INVENTORY.md) describes the crawler inventory. Current regression evidence and live-verification limits are recorded in [STATUS](STATUS.md).
+Signup validation runs before registration, and empty checks clear password fields privately. Full-coverage mode,
+durable actions, safe continuation, and approved flows stay inside the Android engine. Current results and remaining
+limits are in [STATUS](STATUS.md). The controlled fixture is [tests/android_demo/README.md](tests/android_demo/README.md).
+Real device tests are opt-in.
 
 
 ## Local MCP integration
 
-Optional AI-client access to the existing Playwright/Appium services: install with **setup/install-mcp.bat**, start **ui.bat**, then configure your MCP client using **mcp-config.local.json**. Connection alone never starts a test. See [MCP setup and tools](docs/15_MCP_INTEGRATION.md).
+Optional AI-client access to the existing Playwright/Appium services: install with **setup/install-mcp.bat**, start **ui.bat**, then configure your MCP client using **mcp-config.local.json**. Connection alone never starts a test.
 
 The MCP panel shares Standard testing's account, AI, exploration and approved-flow controls. **Prepare assistant
 request** validates settings and keeps private inputs in Studio memory; the assistant receives an expiring reference
@@ -486,7 +469,7 @@ Appium and the selected emulator. Restart Studio and reconnect the MCP client af
 
 ## Choose your workflow and privacy
 
-Select **Playwright or Appium**, then **Standard testing or AI assistant through MCP**. Privacy & connections defaults to local AI processing; cloud providers and MCP data access require approval. See [Workflow and privacy](docs/16_WORKFLOWS_AND_PRIVACY.md).
+Select **Playwright or Appium**, then **Standard testing or AI assistant through MCP**. Privacy & connections defaults to local AI processing; cloud providers and MCP data access require approval.
 
 The local project folder is `Qpilot`. After moving or renaming a checkout, regenerate the MCP configuration with
 `setup/mcp_config.py` or Studio's **Copy server configuration**, update the client and reconnect it. MCP connects
@@ -495,4 +478,4 @@ that local Python checkout to the running Studio at `http://127.0.0.1:8000`; the
 
 ## Clear website setup and crawl verification
 
-After entering a URL, choose **Account, AI engine, Exploration, and More checks**. Whole-site exploration is the default; account creation, AI fallback and limited scope are explicit choices. See [verified behavior and remaining coverage limits](docs/17_CLEAR_SETUP_AND_CRAWL_AUDIT.md).
+After entering a URL, choose **Account, AI engine, Exploration, and More checks**. Whole-site exploration is the default; account creation, AI fallback and limited scope are explicit choices.
