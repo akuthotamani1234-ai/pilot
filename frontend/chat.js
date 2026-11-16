@@ -1231,9 +1231,25 @@
   }
 
   async function stopRun() {
-    if (!job) return;
-    $("stopBtn").disabled = true;
-    await fetch(`/api/runs/${job.id}/stop`, { method: "POST", headers: { "X-Agentic-QA": "1" } }).catch(() => {});
+    if (!job || $("stopBtn").disabled) return;
+    const id = job.id;
+    const button = $("stopBtn");
+    button.disabled = true;
+    button.textContent = "■ Stopping…";
+    setStatus(mobileRun ? "Stopping Android…" : "Stopping…", "");
+    try {
+      const response = await fetch(`/api/runs/${id}/stop`, {
+        method: "POST", headers: { "X-Agentic-QA": "1" }
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.detail || `Stop failed (${response.status}).`);
+      await poll();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "■ Stop";
+      setStatus("Stop failed", "bad");
+      say(`<div class="warn">Couldn't stop the test: ${esc(error.message || "request failed")}. Try Stop again.</div>`);
+    }
   }
 
   async function resumeIfRunning() {
