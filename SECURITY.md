@@ -10,13 +10,13 @@ Please **don't open a public issue** for a security problem. Use GitHub's privat
 Only the latest version on the `main` branch gets security fixes.
 
 ## What the tool protects
-The full rules are in [project-docs/03_RULES.md](project-docs/03_RULES.md). In short:
+In short:
 - **Only websites you may test.** Every run needs the confirmation "I own this website, or I have written permission
   to test it". Only the website's own host is opened (plus `ALLOWED_HOSTS`); private networks and cloud metadata
   addresses are blocked. Logout / delete / pay are never clicked unless allowed on staging.
 - **AI-written code is checked and sandboxed.** An import allow-list before it runs, then its own process without API
   keys, with network and file guards, Windows memory and process limits and a time limit per test. This is not a
-  container: see the rules document for its limits.
+  container.
 - **Secrets stay out of the output.** Keys and passwords are removed from logs, results, traces and AI requests. A
   test account given in the UI is used for that run only. A test account the tool created is stored encrypted for one
   Windows user (DPAPI) in `accounts/`.

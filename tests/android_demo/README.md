@@ -5,7 +5,7 @@ dashboard/access wall, logout and safe order/removal previews. The compiled APK 
 `demo-apps/qpilot-controlled-demo-v1.2.apk` at the repository root. It was built
 offline; the new version has not been installed or live tested after expansion.
 Use `demo-apps/controlled-sandbox-checks.json` with the private credentials
-`demo` / `demo123`. Follow [the expanded workflow](../../docs/29_ANDROID_FEATURE_EXPANSION.md).
+`demo` / `demo123`.
 
 Source builds now use `com.qpilot.demo`, including the Java source directory and Gradle application ID.
 The renamed prebuilt v1.2 APK is unchanged and still uses `com.blowai.demo`; its bundled checks target that
@@ -71,4 +71,4 @@ The Python configuration in tests/qa_mobile_contracts.py covers local positive/n
 empty/valid forms, calculations, backend checks and native/WebView journeys. Default discovery remains safe.
 Only the controlled sample Android app contains Java code; all QA framework code is Python.
 The Hybrid demo uses an explicitly configured loopback fixture URL and a debuggable WebView.
-Final execution is deferred until requested. See project-docs/13_ADVANCED_QA.md.
+Final execution is deferred until requested.

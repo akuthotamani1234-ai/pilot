@@ -22,13 +22,13 @@ desktop/mobile MCP settings and generated integration names. Ruff and changed Ja
 The 14 November documentation review found zero broken local file links. Browser fixtures
 cover shared configuration, private-input omission, invalidation and responsive layouts. These checks do not claim
 a fresh arbitrary-APK run, physical-device Inspector attachment or paid-provider/third-party-host acceptance.
-See [MCP setup](docs/34_MCP_SHARED_CONFIGURATION.md) for current connection and privacy behavior.
+Connection and privacy behavior is in the Studio and `README.md`.
 
 ## Android coverage workspace
 
 Implemented full discovered-scenario mode, screen-scoped control coverage, durable masked Android action events,
 pending-only continuation, reviewed AI drafts, attached read-only API/SQLite checks, and known-truth case selection.
-See [operation and limits](docs/33_ANDROID_COVERAGE_WORKSPACE.md).
+Operation and limits are in the Android engine and `STATUS.md`.
 
 Validation: ruff passed; 119 affected offline regressions passed; 39 MCP integration checks passed; 18 continuation,
 workspace and mock Appium protocol checks passed. The browser checks cover desktop/mobile flow configuration,
@@ -61,8 +61,8 @@ an actual Inspector attachment are separate verification; real app defects and b
 | Ruff | Clean |
 | MCP + LLM + privacy offline | **60 passed** (`test_mcp_integration`, `test_llm_provider_errors`, `test_privacy_workflow`) |
 | `LLM_PROVIDER=none` | Fails closed with explicit rules-fallback message |
-| Live Android ecommerce (Sauce MDA) | Documented under `deep_validation/live_runs/` |
-| Live MCP AI client (stdio → Android) | **Verified** — job done, run `android_20261112_105018_1e0c72` (see `deep_validation/live_runs/mcp_ai_assisted_test_20261112.md`) |
+| Live Android ecommerce (Sauce MDA) | Recorded in earlier local runs; those write-ups are not part of the product |
+| Live MCP AI client (stdio → Android) | **Verified** on 12 Nov 2026, run `android_20261112_105018_1e0c72` |
 | Live cloud LLM / third-party IDE MCP host | Not claimed (Cursor/Claude Desktop config is local) |
 | Windows Job Object / DPAPI | Production target; unit-covered |
 
@@ -72,7 +72,7 @@ an actual Inspector attachment are separate verification; real app defects and b
 
 ## Open by design / not claimed
 
-- Crawl and interaction budgets bound coverage (see `docs/31_PERFORMANCE_AND_LIMITS.md`); Thorough raises floors but stays finite
+- Crawl and interaction budgets bound coverage; Thorough raises floors but stays finite
 - Destructive / pay / logout actions stay blocked unless explicitly allowed on staging
 - Closed shadow DOM and cross-origin frames cannot be fully inventoried
 - Live paid providers and third-party MCP clients require local install + user consent
@@ -83,6 +83,4 @@ an actual Inspector attachment are separate verification; real app defects and b
 
 - Architecture & contribution rules: `ARCHITECTURE.md`, `CONTRIBUTING.md`
 - Release notes: `CHANGELOG.md`
-- MCP setup: `docs/15_MCP_INTEGRATION.md`
-- Android: `project-docs/12_ANDROID.md`
-- Live assessments: `deep_validation/live_runs/`
+- Install and run: `README.md`, `DEPLOYMENT.md`
