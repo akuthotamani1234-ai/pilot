@@ -112,11 +112,13 @@ class SiteDevice:
         if time.monotonic() >= self.deadline:
             raise Budget("User-like testing time limit reached")
 
-    def settle(self, timeout: float = 10) -> dict:
+    def settle(self, timeout: float | None = None) -> dict:
         from .android import inspect_driver
         from .android_runtime import settled_screen
 
         self._check()
+        if timeout is None:
+            timeout = float(self.config.get("dynamic_wait_s") or 12)
         screen = settled_screen(lambda: inspect_driver(self.driver, self.config),
                                 timeout=min(timeout, max(1.0, self.deadline - time.monotonic())))
         return normalize_screens([screen])[0]
@@ -137,11 +139,11 @@ class SiteDevice:
         return self.settle(20)
 
     def observe(self) -> dict:
-        return self.settle(10)
+        return self.settle()
 
     def scroll_end(self) -> int:
         from .android_web import scroll_to_end
-        return scroll_to_end(self.driver, 15)
+        return scroll_to_end(self.driver, 15, int(self.config.get("scroll_stalls", 2)))
 
     def alerts(self, wait_s: float = 0.0) -> list[str]:
         from .android_web import collect_alerts

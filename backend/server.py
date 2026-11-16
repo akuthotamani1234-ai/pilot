@@ -39,6 +39,7 @@ STATIC = ROOT / "frontend"   # the web page files (served at /static/...)
 AUDIT = ROOT / "logs" / "audit.jsonl"  # who started / stopped / deleted what, and when (never secrets)
 RUNS.mkdir(exist_ok=True)
 STAGE_RE = re.compile(r"^::stage::(\w+)::(start|done)$")
+NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)
 HUMAN_RE = re.compile(r"^::human::(\{.*\})$")  # the login needs a person (one-time code / CAPTCHA) - and the outcome
 RUN_NAME = re.compile(r"^[\w.\-]+$")
@@ -273,6 +274,11 @@ def _reader(job: dict) -> None:
     proc = job["proc"]
     for raw in proc.stdout:
         line = redact(raw.rstrip("\r\n"), job.get("secrets") or [])  # (passwords / keys never reach the page)
+        m = NOTE_RE.match(line.strip())
+        if m:
+            job["note"] = m.group(1).strip()
+            job["lines"].append(job["note"])
+            continue
         m = STAGE_RE.match(line.strip())
         if m:
             name, ev = m.groups()
@@ -446,6 +452,7 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         # exit_code is set when the worker process ends (None while still running)
         "exit_code": job.get("exit_code"),
         "stages": job["stages"], "current": job["current"], "human": job.get("human"),
+        "note": job.get("note") or "",
         "lines": job["lines"][since:], "next": len(job["lines"]),
         "live_pages": job.get("pages", [])[psince:], "pnext": len(job.get("pages", [])),
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
@@ -882,6 +889,11 @@ async def start_mobile_run(
     interaction_timeout_s: int = Form(0),
     bot_check_wait_s: int = Form(30),
     human_wait_s: int = Form(180),
+    dynamic_wait_s: int = Form(12),
+    dynamic_retries: int = Form(1),
+    overlay_attempts: int = Form(1),
+    repeated_failures: int = Form(1),
+    scroll_stalls: int = Form(2),
     max_test_cases: int = Form(300),
     allow_rules_fallback: bool = Form(True),
     api_key: str = Form("", max_length=4096),
@@ -931,7 +943,9 @@ async def start_mobile_run(
             "max_interactions": max_interactions,
             "test_all_discovered": test_all_discovered,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
-            "human_wait_s": human_wait_s,
+            "human_wait_s": human_wait_s, "dynamic_wait_s": dynamic_wait_s,
+            "dynamic_retries": dynamic_retries, "overlay_attempts": overlay_attempts,
+            "repeated_failures": repeated_failures, "scroll_stalls": scroll_stalls,
         })
     except AndroidEnvironmentError as e:
         raise HTTPException(400, str(e)) from e

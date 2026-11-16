@@ -200,6 +200,9 @@
           <label>Maximum test cases<input id="androidMaxCases" type="number" min="1" max="300" value="300"></label>
           <label>Test mode: user-like tries (0 = until exhausted)<input id="androidMaxInteractions" type="number" min="0" max="500" value="0"></label>
           <label>Test mode: time limit seconds (0 = until exhausted)<input id="androidInteractionTimeout" type="number" min="0" max="3600" value="0"></label>
+          <label>Dynamic content wait seconds<input id="androidDynamicWait" type="number" min="1" max="45" value="12"></label>
+          <label>Dynamic action retries<input id="androidDynamicRetries" type="number" min="0" max="1" value="1"></label>
+          <label>Scrolls with no new content<input id="androidScrollStalls" type="number" min="1" max="5" value="2"></label>
           <label>Navigation expectations<textarea id="androidExpectations" rows="3" placeholder="One per line, for example: About = About"></textarea></label>
           <label>Expected displayed values<textarea id="androidExpectedValues" rows="2" placeholder="One per line, for example: Cart total = Total: $0.00"></textarea></label>
           <label class="wide">Requirements<textarea id="androidRequirements" rows="3" maxlength="12000" placeholder="Describe the behavior you expect. Unknown behavior stays marked for review."></textarea></label>

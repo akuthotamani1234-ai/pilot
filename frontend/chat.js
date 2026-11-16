@@ -463,6 +463,9 @@
     // Test mode's limits are sent explicitly, so a run never falls back to an older server's smaller defaults
     data.append("max_interactions", $("androidMaxInteractions").value || "0");
     data.append("interaction_timeout_s", $("androidInteractionTimeout").value || "0");
+    data.append("dynamic_wait_s", $("androidDynamicWait") ? $("androidDynamicWait").value : "12");
+    data.append("dynamic_retries", $("androidDynamicRetries") ? $("androidDynamicRetries").value : "1");
+    data.append("scroll_stalls", $("androidScrollStalls") ? $("androidScrollStalls").value : "2");
     data.append("allow_rules_fallback", $("androidFallback").checked ? "true" : "false");
     if ($("androidProvider").value) data.append("llm_provider", $("androidProvider").value);
     if ($("androidModel").value.trim()) data.append("llm_model", $("androidModel").value.trim());
@@ -638,7 +641,7 @@
         loadCases(result.run);
       }
       if (result.status === "running") {
-        setStatus(result.current ? `Android · ${result.current.replaceAll("_", " ")}` : "Testing Android…", "");
+        setStatus(result.note || (result.current ? `Android · ${result.current.replaceAll("_", " ")}` : "Testing Android…"), "");
         return;
       }
       clearInterval(timer);

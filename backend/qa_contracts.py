@@ -110,6 +110,24 @@ class PermissionPolicy(Model):
         return self
 
 
+class OverlayChoice(Model):
+    """An approved popup choice. The target is matched exactly and refused when it looks protected."""
+
+    match_text: str = Field(min_length=1, max_length=160)
+    action: Literal["tap_text"] = "tap_text"
+    target_text: str = Field(min_length=1, max_length=160)
+    purpose: str = Field(min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def safe_target(self):
+        from .android_dynamic import overlay_target_rejected
+
+        rejected = overlay_target_rejected(self.target_text)
+        if rejected:
+            raise ValueError(rejected)
+        return self
+
+
 class Step(Model):
     action: Literal[
         "tap",
@@ -336,6 +354,7 @@ class Contract(Model):
     # Made by Android test mode (a test build or a confirmed test website): its flows may use the test-mode rules,
     # and only while that run is in test mode again (qa_runtime checks the live control with the same rules).
     test_mode: bool = False
+    overlay_choices: list[OverlayChoice] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def references(self):

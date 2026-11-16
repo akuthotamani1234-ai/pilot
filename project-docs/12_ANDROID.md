@@ -151,6 +151,22 @@ The emulator must be visible if you want to watch. The demo opens Home, verifies
 the Team tab, opens/closes a dialog and confirms destructive routes were never visited. Screenshots, JSON, HTML and
 an actual device recording are saved under `runs/appium_web_live_<time>/`.
 
+## Changing screens
+
+Android Chrome and a native app share one recovery path. Before an action, Qpilot waits until something visible is stable. The wait has a ceiling (`dynamic_wait_s`, 1–45 seconds, default 12). It does not wait for ads or analytics to go quiet. The studio shows one plain line, such as “Waiting for the page to settle” or “Blocked by an unresolved popup.”
+
+A popup is dismissed only when its label is exactly Close, Dismiss, Skip, Not now, Maybe later, No thanks, Cancel, or X. “Cancel order” and “Close account” are not dismissals. Any other choice must be an approved `overlay_choices` entry in the QA contract. A target that looks like payment, purchase, delete, permission, or an account action is rejected, the flow is blocked, and the overlay text is kept in `dynamic.json`.
+
+A stale or covered control is resolved again and tried once. The same control on the same screen is not tried after that. Scrolling stops after `scroll_stalls` attempts that add no content (default 2).
+
+Opening Chrome or an app is not a successful launch while the page is blank. A security check pauses for the person on the device, within the existing bot-check ceiling, and is not treated as the shop.
+
+On a production app the run may open home, categories, search, and a product. Adding to the cart, logging in, and other changes need test-build confirmation. A structural selector such as `div:nth-of-type(...)` cannot make those changes unless the contract names the control with a text, resource id, or accessibility id.
+
+Prices, ad ids, and carousel text do not make the same page look new. A popup stays in the screen signature so the run does not tap the page underneath it.
+
+A stopped or failed run is diagnosed from `summary.json`, `progress.log`, and the screenshot named by `dynamic.json`. Those files contain the source, device, locator type, retry count, overlay text, and the blocked reason. They do not contain credentials.
+
 ## Troubleshooting
 
 - Missing tools: configure SDK/JDK/PATH and install only the missing components.
