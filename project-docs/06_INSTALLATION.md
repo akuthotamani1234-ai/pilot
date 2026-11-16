@@ -1,12 +1,10 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# 🧰 Installation Guide
+# Installation Guide
 
 ### Qpilot – What to Install and How to Run It
 
 | **Version** | 1.0 |
 |---|---|
-| **Date** | Oct 23, 2026 (checked against the code Nov 4, 2026) |
+| **Date** | Oct 23, 2026 (checked against the code Nov 16, 2026) |
 | **Platform** | Windows 10 / 11 (the sandbox and the account store are Windows-only; tested on Windows 11) |
 | **Setup time** | about 5–10 minutes the first time (downloads packages and Chromium) |
 
@@ -77,7 +75,7 @@ For working on the tester itself, `requirements-dev.txt` adds **ruff** 0.14.10 (
 ### 3.6 Native Android testing (optional)
 - **JDK 17 or newer** (JDK 21 recommended), **Android SDK Platform-Tools**, Android command-line tools, and **Node.js 20.19+ (20.x), 22.12+ (22.x), or 24+; npm 10+**.
 - A connected Android device with USB debugging enabled, or an emulator. Android Studio is optional.
-- Appium Server and the UiAutomator2 driver. Qpilot uses the server only on `127.0.0.1`; it does not install or start global Node packages automatically.
+- Appium Server 3.9.0 and the UiAutomator2 driver 8.7.3, already installed on the PC. `setup\install.bat` does not download the JDK, Android SDK, Node.js, or Appium. Qpilot talks to Appium only on `127.0.0.1`. It does not install global Node packages.
 - Emulator acceleration must be enabled in the PC firmware/Windows hypervisor. If it is unavailable, use an authorized physical device.
 
 ## 4. First-Time Setup
@@ -189,21 +187,22 @@ Build-Tools and the emulator executable with `sdkmanager`:
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "emulator"
 ```
 
-Add `platform-tools` to `PATH` and verify a device with `adb devices`. Start the server explicitly in a separate terminal:
+Add `platform-tools` to `PATH` and verify a device with `adb devices`. You do not have to start Appium yourself.
+**Start Android test** starts the installed local Appium server and boots the selected emulator, then waits until
+both are ready. An Appium server or emulator that is already running is reused. Refreshing device status only checks
+what is installed; it does not start anything.
 
-```powershell
-appium --address 127.0.0.1
-```
+In the UI choose **Test an Android app**, refresh device status, select an APK upload, an installed package, or a
+website in Chrome, and confirm authorization. Uploads are stored under the run's private folder and are not served as
+static files. The APK is installed and executed on the selected device; upload only trusted apps and prefer a
+disposable emulator. Safe discovery explores navigation and records its scope. Authorized test-build mode also
+executes permitted form, login, signup, cart and other regression checks; approved contracts supply explicit business
+outcomes. Payments, destructive actions and other protected controls retain their guards. A smoke/presence result is
+not full app certification.
 
-In the UI choose **Test an Android app**, refresh device status, select an APK upload or an installed package, and
-confirm authorization. Uploads are stored under the run's private folder and are not served as static files. The
-APK is installed and executed on the selected device; upload only trusted apps and prefer a disposable emulator.
-Safe discovery explores navigation and records its scope. Authorized test-build mode also executes permitted form,
-login, signup, cart and other regression checks; approved contracts supply explicit business outcomes. Payments,
-destructive actions and other protected controls retain their guards. A smoke/presence result is not full app certification.
-
-On Start Android test, or a prepared MCP start, Qpilot can start installed local Appium and the selected emulator.
-Selection and refresh are read-only. Missing prerequisites and unauthorized physical devices require user setup.
+If Appium or the emulator will not start, the messages name the missing tool. A USB phone must already be connected
+and authorized; Qpilot does not substitute a different device. You can still start Appium yourself with
+`appium --address 127.0.0.1` before the test. Missing prerequisites and unauthorized physical devices require user setup.
 Direct legacy MCP starts require readiness first. Session failures produce infrastructure evidence, not a pass.
 Use Android Studio's Device Manager only when emulator acceleration is available; otherwise connect a device with USB
 debugging enabled and approve its ADB prompt.
@@ -213,6 +212,5 @@ debugging enabled and approve its ADB prompt.
 **Related documents:** [PRD](01_PRD.md) · [Architecture](02_ARCHITECTURE.md) · [Rules](03_RULES.md) ·
 [Design](04_DESIGN.md) · [Execution Process](05_EXECUTION_PROCESS.md)
 
-</div>
 
 Detailed mobile architecture, AI behavior, contracts, checkpoint resume and verification: [Android guide](12_ANDROID.md).

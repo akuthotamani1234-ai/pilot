@@ -1,6 +1,4 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# 🏛️ System Architecture
+# System Architecture
 
 ### Qpilot – AI Agents That Test Your Website
 
@@ -185,5 +183,3 @@ The one exception is `POST /api/hooks/run` (a deploy script starts a run): it ne
 
 **Related documents:** [PRD](01_PRD.md) · [Rules](03_RULES.md) · [Design](04_DESIGN.md) ·
 [Execution Process](05_EXECUTION_PROCESS.md) · [Installation](06_INSTALLATION.md)
-
-</div>

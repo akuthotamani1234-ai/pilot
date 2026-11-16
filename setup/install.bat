@@ -55,7 +55,10 @@ REM ---- 4. Settings
 if not exist .env copy .env.example .env >nul
 if "%~1"=="" (
     echo.
-    echo Setup is done: everything is installed. Double-click ui.bat to start the tester.
+    echo Setup is done: Python, the packages, Chromium and .env are installed.
+    echo Double-click ui.bat to start the tester.
+    echo Android JDK, SDK and Appium are not part of this setup. If they are already installed,
+    echo Start Android test starts local Appium and the selected emulator.
     pause
 )
 exit /b 0

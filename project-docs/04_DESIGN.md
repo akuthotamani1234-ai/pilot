@@ -1,6 +1,4 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# 🎨 Design Document
+# Design Document
 
 ### Qpilot – Screens, Visual Style and Data
 
@@ -159,5 +157,3 @@ All files of one run are in `runs/<site>_<YYYYMMDD_HHMMSS>/`.
 
 **Related documents:** [PRD](01_PRD.md) · [Architecture](02_ARCHITECTURE.md) · [Rules](03_RULES.md) ·
 [Execution Process](05_EXECUTION_PROCESS.md) · [Installation](06_INSTALLATION.md)
-
-</div>

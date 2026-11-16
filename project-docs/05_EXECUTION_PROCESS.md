@@ -1,6 +1,4 @@
-<div style="font-family: 'Segoe UI', Inter, system-ui, -apple-system, Roboto, Arial, sans-serif; line-height: 1.6;">
-
-# ⚙️ Execution Process
+# Execution Process
 
 ### Qpilot – From "Paste a Link" to "Final Report"
 
@@ -192,5 +190,3 @@ Calling `.venv\Scripts\python.exe` directly needs no activation (so no `Set-Exec
 
 **Related documents:** [PRD](01_PRD.md) · [Architecture](02_ARCHITECTURE.md) · [Rules](03_RULES.md) ·
 [Design](04_DESIGN.md) · [Installation](06_INSTALLATION.md)
-
-</div>

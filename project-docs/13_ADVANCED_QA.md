@@ -10,7 +10,7 @@ separate from the reusable framework and generated customer tests.
 | Native login and forms | Explicit approved flows, environment-based secret references, positive/negative expectations, input validation and enabled-state checks |
 | Business rules | Decimal expressions over visible values and configured constants; only declared variables and + - * / are allowed |
 | Backend verification | Explicit-origin HTTP GET/JSON-pointer checks and read-only SQLite SELECT checks, optionally after a UI setup flow |
-| Hybrid applications | Native ? the selected app's debuggable WebView ? native; CSS in WebViews, native accessibility/resource IDs outside |
+| Hybrid applications | Native, then the selected app's debuggable WebView, then native; CSS in WebViews, native accessibility/resource IDs outside |
 | Accuracy benchmarking | Known-defect precision/recall, false alarms, unanswered cases, missed defects and repeated-condition instability |
 | Demonstration | /qa-lab builds an evidence presentation from actual saved runs and user-supplied ground truth |
 
@@ -120,7 +120,7 @@ A metric with no denominator is Not measured. These numbers apply only to the su
 The referenced application, credentials, API and database must remain available. Controlled fixture tests use
 temporary servers; replay those through their pytest command, which recreates the fixture environment.
 
-A clear demonstration is clean ? deliberately seeded defect ? failed expectation with evidence ? corrected clean
+A clear demonstration is a clean run, then a deliberately seeded defect, then a failed expectation with evidence, then a corrected clean
 repeat. Present locator recovery separately and preserve the original assertion. Label all seeded behavior and
 show observed coverage limits.
 
