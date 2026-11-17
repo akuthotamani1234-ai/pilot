@@ -87,12 +87,18 @@ def sessions_for(state: dict) -> dict:
     return book.public()
 
 
+def _asked(name: str) -> bool:
+    """A control runs only when this run asked for it. Being allowed is not the same as being on."""
+    return os.getenv(name.upper(), "").strip().lower() in {"1", "true", "yes"}
+
+
 def environment_for(environment: str) -> dict:
-    """Staging controls, with payment, delete, and logout left blocked."""
+    """Staging may use a control only when this run asked for it. Payment, delete, and logout stay blocked."""
     controls = {}
     for name in sorted(CONTROLS):
-        enabled, reason = enable_control(environment, name)
-        controls[name] = {"enabled": enabled, "reason": reason}
+        allowed, reason = enable_control(environment, name)
+        enabled = allowed and _asked(name)
+        controls[name] = {"enabled": enabled, "allowed": allowed, "reason": name if enabled else reason}
     blocked = {}
     for kind in ("pay", "delete", "logout"):
         still, reason = action_still_blocked(kind)

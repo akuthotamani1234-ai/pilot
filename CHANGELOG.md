@@ -10,6 +10,7 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 - A run now stores that registration in `target.json` before the crawl. A stopped crawl keeps its inventory and remaining pages, and resume continues from them. Execution writes `workers.json` for the cases that have a trustworthy assertion.
 - Each later stage stores its own row step, in order: inventory, graph, workers, seeded defect, the six dashboard counts, and the operation checks.
 - The live run now applies the remaining rules in place: role sessions, environment controls, locale sample, schema diff, plugins, worker test data, dependency faults, replay packages, mutation score, journeys, evaluation, and trends.
+- The crawl orders ordinary links by the next-page score, writes the locale facts a page actually showed, and saves an OpenAPI spec when one is found. A fixed clock, a network fault, or a dependency fault reaches the test browser only when that run asks for it. Payment, delete, and logout stay blocked.
 - An unanswered sensitive case stays unrun. A locator repair remains a proposal and keeps the original error. A plugin cannot turn off authorization, secret redaction, payment, delete, or logout. Production does not get environment controls or dependency faults.
 
 ## 2026-11-17 - Swarm test data per worker
