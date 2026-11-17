@@ -76,6 +76,10 @@ class Lifecycle:
         rows = self._by_worker.get(int(worker), [])
         return [dict(row) for row in rows if row["state"] != "cleaned"]
 
+    def snapshot(self, worker: int) -> list[dict]:
+        """Every record for this worker, including ones already cleaned."""
+        return [dict(row) for row in self._by_worker.get(int(worker), [])]
+
     def claim(self, worker: int, value: str) -> str:
         """Keep a fixture value for this worker. A real customer address is refused."""
         if int(worker) not in self._by_worker:
@@ -122,6 +126,20 @@ class Lifecycle:
                 cleaned.append(dict(row))
             self._case[owner] = None
         return cleaned
+
+
+def account_tag_for_worker(prepared: list, worker_name: str) -> str:
+    """The ready account tag for this pytest worker. gw0 is worker 1. A cleaned record is not used."""
+    digits = re.sub(r"\D", "", worker_name or "")
+    worker = int(digits) + 1 if digits else 1
+    for pack in prepared:
+        if not isinstance(pack, list):
+            continue
+        account = next((row for row in pack if isinstance(row, dict) and row.get("kind") == "account"), None)
+        if not account or account.get("state") != "ready" or int(account.get("worker") or 0) != worker:
+            continue
+        return str(account.get("tag") or "")
+    return ""
 
 
 def plan_for_workers(run_id: str, environment: str, workers: list[int]) -> list[dict]:

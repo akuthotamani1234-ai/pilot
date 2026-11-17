@@ -26,6 +26,11 @@ def test_each_stage_stores_its_rules_and_a_plugin_can_add_an_assertion(tmp_path,
     assert plugin_cases()[0]["expected"] == "the price is shown"
     executed = apply_execution(state)
     assert executed["lifecycle"]["prepared"][0][0]["source"] == "synthetic"
+    assert executed["lifecycle"]["prepared"][0][0]["state"] == "ready"
+    assert executed["lifecycle"]["cleaned"] == []
+    finished = apply_execution(state, finish=True)
+    assert finished["lifecycle"]["prepared"][0][0]["state"] == "cleaned"
+    assert finished["lifecycle"]["cleaned"]
     assert executed["dependency"]["injected"] is False
     analyzed = apply_analysis(state, [{"id": "price", "test": "see the price", "error": "price changed",
                                        "screenshot": "price.png", "page_url": "https://shop.example/saree"}])

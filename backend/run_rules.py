@@ -183,8 +183,8 @@ def plugin_cases(root: Path | None = None) -> list[dict]:
     return cases
 
 
-def lifecycle_for(state: dict) -> dict:
-    """Prepare each worker's synthetic records, then clean up only this run's records."""
+def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
+    """Prepare each worker's synthetic records. They stay ready until the suite has finished."""
     run_dir = Path(state.get("run_dir") or ".")
     environment = str(state.get("environment") or settings.environment or "test")
     crawl = state.get("crawl") or {}
@@ -194,8 +194,10 @@ def lifecycle_for(state: dict) -> dict:
     if production_environment(environment):
         return {"refused": "production customer data is not used as fixture data", "prepared": [], "cleaned": []}
     life = Lifecycle(run_dir.name, environment)
-    prepared = [life.prepare(worker) for worker in workers]
-    cleaned = life.cleanup()
+    for worker in workers:
+        life.prepare(worker)
+    cleaned = life.cleanup() if finish else []
+    prepared = [life.snapshot(worker) for worker in workers]
     return {"refused": "", "prepared": prepared, "cleaned": cleaned}
 
 
@@ -327,11 +329,14 @@ def apply_discovery(state: dict) -> dict:
     return rules
 
 
-def apply_execution(state: dict) -> dict:
-    """Worker data and a dependency fault decision before the results are trusted."""
+def apply_execution(state: dict, *, finish: bool = False) -> dict:
+    """Worker data and a dependency fault decision before the results are trusted.
+
+    The suite starts with the records still ready. finish=True cleans this run's records after the browsers stop.
+    """
     run_dir = Path(state["run_dir"])
     environment = str(state.get("environment") or settings.environment or "test")
-    rules = {"lifecycle": lifecycle_for(state), "dependency": dependency_for(environment)}
+    rules = {"lifecycle": lifecycle_for(state, finish=finish), "dependency": dependency_for(environment)}
     for name, payload in rules.items():
         _store(run_dir, name, payload)
     return rules
