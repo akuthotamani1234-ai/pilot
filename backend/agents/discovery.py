@@ -23,12 +23,15 @@ from .. import runctl, visual
 from ..actions import action_risk
 from ..auth import CAPTCHA, NOTES, log_in, login_form, looks_logged_out, wait_for_person
 from ..config import settings
+from ..coverage_verify import verify_listing
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
+from ..swarm import assign_workers, choose_listing, sample_limit
+from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
 
@@ -1732,6 +1735,10 @@ def discovery_agent(state: QAState) -> QAState:
     skipped: dict = {}  # url -> reason
     routes = {"redirected_out": [], "session_expired": [], "external": set(), "needs_permission": [], "sampled": 0,
               "needs_login": []}  # (needs_login: a visitor was sent to the login page - not tested without an account)
+    swarm_rows: list = []  # chosen products and which worker owns each one
+    swarm_tasks: list = []  # QX-A01 handoffs for those choices
+    swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
+    n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
     session = {"form": None, "user": "", "password": "", "landing": "", "relogins": 0}  # in memory only
@@ -1878,12 +1885,12 @@ def discovery_agent(state: QAState) -> QAState:
             if not inside and not_app >= MAX_NOT_APP:
                 continue
             folder = _parent_path(url)
-            if settings.pattern_samples > 0 and folder in typed and depth > 0 \
+            if n_sample > 0 and folder in typed and depth > 0 \
                     and (url, auth) not in reread and not _pattern(url, auth):
                 # queued before its folder's design was known (the sitemap lists every product at once): a sample
                 kind = f"{folder}/* (one design)"
-                kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": settings.pattern_samples,
-                                                                               "sampled": settings.pattern_samples,
+                kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
+                                                                               "sampled": n_sample,
                                                                                "smoke": []})
                 if url not in counted:
                     counted.add(url)
@@ -1891,7 +1898,7 @@ def discovery_agent(state: QAState) -> QAState:
                     routes["sampled"] += 1
                     if len(kinds["smoke"]) < 10:
                         kinds["smoke"].append(url)
-                skipped.setdefault(url, f"the same page design as {settings.pattern_samples} tested pages of "
+                skipped.setdefault(url, f"the same page design as {n_sample} tested pages of "
                                         f"{folder}/ - a sample was tested")
                 continue
             again = next((n for n, p in enumerate(app_map) if p["url"] == url and p["auth"] == auth), None) \
@@ -2001,8 +2008,8 @@ def discovery_agent(state: QAState) -> QAState:
                 if folder and page_testable(entry):
                     designs[(folder, entry["skeleton"])] = designs.get((folder, entry["skeleton"]), 0) + 1
                     counted.add(url)  # (a sample: already one of the pages its kind counts)
-                    if settings.pattern_samples > 0 \
-                            and designs[(folder, entry["skeleton"])] >= settings.pattern_samples and folder not in typed:
+                    if n_sample > 0 \
+                            and designs[(folder, entry["skeleton"])] >= n_sample and folder not in typed:
                         typed[folder] = entry["skeleton"]
                         print(f"  [discovery] the pages of {folder}/ share one design: more of them are a sample "
                               "(smoke-checked, not explored again)", flush=True)
@@ -2397,11 +2404,11 @@ def discovery_agent(state: QAState) -> QAState:
                     found_by.setdefault(nxt, how)
                     key = _pattern(nxt, auth)
                     folder = _parent_path(nxt)
-                    if settings.pattern_samples > 0 and not key and folder in typed:
+                    if n_sample > 0 and not key and folder in typed:
                         # a page of a folder whose pages share one design: its kind is
                         kind = f"{folder}/* (one design)"  # known - a sample is tested, the rest smoke-checked
-                        kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": settings.pattern_samples,
-                                                                                       "sampled": settings.pattern_samples,
+                        kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
+                                                                                       "sampled": n_sample,
                                                                                        "smoke": []})
                         if nxt not in counted:  # (the same address found as a visitor AND logged in: one page)
                             counted.add(nxt)
@@ -2409,7 +2416,7 @@ def discovery_agent(state: QAState) -> QAState:
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:
                                 kinds["smoke"].append(nxt)
-                        skipped.setdefault(nxt, f"the same page design as {settings.pattern_samples} tested pages of "
+                        skipped.setdefault(nxt, f"the same page design as {n_sample} tested pages of "
                                                 f"{folder}/ - a sample was tested")
                         return False
                     if key:
@@ -2418,11 +2425,11 @@ def discovery_agent(state: QAState) -> QAState:
                         kinds = routes.setdefault("item_types", {}).setdefault(shown, {"found": 0, "sampled": 0,
                                                                                         "smoke": []})
                         kinds["found"] += 1
-                        if settings.pattern_samples > 0 and patterns[key] > settings.pattern_samples:
+                        if n_sample > 0 and patterns[key] > n_sample:
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:  # (up to 10 more of the same kind: smoke-checked by a test)
                                 kinds["smoke"].append(nxt)
-                            skipped.setdefault(nxt, f"more than {settings.pattern_samples} pages with the same "
+                            skipped.setdefault(nxt, f"more than {n_sample} pages with the same "
                                                     f"address pattern ({shown}) - a sample was tested")
                             return False
                         kinds["sampled"] += 1
@@ -2439,7 +2446,20 @@ def discovery_agent(state: QAState) -> QAState:
 
                 # With full exploration, follow every listed item; otherwise visit representative examples.
                 items = [l["href"] for l in (entry.get("itemLinks") or {}).get("links") or [] if l.get("href")]
-                if settings.pattern_samples > 0 and len(items) >= 3:
+                if settings.swarm_sample > 0 and len(items) > settings.swarm_sample:
+                    picked, left = choose_listing(items, settings.swarm_sample)
+                    left_norm = [(_normalize(urljoin(url, href)), reason) for href, reason in left]
+                    for href, reason in left_norm:
+                        skipped.setdefault(href, reason)
+                    picked_norm = [_normalize(urljoin(url, href)) for href in picked]
+                    listed = [_normalize(urljoin(url, href)) for href in items]
+                    if picked_norm:
+                        swarm_rows.extend(assign_workers(picked_norm, settings.test_workers))
+                        print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
+                              f"({settings.test_workers} workers)", flush=True)
+                    swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
+                    swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
+                elif n_sample > 0 and len(items) >= 3:
                     odd = [h for h in (entry.get("itemLinks") or {}).get("odd") or [] if h in items][:1]
                     picked = list(dict.fromkeys([items[0], *odd, items[len(items) // 2], items[-1]]))
                 else:
@@ -2643,6 +2663,13 @@ def discovery_agent(state: QAState) -> QAState:
         "sections_not_reached": queue.menu_left()[:100],  # (menu sections the crawl never opened - limits)
         "still_loading": [p["url"] for p in app_map if p.get("still_loading")][:100],  # (tested as they showed)
         "max_interactions_per_page": settings.max_interactions_per_page,
+        "swarm": {
+            "sample": settings.swarm_sample,
+            "workers": settings.test_workers,
+            "assigned": swarm_rows[:300],
+            "tasks": swarm_tasks[:300],
+            "coverage": swarm_checks[:50],
+        },
         "actions": explorer.summary(),  # what was tried / learned / blocked / skipped (and why) while exploring
         "page_types": {t: sum(1 for p in app_map if p.get("page_type") == t) for t in
                        sorted({p.get("page_type") or "content" for p in app_map})},
