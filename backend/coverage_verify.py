@@ -28,3 +28,30 @@ def verify_listing(urls: list[str], chosen: list[str], skipped: list[tuple[str, 
         "blocked": blocked,
         "unknown": [],
     }
+
+
+def verify_sources(*, graph: list[str], dom: list[str] | None = None, routes: list[str] | None = None,
+                   sitemap: list[str] | None = None, requirements: list[str] | None = None,
+                   blocked: list[str] | None = None) -> dict:
+    """Compare the graph with the other inventories. Unknown is never a pass."""
+    seen = set(graph)
+    blocked_set = set(blocked or [])
+    inventories = list(dict.fromkeys([*(dom or []), *(routes or []), *(sitemap or [])]))
+    covered, missed, blocked_rows, unknown = [], [], [], []
+    for url in inventories:
+        if url in blocked_set:
+            blocked_rows.append({"url": url, "reason": "blocked"})
+        elif url in seen:
+            covered.append(url)
+        else:
+            missed.append(url)
+    for url in requirements or []:
+        if url not in seen and url not in blocked_set and url not in missed:
+            unknown.append(url)
+    return {
+        "complete": not missed and not unknown,
+        "covered": covered,
+        "missed": missed,
+        "blocked": blocked_rows,
+        "unknown": unknown,
+    }

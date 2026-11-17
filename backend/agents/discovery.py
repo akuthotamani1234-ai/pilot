@@ -22,6 +22,7 @@ from playwright.sync_api import TimeoutError as PageTimeout, sync_playwright
 from .. import runctl, visual
 from ..actions import action_risk
 from ..auth import CAPTCHA, NOTES, log_in, login_form, looks_logged_out, wait_for_person
+from ..capabilities import run_record
 from ..config import settings
 from ..coverage_verify import verify_listing
 from ..data_lifecycle import plan_for_workers
@@ -1753,6 +1754,7 @@ def discovery_agent(state: QAState) -> QAState:
     typed: dict = {}  # folder -> its design (once PATTERN_SAMPLES pages showed it)
     counted: set = set()  # the addresses counted as one more page of a known design (once: as a visitor or logged in)
 
+    role_map: dict = {}
     with _browser_session(app_map) as pw:
         browser = pw.chromium.launch(headless=settings.headless, slow_mo=watched_slow_mo_ms(),
                                      args=fit_window_args())  # (visible: the whole window on the screen)
@@ -2649,6 +2651,23 @@ def discovery_agent(state: QAState) -> QAState:
         print(f"  [discovery] swarm test data refused: {swarm_data[0]['refused']}", flush=True)
     elif swarm_data:
         print(f"  [discovery] swarm test data: {len(swarm_data)} worker(s), tagged {run_dir.name}", flush=True)
+    candidates = [{
+        "url": page.get("url") or "",
+        "new_template": True,
+        "failed": bool(page.get("error")),
+        "uncertain": bool(page.get("still_loading")),
+        "journey_distance": int(page.get("depth") or 0),
+        "changed": False,
+    } for page in app_map[:80]]
+    capabilities = run_record(
+        run_id=run_dir.name,
+        environment=settings.environment,
+        sample=settings.swarm_sample,
+        candidates=candidates,
+        roles=sorted(role_map),
+        catalog_size=sum(len((page.get("itemLinks") or {}).get("links") or []) for page in app_map),
+    )
+    (run_dir / "capabilities.json").write_text(json.dumps(capabilities, indent=2), encoding="utf-8")
     crawl = {
         "start_url": start_url, "approved_hosts": list(dict.fromkeys([base_host] + scope.extra)),
         "mode": mode, "section": section, "limit": limit, "max_depth": settings.max_depth,
@@ -2680,6 +2699,7 @@ def discovery_agent(state: QAState) -> QAState:
             "coverage": swarm_checks[:50],
             "data": swarm_data,
         },
+        "capabilities": {"sample_unchanged": True, "file": "capabilities.json"},
         "actions": explorer.summary(),  # what was tried / learned / blocked / skipped (and why) while exploring
         "page_types": {t: sum(1 for p in app_map if p.get("page_type") == t) for t in
                        sorted({p.get("page_type") or "content" for p in app_map})},

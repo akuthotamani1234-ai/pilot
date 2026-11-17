@@ -23,6 +23,7 @@ from pathlib import Path
 
 from . import runctl
 from .config import settings
+from .human_review import withhold_unanswered
 from .state import QAState
 
 
@@ -135,15 +136,23 @@ def review_gate_agent(state: QAState) -> QAState:
     while time.time() < deadline and not answers_file.exists() and not runctl.stopping():
         time.sleep(1)
     if not answers_file.exists():
-        return {"test_cases": cases, "log": log + ["Review: no answers in time - the test cases run as designed."]}
+        cases, held = withhold_unanswered(cases)
+        note = "Review: no answers in time - the test cases run as designed."
+        if held:
+            note = (f"Review: no answers in time - {held} sensitive case(s) stayed unrun. "
+                    "The other test cases run as designed.")
+        return {"test_cases": cases, "log": log + [note]}
     try:
         got = json.loads(answers_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         got = {}
     answers = {k: v for k, v in (got.get("answers") or {}).items() if isinstance(v, dict) and v.get("answer")}
     cases, n = apply(cases, answers)
+    cases, held = withhold_unanswered(cases, answers)
     save_expectations(site, answers)
     notes = [f"{n} answer(s) applied and saved for the next run"]
+    if held:
+        notes.append(f"{held} sensitive case(s) stayed unrun")
     out_ = {str(x) for x in got.get("leave_out") or []}
     if out_:  # (unticked: left out of this run only - a staging run's cleanup always runs)
         before = len(cases)

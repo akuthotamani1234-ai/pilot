@@ -2,6 +2,12 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-17 - Remaining Qpilot X rules
+
+- The large-listing sample is unchanged: a listing still opens the configured few products and leaves the rest, and checkout and payment stay blocked.
+- A run now records the other blueprint rules in `capabilities.json`: next-page score, coverage beyond the crawler's own claim, cart oracle fields, per-role vault sessions, staging-only environment controls, replay packages, mutation scores, cross-surface journeys, locale checks, agent evaluation, incremental reopen, dependency faults, API schema diffs, human review, release trends, and the plugin locks.
+- An unanswered sensitive case stays unrun. A locator repair remains a proposal and keeps the original error. A plugin cannot turn off authorization, secret redaction, payment, delete, or logout. Production does not get environment controls or dependency faults.
+
 ## 2026-11-17 - Swarm test data per worker
 
 - When a large listing is sampled, each worker that receives a product gets its own synthetic account, cart, and order.
