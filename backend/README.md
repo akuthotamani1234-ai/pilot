@@ -84,6 +84,7 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `form_rules.py` | rules between fields (date ranges, totals, passengers …), and a multi-step form's later step opened alone |
 | `my_tests.py` | your own tests in plain English, kept per website (the AI designs them in `test_design.my_test_cases`) |
 | `testdata.py` | test values that fit each input box (read from its label and type) |
+| `data_lifecycle.py` | synthetic account, cart, and order for each swarm worker, tagged with the run; production customer data is refused |
 | `assert_strength.py` | how strong each generated test's checks are (read from the code), so a weak test is "smoke" |
 
 **Results and the report**
