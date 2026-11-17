@@ -588,6 +588,22 @@ def providers():
             "privacy": public_policy()}
 
 
+def _require_registered_target(req: RunRequest, url: str) -> None:
+    """A run starts only with an authorized target, a scope, and a budget."""
+    from backend.config import settings as cfg
+    from backend.release_row import open_target
+    registered = open_target(
+        url=url,
+        scope=req.crawl_scope or "site",
+        page_budget=req.max_pages,
+        hard_cap=cfg.hard_page_cap,
+        time_budget_min=cfg.crawl_time_limit_min or cfg.run_time_limit_min,
+        authorized=req.authorized,
+    )
+    if not registered["ok"]:
+        raise HTTPException(400, registered["problems"][0])
+
+
 def _validate(req: RunRequest, source: str) -> None:
     """Setup checks with a plain-English message for each problem (HTTP 400)."""
     from backend.agents.setup_agent import is_github, is_local_project
@@ -624,6 +640,7 @@ def _validate(req: RunRequest, source: str) -> None:
     if is_github(source) or is_local_project(source):
         if req.website_only or req.discovery_only:
             raise HTTPException(400, "This operation accepts website URLs only, not repositories or project folders.")
+        _require_registered_target(req, source)
         return
     url = source if "://" in source else ("http://" + source if source.startswith(("localhost", "127."))
                                           else "https://" + source)
@@ -648,6 +665,7 @@ def _validate(req: RunRequest, source: str) -> None:
                 raise UrlError("The login page must be on the same website (or add its host to 'Allowed hosts').")
     except UrlError as e:
         raise HTTPException(400, str(e)) from e
+    _require_registered_target(req, url)
 
 
 @app.post("/api/runs")

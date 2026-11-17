@@ -5,6 +5,9 @@ found. Isolated workers receive only cases with a trustworthy assertion. A
 seeded defect needs replayable evidence. The dashboard keeps the six counts
 separate. Payment and checkout never become tested work.
 """
+import json
+from pathlib import Path
+
 from .env_controls import action_still_blocked
 from .oracle import accept_expected
 from .replay_pack import make_package, replay
@@ -31,6 +34,54 @@ def register_target(*, url: str, scope: str, page_budget: int, time_budget_s: in
         "page_budget": int(page_budget or 0),
         "time_budget_s": int(time_budget_s or 0),
     }
+
+
+def open_target(*, url: str, scope: str, page_budget: int, hard_cap: int,
+                time_budget_min: float, authorized: bool) -> dict:
+    """The registration a run stores before the crawl. A zero page budget uses the hard cap."""
+    pages = int(page_budget) if int(page_budget or 0) > 0 else int(hard_cap or 0)
+    seconds = int(max(float(time_budget_min or 0), 1) * 60)
+    return register_target(url=url, scope=scope or "site", page_budget=max(pages, 1),
+                           time_budget_s=seconds, authorized=authorized)
+
+
+def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
+    """Pages already inventoried, and the addresses still waiting."""
+    pages: list[dict] = []
+    pending: list[str] = []
+    try:
+        raw = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+        if isinstance(raw, list):
+            pages = [page for page in raw if isinstance(page, dict) and page.get("url")]
+    except (OSError, ValueError):
+        pages = []
+    for name in ("crawl_progress.json", "crawl.json"):
+        try:
+            payload = json.loads((run_dir / name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            found = payload.get("pending") if name == "crawl_progress.json" else payload.get("not_visited")
+            if isinstance(found, list):
+                pending = [item for item in found if isinstance(item, str) and item]
+                break
+    return pages, pending
+
+
+def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list[str]) -> None:
+    """Keep the inventory and the remaining queue so a stopped crawl can continue."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "app_map.json").write_text(json.dumps(pages, indent=2), encoding="utf-8")
+    (run_dir / "crawl_progress.json").write_text(json.dumps({"pending": pending}, indent=2), encoding="utf-8")
+
+
+def read_target(run_dir: Path) -> dict | None:
+    """The stored registration, or None when this run has no target file."""
+    try:
+        payload = json.loads((run_dir / "target.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def inventory_pages(pages: list[dict], *, done: list[str], page_budget: int) -> dict:
@@ -204,8 +255,6 @@ def run_row(*, url: str, scope: str, page_budget: int, time_budget_s: int, autho
 
 def from_run(state: dict) -> dict:
     """Build the release row from a finished run. The listing sample is not changed."""
-    from pathlib import Path
-
     run_dir = Path(state.get("run_dir") or ".")
     crawl = state.get("crawl") or {}
     pages = []
@@ -231,7 +280,6 @@ def from_run(state: dict) -> dict:
     planted = ""
     planted_file = run_dir / "planted.json"
     if planted_file.is_file():
-        import json
         try:
             rows = json.loads(planted_file.read_text(encoding="utf-8"))
             planted = str(rows[0].get("id") or "") if isinstance(rows, list) and rows else ""

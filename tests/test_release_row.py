@@ -1,5 +1,5 @@
 """The section 22 steps run in order, and an unauthorized target stops the row."""
-from backend.release_row import from_run, run_row
+from backend.release_row import from_run, load_saved_crawl, open_target, run_row, save_crawl_progress
 
 
 def _pages():
@@ -51,6 +51,19 @@ def test_an_unauthorized_target_stops_before_the_crawl():
     assert row["stopped"] == "register"
     assert [step["step"] for step in row["steps"]] == ["register"]
     assert row["dashboard"]["discovered"] == 0
+
+
+def test_a_saved_crawl_can_continue_and_a_zero_budget_uses_the_cap(tmp_path):
+    save_crawl_progress(tmp_path, [{"url": "https://shop.example/saree"}], ["https://shop.example/next"])
+    pages, pending = load_saved_crawl(tmp_path)
+    assert pages[0]["url"].endswith("/saree")
+    assert pending == ["https://shop.example/next"]
+    registered = open_target(url="https://shop.example", scope="site", page_budget=0, hard_cap=50,
+                             time_budget_min=30, authorized=True)
+    assert registered["ok"] is True and registered["page_budget"] == 50
+    refused = open_target(url="https://shop.example", scope="site", page_budget=10, hard_cap=50,
+                          time_budget_min=30, authorized=False)
+    assert refused["ok"] is False
 
 
 def test_a_finished_run_builds_the_same_row(tmp_path):

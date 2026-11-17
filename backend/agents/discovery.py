@@ -29,6 +29,7 @@ from ..data_lifecycle import plan_for_workers
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
+from ..release_row import load_saved_crawl, read_target, save_crawl_progress
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
@@ -1679,6 +1680,17 @@ def discovery_agent(state: QAState) -> QAState:
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
     shots.mkdir(parents=True, exist_ok=True)
+    target = read_target(run_dir)
+    if target is not None and target.get("ok") is False:
+        reason = "; ".join(target.get("problems") or ["the target is not registered"])
+        print(f"  [discovery] stopped before the crawl: {reason}", flush=True)
+        return {
+            "app_map": [], "crawl_issues": [], "roles": {},
+            "login": {"found": False, "logged_in": False, "note": reason, "outcome": "not_required"},
+            "crawl": {"start_url": start_url, "stopped": reason, "visited": 0, "sample_unchanged": True,
+                      "swarm": {"sample": settings.swarm_sample}},
+            "log": state.get("log", []) + [f"Discovery stopped before the crawl: {reason}"],
+        }
     base_host = urlparse(start_url).hostname
     start_scheme = urlparse(start_url).scheme + ":"
     scope = Scope(start_url, settings.allowed_hosts)  # approved hosts; private / metadata addresses are blocked
@@ -1696,10 +1708,30 @@ def discovery_agent(state: QAState) -> QAState:
         "page": "Specific page – I'll test only this page, and check that every link on it works.",
     }[mode], flush=True)
 
+    app_map, issues = [], []
     # (url, depth, inside the address you gave?, logged in?) - pages behind a login are visited in a 2nd,
     # logged-in browser session, so the public pages (login, register) are still seen as a visitor sees them
     queue = _Frontier((start_url, 0, True, False))  # (logged-in pages always first)
     seen = {(start_url, False)}
+    resumed_urls: set[str] = set()
+    if state.get("resuming"):
+        saved_pages, pending = load_saved_crawl(run_dir)
+        if saved_pages:
+            app_map.extend(saved_pages)
+            for page in saved_pages:
+                saved_url = _normalize(page.get("url") or "")
+                if not saved_url:
+                    continue
+                resumed_urls.add(saved_url)
+                seen.add((saved_url, False))
+                seen.add((saved_url, True))
+            for raw in pending:
+                waiting = _normalize(raw)
+                if waiting and (waiting, False) not in seen:
+                    seen.add((waiting, False))
+                    queue.append((waiting, 1, True, False))
+            print(f"  [discovery] resumed {len(saved_pages)} inventoried page(s), "
+                  f"{len(pending)} still waiting", flush=True)
     crawl_started, time_limited, stopped = time.time(), False, ""
     from ..scheduling import discovery_minutes
     crawl_budget_min = discovery_minutes(settings)
@@ -1712,7 +1744,6 @@ def discovery_agent(state: QAState) -> QAState:
         if scope.in_scope(named) and (named, False) not in seen:
             seen.add((named, False))
             queue.append((named, 1, True, False))
-    app_map, issues = [], []
     used_slugs = set()
     not_app = 0  # pages outside the address that turned out to be a different site
     MAX_NOT_APP = 10  # after this many, stop checking outside links (keeps the crawl quick)
@@ -1886,6 +1917,8 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
+            if url in resumed_urls and (url, auth) not in reread:
+                continue
             if not inside and not_app >= MAX_NOT_APP:
                 continue
             folder = _parent_path(url)
@@ -2581,6 +2614,7 @@ def discovery_agent(state: QAState) -> QAState:
                 queue.appendleft((url, depth, inside, auth))  # (counted as not visited)
                 break
             app_map.append(entry)
+            save_crawl_progress(run_dir, app_map, [item[0] for item in queue])
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
