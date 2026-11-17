@@ -24,6 +24,7 @@ from ..actions import action_risk
 from ..auth import CAPTCHA, NOTES, log_in, login_form, looks_logged_out, wait_for_person
 from ..config import settings
 from ..coverage_verify import verify_listing
+from ..data_lifecycle import plan_for_workers
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
@@ -1738,6 +1739,7 @@ def discovery_agent(state: QAState) -> QAState:
     swarm_rows: list = []  # chosen products and which worker owns each one
     swarm_tasks: list = []  # QX-A01 handoffs for those choices
     swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
+    swarm_workers: set[int] = set()  # workers that received a chosen product
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -2454,7 +2456,9 @@ def discovery_agent(state: QAState) -> QAState:
                     picked_norm = [_normalize(urljoin(url, href)) for href in picked]
                     listed = [_normalize(urljoin(url, href)) for href in items]
                     if picked_norm:
-                        swarm_rows.extend(assign_workers(picked_norm, settings.test_workers))
+                        assigned = assign_workers(picked_norm, settings.test_workers)
+                        swarm_rows.extend(assigned)
+                        swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
                     swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
@@ -2640,6 +2644,11 @@ def discovery_agent(state: QAState) -> QAState:
     # route coverage: visited / not visited because of the limit / skipped on purpose / blocked by the safety rules
     pending = [u for u, _d, _i, _a in queue]
     ok = [p for p in app_map if page_testable(p)]
+    swarm_data = plan_for_workers(run_dir.name, settings.environment, sorted(swarm_workers))
+    if swarm_data and swarm_data[0].get("refused"):
+        print(f"  [discovery] swarm test data refused: {swarm_data[0]['refused']}", flush=True)
+    elif swarm_data:
+        print(f"  [discovery] swarm test data: {len(swarm_data)} worker(s), tagged {run_dir.name}", flush=True)
     crawl = {
         "start_url": start_url, "approved_hosts": list(dict.fromkeys([base_host] + scope.extra)),
         "mode": mode, "section": section, "limit": limit, "max_depth": settings.max_depth,
@@ -2669,6 +2678,7 @@ def discovery_agent(state: QAState) -> QAState:
             "assigned": swarm_rows[:300],
             "tasks": swarm_tasks[:300],
             "coverage": swarm_checks[:50],
+            "data": swarm_data,
         },
         "actions": explorer.summary(),  # what was tried / learned / blocked / skipped (and why) while exploring
         "page_types": {t: sum(1 for p in app_map if p.get("page_type") == t) for t in

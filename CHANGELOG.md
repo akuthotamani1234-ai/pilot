@@ -2,6 +2,12 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-17 - Swarm test data per worker
+
+- When a large listing is sampled, each worker that receives a product gets its own synthetic account, cart, and order.
+- Those records are tagged with the run id, start from a known reset, and are cleaned up only for that run.
+- A production environment and a real customer email are refused. The plan is stored on the crawl under `swarm.data`.
+
 ## 2026-11-16 - Remove leftover documentation
 
 - Removed the phase notes in `docs/`, the live-run write-ups in `deep_validation/`, and the duplicate essays, diagrams, and sample copies in `project-docs/`.
