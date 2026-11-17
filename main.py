@@ -461,6 +461,17 @@ def main():
         run_id = f"{site_key}_{datetime.now():%Y%m%d_%H%M%S}"
         run_dir = settings.runs_dir / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
+        from backend.release_row import open_target
+        registered = open_target(
+            url=url, scope=settings.crawl_scope or settings.section_path or "site",
+            page_budget=settings.max_pages, hard_cap=settings.hard_page_cap,
+            time_budget_min=settings.crawl_time_limit_min or settings.run_time_limit_min,
+            authorized=True,
+        )
+        if not registered["ok"]:
+            print("\nThis run cannot start: " + "; ".join(registered["problems"]))
+            sys.exit(2)
+        (run_dir / "target.json").write_text(json.dumps(registered, indent=2), encoding="utf-8")
 
     if settings.discovery_only:
         settings.auto_register = False
