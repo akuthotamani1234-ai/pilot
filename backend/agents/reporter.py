@@ -1182,6 +1182,14 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
     proj = state.get("project")
     log_items = "".join(f"<li>{_e(l)}</li>" for l in state.get("log", []))
     pct = lambda n: f"{100 * n / total:.1f}%"  # noqa: E731
+    from ..release_row import from_run
+    release = from_run(dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
+                            environment=cfg.environment))
+    release_counts = release.get("dashboard") or {}
+    release_html = "".join(
+        f"<div class='n'><b>{int(release_counts.get(name) or 0)}</b><span>{name}</span></div>"
+        for name in ("discovered", "tested", "passed", "failed", "blocked", "unknown")
+    )
 
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1298,6 +1306,8 @@ This report never claims the entire site was tested.</p>
   <div class="n"><b>{clarity['result_status_counts']['INCONCLUSIVE']}</b><span>INCONCLUSIVE</span></div>
 </div>
 <p class="muted">Test-case outcomes stay separate: blocked, skipped, not tested and inconclusive are never counted as PASS.</p>
+<div class="box"><h3>Release counts</h3><div class="nums">{release_html}</div>
+<p>Discovered, tested, passed, failed, blocked, and unknown stay separate. Unknown is not counted as passed.</p></div>
 {limits_html}
 
 <div class="nums">

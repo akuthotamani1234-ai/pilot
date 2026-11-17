@@ -85,7 +85,7 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `my_tests.py` | your own tests in plain English, kept per website (the AI designs them in `test_design.my_test_cases`) |
 | `testdata.py` | test values that fit each input box (read from its label and type) |
 | `data_lifecycle.py` | synthetic account, cart, and order for each swarm worker, tagged with the run; production customer data is refused |
-| `apply_run.py` | applies those rules to a finished run and writes `qx_applied.json` without rewriting the verdict |
+| `release_row.py` | section 22 in order: register, resume, graph, isolated workers, seeded defect, six dashboard counts, and the operation checks |
 | `explore_score.py`, `sessions.py`, `env_controls.py`, `replay_pack.py`, `mutation_score.py`, `journey_map.py`, `locale_check.py`, `agent_eval.py`, `incremental_map.py`, `dependency_fault.py`, `schema_diff.py`, `human_review.py`, `quality_trends.py`, `plugins.py` | the remaining blueprint rules: next-page score, sessions, staging controls, replay, mutation score, journeys, locale, evaluation, incremental reopen, dependency faults, schema diffs, human review, trends, and plugin locks |
 | `assert_strength.py` | how strong each generated test's checks are (read from the code), so a weak test is "smoke" |
 

@@ -19,6 +19,7 @@ from .mutation_score import score_planted
 from .oracle import cart_expected
 from .plugins import review_plugin
 from .quality_trends import cluster_runs, keep_verdict
+from .release_row import from_run
 from .replay_pack import replay
 from .schema_diff import diff_specs
 from .sessions import RoleBook
@@ -241,6 +242,7 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "plugins": _plugins(root or Path(".")),
     }
     applied["trends"]["verdict"] = keep_verdict(verdict, applied["trends"])
+    applied["release"] = from_run(state)
     return applied
 
 
