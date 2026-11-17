@@ -10,6 +10,8 @@ import re
 from html import unescape
 from urllib.parse import urldefrag, urljoin, urlparse
 
+from .swarm import is_payment_url
+
 # Payment/checkout paths we never seed (exploration still must not queue these as must-complete work).
 PAY_CHECKOUT_PATH = re.compile(
     r"(^|/)(checkout|check-out|payment|payments|billing|pay-now|place-order|cart/checkout)(/|\?|$)|"
@@ -133,10 +135,13 @@ def harvest_json_paths(text: str, base_url: str, *, embedded_only: bool = False)
     return out
 
 
-def harvest_openapi_paths(fetcher, start_url: str) -> list[str]:
+_API_METHODS = ("get", "post", "put", "patch", "delete", "head", "options", "trace")
+
+
+def _openapi_documents(fetcher, start_url: str) -> list[dict]:
+    """The OpenAPI or Swagger documents harvest_openapi_paths already downloads."""
     base = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
-    host = urlparse(start_url).hostname or ""
-    out = []
+    found: list[dict] = []
     for hint in OPENAPI_HINTS:
         try:
             body = _get_text(fetcher, urljoin(base, hint), timeout_ms=10000)
@@ -150,12 +155,149 @@ def harvest_openapi_paths(fetcher, start_url: str) -> list[str]:
             continue
         paths = data.get("paths") if isinstance(data, dict) else None
         if isinstance(paths, dict):
-            for path in paths:
-                if isinstance(path, str) and path.startswith("/"):
-                    u = _normalize(path, base)
-                    if u and _same_host(u, host):
-                        out.append(u)
+            found.append(data)
+    return found
+
+
+def harvest_openapi_paths(fetcher, start_url: str) -> list[str]:
+    base = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
+    host = urlparse(start_url).hostname or ""
+    out = []
+    for data in _openapi_documents(fetcher, start_url):
+        for path in data.get("paths") or {}:
+            if isinstance(path, str) and path.startswith("/"):
+                u = _normalize(path, base)
+                if u and _same_host(u, host):
+                    out.append(u)
     return out
+
+
+def _skip_api_path(path: str) -> bool:
+    """Checkout and payment operations are not part of the spec the crawl keeps."""
+    full = path if "://" in path else f"https://api.local{path if path.startswith('/') else '/' + path}"
+    return is_pay_checkout_url(full) or is_payment_url(full)
+
+
+def _resolve_ref(ref: str, doc: dict) -> dict:
+    if not isinstance(ref, str) or not ref.startswith("#/"):
+        return {}
+    node: object = doc
+    for part in ref[2:].split("/"):
+        if not isinstance(node, dict):
+            return {}
+        node = node.get(part)
+    return node if isinstance(node, dict) else {}
+
+
+def _schema_fields(schema: object, doc: dict, seen: set[str] | None = None) -> list[str]:
+    """Response property names, in the order the document lists them."""
+    if not isinstance(schema, dict):
+        return []
+    seen = seen or set()
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        if ref in seen:
+            return []
+        seen.add(ref)
+        return _schema_fields(_resolve_ref(ref, doc), doc, seen)
+    fields: list[str] = []
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        fields.extend(str(name) for name in props)
+    for key in ("allOf", "oneOf", "anyOf"):
+        for part in schema.get(key) or []:
+            for name in _schema_fields(part, doc, seen):
+                if name not in fields:
+                    fields.append(name)
+    if not fields and isinstance(schema.get("items"), dict):
+        for name in _schema_fields(schema["items"], doc, seen):
+            if name not in fields:
+                fields.append(name)
+    return fields
+
+
+def _response_schema(response: dict) -> dict | None:
+    if isinstance(response.get("schema"), dict):  # Swagger 2
+        return response["schema"]
+    content = response.get("content")
+    if not isinstance(content, dict):
+        return None
+    preferred = content.get("application/json")
+    if isinstance(preferred, dict) and isinstance(preferred.get("schema"), dict):
+        return preferred["schema"]
+    for body in content.values():
+        if isinstance(body, dict) and isinstance(body.get("schema"), dict):
+            return body["schema"]
+    return None
+
+
+def _success_schema(operation: dict) -> dict | None:
+    responses = operation.get("responses")
+    if not isinstance(responses, dict) or not responses:
+        return None
+    codes = [str(code) for code in responses if str(code).startswith("2")]
+    chosen = sorted(codes, key=lambda code: (code != "200", code))[0] if codes else "default"
+    body = responses.get(chosen)
+    if not isinstance(body, dict) and chosen.isdigit():
+        body = responses.get(int(chosen))
+    if not isinstance(body, dict):
+        return None
+    return _response_schema(body)
+
+
+def _workflow(operation: dict, path: str) -> str:
+    tags = operation.get("tags")
+    if isinstance(tags, list):
+        for tag in tags:
+            text = str(tag).strip()
+            if text:
+                return text
+    name = str(operation.get("operationId") or "").strip()
+    if name:
+        return name
+    parts = [part for part in path.split("/") if part and not part.startswith("{")]
+    return parts[-1] if parts else path
+
+
+def _operations_from_doc(data: dict) -> list[dict]:
+    paths = data.get("paths") if isinstance(data.get("paths"), dict) else {}
+    found: list[dict] = []
+    for path, item in paths.items():
+        if not isinstance(path, str) or not isinstance(item, dict) or _skip_api_path(path):
+            continue
+        for method in _API_METHODS:
+            operation = item.get(method)
+            if not isinstance(operation, dict):
+                continue
+            schema = _success_schema(operation)
+            found.append({
+                "method": method.upper(),
+                "path": path,
+                "fields": _schema_fields(schema, data) if schema else [],
+                "workflow": _workflow(operation, path),
+            })
+    return found
+
+
+def harvest_openapi_operations(fetcher, start_url: str) -> list[dict] | None:
+    """Operations from the same OpenAPI documents, without payment or checkout paths.
+
+    None means no document was found, so the caller does not invent a spec.
+    A document whose every path is payment or checkout returns an empty list.
+    """
+    docs = _openapi_documents(fetcher, start_url)
+    if not docs:
+        return None
+    found: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for data in docs:
+        for operation in _operations_from_doc(data):
+            key = (operation["method"], operation["path"])
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(operation)
+    return found
 
 
 def seed_entries(fetcher, start_url: str, *, html: str | None = None, limit: int = 50000) -> list[tuple[str, str]]:

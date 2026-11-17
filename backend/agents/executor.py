@@ -255,6 +255,10 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         if f.exists():
             f.unlink()
     run_dir = test_dir.parent
+    # The browser reads qx_dependency.json when pytest starts. Writing it here, not after the
+    # suite, is what lets an injected fault fail that service in the test browser.
+    from ..run_rules import apply_execution
+    apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment})
     env = _env(run_dir, test_dir, results_file, shot_dir, state)
     env["QA_TRACES"] = "true" if traces else "false"
     if headless:

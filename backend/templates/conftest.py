@@ -8,6 +8,8 @@ On failure, a screenshot and a Playwright trace are saved and every result is wr
 SANDBOX - the generated code is untrusted, so while a test runs:
   * it can't start programs, open network connections or write files outside this run's folder (Python audit hook)
   * the browser only opens the approved website; private-network and cloud-metadata addresses are always blocked
+  * a fixed clock, a network fault, or a named dependency fault from this run's qx_*.json applies in the browser;
+    payment, delete, and logout stay blocked
   * requests sent from the test itself (page.request) may only READ (GET / HEAD), with every redirect checked
   * each test has a time limit (QA_TEST_TIMEOUT_S)
   * the test password is never shown on screen, in results or in traces
@@ -113,9 +115,71 @@ def _blocked(url: str, navigation: bool = False) -> str | None:
 AD_RX = re.compile(os.environ.get("QA_AD_RX") or r"(?!x)x", re.I)  # ad / tracker networks (backend/safety.py)
 
 
+def _find_repo_root() -> Path | None:
+    """The copied conftest lives in the run folder; the helper stays in this repository."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "backend" / "browser_controls.py").is_file():
+            return parent
+    return None
+
+
+def _no_clock(_controls: dict | None = None) -> str:
+    return ""
+
+
+def _no_block(_url: str, _controls: dict | None = None) -> bool:
+    return False
+
+
+def _load_browser_controls():
+    """Read this run's controls. If the helper cannot be imported, the browser stays as it was."""
+    root = _find_repo_root()
+    if root is not None and str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    try:
+        from backend.browser_controls import clock_script, load_controls, request_blocked
+    except ImportError:
+        return {}, _no_clock, _no_block
+    loaded = load_controls(RUN_DIR)
+    # A production process must not grow a clock or a fault from a stale staging file.
+    if os.environ.get("QA_ENVIRONMENT", "").strip().lower() in {"production", "prod", "live"}:
+        loaded = dict(loaded, stub_api=False, fixed_clock=False, network_fault=False, injected=False, service="")
+    return loaded, clock_script, request_blocked
+
+
+_BROWSER_CONTROLS, _clock_script, _request_blocked = _load_browser_controls()
+_CLOCK_SCRIPT = _clock_script(_BROWSER_CONTROLS)
+
+
+def _route_fault(url: str, navigation: bool) -> str:
+    """'safety' for payment, delete, and logout; 'fault' for a network or dependency failure; '' to leave it."""
+    base = dict(_BROWSER_CONTROLS)
+    base["start_url"] = BASE_URL
+    base["navigation"] = navigation
+    # Faults off: what is still blocked is payment, delete, or logout, and that must not become an allow.
+    if _request_blocked(url, dict(base, network_fault=False, injected=False, service="")):
+        return "safety"
+    if _request_blocked(url, base):
+        return "fault"
+    return ""
+
+
+def _abort_controlled(route, url: str, navigation: bool) -> bool:
+    """Stop a request the controls refuse. True when this handler has finished the route."""
+    reason = _route_fault(url, navigation)
+    if not reason:
+        return False
+    try:
+        route.abort("blockedbyclient" if reason == "safety" else "failed")
+    except Exception:
+        pass  # the page was closed meanwhile
+    return True
+
+
 def _guard(context) -> None:
     """Browser side: abort blocked requests, and main-page navigations that leave the approved website. Ads and
-    trackers are stopped too (never the website under test; pages full of ads never go quiet)."""
+    trackers are stopped too (never the website under test; pages full of ads never go quiet). A network fault or
+    an injected dependency fails the matching call. Payment, delete, and logout stay refused."""
     def handle(route):
         req = route.request
         try:
@@ -126,7 +190,7 @@ def _guard(context) -> None:
             host = (urlparse(req.url).hostname or "").lower()
             if (AD_RX.search(host) and not (ALLOWED_HOSTS and _approved(host))) or _blocked(req.url, navigation=top):
                 route.abort("blockedbyclient")
-            else:
+            elif not _abort_controlled(route, req.url, top):
                 route.continue_()
         except Exception:
             pass  # the page was closed meanwhile
@@ -1143,6 +1207,8 @@ def _shared(browser):
         context.set_default_navigation_timeout(NAV_TIMEOUT_MS)
         _guard(context)
         context.add_init_script(DIALOG_JS)
+        if _CLOCK_SCRIPT:  # freezes Date at one instant; the snippet itself does not use the network
+            context.add_init_script(_CLOCK_SCRIPT)
         if RECORD_TRACES:
             try:
                 context.tracing.start(screenshots=True, snapshots=True)
@@ -1347,6 +1413,10 @@ def write_guard(page):
 
     def handle(route):
         req = route.request
+        try:
+            top = req.is_navigation_request() and req.frame.parent_frame is None
+        except Exception:
+            top = False
         if req.method in WRITE_METHODS:
             if not ANALYTICS.search(req.url):
                 tried.append({"method": req.method, "path": urlparse(req.url).path,
@@ -1355,6 +1425,8 @@ def write_guard(page):
                 route.abort("blockedbyclient")
             except Exception:
                 pass
+            return
+        if _abort_controlled(route, req.url, top):
             return
         try:
             route.fallback()
