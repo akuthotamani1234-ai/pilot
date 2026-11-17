@@ -23,6 +23,7 @@ from .. import runctl, visual
 from ..actions import action_risk
 from ..auth import CAPTCHA, NOTES, log_in, login_form, looks_logged_out, wait_for_person
 from ..config import settings
+from ..coverage_verify import verify_listing
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
@@ -30,6 +31,7 @@ from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
 from ..swarm import assign_workers, choose_listing, sample_limit
+from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
 
@@ -1734,6 +1736,8 @@ def discovery_agent(state: QAState) -> QAState:
     routes = {"redirected_out": [], "session_expired": [], "external": set(), "needs_permission": [], "sampled": 0,
               "needs_login": []}  # (needs_login: a visitor was sent to the login page - not tested without an account)
     swarm_rows: list = []  # chosen products and which worker owns each one
+    swarm_tasks: list = []  # QX-A01 handoffs for those choices
+    swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -2444,13 +2448,17 @@ def discovery_agent(state: QAState) -> QAState:
                 items = [l["href"] for l in (entry.get("itemLinks") or {}).get("links") or [] if l.get("href")]
                 if settings.swarm_sample > 0 and len(items) > settings.swarm_sample:
                     picked, left = choose_listing(items, settings.swarm_sample)
-                    for href, reason in left:
-                        skipped.setdefault(_normalize(urljoin(url, href)), reason)
-                    if picked:
-                        swarm_rows.extend(assign_workers(
-                            [_normalize(urljoin(url, href)) for href in picked], settings.test_workers))
-                        print(f"  [discovery] swarm chose {len(picked)} of {len(items)} products "
+                    left_norm = [(_normalize(urljoin(url, href)), reason) for href, reason in left]
+                    for href, reason in left_norm:
+                        skipped.setdefault(href, reason)
+                    picked_norm = [_normalize(urljoin(url, href)) for href in picked]
+                    listed = [_normalize(urljoin(url, href)) for href in items]
+                    if picked_norm:
+                        swarm_rows.extend(assign_workers(picked_norm, settings.test_workers))
+                        print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
+                    swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
+                    swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
                 elif n_sample > 0 and len(items) >= 3:
                     odd = [h for h in (entry.get("itemLinks") or {}).get("odd") or [] if h in items][:1]
                     picked = list(dict.fromkeys([items[0], *odd, items[len(items) // 2], items[-1]]))
@@ -2659,6 +2667,8 @@ def discovery_agent(state: QAState) -> QAState:
             "sample": settings.swarm_sample,
             "workers": settings.test_workers,
             "assigned": swarm_rows[:300],
+            "tasks": swarm_tasks[:300],
+            "coverage": swarm_checks[:50],
         },
         "actions": explorer.summary(),  # what was tried / learned / blocked / skipped (and why) while exploring
         "page_types": {t: sum(1 for p in app_map if p.get("page_type") == t) for t in
