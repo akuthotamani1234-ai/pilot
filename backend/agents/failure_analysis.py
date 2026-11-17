@@ -844,6 +844,8 @@ def failure_analysis_agent(state: QAState) -> QAState:
         "caught": False, "reason": "no seeded defect", "replay": {"ran": False}}
     seed["ok"] = True
     record_step(run_dir, "seed", seed)
+    from ..run_rules import apply_analysis
+    apply_analysis(state, failures)
     counts = {}
     for f in failures:
         counts[f["category"]] = counts.get(f["category"], 0) + 1

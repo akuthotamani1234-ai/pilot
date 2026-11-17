@@ -86,6 +86,7 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `testdata.py` | test values that fit each input box (read from its label and type) |
 | `data_lifecycle.py` | synthetic account, cart, and order for each swarm worker, tagged with the run; production customer data is refused |
 | `release_row.py` | section 22 in order: register, inventory, graph, isolated workers, seeded defect, six dashboard counts, and the operation checks. Each stage writes its step into `row.json` |
+| `run_rules.py` | the live rules at the stage they belong to: sessions, environment, locale, schema, plugins, worker data, dependency faults, replay, mutation score, journeys, evaluation, and trends |
 | `explore_score.py`, `sessions.py`, `env_controls.py`, `replay_pack.py`, `mutation_score.py`, `journey_map.py`, `locale_check.py`, `agent_eval.py`, `incremental_map.py`, `dependency_fault.py`, `schema_diff.py`, `human_review.py`, `quality_trends.py`, `plugins.py` | the remaining blueprint rules: next-page score, sessions, staging controls, replay, mutation score, journeys, locale, evaluation, incremental reopen, dependency faults, schema diffs, human review, trends, and plugin locks |
 | `assert_strength.py` | how strong each generated test's checks are (read from the code), so a weak test is "smoke" |
 
