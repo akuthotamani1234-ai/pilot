@@ -54,6 +54,11 @@ def studio(browser, scenario="discovery", viewport=None):
     summary = {"mode": "discovery" if scenario == "discovery" else "full",
                "discovery_only": scenario == "discovery", "pages": 12,
                "verdict": "Insufficient Evidence", "test_cases": 0, "reasons": []}
+    if scenario == "qx":
+        summary["qx_card"] = {
+            "completed": 25, "total": 25, "remaining": 0,
+            "counts": {"discovered": 12, "tested": 4, "passed": 3, "failed": 1, "blocked": 2, "unknown": 5},
+        }
     report = {"summary": summary, "pages": [], "cases_available": scenario in ("cases", "excel"),
               "excel": "/runs/sample/test_cases.xlsx" if scenario == "excel" else None,
               "components_count": 600, "components_report": "/runs/sample/components.html",
@@ -148,6 +153,23 @@ def test_discovery_uses_the_available_workspace(browser, width, height, tmp_path
         expect(page.locator("#composer")).to_be_visible()
         assert page.locator("body").get_attribute("data-setup-state") == "idle"
         expect(page.locator(".exploration-result")).to_have_count(0)
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_the_finished_report_shows_the_six_qpilot_counts(browser, tmp_path):
+    context, page, errors, _calls = studio(browser, "qx")
+    try:
+        if page.locator("#menuBtn").is_visible():
+            page.locator("#menuBtn").click()
+        page.locator("#recent .open").click()
+        expect(page.locator("#thread")).to_contain_text("25 of 25 rules are in this run")
+        text = page.locator("#thread").inner_text()
+        for label in ("discovered", "tested", "passed", "failed", "blocked", "unknown"):
+            assert label in text
+        assert "12" in text and "5" in text
+        page.screenshot(path=str(tmp_path / "qx-report.png"))
         assert not errors
     finally:
         context.close()
