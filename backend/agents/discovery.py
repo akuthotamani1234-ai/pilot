@@ -26,10 +26,19 @@ from ..capabilities import run_record
 from ..config import settings
 from ..coverage_verify import verify_listing
 from ..data_lifecycle import plan_for_workers
+from ..explore_score import rank_candidates
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
-from ..release_row import load_saved_crawl, read_target, save_crawl_progress
+from ..release_row import (
+    inventory_pages,
+    link_graph,
+    load_saved_crawl,
+    page_record,
+    read_target,
+    record_step,
+    save_crawl_progress,
+)
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
@@ -1725,7 +1734,11 @@ def discovery_agent(state: QAState) -> QAState:
                 resumed_urls.add(saved_url)
                 seen.add((saved_url, False))
                 seen.add((saved_url, True))
-            for raw in pending:
+            ranked_waiting = rank_candidates([
+                {"url": raw, "new_template": True, "uncertain": True, "journey_distance": 1} for raw in pending
+            ])
+            ranked_urls = [row["url"] for row in ranked_waiting]
+            for raw in ranked_urls + [item for item in pending if item not in set(ranked_urls)]:
                 waiting = _normalize(raw)
                 if waiting and (waiting, False) not in seen:
                     seen.add((waiting, False))
@@ -2614,7 +2627,12 @@ def discovery_agent(state: QAState) -> QAState:
                 queue.appendleft((url, depth, inside, auth))  # (counted as not visited)
                 break
             app_map.append(entry)
-            save_crawl_progress(run_dir, app_map, [item[0] for item in queue])
+            waiting = [item[0] for item in queue]
+            ranked_waiting = rank_candidates([
+                {"url": item, "new_template": True, "journey_distance": 1} for item in waiting
+            ])
+            ranked_urls = [row["url"] for row in ranked_waiting]
+            save_crawl_progress(run_dir, app_map, ranked_urls + [item for item in waiting if item not in set(ranked_urls)])
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
@@ -2744,6 +2762,18 @@ def discovery_agent(state: QAState) -> QAState:
     if not settings.discovery_only:
         vision.look_at_pages(app_map, run_dir)
     (run_dir / "app_map.json").write_text(json.dumps(app_map, indent=2), encoding="utf-8")
+    records = [page_record(page) for page in app_map]
+    target = read_target(run_dir) or {}
+    found = inventory_pages(records, done=sorted(resumed_urls), page_budget=int(target.get("page_budget") or limit))
+    found["ok"] = True
+    graph = link_graph(records)
+    graph["ok"] = True
+    record_step(run_dir, "inventory", found)
+    record_step(run_dir, "graph", graph)
+    print(f"  [discovery] inventory: {len(found['opened'])} opened, {len(found['blocked'])} blocked, "
+          f"{len(found['remaining'])} still waiting", flush=True)
+    print(f"  [discovery] graph: {len(graph['templates'])} template(s), {len(graph['elements'])} element(s), "
+          f"{len(graph['transitions'])} transition(s)", flush=True)
     (run_dir / "login.json").write_text(json.dumps(login, indent=2), encoding="utf-8")
     (run_dir / "crawl.json").write_text(json.dumps(crawl, indent=2), encoding="utf-8")
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)

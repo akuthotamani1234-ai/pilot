@@ -84,6 +84,57 @@ def read_target(run_dir: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def page_record(page: dict) -> dict:
+    """One crawled page in the shape the inventory and the graph understand."""
+    url = str(page.get("url") or "")
+    buttons = [item for item in (page.get("buttons") or []) if isinstance(item, dict)]
+    fields = [item for item in (page.get("inputs") or []) if isinstance(item, dict)]
+    links = [item for item in (page.get("links") or []) if isinstance(item, dict)]
+    elements = [str(item.get("text") or item.get("selector")) for item in buttons if item.get("text") or item.get("selector")]
+    elements += [str(item.get("name") or item.get("label") or item.get("selector") or "input") for item in fields]
+    actions = [{"name": str(item.get("text") or item.get("selector") or "button"), "safe": not is_payment_url(url)}
+               for item in buttons]
+    actions += [{"name": str(item.get("text") or "link"), "to": item.get("href") or "",
+                 "safe": not is_payment_url(str(item.get("href") or ""))} for item in links if item.get("href")]
+    evidence = [page["screenshot"]] if page.get("screenshot") else []
+    return {
+        "url": url,
+        "template": str(page.get("page_type") or "page"),
+        "blocked": bool(page.get("blocked")) or is_payment_url(url),
+        "elements": elements[:80],
+        "actions": actions[:80],
+        "evidence": evidence,
+    }
+
+
+def record_step(run_dir: Path, step: str, payload: dict) -> dict:
+    """Store one release step and keep the row in its fixed order."""
+    if step not in ROW:
+        raise ValueError(step)
+    current: dict = {}
+    path = run_dir / "row.json"
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                current = loaded
+        except (OSError, ValueError):
+            current = {}
+    order_index = {name: index for index, name in enumerate(ROW)}
+    steps = [item for item in current.get("steps") or [] if isinstance(item, dict) and item.get("step") != step]
+    ok = bool(payload.get("ok", True))
+    steps.append({"step": step, "ok": ok})
+    steps.sort(key=lambda item: order_index.get(str(item.get("step")), len(ROW)))
+    current["order"] = list(ROW)
+    current["steps"] = steps
+    current["stopped"] = step if step == "register" and not ok else ("" if step == "register" else current.get("stopped") or "")
+    current[step] = payload
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    (run_dir / f"{step}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return current
+
+
 def inventory_pages(pages: list[dict], *, done: list[str], page_budget: int) -> dict:
     """Continue a crawl. Finished addresses are not opened again. Payment stays blocked."""
     finished = set(done)

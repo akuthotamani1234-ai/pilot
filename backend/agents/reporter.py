@@ -1182,9 +1182,11 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
     proj = state.get("project")
     log_items = "".join(f"<li>{_e(l)}</li>" for l in state.get("log", []))
     pct = lambda n: f"{100 * n / total:.1f}%"  # noqa: E731
-    from ..release_row import from_run
+    from ..release_row import from_run, record_step
     release = from_run(dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
                             environment=cfg.environment))
+    record_step(run_dir, "dashboard", {**(release.get("dashboard") or {}), "ok": True})
+    record_step(run_dir, "operations", release.get("operations") or {"ok": False})
     release_counts = release.get("dashboard") or {}
     release_html = "".join(
         f"<div class='n'><b>{int(release_counts.get(name) or 0)}</b><span>{name}</span></div>"
