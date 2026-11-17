@@ -4,6 +4,9 @@ A package needs the environment, build, browser or device, seed, starting
 state, test data, actions, network evidence, screenshots, and the assertion
 that failed. A short summary is not enough to replay.
 """
+import json
+from pathlib import Path
+
 FIELDS = (
     "environment",
     "build",
@@ -42,3 +45,13 @@ def replay(package: dict) -> dict:
     if missing:
         return {"ran": False, "missing": missing, "steps": []}
     return {"ran": True, "missing": [], "steps": list(package.get("actions") or [])}
+
+
+def saved_replays(run_dir: Path) -> list[dict]:
+    """The replay decision stored for one run. An empty list means nothing was recorded."""
+    try:
+        payload = json.loads((run_dir / "qx_replay.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    packages = payload.get("packages") if isinstance(payload, dict) else None
+    return [row for row in packages or [] if isinstance(row, dict)]
