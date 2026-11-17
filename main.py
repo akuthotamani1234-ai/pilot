@@ -350,6 +350,8 @@ def main():
     ap.add_argument("--fresh", action="store_true", help="Ignore the saved baseline and generate all tests again")
     ap.add_argument("--reuse-tests", action="store_true",
                     help="Regression run: run the test scripts of the last run of this site again (no new tests)")
+    ap.add_argument("--replay", metavar="RUN_ID",
+                    help="Show which recorded failures from that run can be replayed from their saved steps")
     ap.add_argument("--resume", metavar="RUN_ID",
                     help="Go on with a run that stopped (crashed, Ctrl+C, Stop button, time limit), after its last "
                          "finished stage. The test account is not saved: give it again in .env / TEST_USERNAME.")
@@ -368,6 +370,25 @@ def main():
     if args.discovery_only and (args.fresh or args.reuse_tests or args.my_test or args.recheck or args.merge
                                or args.approve_visual or args.resume):
         ap.error("--discovery-only cannot be combined with baseline, test-editing or resume options; resume uses the saved mode.")
+    if args.replay:
+        from backend.replay_pack import saved_replays
+        run_dir = settings.runs_dir / Path(args.replay).name
+        rows = saved_replays(run_dir)
+        if not rows:
+            print(f"\n{run_dir.name} has no recorded replay packages.")
+            sys.exit(2)
+        incomplete = 0
+        for row in rows:
+            played = row.get("replay") or {}
+            label = row.get("id") or "failure"
+            if played.get("ran"):
+                print(f"  replay  {label}: {' -> '.join(str(step) for step in played.get('steps') or [])}")
+            else:
+                incomplete += 1
+                missing = ", ".join(played.get("missing") or []) or "the package is incomplete"
+                print(f"  held    {label}: {missing}")
+        print(f"\n{len(rows) - incomplete} package(s) can be replayed, {incomplete} still incomplete.")
+        return
     if args.recheck:
         from backend import recheck as rc
         run_dir = settings.runs_dir / Path(args.recheck[0]).name

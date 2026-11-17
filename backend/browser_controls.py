@@ -154,6 +154,18 @@ def _host_has_service(url: str, service: str) -> bool:
     return bool(host) and name in host
 
 
+def stub_response(url: str, controls: dict | None) -> dict | None:
+    """A JSON stand-in for a faulted call. Payment, delete, and logout are never stubbed."""
+    chosen = controls if isinstance(controls, dict) else {}
+    if chosen.get("stub_api") is not True or _protected_url(url):
+        return None
+    if chosen.get("navigation") is True and _same_document(url, str(chosen.get("start_url") or "")):
+        return None
+    if not request_blocked(url, chosen):
+        return None
+    return {"status": 200, "content_type": "application/json", "body": '{"stub":true}'}
+
+
 def request_blocked(url: str, controls: dict | None) -> bool:
     """True when this request must not be sent.
 

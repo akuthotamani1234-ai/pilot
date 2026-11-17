@@ -137,17 +137,17 @@ def _load_browser_controls():
     if root is not None and str(root) not in sys.path:
         sys.path.insert(0, str(root))
     try:
-        from backend.browser_controls import clock_script, load_controls, request_blocked
+        from backend.browser_controls import clock_script, load_controls, request_blocked, stub_response
     except ImportError:
-        return {}, _no_clock, _no_block
+        return {}, _no_clock, _no_block, lambda *_a, **_k: None
     loaded = load_controls(RUN_DIR)
     # A production process must not grow a clock or a fault from a stale staging file.
     if os.environ.get("QA_ENVIRONMENT", "").strip().lower() in {"production", "prod", "live"}:
         loaded = dict(loaded, stub_api=False, fixed_clock=False, network_fault=False, injected=False, service="")
-    return loaded, clock_script, request_blocked
+    return loaded, clock_script, request_blocked, stub_response
 
 
-_BROWSER_CONTROLS, _clock_script, _request_blocked = _load_browser_controls()
+_BROWSER_CONTROLS, _clock_script, _request_blocked, _stub_response = _load_browser_controls()
 _CLOCK_SCRIPT = _clock_script(_BROWSER_CONTROLS)
 
 
@@ -169,6 +169,14 @@ def _abort_controlled(route, url: str, navigation: bool) -> bool:
     reason = _route_fault(url, navigation)
     if not reason:
         return False
+    if reason == "fault":
+        body = _stub_response(url, dict(_BROWSER_CONTROLS, start_url=BASE_URL, navigation=navigation))
+        if body:
+            try:
+                route.fulfill(status=body["status"], content_type=body["content_type"], body=body["body"])
+            except Exception:
+                pass
+            return True
     try:
         route.abort("blockedbyclient" if reason == "safety" else "failed")
     except Exception:
