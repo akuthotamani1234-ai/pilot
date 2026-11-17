@@ -1188,6 +1188,8 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
     record_step(run_dir, "dashboard", {**(release.get("dashboard") or {}), "ok": True})
     record_step(run_dir, "operations", release.get("operations") or {"ok": False})
     release_counts = release.get("dashboard") or {}
+    from ..qx_status import card as qx_card_for
+    qx_card = qx_card_for(release_counts)
     release_html = "".join(
         f"<div class='n'><b>{int(release_counts.get(name) or 0)}</b><span>{name}</span></div>"
         for name in ("discovered", "tested", "passed", "failed", "blocked", "unknown")
@@ -1412,6 +1414,7 @@ function copyCode(b) {{
         "repaired_real_failure": sum(1 for h in heals if h["status"] == "repaired"), "fixes": len(fixes),
         "source": state.get("source"), "run_id": state["run_id"],
         "qx": "qx_applied.json",
+        "qx_card": qx_card,
         "qx_areas": [item.get("category") or item.get("page_url") or "" for item in failures
                      if item.get("category") or item.get("page_url")],
         "cost_usd": cost["cost_usd"], "cost_per_case_usd": cost["avg_cost_per_case_usd"],

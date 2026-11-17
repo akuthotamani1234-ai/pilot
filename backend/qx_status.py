@@ -31,7 +31,22 @@ ITEMS = (
 )
 
 
+COUNTS = ("discovered", "tested", "passed", "failed", "blocked", "unknown")
+
+
 def status() -> dict:
     """Every item in this list is in the live run."""
     items = [{"id": item_id, "name": name, "done": True} for item_id, name in ITEMS]
     return {"completed": len(items), "remaining": 0, "total": len(items), "items": items}
+
+
+def card(counts: dict | None = None) -> dict:
+    """The six release counts plus how many rules are in the run. The chat shows this."""
+    counted = status()
+    raw = counts or {}
+    return {
+        "completed": counted["completed"],
+        "remaining": counted["remaining"],
+        "total": counted["total"],
+        "counts": {name: int(raw.get(name) or 0) for name in COUNTS},
+    }

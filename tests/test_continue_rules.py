@@ -59,11 +59,14 @@ def test_a_complete_package_names_the_test_that_can_run_again(tmp_path, monkeypa
 
 
 def test_the_rule_count_is_eighteen_capabilities_and_seven_release_steps():
-    from backend.qx_status import status
+    from backend.qx_status import card, status
     counted = status()
     assert counted["total"] == 25
     assert counted["completed"] == 25
     assert counted["remaining"] == 0
+    shown = card({"discovered": 12, "tested": 4, "passed": 3, "failed": 1, "blocked": 2, "unknown": 5})
+    assert shown["completed"] == 25
+    assert shown["counts"] == {"discovered": 12, "tested": 4, "passed": 3, "failed": 1, "blocked": 2, "unknown": 5}
 
 
 def test_a_saved_replay_can_be_read_back(tmp_path):
