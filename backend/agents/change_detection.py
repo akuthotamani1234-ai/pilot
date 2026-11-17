@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from ..config import settings
+from ..incremental_map import plan_pages
 from ..page_status import page_testable
 from ..state import QAState
 
@@ -140,6 +141,22 @@ def change_detection_agent(state: QAState) -> QAState:
         for u in removed:
             print(f"  [changes] REMOVED {u}")
 
+    changed_urls = {row["url"] for row in changes.get("changed") or []}
+    unchanged_urls = set(changes.get("unchanged") or [])
+    current_pages = []
+    for page in current:
+        url = page["url"]
+        if url in changed_urls:
+            current_pages.append({"url": url, "template": "same", "status": "ok", "changed": True})
+        elif url in unchanged_urls:
+            current_pages.append({"url": url, "template": "same", "status": "ok", "changed": False})
+        else:
+            current_pages.append({
+                "url": url, "template": "new",
+                "status": "failed" if page.get("error") else "ok", "changed": False,
+            })
+    saved_pages = [{"url": url, "template": "same", "status": "ok"} for url in unchanged_urls]
+    changes["incremental"] = plan_pages(saved_pages, current_pages, fresh=not settings.incremental)
     Path(state["run_dir"], "changes.json").write_text(json.dumps(changes, indent=2), encoding="utf-8")
     return {"changes": changes, "log": state.get("log", []) + [msg]}
 

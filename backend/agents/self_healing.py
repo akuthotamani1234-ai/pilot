@@ -25,6 +25,7 @@ import shutil
 from collections import Counter
 from pathlib import Path
 
+from ..human_review import proposal_fields
 from ..llm import LLMError, ask_llm, extract_code, llm_enabled, load_prompt
 from ..state import QAState
 from .script_generator import _ident, validate_script
@@ -390,6 +391,7 @@ def self_healing_agent(state: QAState) -> QAState:
                 shutil.copy(path, backup)
             entry["backup"] = backup.relative_to(run_dir).as_posix()
             path.write_text(after, encoding="utf-8")
+            entry.update(proposal_fields(f.get("error") or ""))
             entry["diff"] = "".join(difflib.unified_diff(
                 before.splitlines(True), after.splitlines(True), "before", "after", n=1))
             if bad and entry["to"]:
