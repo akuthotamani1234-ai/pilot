@@ -264,6 +264,7 @@ def test_thorough_run_raises_this_run_budget_env(client, isolated_jobs, monkeypa
     assert float(env["CRAWL_TIME_LIMIT_MIN"]) >= 60
     assert int(env["MAX_TEST_CASES"]) >= 500
     assert env["PATTERN_SAMPLES"] == "0"
+    assert env["SWARM_SAMPLE"] == "0"
     assert "--max-pages" in captured["cmd"] and captured["cmd"][captured["cmd"].index("--max-pages") + 1] == "0"
 
 
@@ -324,6 +325,7 @@ def test_thorough_false_does_not_raise_budgets_even_with_full_crawl(client, isol
     assert float(env["CRAWL_TIME_LIMIT_MIN"]) == 30.0
     assert env["MAX_TEST_CASES"] == "300"
     assert env["PATTERN_SAMPLES"] == "3"
+    assert env["SWARM_SAMPLE"] == "3"
 
 
 def test_history_lists_incomplete_runs_without_summary(client, tmp_path, monkeypatch):
