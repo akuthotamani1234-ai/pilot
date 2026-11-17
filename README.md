@@ -111,6 +111,7 @@ Android continuation manages `ANDROID_PENDING_CASES` internally; use **Resume un
 | OpenAI | `LLM_PROVIDER=openai` and `OPENAI_API_KEY=...` (default model `gpt-4o-mini`) |
 | Google Gemini | `LLM_PROVIDER=gemini` and `GEMINI_API_KEY=...` |
 | Anthropic Claude | `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=...` |
+| Large shop, test a few products | `SWARM_SAMPLE=3` (the studio uses 3; Thorough forces 0) |
 
 The web UI also lets you pick the AI for each run. A key pasted there is used for that run only and never saved.
 

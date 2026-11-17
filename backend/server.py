@@ -736,7 +736,10 @@ def start_run(req: RunRequest):
                 cases_cap = 0
             env["MAX_TEST_CASES"] = str(max(500, cases_cap))
             env["PATTERN_SAMPLES"] = "0"
+            env["SWARM_SAMPLE"] = "0"
             env["QA_THOROUGH"] = "1"
+        else:
+            env.setdefault("SWARM_SAMPLE", "3")
         if req.auth_mode in ("public", "signup", "existing"):
             env.update({"TEST_USERNAME": "", "TEST_PASSWORD": "", "TEST_TOTP_SECRET": "", "TEST_ACCOUNTS": ""})
         env.update({"QA_EVENTS": "1", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
