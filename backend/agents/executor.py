@@ -584,15 +584,15 @@ def execution_agent(state: QAState) -> QAState:
         return {"results": results, "test_cases": cases, "log": state.get("log", []) + [note]}
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
-    from ..release_row import isolated_work
+    from ..release_row import isolated_work, record_step
     assigned = isolated_work([
         {"id": case.get("tc_id") or case.get("id") or "",
          "source": case.get("expected_source") or case.get("oracle") or "",
          "assertion": case.get("expected") or case.get("title") or ""}
         for case in state.get("test_cases") or []
     ], settings.test_workers)
-    (run_dir / "workers.json").write_text(json.dumps(assigned, indent=2), encoding="utf-8")
     accepted = sum(row["accepted"] for row in assigned)
+    record_step(run_dir, "workers", {"ok": True, "accepted": accepted, "assigned": assigned})
     print(f"  [execution] {accepted} case(s) have their own worker; "
           f"{len(assigned) - accepted} were not assigned", flush=True)
     shot_dir = run_dir / "failure_screenshots"

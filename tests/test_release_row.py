@@ -1,5 +1,15 @@
 """The section 22 steps run in order, and an unauthorized target stops the row."""
-from backend.release_row import from_run, load_saved_crawl, open_target, run_row, save_crawl_progress
+import json
+
+from backend.release_row import (
+    from_run,
+    load_saved_crawl,
+    open_target,
+    page_record,
+    record_step,
+    run_row,
+    save_crawl_progress,
+)
 
 
 def _pages():
@@ -51,6 +61,17 @@ def test_an_unauthorized_target_stops_before_the_crawl():
     assert row["stopped"] == "register"
     assert [step["step"] for step in row["steps"]] == ["register"]
     assert row["dashboard"]["discovered"] == 0
+
+
+def test_the_row_file_stays_in_order_when_a_later_step_is_stored_first(tmp_path):
+    record_step(tmp_path, "seed", {"ok": True, "caught": False, "reason": "no seeded defect"})
+    record_step(tmp_path, "register", {"ok": True, "url": "https://shop.example", "scope": "site"})
+    stored = json.loads((tmp_path / "row.json").read_text(encoding="utf-8"))
+    assert [item["step"] for item in stored["steps"]] == ["register", "seed"]
+    assert stored["order"][0] == "register"
+    record = page_record({"url": "https://shop.example/saree", "page_type": "product",
+                          "buttons": [{"text": "Add"}], "screenshot": "saree.png"})
+    assert record["template"] == "product" and record["elements"] == ["Add"]
 
 
 def test_a_saved_crawl_can_continue_and_a_zero_budget_uses_the_cap(tmp_path):
