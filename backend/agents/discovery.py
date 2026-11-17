@@ -1293,7 +1293,7 @@ class _Frontier:
     for), then the public pages - and in each, the SECTIONS of the site's own menu first (append_menu: so a time limit
     can only cut deep pages, never a whole section - OrangeHRM's Recruitment, Time, Maintenance were never reached),
     then a page that probably shows something NEW before more pages of a kind already known (append_later). Inside a
-    band, a higher next-page score is opened first. A checkout or payment address is never queued. Used like a deque
+    band, a higher next-page score is opened first. A checkout or payment address is queued last in that band. Used like a deque
     by the crawl loop."""
     ORDER = ((True, "menu"), (True, False), (True, True), (False, "menu"), (False, False), (False, True))
 
@@ -1305,8 +1305,6 @@ class _Frontier:
         self.append(first)
 
     def _place(self, lane: deque, item: tuple, score: int | None) -> None:
-        if is_payment_url(str(item[0])):
-            return
         if score is None:
             lane.append(item)
             return
@@ -1332,8 +1330,6 @@ class _Frontier:
         return [x[0] for k in self.ORDER if k[1] == "menu" for x in self.lanes[k] if x in self.menu]
 
     def append_menu(self, item: tuple) -> None:
-        if is_payment_url(str(item[0])):
-            return
         self.menu.add(item)
         self.lanes[(bool(item[3]), "menu")].append(item)
 
@@ -1341,8 +1337,6 @@ class _Frontier:
         self._place(self.lanes[(bool(item[3]), True)], item, score)
 
     def appendleft(self, item: tuple) -> None:  # (the login link, a page to read again: before even the menu)
-        if is_payment_url(str(item[0])):
-            return
         self.lanes[(bool(item[3]), "menu")].appendleft(item)
 
     def popleft(self) -> tuple:
@@ -1366,12 +1360,19 @@ def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool
                priorities: list[str] | None = None, failed: bool = False, uncertain: bool = False) -> bool:
     """Queue one normal link by its next-page score. Menu links stay in the menu band.
 
-    A checkout or payment address is not queued. A previous run's priority token marks the
-    address changed, which scores it higher inside the same band.
+    A checkout or payment address is queued last in its band, so the page is seen and its
+    pay button stays unclicked. A previous run's priority token marks an ordinary address
+    changed, which scores it higher inside the same band.
     """
     url = str(item[0])
     if is_payment_url(url):
-        return False
+        if menu:
+            queue.append_menu(item)
+        elif known:
+            queue.append_later(item, score=0)
+        else:
+            queue.append(item, score=0)
+        return True
     if menu:
         queue.append_menu(item)
         return True
@@ -1802,9 +1803,7 @@ def discovery_agent(state: QAState) -> QAState:
     # logged-in browser session, so the public pages (login, register) are still seen as a visitor sees them
     queue = _Frontier((start_url, 0, True, False))  # (logged-in pages always first)
     seen = {(start_url, False)}
-    skipped: dict = {}  # url -> reason (filled as links are refused, including checkout)
-    if is_payment_url(start_url):
-        skipped.setdefault(start_url, "checkout, payment and placing an order are never tested")
+    skipped: dict = {}  # url -> reason (filled as links are refused)
     resumed_urls: set[str] = set()
     if state.get("resuming"):
         saved_pages, pending = load_saved_crawl(run_dir)
@@ -1821,9 +1820,6 @@ def discovery_agent(state: QAState) -> QAState:
                 waiting = _normalize(raw)
                 if not waiting or (waiting, False) in seen:
                     continue
-                if is_payment_url(waiting):
-                    skipped.setdefault(waiting, "checkout, payment and placing an order are never tested")
-                    continue
                 seen.add((waiting, False))
                 place_link(queue, (waiting, 1, True, False), priorities=priorities, uncertain=True)
             print(f"  [discovery] resumed {len(saved_pages)} inventoried page(s), "
@@ -1837,9 +1833,7 @@ def discovery_agent(state: QAState) -> QAState:
             load_account(state.get("site_key") or "") if settings.use_saved_account else None) or settings.auto_register)
     if settings.login_url:  # the login page you named (LOGIN_URL): visited right after the start page
         named = _normalize(settings.login_url)
-        if named and is_payment_url(named):
-            skipped.setdefault(named, "checkout, payment and placing an order are never tested")
-        elif scope.in_scope(named) and (named, False) not in seen:
+        if scope.in_scope(named) and (named, False) not in seen:
             seen.add((named, False))
             place_link(queue, (named, 1, True, False), priorities=priorities)
     used_slugs = set()
@@ -2021,9 +2015,6 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
-            if is_payment_url(url):
-                skipped.setdefault(url, "checkout, payment and placing an order are never tested")
-                continue
             if url in resumed_urls and (url, auth) not in reread:
                 continue
             if not inside and not_app >= MAX_NOT_APP:
@@ -2464,10 +2455,7 @@ def discovery_agent(state: QAState) -> QAState:
                     seen.add((_normalize(entry.get("final_url") or url), True))
                     if (landing, True) not in seen:  # depth starts again at 0: the app begins here
                         seen.add((landing, True))
-                        if is_payment_url(landing):
-                            skipped.setdefault(landing, "checkout, payment and placing an order are never tested")
-                        else:
-                            queue.appendleft((landing, 0, True, True))
+                        queue.appendleft((landing, 0, True, True))
                     login["note"] = {
                         "given": "Logged in with the test account - the pages behind the login are tested too.",
                         "saved": f"Logged in with the test account I created earlier ({account['username']}) - "
@@ -2508,9 +2496,6 @@ def discovery_agent(state: QAState) -> QAState:
                     if urlparse(href).hostname == base_host and (SIGNIN_TEXT.search(text) or _auth_link(href)) \
                             and not SIGNUP_TEXT.search(text) and not SIGNUP_PATH.search(href + "/") \
                             and (href, False) not in seen and not _skip_reason(href):
-                        if is_payment_url(href):
-                            skipped.setdefault(href, "checkout, payment and placing an order are never tested")
-                            continue
                         seen.add((href, False))
                         queue.appendleft((href, depth + 1, True, False))
 
@@ -2539,9 +2524,6 @@ def discovery_agent(state: QAState) -> QAState:
                     nxt = _normalize(urljoin(url, href.strip()))
                     if urlparse(nxt).hostname == base_host:  # http:// and https:// are the same page
                         nxt = start_scheme + nxt.split(":", 1)[1]
-                    if is_payment_url(nxt) and urlparse(nxt).hostname == base_host:
-                        skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
-                        return False
                     if (nxt, auth) in seen or not _is_crawlable(nxt, base_host):
                         return False
                     # Sitemap / scrape seed the WHOLE host: like the site-wide menu, they never leave the section.
@@ -2686,9 +2668,6 @@ def discovery_agent(state: QAState) -> QAState:
                             print(f"  [discovery] an action revealed another page: {_normalize(nxt)}")
                     for nxt in changed:
                         nxt = _normalize(nxt)
-                        if is_payment_url(nxt):
-                            skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
-                            continue
                         done = next((p for p in app_map if p["url"] == nxt and p["auth"] == auth), None)
                         if done and (nxt, auth) not in reread:
                             reread.add((nxt, auth))
@@ -2738,7 +2717,7 @@ def discovery_agent(state: QAState) -> QAState:
             app_map.append(entry)
             if remember_locale(locale_seen, entry):
                 write_locale(run_dir, locale_seen)
-            waiting = [item[0] for item in queue if not is_payment_url(item[0])]
+            waiting = [item[0] for item in queue]
             ranked_waiting = rank_candidates([
                 {"url": item, "new_template": True, "journey_distance": 1,
                  "changed": any(token and token in item for token in priorities)} for item in waiting

@@ -30,11 +30,8 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
                       priorities=priorities)
     assert place_link(queue, ("https://shop.example/product/search-result", 4, True, False), known=True,
                       priorities=priorities)
-    before = len(queue)
-    assert place_link(queue, ("https://shop.example/checkout", 1, True, False)) is False
-    assert place_link(queue, ("https://shop.example/payments/card", 1, True, False)) is False
-    queue.appendleft(("https://shop.example/place-order", 1, True, False))
-    assert len(queue) == before
+    assert place_link(queue, ("https://shop.example/checkout", 1, True, False)) is True
+    assert place_link(queue, ("https://shop.example/payments/card", 1, True, False)) is True
     order = [item[0] for item in queue]
     assert order[0] == "https://shop.example/account"
     assert order[1] == "https://shop.example/recruitment"
@@ -47,7 +44,10 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
     assert normal == ranked
     later = [url for url in order if "/product/" in url]
     assert later == ["https://shop.example/product/search-result", "https://shop.example/product/plain"]
-    assert not any(is_payment_url(url) for url in order)
+    payment = [url for url in order if is_payment_url(url)]
+    assert payment == ["https://shop.example/checkout", "https://shop.example/payments/card"]
+    assert order.index(payment[0]) > order.index(normal[-1])
+    assert order.index(payment[-1]) < order.index(later[0])
 
 
 def test_locale_file_keeps_only_facts_the_page_showed_and_the_sample(tmp_path, monkeypatch):

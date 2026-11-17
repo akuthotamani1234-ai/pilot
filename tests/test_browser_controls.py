@@ -146,6 +146,7 @@ def test_a_dependency_fault_is_written_before_the_browser_starts(tmp_path, monke
     runctl.reset()
     test_dir = tmp_path / "generated_tests"
     test_dir.mkdir()
+    monkeypatch.setattr(executor, "IS_WINDOWS", False)
     monkeypatch.setattr(executor.settings, "environment", "staging")
     monkeypatch.setattr(executor.settings, "suite_timeout_s", 30)
     monkeypatch.setenv("DEPENDENCY_FAULT", "inventory")
