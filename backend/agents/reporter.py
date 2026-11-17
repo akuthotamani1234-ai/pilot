@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..advice import build_fixes
+from ..apply_run import write_applied
 from ..cost import fmt_usd, write_report as write_cost_report
 from ..excel import write_workbook
 from ..page_status import page_testable
@@ -1398,6 +1399,9 @@ function copyCode(b) {{
         "healed": sum(1 for h in heals if h["status"] == "healed"),
         "repaired_real_failure": sum(1 for h in heals if h["status"] == "repaired"), "fixes": len(fixes),
         "source": state.get("source"), "run_id": state["run_id"],
+        "qx": "qx_applied.json",
+        "qx_areas": [item.get("category") or item.get("page_url") or "" for item in failures
+                     if item.get("category") or item.get("page_url")],
         "cost_usd": cost["cost_usd"], "cost_per_case_usd": cost["avg_cost_per_case_usd"],
         "tokens": cost["tokens_in"] + cost["tokens_out"], "llm": f"{cost['provider']} {cost['model']}".strip(),
         "run_seconds": cost["run_seconds"],
@@ -1419,6 +1423,13 @@ function copyCode(b) {{
         "metrics": {k: m[k] for k in ("single_tests", "assertions", "test_cases", "workflows", "findings", "rates",
                                       "headline", "consistency", "consistent", "result_status_counts",
                                       "feature_status_counts")}}, indent=2), encoding="utf-8")
-    log = state.get("log", []) + [f"Report: verdict = {verdict}."]
+    state_for_rules = dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
+                           environment=cfg.environment)
+    applied = write_applied(state_for_rules)
+    kept = applied["trends"]["verdict"]
+    log = state.get("log", []) + [
+        f"Report: verdict = {verdict}.",
+        f"Qpilot X rules applied ({len(applied['replay'])} replay package(s)); the verdict stays {kept}.",
+    ]
     return {"verdict": verdict, "report_path": str(report), "log": log,
             "results": results, "failures": failures, "test_cases": cases}
