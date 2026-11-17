@@ -39,6 +39,7 @@ from ..release_row import (
     record_step,
     save_crawl_progress,
 )
+from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
@@ -1734,8 +1735,10 @@ def discovery_agent(state: QAState) -> QAState:
                 resumed_urls.add(saved_url)
                 seen.add((saved_url, False))
                 seen.add((saved_url, True))
+            priorities = priority_urls(state.get("site_key") or "")
             ranked_waiting = rank_candidates([
-                {"url": raw, "new_template": True, "uncertain": True, "journey_distance": 1} for raw in pending
+                {"url": raw, "new_template": True, "uncertain": True, "journey_distance": 1,
+                 "changed": any(token and token in raw for token in priorities)} for raw in pending
             ])
             ranked_urls = [row["url"] for row in ranked_waiting]
             for raw in ranked_urls + [item for item in pending if item not in set(ranked_urls)]:
@@ -2628,8 +2631,10 @@ def discovery_agent(state: QAState) -> QAState:
                 break
             app_map.append(entry)
             waiting = [item[0] for item in queue]
+            priorities = priority_urls(state.get("site_key") or "")
             ranked_waiting = rank_candidates([
-                {"url": item, "new_template": True, "journey_distance": 1} for item in waiting
+                {"url": item, "new_template": True, "journey_distance": 1,
+                 "changed": any(token and token in item for token in priorities)} for item in waiting
             ])
             ranked_urls = [row["url"] for row in ranked_waiting]
             save_crawl_progress(run_dir, app_map, ranked_urls + [item for item in waiting if item not in set(ranked_urls)])
@@ -2792,6 +2797,14 @@ def discovery_agent(state: QAState) -> QAState:
         + (f" {len(skipped)} link(s) were skipped on purpose (see the coverage section)." if skipped else "")
     ] + ([f"Login: {login['note']}"] if login["found"] else [])
     roles = json.loads((run_dir / "roles.json").read_text(encoding="utf-8")) if (run_dir / "roles.json").exists() else {}
+    rules = apply_discovery({
+        "run_dir": str(run_dir), "run_id": run_dir.name, "site_key": state.get("site_key") or "",
+        "environment": settings.environment, "app_map": app_map, "crawl": crawl, "roles": roles,
+    })
+    if rules["schema"].get("trust_broken"):
+        print("  [discovery] API spec changed: broken workflows are named before those tests are trusted", flush=True)
+    print(f"  [discovery] rules: {len(rules['sessions']['roles'])} role session(s), "
+          f"locale sample {rules['locale']['sample']}, {len(rules['plugins'])} plugin(s)", flush=True)
     return {"app_map": app_map, "crawl_issues": issues, "log": log, "login": login, "crawl": crawl, "roles": roles}
 
 

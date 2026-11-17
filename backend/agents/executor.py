@@ -519,6 +519,8 @@ def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path)
     _clean_up_again(state, run_dir, test_dir, shot_dir)
 
     (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    from ..run_rules import apply_execution
+    apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment})
     (run_dir / "healing_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")  # (with the verdicts)
     count = {s: sum(1 for h in entries if h["status"] == s) for s in ("healed", "repaired", "reverted", "still failing")}
     return {"results": results, "rerun_only": [], "healing_log": log,
@@ -579,6 +581,8 @@ def execution_agent(state: QAState) -> QAState:
                                                                "stopped": False}, indent=2), encoding="utf-8")
         passed = sum(r.get("outcome") == "passed" for r in results)
         failed = sum(r.get("outcome") in ("failed", "error") for r in results)
+        from ..run_rules import apply_execution
+        apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment})
         note = f"Contract-only execution: {len(results)} approved flow(s) - {passed} passed, {failed} failed; no other tests ran."
         print("  [execution] " + note)
         return {"results": results, "test_cases": cases, "log": state.get("log", []) + [note]}
@@ -617,6 +621,8 @@ def execution_agent(state: QAState) -> QAState:
             (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
             (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2),
                                                     encoding="utf-8")
+            from ..run_rules import apply_execution
+            apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment})
             note = (f"Execution resume: kept {len(prior)} completed result(s); no pending tests — "
                     "did not re-run or duplicate run-owned writes.")
             print("  [execution] " + note)
@@ -688,4 +694,6 @@ def execution_agent(state: QAState) -> QAState:
         + (" THE RUN WAS STOPPED BY ITS TIME LIMIT." if info["timed_out"] else "")
         + (f" The test run was stopped early ({runctl.reason()}): the remaining tests did not run."
            if info.get("stopped") else "")]
+    from ..run_rules import apply_execution
+    apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment})
     return {"results": results, "test_cases": state.get("test_cases", []), "log": log}

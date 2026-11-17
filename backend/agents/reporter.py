@@ -1437,6 +1437,8 @@ function copyCode(b) {{
                                       "feature_status_counts")}}, indent=2), encoding="utf-8")
     state_for_rules = dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
                            environment=cfg.environment)
+    from ..run_rules import apply_report
+    apply_report(state_for_rules, verdict=verdict, failures=failures, results=results)
     applied = write_applied(state_for_rules)
     kept = applied["trends"]["verdict"]
     log = state.get("log", []) + [
