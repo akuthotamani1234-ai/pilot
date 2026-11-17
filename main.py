@@ -388,6 +388,13 @@ def main():
                 missing = ", ".join(played.get("missing") or []) or "the package is incomplete"
                 print(f"  held    {label}: {missing}")
         print(f"\n{len(rows) - incomplete} package(s) can be replayed, {incomplete} still incomplete.")
+        from backend.replay_pack import run_saved
+        played = run_saved(run_dir)
+        if played["ran"]:
+            for name, result in played["results"].items():
+                print(f"  again   {name}: {result.get('verdict') or result.get('outcome')}")
+        else:
+            print(f"  {played['reason']}")
         return
     if args.recheck:
         from backend import recheck as rc

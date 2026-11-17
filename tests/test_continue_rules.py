@@ -42,6 +42,30 @@ def test_a_stub_answers_a_fault_and_never_a_payment(tmp_path):
     assert stub_response("https://shop.example/", start) is None
 
 
+def test_a_complete_package_names_the_test_that_can_run_again(tmp_path, monkeypatch):
+    from backend.replay_pack import replay_tests, run_saved
+    (tmp_path / "qx_replay.json").write_text(json.dumps({
+        "packages": [
+            {"id": "test_price.py::test_see", "replay": {"ran": True, "steps": ["open the product"]}},
+            {"id": "12", "replay": {"ran": True, "steps": ["a crawl finding"]}},
+        ],
+    }), encoding="utf-8")
+    (tmp_path / "generated_tests").mkdir()
+    assert replay_tests(tmp_path) == ["test_price.py::test_see"]
+    monkeypatch.setattr("backend.recheck.recheck", lambda folder, names: {"results": {names[0]: {"verdict": "fixed"}}})
+    played = run_saved(tmp_path)
+    assert played["ran"] is True
+    assert played["results"]["test_price.py::test_see"]["verdict"] == "fixed"
+
+
+def test_the_rule_count_is_eighteen_capabilities_and_seven_release_steps():
+    from backend.qx_status import status
+    counted = status()
+    assert counted["total"] == 25
+    assert counted["completed"] == 25
+    assert counted["remaining"] == 0
+
+
 def test_a_saved_replay_can_be_read_back(tmp_path):
     (tmp_path / "qx_replay.json").write_text(json.dumps({
         "packages": [{"id": "price", "replay": {"ran": True, "steps": ["open the product"]}}],

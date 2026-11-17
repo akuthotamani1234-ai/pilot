@@ -55,3 +55,27 @@ def saved_replays(run_dir: Path) -> list[dict]:
         return []
     packages = payload.get("packages") if isinstance(payload, dict) else None
     return [row for row in packages or [] if isinstance(row, dict)]
+
+
+def replay_tests(run_dir: Path) -> list[str]:
+    """Test names a complete package can run again. A crawl finding with no test is left out."""
+    names = []
+    for row in saved_replays(run_dir):
+        played = row.get("replay") if isinstance(row.get("replay"), dict) else {}
+        name = str(row.get("id") or "")
+        if played.get("ran") and "::" in name:
+            names.append(name)
+    return list(dict.fromkeys(names))
+
+
+def run_saved(run_dir: Path) -> dict:
+    """Run the saved tests whose replay packages are complete."""
+    from .recheck import recheck
+
+    names = replay_tests(run_dir)
+    if not names:
+        return {"ran": False, "reason": "no complete package names a test", "results": {}}
+    if not (Path(run_dir) / "generated_tests").is_dir():
+        return {"ran": False, "reason": "this run has no test scripts", "results": {}}
+    out = recheck(run_dir, names)
+    return {"ran": True, "reason": "", "results": out.get("results") or {}}
