@@ -1451,14 +1451,44 @@ def write_guard(page):
 _TAGS = {"n": 0}
 
 
+def _worker_account_tag() -> str:
+    """The synthetic account this browser's worker was given. Empty when the suite has not prepared one.
+
+    Same choice as data_lifecycle.account_tag_for_worker: gw0 is worker 1, and a cleaned record is left unused.
+    """
+    try:
+        payload = json.loads((RUN_DIR / "qx_lifecycle.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    prepared = payload.get("prepared") if isinstance(payload, dict) else None
+    if not isinstance(prepared, list):
+        return ""
+    digits = re.sub(r"\D", "", os.environ.get("PYTEST_XDIST_WORKER", ""))
+    worker = int(digits) + 1 if digits else 1
+    for pack in prepared:
+        if not isinstance(pack, list):
+            continue
+        account = next((row for row in pack if isinstance(row, dict) and row.get("kind") == "account"), None)
+        if not account or account.get("state") != "ready" or int(account.get("worker") or 0) != worker:
+            continue
+        return str(account.get("tag") or "")
+    return ""
+
+
 @pytest.fixture
 def qa_tag():
-    """new_tag() -> 'qa-<run>-<n>': test data a staging run creates carries it, so it can be found and cleaned up."""
+    """new_tag() -> 'qa-<run>-<n>': test data a staging run creates carries it, so it can be found and cleaned up.
+
+    When this worker has a ready lifecycle record, the tag starts with that record so the form data is the worker's own.
+    """
     run = re.sub(r"\D", "", os.environ.get("QA_RUN_ID", ""))[-6:] or "run"
     worker = re.sub(r"\D", "", os.environ.get("PYTEST_XDIST_WORKER", "")) or "0"
+    owned = _worker_account_tag()
 
     def new_tag():
         _TAGS["n"] += 1
+        if owned:
+            return f"{owned}-{_TAGS['n']}"
         return f"qa-{run}-{worker}{_TAGS['n']}"
     return new_tag
 

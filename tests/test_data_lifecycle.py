@@ -1,7 +1,7 @@
 """QX-A05: synthetic records stay with one run and one worker."""
 import pytest
 
-from backend.data_lifecycle import Lifecycle, customer_data, plan_for_workers
+from backend.data_lifecycle import Lifecycle, account_tag_for_worker, customer_data, plan_for_workers
 
 
 def test_each_worker_gets_its_own_tagged_records():
@@ -52,6 +52,19 @@ def test_production_and_customer_addresses_are_refused():
     with pytest.raises(ValueError, match="production customer data"):
         life.claim(1, "shopper@gmail.com")
     assert life.claim(1, "qa-run-1-w1-account@example.com").endswith("@example.com")
+
+
+def test_a_ready_account_is_the_tag_for_that_browser_worker():
+    life = Lifecycle("run-9", "test")
+    first = life.prepare(1)
+    second = life.prepare(2)
+    prepared = [first, second]
+    assert account_tag_for_worker(prepared, "gw0") == first[0]["tag"]
+    assert account_tag_for_worker(prepared, "gw1") == second[0]["tag"]
+    assert account_tag_for_worker(prepared, "") == first[0]["tag"]
+    life.cleanup()
+    cleaned = [life.snapshot(1), life.snapshot(2)]
+    assert account_tag_for_worker(cleaned, "gw0") == ""
 
 
 def test_the_swarm_plan_is_one_isolated_pack_per_worker():

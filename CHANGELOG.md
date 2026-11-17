@@ -12,6 +12,7 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 - The live run now applies the remaining rules in place: role sessions, environment controls, locale sample, schema diff, plugins, worker test data, dependency faults, replay packages, mutation score, journeys, evaluation, and trends.
 - The crawl orders ordinary links by the next-page score, writes the locale facts a page actually showed, and saves an OpenAPI spec when one is found. A checkout page is still opened so its pay button can be recorded as blocked; it is not preferred over ordinary pages. A fixed clock, a network fault, or a dependency fault reaches the test browser only when that run asks for it. Payment, delete, and logout stay blocked.
 - An accepted plugin assertion is written as a test. A workflow whose API spec changed is not turned into a trusted test. When a stub is asked for, a faulted call gets a JSON stand-in instead of only failing. `python main.py --replay RUN_ID` shows the saved steps and runs the test again when the package names one.
+- Each worker's synthetic records stay ready while the tests run. A form tag uses that worker's own account record. The records are marked cleaned after the browsers stop.
 - An unanswered sensitive case stays unrun. A locator repair remains a proposal and keeps the original error. A plugin cannot turn off authorization, secret redaction, payment, delete, or logout. Production does not get environment controls or dependency faults.
 
 ## 2026-11-17 - Swarm test data per worker
