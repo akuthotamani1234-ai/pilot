@@ -6,6 +6,7 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
 
 - The large-listing sample is unchanged: a listing still opens the configured few products and leaves the rest, and checkout and payment stay blocked.
 - At the end of a run the same rules are applied to that run's pages, failures, roles, and optional spec, locale, journey, plugin, and planted-defect files. The decisions are stored in `qx_applied.json`. The run's verdict is not rewritten.
+- The report also runs the section 22 row in order: authorized target, resumable inventory, graph, isolated workers, seeded defect, the six separate counts, and the operation checks.
 - An unanswered sensitive case stays unrun. A locator repair remains a proposal and keeps the original error. A plugin cannot turn off authorization, secret redaction, payment, delete, or logout. Production does not get environment controls or dependency faults.
 
 ## 2026-11-17 - Swarm test data per worker
