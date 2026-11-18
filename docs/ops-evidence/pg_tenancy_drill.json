@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "postgres_tenancy_helpers",
-  "ran_at": "2026-11-18T15:46:20Z",
+  "ran_at": "2026-11-18T19:24:53Z",
   "principal": {
     "principal_id": "drill-pa",
     "tenant_id": "drill-a",
@@ -22,5 +22,6 @@
   "visible_run_ids": [
     "drill-run-a"
   ],
-  "reason": "Postgres tenancy helpers verified via live POSTGRES_URL; Studio SSO still open"
+  "ok": true,
+  "reason": "Postgres tenancy helpers re-verified via live POSTGRES_URL; Studio SSO still open"
 }

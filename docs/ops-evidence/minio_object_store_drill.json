@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "minio_put_get_delete",
-  "ran_at": "2026-11-18T15:50:42Z",
+  "ran_at": "2026-11-18T19:24:44Z",
   "ok": true,
   "reason": "Live MinIO put/get/list/delete verified; Studio multi-tenant object ACLs + review still open",
   "uri_scheme": "minio",
@@ -11,8 +11,8 @@
     "reason": ""
   },
   "keys_seen": [
-    "drill/tenant-a/1795017042.txt",
-    "drill/tenant-b/1795017042.txt"
+    "drill/tenant-a/1795029884.txt",
+    "drill/tenant-b/1795029884.txt"
   ],
   "backend": "minio"
 }

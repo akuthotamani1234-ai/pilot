@@ -129,6 +129,7 @@ def progress() -> dict:
         {"id": "A-travel-surfaces", "label": "TravelSite surface_coverage inventory", "status": "done"},
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
         {"id": "B-swarm-retry", "label": "Swarm lease-expiry → retry_wait control drill", "status": "done"},
+        {"id": "G-live-drills-refresh4", "label": "Re-verify live Postgres/Redis/MinIO after F/C/B drills", "status": "done"},
         {"id": "D-matrix-snapshot", "label": "Combined device matrix snapshot (web+ADB+dry-run)", "status": "done"},
         {"id": "F-locale-drill", "label": "DemoStore locale portfolio drill evidence", "status": "done"},
         {"id": "H-checklist-cross-gate", "label": "Ops checklist lists cross-gate offline drill APIs", "status": "done"},
