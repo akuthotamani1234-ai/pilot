@@ -1,0 +1,29 @@
+{
+  "gate_h_complete": false,
+  "drill": "multi_store_dr_failover",
+  "ran_at": "2026-11-18T23:32:24Z",
+  "stores": {
+    "postgres": {
+      "ok": true,
+      "reason": "Local dual-region Postgres failover rehearsal ok (qpilot_region_a\u2192qpilot_region_b); hosted multi-region DR / on-call still open",
+      "region_a": "qpilot_region_a",
+      "region_b": "qpilot_region_b"
+    },
+    "minio": {
+      "ok": true,
+      "reason": "Local MinIO dual-bucket failover (region-a\u2192region-b) verified; hosted multi-region object DR still open",
+      "region_a": "qpilot-region-a",
+      "region_b": "qpilot-region-b"
+    },
+    "redis": {
+      "ok": true,
+      "reason": "Local Redis dual-DB failover (db0\u2192db1) verified; hosted Redis multi-region / sentinel still open",
+      "region_a_db": 0,
+      "region_b_db": 1
+    }
+  },
+  "passed": 3,
+  "total": 3,
+  "ok": true,
+  "reason": "Local multi-store DR failover 3/3 (Postgres + MinIO + Redis); hosted multi-region DR / on-call still open"
+}

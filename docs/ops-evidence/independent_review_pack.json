@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:20:19Z",
+  "ran_at": "2026-11-18T23:32:27Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 72,
+  "artifact_count": 74,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -200,7 +200,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "90a6766b9feeedf6d0850477cade911e2e9b9654e3302fb8f8d847540f181711"
+      "sha256": "28d8287faba14c74ef30e9f608695e9117bae129afaf907e9978050f62e1deed"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -240,7 +240,12 @@
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "89b7fd57a2fd7a2d68a4f2c11c4dc693602368d502b7abbb31514f0470bf18bf"
+      "sha256": "6d8816ede5b48e3cfed63cf5b8997b26997162571e81a25d04fe2dcd7c87e724"
+    },
+    {
+      "name": "multi_store_dr_drill.json",
+      "bytes": 1003,
+      "sha256": "9ff36d61ce2ed803725033c456daab9315955cb8b10bf1b839701bcf5d1a6b3a"
     },
     {
       "name": "mutation_score_drill.json",
@@ -288,6 +293,11 @@
       "sha256": "ed0b027dd20340fbb87fc07b014b450a46a8950e6a54836bab4c80029f2d229f"
     },
     {
+      "name": "production_healing_matrix_drill.json",
+      "bytes": 3367,
+      "sha256": "78bfa4d6347c75a732ee4fc8298b187401c2ff8e128805eb4cd4834f9bfa8de4"
+    },
+    {
       "name": "qx_capabilities_drill.json",
       "bytes": 3349,
       "sha256": "c05b3013b8a7bc11d9ea0eed4bf76174f76861b11439ae992a6643588e594bce"
@@ -310,12 +320,12 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "db162e128ec48269720d93bc1efeb6a7f3232ad40832c1bc0c4afd1835d4ef17"
+      "sha256": "1a4a60d91723d23cd18da3b31c26f27dcc26899b79192e195de8868c2bb0ff08"
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 3363,
-      "sha256": "11c3324a3a0e40f7ef7b599318ec2ee8b4d1190181561ad9ec3b8162515a65b1"
+      "bytes": 3533,
+      "sha256": "bdededba44a3324fbadec5120168a8e54434c02100f2735afdb77e7f0aabf17c"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -369,5 +379,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (72 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (74 artifacts hashed); independent human/reviewer sign-off still pending"
 }

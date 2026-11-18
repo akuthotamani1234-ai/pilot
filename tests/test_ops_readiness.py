@@ -99,6 +99,10 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["redis_multi_region_drill"]["ready"] is has(
         "redis_multi_region_drill.json"
     )
+    assert snap["checks"]["multi_store_dr_drill"]["ready"] is has("multi_store_dr_drill.json")
+    assert snap["checks"]["production_healing_matrix_drill"]["ready"] is has(
+        "production_healing_matrix_drill.json"
+    )
     assert snap["checks"]["observability_probe_drill"]["ready"] is has(
         "observability_probe_drill.json"
     )

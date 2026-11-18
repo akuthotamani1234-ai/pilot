@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T22:43:10Z",
+  "ran_at": "2026-11-18T23:32:27Z",
   "ok": true,
   "blockers": [
     {
@@ -12,6 +12,7 @@
         "multi_region_dr_drill.json",
         "minio_multi_region_drill.json",
         "redis_multi_region_drill.json",
+        "multi_store_dr_drill.json",
         "paging_escalation_drill.json"
       ],
       "status": "open",
@@ -19,6 +20,7 @@
         "multi_region_dr_drill.json",
         "minio_multi_region_drill.json",
         "redis_multi_region_drill.json",
+        "multi_store_dr_drill.json",
         "paging_escalation_drill.json"
       ],
       "local_partial_missing": []
@@ -49,12 +51,14 @@
       "local_partial": [
         "live_failure_matrix_drill.json",
         "multi_app_healing_suite_drill.json",
+        "production_healing_matrix_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "live_failure_matrix_drill.json",
         "multi_app_healing_suite_drill.json",
+        "production_healing_matrix_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []
