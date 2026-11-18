@@ -611,6 +611,20 @@ def ops_load_probe(requests: int = 40):
     return {"gate_h_complete": False, "load_probe": evidence}
 
 
+@app.post("/api/ops/drills/controlled-soak")
+def ops_controlled_soak(duration_s: float = 20.0):
+    """Controlled AdminPortal HTTP soak. Does not complete Gate H."""
+    from backend.ops_soak_drill import run_controlled_soak
+    evidence = run_controlled_soak(duration_s=duration_s)
+    _audit(
+        "ops_controlled_soak",
+        ok=int(evidence.get("ok") or 0),
+        fail=int(evidence.get("fail") or 0),
+        requests=int(evidence.get("requests") or 0),
+    )
+    return {"gate_h_complete": False, "controlled_soak": evidence}
+
+
 @app.post("/api/ops/drills/postgres-isolation")
 def ops_postgres_isolation():
     """Live Postgres tenant isolation drill (Gate G still incomplete)."""

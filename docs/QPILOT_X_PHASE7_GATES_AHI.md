@@ -6,11 +6,13 @@
 ## Gate A
 - `backend/discovery_graph.py` writes `discovery_graph.json` with schema version + provenance on every node/edge
 - Wired from `discovery_report` and `apply_run`
+- `surface_coverage` also counts dialogs/modals and download links when present on the app_map
 - `gate_a_complete` stays **false**
 
 ## Gate H
 - `backend/ops_readiness.py` + `/api/ops/readiness` (+ nested under enterprise readiness)
 - CI/docs presence vs missing observability, backup/restore, load tests
+- Controlled fixture soak: `POST /api/ops/drills/controlled-soak` → `docs/ops-evidence/controlled_soak_drill.json`
 - `gate_h_complete` stays **false**
 
 ## Gate I

@@ -80,6 +80,14 @@ def readiness() -> dict:
                 else "No load-test suite or drill artifacts established"
             ),
         },
+        "controlled_soak": {
+            "ready": _ops_evidence("controlled_soak_drill.json"),
+            "reason": (
+                "Controlled AdminPortal soak evidence present; hosted/prod-like load still open"
+                if _ops_evidence("controlled_soak_drill.json")
+                else "No controlled fixture soak evidence"
+            ),
+        },
         "incident_runbook": {
             "ready": (ROOT / "docs" / "INCIDENT_RUNBOOK.md").is_file()
             or _ops_evidence("incident_tabletop_stub.json"),

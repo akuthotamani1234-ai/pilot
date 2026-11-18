@@ -1,8 +1,9 @@
 """Gate A surface coverage summary from a finished app_map.
 
 Counts iframe/frame inventory, open shadow roots, closed/unsupported hosts,
-API/openapi seed hints, lazy-loaded content, locale/metadata signals, and
-desktop/mobile viewport presence. Missing surfaces stay unknown — never a pass.
+API/openapi seed hints, lazy-loaded content, locale/metadata signals,
+desktop/mobile viewport presence, dialogs/modals, and download links.
+Missing surfaces stay unknown — never a pass.
 """
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
     lazy = {"pages_with_lazy": 0, "items_seen": 0}
     metadata = {"pages_with_locale": 0, "pages_with_skeleton": 0, "title_or_meta": 0}
     viewports = {"desktop_or_default": 0, "mobile_checked": 0}
+    dialogs = {"pages_with_dialogs": 0, "form_dialogs": 0, "modal_buttons": 0}
+    downloads = {"pages_with_downloads": 0, "links": 0}
     for page in pages:
         page_frames = page.get("frames") if isinstance(page.get("frames"), list) else []
         listed = page.get("iframes") if isinstance(page.get("iframes"), list) else []
@@ -64,6 +67,30 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         if page.get("mobile") or page.get("mobile_checked") or page.get("viewport") == "mobile":
             viewports["mobile_checked"] += 1
 
+        page_dialogs = 0
+        for form in page.get("forms") or []:
+            sel = str((form or {}).get("selector") or "")
+            kind = str((form or {}).get("kind") or (form or {}).get("type") or "").lower()
+            if "dialog" in sel or "modal" in sel or kind in {"dialog", "modal"}:
+                dialogs["form_dialogs"] += 1
+                page_dialogs += 1
+        for btn in page.get("buttons") or []:
+            kind = str((btn or {}).get("kind") or (btn or {}).get("opens") or "").lower()
+            role = str((btn or {}).get("role") or "").lower()
+            if kind in {"modal", "dialog"} or role == "dialog":
+                dialogs["modal_buttons"] += 1
+                page_dialogs += 1
+        if page_dialogs:
+            dialogs["pages_with_dialogs"] += 1
+
+        page_downloads = 0
+        for link in page.get("links") or []:
+            if (link or {}).get("download"):
+                downloads["links"] += 1
+                page_downloads += 1
+        if page_downloads:
+            downloads["pages_with_downloads"] += 1
+
     # Crawl-level mobile flag when pages did not store per-page mobile rows.
     if crawl.get("mobile_check") and viewports["mobile_checked"] == 0 and pages:
         viewports["mobile_checked"] = len(pages)
@@ -82,6 +109,8 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         "lazy": lazy,
         "metadata": metadata,
         "viewports": viewports,
+        "dialogs": dialogs,
+        "downloads": downloads,
     }
     unknown = []
     if not pages:
@@ -98,12 +127,21 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         unknown.append("no locale/title metadata signals recorded")
     if viewports["mobile_checked"] == 0:
         unknown.append("no mobile viewport check recorded")
+    if dialogs["pages_with_dialogs"] == 0:
+        unknown.append("no dialog/modal surfaces recorded")
+    if downloads["links"] == 0:
+        unknown.append("no download links recorded")
     return {
         "gate_a_surfaces_complete": False,
         "pages": len(pages),
         "frames": frames,
         "shadow": shadow,
+        "dialogs": dialogs,
+        "downloads": downloads,
         "unknown": unknown,
         "evidence": evidence,
-        "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata.",
+        "note": (
+            "Surface counts are run-local. Empty does not prove the site lacks "
+            "iframes/shadow/API/lazy/metadata/dialogs/downloads."
+        ),
     }

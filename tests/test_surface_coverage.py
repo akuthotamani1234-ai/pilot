@@ -23,6 +23,9 @@ def test_summarize_counts_frames_shadow_and_api_seeds():
         ],
         "shadowRoots": 2,
         "unsupported": [{"reason": "unsupported: possibly a closed shadow root"}],
+        "forms": [{"selector": "#modal [role=form]", "kind": "dialog"}],
+        "buttons": [{"text": "Open", "kind": "modal"}],
+        "links": [{"href": "/export.csv", "download": True}],
     }]
     crawl = {"found_by": {"http://shop.test/api/cart": "network", "http://shop.test/openapi.json": "scrape"},
              "blocked_requests": [{"url": "http://169.254.169.254/"}]}
@@ -36,5 +39,11 @@ def test_summarize_counts_frames_shadow_and_api_seeds():
     assert out["evidence"]["lazy"]["pages_with_lazy"] == 1
     assert out["evidence"]["metadata"]["pages_with_locale"] == 1
     assert out["evidence"]["viewports"]["mobile_checked"] == 1
+    assert out["dialogs"]["pages_with_dialogs"] == 1
+    assert out["dialogs"]["form_dialogs"] == 1
+    assert out["dialogs"]["modal_buttons"] == 1
+    assert out["downloads"]["links"] == 1
     assert out["pages"] == 1
     assert out["gate_a_surfaces_complete"] is False
+    assert "no dialog/modal surfaces recorded" not in out["unknown"]
+    assert "no download links recorded" not in out["unknown"]

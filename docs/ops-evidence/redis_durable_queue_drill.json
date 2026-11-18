@@ -2,7 +2,7 @@
   "gate_b_complete": false,
   "gate_g_complete": false,
   "drill": "redis_durable_queue_plan_drain",
-  "ran_at": "2026-11-18T14:57:39Z",
+  "ran_at": "2026-11-18T15:38:23Z",
   "ok": true,
   "reason": "Redis DurableQueue plan/drain with specialist roles verified; product-wide Redis default + review still open",
   "open": {
