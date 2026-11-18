@@ -2,7 +2,7 @@
   "gate_g_complete": false,
   "gate_b_complete": false,
   "drill": "redis_setnx_lease",
-  "ran_at": "2026-11-18T21:29:59Z",
+  "ran_at": "2026-11-18T23:57:02Z",
   "backend": "redis-cli",
   "ok": true,
   "reason": "Live Redis PING + SETNX exclusive lease verified; DurableQueue Redis adapter still open",

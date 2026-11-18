@@ -163,6 +163,7 @@ def progress() -> dict:
         {"id": "H-paging-escalation", "label": "Loopback primary→secondary paging escalation", "status": "done"},
         {"id": "H-oncall-contract", "label": "Hosted DR/on-call contract snapshot (not live)", "status": "done"},
         {"id": "G-live-drills-refresh6", "label": "Re-verify live Postgres/Redis/MinIO after DR work", "status": "done"},
+        {"id": "G-live-drills-refresh7", "label": "Re-verify live Postgres/Redis/MinIO after B/C/D drills", "status": "done"},
         {"id": "H-drills", "label": "Live hosted multi-region DR / on-call paging", "status": "open"},
         {"id": "D-emulator-smoke", "label": "Live API24 emulator adb smoke (profiles verified)", "status": "done"},
         {"id": "D-appium-system-apps", "label": "Live Appium Settings/Contacts/Chrome on API30+", "status": "done"},
