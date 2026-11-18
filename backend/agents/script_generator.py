@@ -180,6 +180,19 @@ def _checkbox_test(cid: str, title: str, c: dict) -> list[str]:
     ]
 
 
+def _textbox_test(cid: str, title: str, c: dict) -> list[str]:
+    """Fill a standalone text box (including open-shadow Nickname) and assert the value sticks."""
+    sample = c.get("value") or "QA Tester"
+    return _head(cid, title) + [
+        f"    box = page.locator({c['selector']!r}).first",
+        "    expect(box, 'it should be visible').to_be_visible()",
+        "    box.fill('')",
+        f"    box.fill({sample!r})",
+        f"    expect(box, 'it should keep the typed text').to_have_value({sample!r})",
+        "",
+    ]
+
+
 def _opens_test(cid: str, title: str, c: dict) -> list[str]:
     action = [
         "    opened = False",
@@ -565,7 +578,8 @@ def _login_ok_test(cid: str, title: str, c: dict) -> list[str]:
     ]
 
 
-CONTROL_TESTS = {"dropdown": _dropdown_test, "radio": _radio_test, "checkbox": _checkbox_test, "opens": _opens_test,
+CONTROL_TESTS = {"dropdown": _dropdown_test, "radio": _radio_test, "checkbox": _checkbox_test,
+                 "textbox": _textbox_test, "opens": _opens_test,
                  "tabs": _tabs_test, "modal": _modal_test, "dialog": _dialog_test, "sort": _sort_test,
                  "next": _next_test, "hover": _hover_test, "drag": _drag_test, "slider": _slider_test,
                  "upload": _upload_test, "login_wrong": _login_wrong_test, "login_ok": _login_ok_test,
