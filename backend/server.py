@@ -695,6 +695,17 @@ def ops_perf_portfolio():
     return {"gate_f_complete": False, "perf_portfolio": evidence}
 
 
+@app.post("/api/ops/drills/visual-portfolio")
+def ops_visual_portfolio():
+    """Gate F: DemoStore first-run visual portfolio evidence (still incomplete)."""
+    from backend.visual_portfolio_drill import run_visual_portfolio_drill
+    evidence = run_visual_portfolio_drill()
+    _audit("ops_visual_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""),
+           pages=int(evidence.get("pages_recorded") or 0))
+    return {"gate_f_complete": False, "visual_portfolio": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
