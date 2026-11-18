@@ -1,7 +1,7 @@
 {
   "gate_a_complete": false,
   "drill": "multi_fixture_discovery_score",
-  "ran_at": "2026-11-18T21:41:36Z",
+  "ran_at": "2026-11-18T23:53:25Z",
   "fixtures": [
     {
       "fixture": "AdminPortal",

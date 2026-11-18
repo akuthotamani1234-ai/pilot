@@ -50,3 +50,5 @@ jobs:
             docs/ops-evidence/security_portfolio_drill.json
             docs/ops-evidence/perf_portfolio_drill.json
             docs/ops-evidence/visual_portfolio_drill.json
+            docs/ops-evidence/portfolio_artifact_manifest_drill.json
+            docs/ops-evidence/multi_browser_ci_contract.json

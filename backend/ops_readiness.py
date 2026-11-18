@@ -462,6 +462,14 @@ def readiness() -> dict:
                 else "No device artifact manifest evidence"
             ),
         },
+        "workflow_dispatch_contract_drill": {
+            "ready": _ops_evidence("workflow_dispatch_contract_drill.json"),
+            "reason": (
+                "workflow_dispatch YAML contracts present; broad hosted runners still open"
+                if _ops_evidence("workflow_dispatch_contract_drill.json")
+                else "No workflow_dispatch contract evidence"
+            ),
+        },
         "multi_device_ci_contract": {
             "ready": _ops_evidence("multi_device_ci_contract.json"),
             "reason": (

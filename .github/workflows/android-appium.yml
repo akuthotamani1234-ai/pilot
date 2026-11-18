@@ -62,4 +62,7 @@ jobs:
             docs/ops-evidence/android_appium_ci_contract.json
             docs/ops-evidence/android_appium_product_matrix_drill.json
             docs/ops-evidence/android_emulator_smoke_drill.json
+            docs/ops-evidence/multi_api_android_matrix_drill.json
             docs/ops-evidence/device_matrix_drill.json
+            docs/ops-evidence/device_artifact_manifest_drill.json
+            docs/ops-evidence/multi_device_ci_contract.json
