@@ -1114,30 +1114,9 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             "The login works and every page behind it opens without sending you back to the login page",
             [lp] + users[:8], dict(login_form(lp), url=lp["url"], after=after), guest=True, test_data="test account (TEST_USERNAME)"))
 
-    # 2) shop: search an item -> add it to the cart -> open the cart -> the item is there (never checkout). The cart:
-    # its button, or a normal link to the cart page (<a href="/basket">0 Basket</a> - a shop without item pages)
-    for p in pages:
-        f, cart = features(p), _cart_control(p) or _cart_link(p)
-        if f["add"] and cart and len(out) < limit:
-            word = f["word"]
-            cart_name = (cart.get("text") or "cart").strip()[:30]
-            out.append(_journey(
-                len(out) + 1, "shop",
-                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
-                + (f" → '{word}' is in the cart" if word else ""),
-                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
-                                              f"'{word}' is shown"] if word else [])
-                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
-                   f"Click '{cart_name}' to open the cart"]
-                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
-                + ["Stop here - checkout / buy is never clicked"],
-                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
-                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
-                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
-                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
-                guest=not p.get("auth"), test_data=word))
-
-    # 2b) search -> open the first product -> choose an option -> add it to the cart -> the cart lists it
+    # 2) Full product shopping journey FIRST (before many short "Shop on" cases consume LARGE).
+    # DemoStore Phase 1 showed cart_total was never tested when 40 product pages filled the journey budget
+    # with short add→cart cases and skipped this change_cart journey entirely.
     from ..features import OPTION_HINT, page_features
     from .discovery import _parent_path, _pattern
     # the product page: one that a list's items OPEN first - a page that merely mentions 'Add to cart' is no product
@@ -1195,7 +1174,29 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
              "change_cart": settings.environment in ("test", "staging")},
             guest=not prod.get("auth"), test_data=word))
 
-    # 2c) orders: open an order from the list and see its details
+    # 3) short shop cases: search/add/open cart (never checkout). Cap so they cannot crowd out higher-priority journeys.
+    for p in pages:
+        f, cart = features(p), _cart_control(p) or _cart_link(p)
+        if f["add"] and cart and len(out) < limit:
+            word = f["word"]
+            cart_name = (cart.get("text") or "cart").strip()[:30]
+            out.append(_journey(
+                len(out) + 1, "shop",
+                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
+                + (f" → '{word}' is in the cart" if word else ""),
+                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
+                                              f"'{word}' is shown"] if word else [])
+                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
+                   f"Click '{cart_name}' to open the cart"]
+                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
+                + ["Stop here - checkout / buy is never clicked"],
+                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
+                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
+                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
+                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
+                guest=not p.get("auth"), test_data=word))
+
+    # 4) orders: open an order from the list and see its details
     for p in pages:
         f = next((x for x in page_features(p) if x["kind"] == "order_link"), None)
         if f and len(out) < limit:
