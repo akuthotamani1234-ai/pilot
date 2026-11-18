@@ -29,4 +29,4 @@ A dated tabletop with roles, paging, and restore proof is still required.
 - [ ] Dated tabletop with named roles
 - [ ] Live restore into an isolated environment
 - [ ] Load/soak against a controlled fixture beyond the local API probe
-- [ ] Paging / alert path proven
+- [ ] Paging / alert path proven (loopback rehearsal only so far — `docs/ops-evidence/paging_rehearsal.json`)

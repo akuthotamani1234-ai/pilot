@@ -324,6 +324,8 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
 - `QPILOT_DASHBOARD_AUTH` (optional): `none` | `bearer` | `webhook` | `principal`. Webhook also accepts `X-QA-Token` /
   `WEBHOOK_TOKEN`; principal resolves Bearer `<principal_id>` via tenancy RBAC (`review.write`). Gate I still needs
   SSO/hosting before it can be marked complete.
+- `QPILOT_OIDC_ISSUER` / `QPILOT_OIDC_CLIENT_ID` / `QPILOT_OIDC_AUDIENCE` / `QPILOT_DASHBOARD_HOST` (optional): declare
+  intended SSO/hosting contracts. Configuration alone never completes Gate I — live IdP login still required.
 - `POSTGRES_URL` / `REDIS_URL` / `OBJECT_STORE_URI` (optional): live drills via
   `POST /api/ops/drills/postgres-isolation`, `/redis-queue`, `/minio`. Evidence under `docs/ops-evidence/`.
   Gate G stays incomplete without Studio SSO/multi-tenant ACLs and independent review.

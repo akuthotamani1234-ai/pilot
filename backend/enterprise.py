@@ -11,6 +11,7 @@ from pathlib import Path
 from .api_versioning import SUPPORTED
 from .blueprint_progress import progress as blueprint_progress
 from .dashboard_auth import snapshot as dashboard_auth_snapshot
+from .dashboard_sso import snapshot as dashboard_sso_snapshot
 from .migrate import migration_status
 from .object_store import open_object_store
 from .queue_backend import open_durable_queue
@@ -140,6 +141,11 @@ def readiness() -> dict:
             ),
             "ready": False,
             "reason": dashboard_auth_snapshot()["reason"],
+        },
+        "dashboard_sso": {
+            "configured": bool(dashboard_sso_snapshot().get("configured")),
+            "ready": False,
+            "reason": dashboard_sso_snapshot()["reason"],
         },
     }
     ready = ["rbac", "api_versioning", "approvals"]
