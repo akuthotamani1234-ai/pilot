@@ -438,6 +438,14 @@ def readiness() -> dict:
                 else "No multi-browser CI contract evidence"
             ),
         },
+        "portfolio_artifact_manifest_drill": {
+            "ready": _ops_evidence("portfolio_artifact_manifest_drill.json"),
+            "reason": (
+                "Portfolio CI artifact manifest present; hosted multi-browser runners still open"
+                if _ops_evidence("portfolio_artifact_manifest_drill.json")
+                else "No portfolio artifact manifest evidence"
+            ),
+        },
         "multi_device_ci_contract": {
             "ready": _ops_evidence("multi_device_ci_contract.json"),
             "reason": (

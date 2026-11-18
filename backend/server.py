@@ -1327,6 +1327,21 @@ def ops_failover_rto():
     return {"gate_h_complete": False, "failover_rto": evidence}
 
 
+@app.post("/api/ops/drills/portfolio-artifact-manifest")
+def ops_portfolio_artifact_manifest():
+    """Gate F: CI-upload-shaped portfolio manifest (hosted multi-browser still open)."""
+    from backend.portfolio_artifact_manifest_drill import (
+        run_portfolio_artifact_manifest_drill,
+    )
+    evidence = run_portfolio_artifact_manifest_drill()
+    _audit(
+        "ops_portfolio_artifact_manifest",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(len(evidence.get("artifacts") or [])),
+    )
+    return {"gate_f_complete": False, "portfolio_artifact_manifest": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
