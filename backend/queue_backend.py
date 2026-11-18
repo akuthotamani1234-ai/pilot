@@ -1,7 +1,7 @@
 """Durable queue backend selector (Gate B / G).
 
-Local SQLite remains the default. A Redis URL is recognized but not silently
-treated as ready until a Redis adapter is wired and verified.
+Local SQLite remains the default. When ``REDIS_URL`` is set and the optional
+``redis`` package is installed, opens ``RedisDurableQueue``.
 """
 from __future__ import annotations
 
@@ -26,11 +26,21 @@ def open_durable_queue(uri: str | None = None, *, default_path: str | Path = "ru
         queue = DurableQueue(path, lease_seconds=lease_seconds, max_attempts=max_attempts)
         return {"ready": True, "backend": "sqlite", "queue": queue, "reason": ""}
     if raw.startswith(("redis://", "rediss://")):
+        try:
+            from .redis_queue import RedisDurableQueue
+            queue = RedisDurableQueue(raw, lease_seconds=lease_seconds, max_attempts=max_attempts)
+        except Exception as exc:
+            return {
+                "ready": False,
+                "backend": "redis",
+                "queue": None,
+                "reason": f"Redis durable-queue adapter unavailable: {exc}",
+            }
         return {
-            "ready": False,
+            "ready": True,
             "backend": "redis",
-            "queue": None,
-            "reason": "REDIS_URL is set but the Redis durable-queue adapter is not wired yet",
+            "queue": queue,
+            "reason": "Redis DurableQueue adapter ready (Gate B/G still need product-wide review)",
         }
     return {"ready": False, "backend": "unknown", "queue": None,
             "reason": "queue URI must be sqlite:/file:/local: or redis://"}

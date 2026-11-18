@@ -1,0 +1,23 @@
+{
+  "gate_b_complete": false,
+  "gate_g_complete": false,
+  "drill": "redis_durable_queue_plan_drain",
+  "ran_at": "2026-11-18T13:21:12Z",
+  "ok": true,
+  "reason": "Redis DurableQueue plan/drain with specialist roles verified; product-wide Redis default + review still open",
+  "open": {
+    "ready": true,
+    "backend": "redis",
+    "reason": "Redis DurableQueue adapter ready (Gate B/G still need product-wide review)"
+  },
+  "processed": 5,
+  "statuses": [
+    "succeeded"
+  ],
+  "roles": [
+    "coverage",
+    "leader",
+    "oracle",
+    "worker"
+  ]
+}

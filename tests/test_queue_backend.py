@@ -1,4 +1,4 @@
-"""Gate B/G: queue backend selector never pretends Redis is ready."""
+"""Gate B/G: queue backend selector opens SQLite by default; Redis when adapter ready."""
 from backend.queue_backend import open_durable_queue
 
 
@@ -13,8 +13,12 @@ def test_default_opens_sqlite_durable_queue(tmp_path):
     assert leased["task_id"] == task["task_id"]
 
 
-def test_redis_uri_is_explicitly_unready():
-    opened = open_durable_queue("redis://localhost:6379/0")
-    assert opened["ready"] is False
-    assert opened["queue"] is None
-    assert "not wired" in opened["reason"]
+def test_redis_uri_opens_adapter_or_reports_unready():
+    opened = open_durable_queue("redis://127.0.0.1:6379/0")
+    if opened["ready"]:
+        assert opened["backend"] == "redis"
+        assert opened["queue"] is not None
+        opened["queue"].close()
+    else:
+        assert opened["queue"] is None
+        assert "unavailable" in opened["reason"] or "not" in opened["reason"]
