@@ -1,0 +1,658 @@
+{
+  "site": "travel",
+  "mode": "first",
+  "clean": {
+    "run": "127.0.0.1_37823_20261118_150636",
+    "pages": {
+      "discovered": 10,
+      "logged_in": 0,
+      "failed": 0,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 10,
+      "visited": 10,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 37,
+      "passed": 33,
+      "failed": 0,
+      "flaky": 0,
+      "skipped": 1,
+      "blocked": 0,
+      "inconclusive": 2,
+      "not_run": 1,
+      "click_only": 0,
+      "exploratory": 4
+    },
+    "result_status_counts": {
+      "PASS": 33,
+      "FAIL": 0,
+      "BLOCKED": 0,
+      "SKIPPED": 1,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 2,
+      "planned": 37,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 61,
+      "passed": 59,
+      "failed": 0,
+      "error": 0,
+      "skipped": 0,
+      "inconclusive": 2
+    },
+    "coverage_claimed": {
+      "tested": 38,
+      "total": 39
+    },
+    "coverage_limitations": {
+      "partial": false,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 10,
+        "visited": 10,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 2,
+      "actions_not_tried_limit": 0,
+      "limits_hit": [],
+      "exploration_status": "routes_processed",
+      "statement": "Discovered routes were processed within the selected scope and exploration budgets (not exhaustive product reachability).",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 5,
+      "learned": 5,
+      "no_effect": 0,
+      "failed": 0,
+      "blocked": 0,
+      "skipped": 1,
+      "forms_filled": 2,
+      "opener_replays": 0,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 4,
+      "blocked_list": [],
+      "skipped_list": [
+        {
+          "control": "Create account",
+          "page": "http://127.0.0.1:37823/signup",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 4,
+        "inspected": 4,
+        "tested": 4,
+        "verified": 3,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 24,
+        "tested": 22,
+        "lifecycle": {
+          "discovered": 24,
+          "inspected": 24,
+          "test_generated": 22,
+          "tested": 22,
+          "verified": 13
+        },
+        "verified": 13,
+        "test_generated": 0,
+        "failed": 0,
+        "blocked": 0,
+        "needs_login": 0,
+        "inconclusive": 0,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 2,
+        "smoke": 9,
+        "suspect": 0,
+        "rule_violation": 0,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 17,
+            "verified": 10
+          },
+          "feature": {
+            "discovered": 5,
+            "verified": 3
+          },
+          "workflow": {
+            "discovered": 2,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 4,
+        "found": [
+          "/",
+          "/search",
+          "/flight/{id}",
+          "/signup"
+        ],
+        "missing": [],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 9,
+        "detected": 9,
+        "tested": 9,
+        "verified": 9,
+        "judged": 9,
+        "correct": 9,
+        "rows": [
+          {
+            "id": "search.date_range",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-2BE59229"
+            ]
+          },
+          {
+            "id": "search.same_value",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-C8D56B09"
+            ]
+          },
+          {
+            "id": "search.count_total",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-14D5F8D8"
+            ]
+          },
+          {
+            "id": "search.past_date",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A4E1D148"
+            ]
+          },
+          {
+            "id": "results.filter_nonstop",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-307B96D8"
+            ]
+          },
+          {
+            "id": "results.items_open",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-AA0B13C1"
+            ]
+          },
+          {
+            "id": "results.sort",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-D8E5280A"
+            ]
+          },
+          {
+            "id": "signup.confirm",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-040767C3"
+            ]
+          },
+          {
+            "id": "signup.email",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F03A95DF"
+            ]
+          }
+        ]
+      },
+      "false_alarms": [],
+      "questions": [],
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-fzzkcis9/clean/runs/127.0.0.1_37823_20261118_150636"
+  },
+  "buggy": {
+    "run": "127.0.0.1_37041_20261118_150743",
+    "pages": {
+      "discovered": 10,
+      "logged_in": 0,
+      "failed": 0,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 10,
+      "visited": 10,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 37,
+      "passed": 27,
+      "failed": 6,
+      "flaky": 0,
+      "skipped": 1,
+      "blocked": 0,
+      "inconclusive": 2,
+      "not_run": 1,
+      "click_only": 0,
+      "exploratory": 4
+    },
+    "result_status_counts": {
+      "PASS": 27,
+      "FAIL": 6,
+      "BLOCKED": 0,
+      "SKIPPED": 1,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 2,
+      "planned": 37,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 61,
+      "passed": 53,
+      "failed": 6,
+      "error": 0,
+      "skipped": 0,
+      "inconclusive": 2
+    },
+    "coverage_claimed": {
+      "tested": 38,
+      "total": 39
+    },
+    "coverage_limitations": {
+      "partial": false,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 10,
+        "visited": 10,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 13,
+      "actions_not_tried_limit": 0,
+      "limits_hit": [],
+      "exploration_status": "routes_processed",
+      "statement": "Discovered routes were processed within the selected scope and exploration budgets (not exhaustive product reachability).",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 5,
+      "learned": 5,
+      "no_effect": 0,
+      "failed": 0,
+      "blocked": 0,
+      "skipped": 1,
+      "forms_filled": 2,
+      "opener_replays": 0,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 4,
+      "blocked_list": [],
+      "skipped_list": [
+        {
+          "control": "Create account",
+          "page": "http://127.0.0.1:37041/signup",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 4,
+        "inspected": 4,
+        "tested": 4,
+        "verified": 1,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 24,
+        "tested": 22,
+        "lifecycle": {
+          "discovered": 24,
+          "inspected": 24,
+          "test_generated": 22,
+          "tested": 22,
+          "verified": 2
+        },
+        "verified": 2,
+        "test_generated": 0,
+        "failed": 0,
+        "blocked": 0,
+        "needs_login": 0,
+        "inconclusive": 0,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 2,
+        "smoke": 9,
+        "suspect": 0,
+        "rule_violation": 11,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 17,
+            "verified": 1
+          },
+          "feature": {
+            "discovered": 5,
+            "verified": 1
+          },
+          "workflow": {
+            "discovered": 2,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 4,
+        "found": [
+          "/",
+          "/search",
+          "/flight/{id}",
+          "/signup"
+        ],
+        "missing": [],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 9,
+        "detected": 9,
+        "tested": 9,
+        "verified": 3,
+        "judged": 6,
+        "correct": 6,
+        "rows": [
+          {
+            "id": "search.date_range",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-2BE59229"
+            ]
+          },
+          {
+            "id": "search.same_value",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-C8D56B09"
+            ]
+          },
+          {
+            "id": "search.count_total",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-14D5F8D8"
+            ]
+          },
+          {
+            "id": "search.past_date",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A4E1D148"
+            ]
+          },
+          {
+            "id": "results.filter_nonstop",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-307B96D8"
+            ]
+          },
+          {
+            "id": "results.items_open",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-AA0B13C1"
+            ]
+          },
+          {
+            "id": "results.sort",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-D8E5280A"
+            ]
+          },
+          {
+            "id": "signup.confirm",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-040767C3"
+            ]
+          },
+          {
+            "id": "signup.email",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F03A95DF"
+            ]
+          }
+        ]
+      },
+      "bugs": {
+        "planted": 6,
+        "caught": [
+          "T1",
+          "T2",
+          "T3",
+          "T4",
+          "T5",
+          "T6"
+        ],
+        "false_pass": [],
+        "not_tested": []
+      },
+      "false_alarms": [],
+      "questions": [
+        {
+          "tc_id": "TC-2BE59229",
+          "title": "Rule: 'Return date' before 'Departure date' is refused (/)",
+          "why": "E   AssertionError: [rule] The site accepted 'Return date' before 'Departure date'. Is that allowed? (it went on to http://127.0.0.1:37041/search?from=LHR&to=JFK&trip=round&depart=2026-12-08&return=20"
+        },
+        {
+          "tc_id": "TC-C8D56B09",
+          "title": "Rule: the same value in 'From' and 'To' is refused (/)",
+          "why": "E   AssertionError: [rule] The site accepted the same value in 'From' and 'To'. Is that allowed? (it went on to http://127.0.0.1:37041/search?from=LHR&to=LHR&trip=round&depart=2026-11-25&return=2026-1"
+        },
+        {
+          "tc_id": "TC-14D5F8D8",
+          "title": "Rule: changing 'Passengers' changes the total (/)",
+          "why": "E   AssertionError: [rule] Changing 'Passengers' did not change the total as expected. Is that right? (the amounts stayed [120.0, 120.0] with 1 and with 2)"
+        },
+        {
+          "tc_id": "TC-040767C3",
+          "title": "Rule: 'Confirm password' different from 'Password' is refused (/signup)",
+          "why": "E   AssertionError: [rule] The site accepted a 'Confirm password' that differs from 'Password'. Is that allowed? (it would send POST /signup)"
+        }
+      ],
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-fzzkcis9/buggy/runs/127.0.0.1_37041_20261118_150743"
+  }
+}

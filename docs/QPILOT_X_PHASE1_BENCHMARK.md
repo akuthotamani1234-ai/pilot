@@ -147,3 +147,14 @@ Artifacts: `deep_validation/live_runs/phase1_admin_portal_run2.json` + `phase1_a
 
 Gap: `results.sort` untested on clean.  
 Artifacts: `deep_validation/live_runs/phase1_travel_site_run1.json` + `phase1_travel_site_run1_summary.json`.
+
+## Travel site run 2 (after sort-select fix — 2026-11-18)
+
+Sort-by selects with a single priced option (empty placeholder dropped at discovery) now count as sort features.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **4/4** | **9/9** | **0** | n/a |
+| buggy | **4/4** | 6/6 judged | **0** | **6/6** |
+
+Artifacts: `deep_validation/live_runs/phase1_travel_site_run2.json` + `phase1_travel_site_run2_summary.json`.

@@ -26,7 +26,7 @@ Each capability is **DONE** only when:
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — live Postgres/Redis/MinIO drills + adapters when configured; Studio SSO / multi-tenant ACLs + independent review still open |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local drills + CI rollback + loopback paging rehearsal under `docs/ops-evidence/`; live hosted DR/soak/on-call still open |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + approvals + auth modes + OIDC/hosting env contract snapshot; live SSO login still not established |
-| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong DemoStore/classic; AdminPortal run2 **25/25**+7/7 (FAs remain); travel run1 Partial 8/9+6/6. Broader third-party / Android still open; gate not globally COMPLETE |
+| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong controlled fixtures: DemoStore 24/24+6/6; classic 20/20+3/3; AdminPortal 25/25+7/7 (FAs); travel 9/9+6/6. Broader third-party / Android still open; gate not globally COMPLETE |
 
 ## Required live test protocol
 
