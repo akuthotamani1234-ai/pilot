@@ -36,8 +36,8 @@ Same command → `phase1_demo_store_run2.json`. Metrics matched run 1 exactly (i
 **Partial evidence recorded; gate not closed.**
 
 ### Gap fixes
-- **`cart_total` miss — fixed & verified:** journey budget crowding. After reorder, run3 (`phase1_demo_store_run3_after_cart_fix.json`) catches **6/6** seeded bugs including `cart_total` (shopping journey failed as expected: cart total stayed 198 when quantity increased).
-- **Quantity false alarm — still open:** run3 still has 1 false alarm (`TC-7E74C4E3`). DemoStore accepts qty=2 in isolation; likely shared-session/cart races.
+- **`cart_total` miss — fixed & verified (run3):** journey-budget reorder; **6/6** seeded bugs.
+- **Quantity false alarm — fixed & verified (run4):** clear leftover cart lines + qty input before measuring; **0 false alarms**, bugs still **6/6**.
 
 ## Run 3 (after journey-budget fix)
 
@@ -46,6 +46,11 @@ Same command → `phase1_demo_store_run2.json`. Metrics matched run 1 exactly (i
 | clean | 18/18 | 21/24 | 1 | n/a |
 | buggy | 18/18 | 10/10 judged | 1 | **6/6** |
 
-## Next
+## Run 4 (after quantity isolation)
 
-Isolate cart-mutating tests / sessions to clear the quantity false alarm before closing Gate J.
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | 18/18 | **23/24** | **0** | n/a |
+| buggy | 18/18 | 10/10 judged | **0** | **6/6** |
+
+Remaining clean gap: 1 feature still not fully correct (see run4 JSON rows). Gate J evidence is strong; keep that single unknown explicit.

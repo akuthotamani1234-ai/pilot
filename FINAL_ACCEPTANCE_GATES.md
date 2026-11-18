@@ -26,7 +26,7 @@ Each capability is **DONE** only when:
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Not established |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial; existing UI is not React |
-| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Not established |
+| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Partial — DemoStore runs recorded (run4: 6/6 bugs, 0 false alarms; 1 clean feature gap remains). See `docs/QPILOT_X_PHASE1_BENCHMARK.md` |
 
 ## Required live test protocol
 
