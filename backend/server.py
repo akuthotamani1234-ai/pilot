@@ -162,12 +162,26 @@ async def local_only(request: Request, call_next):
 
 
 def _audit(action: str, **details) -> None:
-    """Consequential actions -> logs/audit.jsonl (no passwords, keys or tokens - only what was done)."""
+    """Consequential actions -> logs/audit.jsonl + Gate G SQLite audit_events (no secrets)."""
     try:
         AUDIT.parent.mkdir(exist_ok=True)
         with AUDIT.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": action, **details}) + "\n")
     except OSError:
+        pass
+    try:
+        from backend.audit_store import record_audit
+        safe = {k: v for k, v in details.items()
+                if k not in {"password", "api_key", "token", "secret", "test_password", "test_totp_secret"}}
+        detail = ", ".join(f"{k}={v}" for k, v in list(safe.items())[:12])[:500]
+        record_audit(
+            actor=str(details.get("actor") or "studio"),
+            action=action,
+            allowed=True,
+            tenant_id=str(details.get("tenant_id") or ""),
+            detail=detail,
+        )
+    except Exception:
         pass
 
 
@@ -513,6 +527,20 @@ def enterprise_readiness():
     snap = readiness()
     snap["ops"] = ops_readiness()
     return snap
+
+
+@app.get("/api/blueprint/progress")
+def blueprint_progress_api():
+    """Studio sidebar todos: phases, gates A–J, and what is next. Never claims complete."""
+    from backend.blueprint_progress import progress
+    return progress()
+
+
+@app.get("/api/audit/events")
+def audit_events(limit: int = 50):
+    """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
+    from backend.audit_store import list_audits
+    return {"events": list_audits(limit=min(200, max(1, int(limit or 50))))}
 
 
 @app.get("/api/ops/readiness")
