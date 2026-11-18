@@ -604,11 +604,29 @@ def ops_postgres_isolation():
 
 @app.post("/api/ops/drills/redis-lease")
 def ops_redis_lease():
-    """Live Redis SETNX lease drill (DurableQueue Redis adapter still open)."""
+    """Live Redis SETNX lease drill."""
     from backend.redis_drill import lease_drill
     evidence = lease_drill()
     _audit("ops_redis_lease", ok=bool(evidence.get("ok")))
     return {"gate_g_complete": False, "gate_b_complete": False, "redis_lease": evidence}
+
+
+@app.post("/api/ops/drills/redis-queue")
+def ops_redis_queue():
+    """Live Redis DurableQueue plan/drain drill (Gate B/G still incomplete)."""
+    from backend.redis_queue_drill import durable_queue_drill
+    evidence = durable_queue_drill()
+    _audit("ops_redis_queue", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "gate_b_complete": False, "redis_queue": evidence}
+
+
+@app.post("/api/ops/drills/minio")
+def ops_minio_drill():
+    """Live MinIO object-store drill (Gate G still incomplete)."""
+    from backend.minio_drill import object_store_drill
+    evidence = object_store_drill()
+    _audit("ops_minio_drill", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "minio": evidence}
 
 
 def _require_dashboard_auth(authorization: str | None = Header(default=None)) -> None:

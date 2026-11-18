@@ -1,14 +1,15 @@
 """Local-first object store with a MinIO/S3-shaped put/get/delete/list API.
 
-Remote MinIO is optional via ``OBJECT_STORE_URI``. Until a remote client is
-wired, a remote URI reports configured-but-unready instead of pretending
-uploads succeeded.
+Remote MinIO is optional via ``OBJECT_STORE_URI`` plus ``MINIO_ACCESS_KEY`` /
+``MINIO_SECRET_KEY`` (or ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``).
+Gate G stays incomplete until isolation drills + independent review.
 """
 from __future__ import annotations
 
 import os
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 class ObjectStoreError(RuntimeError):
@@ -61,9 +62,77 @@ class LocalObjectStore:
         return path
 
 
+class MinioObjectStore:
+    """MinIO / S3-compatible object store via the optional ``minio`` package."""
+
+    def __init__(self, endpoint: str, access_key: str, secret_key: str, bucket: str,
+                 *, secure: bool = False) -> None:
+        try:
+            from minio import Minio
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("minio package is not installed") from exc
+        self.backend = "minio"
+        self.bucket = bucket
+        host = endpoint.replace("http://", "").replace("https://", "")
+        self._client = Minio(host, access_key=access_key, secret_key=secret_key, secure=secure)
+        if not self._client.bucket_exists(bucket):
+            self._client.make_bucket(bucket)
+
+    def put(self, key: str, data: bytes) -> dict:
+        from io import BytesIO
+        clean = (key or "").lstrip("/")
+        if not clean or ".." in clean.split("/"):
+            raise ObjectStoreError("invalid object key")
+        self._client.put_object(self.bucket, clean, BytesIO(data), length=len(data))
+        return {"key": clean, "bytes": len(data), "backend": self.backend, "bucket": self.bucket}
+
+    def get(self, key: str) -> bytes:
+        clean = (key or "").lstrip("/")
+        try:
+            resp = self._client.get_object(self.bucket, clean)
+            try:
+                return resp.read()
+            finally:
+                resp.close()
+                resp.release_conn()
+        except Exception as exc:
+            raise ObjectStoreError(f"object not found: {clean}") from exc
+
+    def delete(self, key: str) -> bool:
+        clean = (key or "").lstrip("/")
+        try:
+            self._client.remove_object(self.bucket, clean)
+            return True
+        except Exception:
+            return False
+
+    def list_keys(self, prefix: str = "") -> list[str]:
+        return sorted(
+            obj.object_name
+            for obj in self._client.list_objects(self.bucket, prefix=prefix or None, recursive=True)
+            if obj.object_name
+        )
+
+
+def _minio_creds() -> tuple[str, str]:
+    access = (
+        os.getenv("MINIO_ACCESS_KEY")
+        or os.getenv("AWS_ACCESS_KEY_ID")
+        or os.getenv("MINIO_ROOT_USER")
+        or ""
+    ).strip()
+    secret = (
+        os.getenv("MINIO_SECRET_KEY")
+        or os.getenv("AWS_SECRET_ACCESS_KEY")
+        or os.getenv("MINIO_ROOT_PASSWORD")
+        or ""
+    ).strip()
+    return access, secret
+
+
 def open_object_store(uri: str | None = None, *, default_root: str | Path = "runs/.object_store") -> dict:
     """Open a store or explain why enterprise object storage is not ready."""
-    raw = (uri if uri is not None else os.getenv("OBJECT_STORE_URI", "")).strip()
+    raw = (uri if uri is not None else os.getenv("OBJECT_STORE_URI") or os.getenv("MINIO_URL") or "").strip()
     if not raw or raw.startswith("file:") or raw.startswith("local:"):
         root = default_root
         if raw.startswith("file:"):
@@ -73,13 +142,38 @@ def open_object_store(uri: str | None = None, *, default_root: str | Path = "run
         store = LocalObjectStore(root)
         return {"ready": True, "backend": "local", "store": store, "reason": ""}
     if raw.startswith(("s3://", "minio://", "http://", "https://")):
-        return {
-            "ready": False,
-            "backend": "remote",
-            "store": None,
-            "reason": "remote object storage URI is set but the MinIO/S3 client is not wired yet",
-            "uri_scheme": raw.split(":", 1)[0],
-        }
+        access, secret = _minio_creds()
+        if not access or not secret:
+            return {
+                "ready": False,
+                "backend": "remote",
+                "store": None,
+                "reason": "OBJECT_STORE_URI set but MINIO_ACCESS_KEY/MINIO_SECRET_KEY missing",
+                "uri_scheme": raw.split(":", 1)[0],
+            }
+        parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+        # minio://host:port/bucket  or http://host:port/bucket
+        host = parsed.netloc or parsed.path.split("/")[0]
+        path_parts = [p for p in (parsed.path or "").split("/") if p]
+        if parsed.scheme in {"minio", "s3"} and not parsed.netloc:
+            # minio://bucket only — invalid without host
+            host = "127.0.0.1:9000"
+        bucket = path_parts[-1] if path_parts else "qpilot-evidence"
+        if parsed.scheme == "minio" and parsed.netloc:
+            host = parsed.netloc
+            bucket = path_parts[0] if path_parts else "qpilot-evidence"
+        secure = parsed.scheme == "https"
+        try:
+            store = MinioObjectStore(host, access, secret, bucket, secure=secure)
+        except Exception as exc:
+            return {
+                "ready": False,
+                "backend": "remote",
+                "store": None,
+                "reason": f"MinIO open failed: {exc}",
+                "uri_scheme": raw.split(":", 1)[0],
+            }
+        return {"ready": True, "backend": "minio", "store": store, "reason": "", "bucket": bucket}
     return {"ready": False, "backend": "unknown", "store": None,
             "reason": "OBJECT_STORE_URI must be local:, file:, s3://, or minio://"}
 

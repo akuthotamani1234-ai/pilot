@@ -6,6 +6,7 @@ Cleanup removes only what this run created. Production customer data is refused.
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -327,3 +328,66 @@ def created_jsonl_delete(run_dir: str | Path):
         return {"deleted": False, "reason": f"no cleanup proof in created.jsonl for {tag}"}
 
     return remote_delete
+
+
+def admin_portal_delete(base_url: str):
+    """Adapter: POST /users/<id>/delete on the local AdminPortal fixture."""
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urljoin
+
+    root = (base_url or "").rstrip("/") + "/"
+
+    def remote_delete(record: dict) -> dict:
+        user_id = (
+            record.get("remote_id")
+            or record.get("id")
+            or (record.get("meta") or {}).get("user_id")
+            or ""
+        )
+        tag = str(record.get("tag") or "")
+        if not str(user_id).strip():
+            # Prefer numeric suffix from tags like user:12
+            for part in reversed(tag.replace("/", ":").split(":")):
+                if part.isdigit():
+                    user_id = part
+                    break
+        if not str(user_id).strip():
+            if record.get("source") == "synthetic":
+                return {"deleted": True, "proof": f"synthetic_unused:{tag}"}
+            return {"deleted": False, "reason": f"no AdminPortal user id for {tag}"}
+        url = urljoin(root, f"users/{user_id}/delete")
+        if not url.startswith(("http://127.0.0.1:", "http://localhost:")):
+            return {"deleted": False, "reason": "AdminPortal adapter only allows localhost URLs"}
+        req = urllib.request.Request(url, data=b"", method="POST")  # noqa: S310
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
+                code = getattr(resp, "status", None) or resp.getcode()
+                # 200/303 both acceptable after delete
+                if int(code) in {200, 302, 303}:
+                    return {"deleted": True, "proof": f"admin_portal:deleted:{user_id}:{code}"}
+                return {"deleted": False, "reason": f"admin_portal HTTP {code} for user {user_id}"}
+        except urllib.error.HTTPError as exc:
+            if exc.code in {302, 303}:
+                return {"deleted": True, "proof": f"admin_portal:deleted:{user_id}:{exc.code}"}
+            return {"deleted": False, "reason": f"admin_portal HTTP {exc.code} for user {user_id}"}
+        except Exception as exc:
+            return {"deleted": False, "reason": f"admin_portal delete failed: {exc}"}
+
+    return remote_delete
+
+
+def choose_remote_delete(run_dir: str | Path, state: dict | None = None):
+    """Pick AdminPortal adapter when the run targets that fixture; else created.jsonl."""
+    state = state or {}
+    source = str(state.get("url") or state.get("source") or "")
+    portal = str(state.get("admin_portal_url") or os.getenv("ADMIN_PORTAL_URL") or "").strip()
+    if portal:
+        return admin_portal_delete(portal)
+    if "8768" in source or "adminportal" in source.lower() or "admin-portal" in source.lower():
+        # Heuristic: discover from source host
+        from urllib.parse import urlparse
+        parsed = urlparse(source)
+        if parsed.scheme and parsed.netloc:
+            return admin_portal_delete(f"{parsed.scheme}://{parsed.netloc}")
+    return created_jsonl_delete(run_dir)

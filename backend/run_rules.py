@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent_eval import evaluate, model_change_allowed
 from .config import settings
 from .data_lifecycle import (
-    created_jsonl_delete,
+    choose_remote_delete,
     ingest_created,
     load_lifecycle,
     production_environment,
@@ -211,7 +211,7 @@ def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
     cleanup = {"confirmed": [], "failed": [], "complete": True, "local_only": False}
     if finish:
         ingested = ingest_created(life, run_dir)
-        cleanup = life.cleanup_confirmed(remote_delete=created_jsonl_delete(run_dir))
+        cleanup = life.cleanup_confirmed(remote_delete=choose_remote_delete(run_dir, state))
     save_lifecycle(run_dir, life)
     prepared = [life.snapshot(worker) for worker in sorted(set(workers) | set(life._by_worker))]
     return {
