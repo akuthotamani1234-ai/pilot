@@ -563,6 +563,20 @@ def sso_validate_bearer(authorization: str | None = Header(default=None)):
     return verdict
 
 
+@app.get("/api/sso/callback")
+def sso_callback(code: str = "", state: str = ""):
+    """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open)."""
+    from backend.studio_oidc_callback import exchange_code
+    verdict = exchange_code(code=code)
+    _audit(
+        "sso_callback",
+        ok=bool(verdict.get("ok")),
+        verified=bool(verdict.get("signature_verified")),
+        state=(state or "")[:40],
+    )
+    return verdict
+
+
 @app.get("/api/blueprint/progress")
 def blueprint_progress_api():
     """Studio sidebar todos: phases, gates A–J, and what is next. Never claims complete."""
@@ -1038,6 +1052,15 @@ def ops_loopback_auth_code_sso():
     evidence = run_loopback_auth_code_sso_drill()
     _audit("ops_loopback_auth_code_sso", ok=bool(evidence.get("ok")))
     return {"gate_i_complete": False, "loopback_auth_code_sso": evidence}
+
+
+@app.post("/api/ops/drills/studio-oidc-callback")
+def ops_studio_oidc_callback():
+    """Gate I: Studio OIDC callback helper against loopback IdP (hosted IdP still open)."""
+    from backend.studio_oidc_callback_drill import run_studio_oidc_callback_drill
+    evidence = run_studio_oidc_callback_drill()
+    _audit("ops_studio_oidc_callback", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "studio_oidc_callback": evidence}
 
 
 @app.post("/api/ops/drills/hosted-runner-contracts")
