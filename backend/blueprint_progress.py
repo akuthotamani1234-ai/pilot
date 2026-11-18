@@ -126,6 +126,7 @@ def progress() -> dict:
         {"id": "A-classic-surfaces", "label": "ClassicShop surface_coverage inventory", "status": "done"},
         {"id": "A-travel-surfaces", "label": "TravelSite surface_coverage inventory", "status": "done"},
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
+        {"id": "D-matrix-snapshot", "label": "Combined device matrix snapshot (web+ADB+dry-run)", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
