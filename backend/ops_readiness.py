@@ -352,6 +352,34 @@ def readiness() -> dict:
                 else "No DemoStore healing live drill evidence"
             ),
         },
+        "live_failure_matrix_drill": {
+            "ready": _ops_evidence("live_failure_matrix_drill.json"),
+            "reason": (
+                "Live DemoStore failure matrix present; production healing suite still open"
+                if _ops_evidence("live_failure_matrix_drill.json")
+                else "No live failure matrix drill evidence"
+            ),
+        },
+        "sso_tenant_acl_drill": {
+            "ready": _ops_evidence("sso_tenant_acl_drill.json"),
+            "reason": (
+                "Loopback OIDC + tenant ACL drill present; hosted IdP Studio SSO still open"
+                if _ops_evidence("sso_tenant_acl_drill.json")
+                else "No SSO tenant ACL drill evidence"
+            ),
+        },
+        "independent_review_checklist": {
+            "ready": _ops_evidence("independent_review_checklist.json")
+            or (ROOT / "docs" / "INDEPENDENT_REVIEW_CHECKLIST.md").is_file(),
+            "reason": (
+                "Independent review checklist present; sign-off still pending"
+                if (
+                    _ops_evidence("independent_review_checklist.json")
+                    or (ROOT / "docs" / "INDEPENDENT_REVIEW_CHECKLIST.md").is_file()
+                )
+                else "No independent review checklist"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (

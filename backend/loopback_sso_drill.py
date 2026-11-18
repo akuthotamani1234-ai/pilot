@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -41,31 +42,22 @@ def _jwk_from_public(public_key, kid: str) -> dict:
     return data
 
 
-def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
-    try:
-        import jwt
-    except ImportError:
-        evidence = {
-            "gate_i_complete": False,
-            "drill": "loopback_oidc_jwt",
-            "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "ok": False,
-            "reason": "PyJWT not installed — cannot mint/verify loopback SSO JWT",
-        }
-        dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-        dest.mkdir(parents=True, exist_ok=True)
-        out = (Path(ops_dir) / "loopback_sso_drill.json") if ops_dir else EVIDENCE
-        out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-        return evidence
+@contextmanager
+def loopback_oidc_session(
+    *,
+    sub: str = "loopback-user-1",
+    email: str = "loopback@example.test",
+    audience: str = "qpilot-loopback",
+):
+    """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live."""
+    import jwt
 
     private_pem, public_key = _mint_rsa_material()
     kid = "qpilot-loopback-1"
-    # Reserve a free loopback port, then bind the OIDC handler to it.
     probe = HTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
     port = probe.server_address[1]
     probe.server_close()
     issuer = f"http://127.0.0.1:{port}"
-    audience = "qpilot-loopback"
     jwks = {"keys": [_jwk_from_public(public_key, kid)]}
     discovery = {
         "issuer": issuer,
@@ -108,47 +100,26 @@ def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
     os.environ["QPILOT_OIDC_ISSUER"] = issuer
     os.environ["QPILOT_OIDC_AUDIENCE"] = audience
     os.environ["QPILOT_OIDC_CLIENT_ID"] = "qpilot-loopback-client"
-
     try:
         now = int(time.time())
-        token = jwt.encode(
-            {
-                "iss": issuer,
-                "aud": audience,
-                "sub": "loopback-user-1",
-                "email": "loopback@example.test",
-                "exp": now + 600,
-                "iat": now,
-            },
-            private_pem,
-            algorithm="RS256",
-            headers={"kid": kid},
-        )
+        claims = {
+            "iss": issuer,
+            "aud": audience,
+            "sub": sub,
+            "email": email,
+            "exp": now + 600,
+            "iat": now,
+        }
+        token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
         from .oidc_jwt import validate_bearer
 
         result = validate_bearer(token, verify_signature=True)
-        evidence = {
-            "gate_i_complete": False,
-            "drill": "loopback_oidc_jwt",
-            "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        yield {
+            "token": token,
             "issuer": issuer,
             "audience": audience,
-            "signature_verified": bool(result.get("signature_verified")),
-            "validate": {
-                "ok": bool(result.get("ok")),
-                "reason": result.get("reason"),
-                "claims": result.get("claims") or {},
-            },
-            "ok": bool(result.get("ok")) and bool(result.get("signature_verified")),
-            "reason": (
-                "Loopback OIDC JWKS + RS256 JWT signature verified; "
-                "hosted IdP / Studio SSO login still open"
-                if result.get("signature_verified")
-                else (
-                    f"Loopback OIDC exercised but signature incomplete: "
-                    f"{result.get('reason')}; hosted IdP SSO still open"
-                )
-            ),
+            "claims": claims,
+            "validate": result,
         }
     finally:
         server.shutdown()
@@ -158,6 +129,45 @@ def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = val
+
+
+def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
+    try:
+        import jwt  # noqa: F401
+    except ImportError:
+        evidence = {
+            "gate_i_complete": False,
+            "drill": "loopback_oidc_jwt",
+            "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "ok": False,
+            "reason": "PyJWT not installed — cannot mint/verify loopback SSO JWT",
+        }
+    else:
+        with loopback_oidc_session() as session:
+            result = session["validate"]
+            evidence = {
+                "gate_i_complete": False,
+                "drill": "loopback_oidc_jwt",
+                "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "issuer": session["issuer"],
+                "audience": session["audience"],
+                "signature_verified": bool(result.get("signature_verified")),
+                "validate": {
+                    "ok": bool(result.get("ok")),
+                    "reason": result.get("reason"),
+                    "claims": result.get("claims") or {},
+                },
+                "ok": bool(result.get("ok")) and bool(result.get("signature_verified")),
+                "reason": (
+                    "Loopback OIDC JWKS + RS256 JWT signature verified; "
+                    "hosted IdP / Studio SSO login still open"
+                    if result.get("signature_verified")
+                    else (
+                        f"Loopback OIDC exercised but signature incomplete: "
+                        f"{result.get('reason')}; hosted IdP SSO still open"
+                    )
+                ),
+            }
 
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     dest.mkdir(parents=True, exist_ok=True)
