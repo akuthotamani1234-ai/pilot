@@ -560,6 +560,24 @@ def blueprint_progress_api():
     return progress()
 
 
+@app.get("/api/device-matrix/status")
+def device_matrix_status(include_android_dry_run: bool = False):
+    """Gate D matrix scoreboard. Optional Android protocol dry-run never verifies profiles."""
+    from backend.device_matrix import evaluate_matrix, protocol_dry_run_evidence
+    evidence = []
+    if include_android_dry_run:
+        evidence.extend(protocol_dry_run_evidence())
+    scored = evaluate_matrix(evidence)
+    scored["gate_d_complete"] = False
+    scored["android_dry_run_included"] = bool(include_android_dry_run)
+    scored["reason"] = (
+        "Android protocol dry-run rows ignored for verification; live emulator/API24+ still required"
+        if include_android_dry_run else
+        "No live evidence supplied; matrix incomplete"
+    )
+    return scored
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
@@ -629,10 +647,22 @@ def ops_minio_drill():
     return {"gate_g_complete": False, "minio": evidence}
 
 
-def _require_dashboard_auth(authorization: str | None = Header(default=None)) -> None:
-    """Optional bearer token when QPILOT_DASHBOARD_TOKEN is set."""
+@app.post("/api/ops/drills/ci-rollback")
+def ops_ci_rollback():
+    """Offline CI/deploy rollback rehearsal (Gate H still incomplete)."""
+    from backend.ops_rollback_drill import run_ci_rollback_rehearsal
+    evidence = run_ci_rollback_rehearsal()
+    _audit("ops_ci_rollback", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "ci_rollback": evidence}
+
+
+def _require_dashboard_auth(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+) -> None:
+    """Optional dashboard auth (bearer / webhook token / principal+RBAC)."""
     from backend.dashboard_auth import authorize
-    verdict = authorize(authorization)
+    verdict = authorize(authorization, x_qa_token=x_qa_token)
     if not verdict["ok"]:
         raise HTTPException(401, verdict["reason"])
 
@@ -642,9 +672,10 @@ def list_approval_queue(
     status: str = "pending",
     limit: int = 50,
     authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Gate I: list human-review approvals (pending by default)."""
-    _require_dashboard_auth(authorization)
+    _require_dashboard_auth(authorization, x_qa_token)
     from backend.approvals import list_approvals
     return {"approvals": list_approvals(status=status, limit=limit), "gate_i_complete": False}
 
@@ -656,9 +687,13 @@ class CreateApproval(BaseModel):
 
 
 @app.post("/api/approvals")
-def create_approval(req: CreateApproval, authorization: str | None = Header(default=None)):
+def create_approval(
+    req: CreateApproval,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """Enqueue an uncertain_assertion / heal / sensitive item for a person."""
-    _require_dashboard_auth(authorization)
+    _require_dashboard_auth(authorization, x_qa_token)
     from backend.approvals import create
     try:
         row = create(req.kind, req.subject, detail=req.detail or "")
@@ -677,9 +712,10 @@ def decide_approval_api(
     approval_id: str,
     req: DecideApproval,
     authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Record a person's answer via human_review.decide."""
-    _require_dashboard_auth(authorization)
+    _require_dashboard_auth(authorization, x_qa_token)
     from backend.approvals import decide_approval
     try:
         row = decide_approval(approval_id, req.answer)

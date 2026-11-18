@@ -95,6 +95,14 @@ def readiness() -> dict:
             ready_reason="Checklist documents required Gate H drills (drills themselves still open)",
             missing_reason="docs/OPS_DRILL_CHECKLIST.md missing",
         ),
+        "ci_rollback_rehearsal": {
+            "ready": _ops_evidence("ci_rollback_rehearsal.json"),
+            "reason": (
+                "Offline CI/deploy rollback rehearsal present; live hosted rollback still open"
+                if _ops_evidence("ci_rollback_rehearsal.json")
+                else "No CI/deploy rollback rehearsal evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]

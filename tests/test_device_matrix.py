@@ -1,5 +1,5 @@
 """Phase 5 Gate D: device matrix stays unverified without executed evidence."""
-from backend.device_matrix import default_matrix, evaluate_matrix
+from backend.device_matrix import default_matrix, evaluate_matrix, protocol_dry_run_evidence
 
 
 def test_default_matrix_lists_required_web_and_android_profiles():
@@ -25,3 +25,18 @@ def test_executed_evidence_verifies_matching_profiles_only():
     assert out["unverified"] == []
     assert "android.emulator" in out["verified"]
     assert "android.api24+" in out["verified"]
+
+
+def test_protocol_dry_run_never_verifies_android_profiles():
+    dry = protocol_dry_run_evidence(device_id="emulator-5554", api_level=30, outcome="passed")
+    out = evaluate_matrix([
+        {"surface": "web", "viewport": "1366x900", "outcome": "passed"},
+        {"surface": "web", "viewport": "390x844", "outcome": "passed"},
+        *dry,
+    ])
+    assert out["complete"] is False
+    assert "android.emulator" in out["unverified"]
+    assert "android.api24+" in out["unverified"]
+    assert out["live_emulator_required"] is True
+    assert dry[0]["dry_run"] is True
+
