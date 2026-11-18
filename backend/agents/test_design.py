@@ -1752,7 +1752,8 @@ def finalize_cases(cases: list[dict], state: dict) -> list[dict]:
         c.setdefault("url", "")
         c.setdefault("type", "functional")
         c.setdefault("test_data", "")
-    return cases
+    from ..oracle_bind import attach_assertions
+    return attach_assertions(cases)
 
 
 def validate_case(c: dict) -> list[str]:

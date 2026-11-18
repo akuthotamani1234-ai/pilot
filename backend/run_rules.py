@@ -9,7 +9,13 @@ from pathlib import Path
 
 from .agent_eval import evaluate, model_change_allowed
 from .config import settings
-from .data_lifecycle import Lifecycle, production_environment
+from .data_lifecycle import (
+    created_jsonl_delete,
+    ingest_created,
+    load_lifecycle,
+    production_environment,
+    save_lifecycle,
+)
 from .dependency_fault import inject_fault
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .journey_map import compare_journey
@@ -184,7 +190,11 @@ def plugin_cases(root: Path | None = None) -> list[dict]:
 
 
 def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
-    """Prepare each worker's synthetic records. They stay ready until the suite has finished."""
+    """Prepare each worker's records and persist them for a later confirmed cleanup.
+
+    Finish reloads the durable lifecycle, ingests ``created.jsonl`` tags, and only
+    marks cleaned when ``created_jsonl_delete`` (or synthetic-unused proof) confirms.
+    """
     run_dir = Path(state.get("run_dir") or ".")
     environment = str(state.get("environment") or settings.environment or "test")
     crawl = state.get("crawl") or {}
@@ -192,20 +202,26 @@ def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
     count = int(swarm.get("workers") or settings.test_workers or 1)
     workers = list(range(1, max(count, 1) + 1))
     if production_environment(environment):
-        return {"refused": "production customer data is not used as fixture data", "prepared": [], "cleaned": []}
-    life = Lifecycle(run_dir.name, environment)
+        return {"refused": "production customer data is not used as fixture data", "prepared": [], "cleaned": [],
+                "cleanup": {"confirmed": [], "failed": [], "complete": False, "local_only": False}}
+    life = load_lifecycle(run_dir, run_id=run_dir.name, environment=environment)
     for worker in workers:
         life.prepare(worker)
+    ingested = []
     cleanup = {"confirmed": [], "failed": [], "complete": True, "local_only": False}
     if finish:
-        # Synthetic fixture records exist only in this Lifecycle. Real remote backends must
-        # supply an adapter that proves delete; local flag flips alone are not enough.
-        def _synthetic_remote_delete(record: dict) -> dict:
-            return {"deleted": True, "proof": f"synthetic:{record.get('tag')}"}
-
-        cleanup = life.cleanup_confirmed(remote_delete=_synthetic_remote_delete)
-    prepared = [life.snapshot(worker) for worker in workers]
-    return {"refused": "", "prepared": prepared, "cleaned": cleanup["confirmed"], "cleanup": cleanup}
+        ingested = ingest_created(life, run_dir)
+        cleanup = life.cleanup_confirmed(remote_delete=created_jsonl_delete(run_dir))
+    save_lifecycle(run_dir, life)
+    prepared = [life.snapshot(worker) for worker in sorted(set(workers) | set(life._by_worker))]
+    return {
+        "refused": "",
+        "prepared": prepared,
+        "cleaned": cleanup["confirmed"],
+        "cleanup": cleanup,
+        "ingested_created": len(ingested),
+        "durable": True,
+    }
 
 
 def dependency_for(environment: str) -> dict:
@@ -353,8 +369,19 @@ def apply_analysis(state: dict, failures: list[dict]) -> dict:
     """Replay packages and the mutation score for this run's failures."""
     run_dir = Path(state["run_dir"])
     environment = str(state.get("environment") or settings.environment or "test")
+    packages = replay_for(failures, environment)
+    replay_payload = {"packages": packages}
+    # Gate E: attempt bounded re-execution when complete packages name tests + scripts exist.
+    # Offline unit paths without generated_tests record a skip reason (not a fake pass).
+    from .replay_pack import run_saved
+    try:
+        executed = run_saved(run_dir, limit=3)
+    except Exception as exc:
+        executed = {"ran": False, "reason": f"replay execute failed: {type(exc).__name__}", "results": {},
+                    "selected": []}
+    replay_payload["execution"] = executed
     rules = {
-        "replay": {"packages": replay_for(failures, environment)},
+        "replay": replay_payload,
         "mutation": mutation_for(run_dir, failures),
     }
     for name, payload in rules.items():

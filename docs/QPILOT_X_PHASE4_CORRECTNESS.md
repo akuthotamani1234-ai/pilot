@@ -17,4 +17,10 @@
 - `tests/test_lifecycle_remote_cleanup.py`
 
 ## Gate C / E status
-Still **Partial**: provenance + confirmed cleanup APIs exist with unit proof. Full wiring through every run path and live cleanup adapters for each fixture backend remain open.
+Still **Partial**, with deeper wiring on this branch:
+- Durable lifecycle state (`qx_lifecycle_state.json`) shared across prepare/finish
+- Finish cleanup confirms via `created.jsonl` (synthetic unused rows get `synthetic_unused:` proof, not a fake remote delete)
+- Design-time `oracle_bind.attach_assertions`; failure analysis softens unaccepted AI oracles away from `product_defect`
+- Analysis attempts bounded `run_saved` (limit 3) when packages + scripts exist
+
+Live portal/API cleanup adapters per fixture backend and a full failure-reproduction matrix remain open.
