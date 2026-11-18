@@ -1,0 +1,19 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_adb_probe",
+  "ran_at": "2026-11-18T15:44:16Z",
+  "adb": "/usr/bin/adb",
+  "adb_present": true,
+  "appium_reachable": false,
+  "devices_listed": 0,
+  "devices_online": 0,
+  "device_ids": [],
+  "errors": [
+    "Android SDK not found. Set ANDROID_HOME or ANDROID_SDK_ROOT to the SDK root (the folder that contains platform-tools/), then restart the UI.",
+    "Appium server is not running at http://127.0.0.1:4723. Start it with `appium --address 127.0.0.1 --port 4723`, then refresh environment status.",
+    "Appium CLI not found. Install Node.js, then install Appium 2/3 with `npm install -g appium`, and ensure the appium command is on PATH.",
+    "No Android device is connected. Start an emulator or enable USB debugging, then run `adb devices`."
+  ],
+  "ok": true,
+  "reason": "ADB present but no online emulator/device \u2014 Gate D Android rows stay unverified"
+}
