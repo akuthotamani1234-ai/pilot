@@ -190,6 +190,7 @@ def _portfolios(run_dir: Path, locale_payload: dict) -> dict:
     timings = _read_json(run_dir / "performance.json")
     headers = _read_json(run_dir / "security_headers.json")
     a11y_page = _read_json(run_dir / "a11y_page.json")
+    compatibility = _read_json(run_dir / "compatibility.json")
     https = None
     if isinstance(headers, dict) and "https" in headers:
         https = bool(headers.get("https"))
@@ -206,6 +207,7 @@ def _portfolios(run_dir: Path, locale_payload: dict) -> dict:
         locale_expected=expected,
         security_headers=headers if isinstance(headers, dict) else None,
         https=https,
+        compatibility_matrix=compatibility if isinstance(compatibility, dict) else None,
     )
 
 
@@ -346,7 +348,13 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     locale = _locale(run_dir, sample, catalog)
     locale_raw = _read_json(run_dir / "locale.json")
     locale_file = locale_raw if isinstance(locale_raw, dict) else {}
-    capture_portfolios(run_dir, app_map, source_url=str(state.get("url") or ""))
+    crawl_raw = _read_json(run_dir / "crawl.json")
+    capture_portfolios(
+        run_dir,
+        app_map,
+        source_url=str(state.get("url") or ""),
+        crawl=crawl_raw if isinstance(crawl_raw, dict) else None,
+    )
     capture_visual(run_dir, app_map)
     oracle = _cart_checks(cases)
     lifecycle = lifecycle_for(state, finish=True)

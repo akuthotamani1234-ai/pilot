@@ -78,19 +78,50 @@ def _security(app_map: list[dict], source_url: str = "") -> dict | None:
     return {"https": https, "headers": headers}
 
 
-def capture_portfolios(run_dir: str | Path, app_map: list[dict], *, source_url: str = "") -> dict:
+def _compatibility(app_map: list[dict], crawl: dict | None = None) -> dict | None:
+    """Build a desktop/mobile viewport matrix from app_map / crawl flags."""
+    crawl = crawl or {}
+    desktop = 0
+    mobile = 0
+    for page in app_map or []:
+        desktop += 1
+        if page.get("mobile") or page.get("mobile_checked") or page.get("viewport") == "mobile":
+            mobile += 1
+    if crawl.get("mobile_check") and mobile == 0 and desktop:
+        mobile = desktop
+    if desktop == 0 and mobile == 0 and not crawl.get("mobile_check"):
+        return None
+    matrix = {
+        "desktop": desktop,
+        "mobile": mobile,
+        "desktop_or_default": desktop,
+        "mobile_checked": mobile,
+        "gate_f_complete": False,
+    }
+    browsers = crawl.get("browsers") if isinstance(crawl.get("browsers"), list) else None
+    if browsers:
+        matrix["browsers"] = browsers
+    return matrix
+
+
+def capture_portfolios(run_dir: str | Path, app_map: list[dict], *, source_url: str = "",
+                       crawl: dict | None = None) -> dict:
     """Write portfolio evidence files and return paths/payloads."""
     path = Path(run_dir)
     path.mkdir(parents=True, exist_ok=True)
     a11y = _a11y_page(app_map)
     perf = _performance(app_map)
     security = _security(app_map, source_url)
+    compat = _compatibility(app_map, crawl)
     (path / "a11y_page.json").write_text(json.dumps(a11y, indent=2), encoding="utf-8")
-    out = {"a11y_page": a11y, "performance": perf, "security_headers": security}
+    out = {"a11y_page": a11y, "performance": perf, "security_headers": security,
+           "compatibility": compat}
     if perf is not None:
         (path / "performance.json").write_text(json.dumps(perf, indent=2), encoding="utf-8")
     if security is not None:
         (path / "security_headers.json").write_text(json.dumps(security, indent=2), encoding="utf-8")
+    if compat is not None:
+        (path / "compatibility.json").write_text(json.dumps(compat, indent=2), encoding="utf-8")
     return out
 
 

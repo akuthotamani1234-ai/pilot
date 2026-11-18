@@ -1,13 +1,30 @@
 """Phase 5 Gate F: portfolio gates never pass on missing evidence."""
-from backend.portfolio_gates import evaluate_a11y, evaluate_performance, evaluate_portfolios, evaluate_security
+from backend.portfolio_gates import (
+    evaluate_a11y,
+    evaluate_compatibility,
+    evaluate_performance,
+    evaluate_portfolios,
+    evaluate_security,
+)
 
 
 def test_missing_evidence_is_unknown_not_pass():
     out = evaluate_portfolios()
     assert out["complete"] is False
     assert out["ok"] is False
-    assert set(out["unknown"]) == {"a11y", "visual", "performance", "locale", "security"}
+    assert set(out["unknown"]) == {
+        "a11y", "visual", "performance", "locale", "security", "compatibility",
+    }
     assert out["passed"] == []
+
+
+def test_compatibility_requires_desktop_and_mobile():
+    missing = evaluate_compatibility({"desktop": 3, "mobile": 0})
+    assert missing["verdict"] == "fail"
+    assert missing["gate_f_complete"] is False
+    ok = evaluate_compatibility({"desktop": 2, "mobile": 2, "browsers": ["chromium"]})
+    assert ok["verdict"] == "pass"
+    assert ok["ok"] is True
 
 
 def test_a11y_flags_missing_alt_and_unlabeled_inputs():
@@ -45,8 +62,11 @@ def test_full_portfolios_can_pass_with_evidence():
             "x-content-type-options": "nosniff",
         },
         https=True,
+        compatibility_matrix={"desktop": 2, "mobile": 2, "browsers": ["chromium"]},
     )
     assert out["complete"] is True
     assert out["ok"] is True
     assert out["failed"] == []
-    assert set(out["passed"]) == {"a11y", "visual", "performance", "locale", "security"}
+    assert set(out["passed"]) == {
+        "a11y", "visual", "performance", "locale", "security", "compatibility",
+    }

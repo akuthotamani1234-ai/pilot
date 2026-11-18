@@ -1,0 +1,56 @@
+{
+  "gate_e_complete": false,
+  "drill": "offline_healing_regression_suite",
+  "ran_at": "2026-11-18T15:48:08Z",
+  "cases": 5,
+  "mismatches": 0,
+  "policy": "locator_only",
+  "rows": [
+    {
+      "id": "locator-swap",
+      "category_hint": "test_defect",
+      "allowed": true,
+      "expect_allowed": true,
+      "match": true,
+      "reason": "",
+      "policy": "locator_only"
+    },
+    {
+      "id": "assertion-weaken",
+      "category_hint": "product_defect",
+      "allowed": false,
+      "expect_allowed": false,
+      "match": true,
+      "reason": "a check of test_x was changed or removed (only an element's address may change)",
+      "policy": "locator_only"
+    },
+    {
+      "id": "assertion-drop",
+      "category_hint": "product_defect",
+      "allowed": false,
+      "expect_allowed": false,
+      "match": true,
+      "reason": "assertions removed from ['test_x']",
+      "policy": "locator_only"
+    },
+    {
+      "id": "get-by-role-locator",
+      "category_hint": "test_defect",
+      "allowed": true,
+      "expect_allowed": true,
+      "match": true,
+      "reason": "",
+      "policy": "locator_only"
+    },
+    {
+      "id": "price-assert-change",
+      "category_hint": "product_defect",
+      "allowed": false,
+      "expect_allowed": false,
+      "match": true,
+      "reason": "a check of test_x was changed or removed (only an element's address may change)",
+      "policy": "locator_only"
+    }
+  ],
+  "reason": "Offline locator-only healing regression recorded; live failure matrix / production healing still open"
+}

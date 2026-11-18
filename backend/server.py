@@ -607,6 +607,16 @@ def ops_failure_matrix():
     return {"gate_e_complete": False, "failure_matrix": evidence}
 
 
+@app.post("/api/ops/drills/healing-regression")
+def ops_healing_regression():
+    """Gate E: offline locator-only healing regression suite (still incomplete)."""
+    from backend.healing_regression import run_healing_regression_drill
+    evidence = run_healing_regression_drill()
+    _audit("ops_healing_regression", cases=int(evidence.get("cases") or 0),
+           mismatches=int(evidence.get("mismatches") or 0))
+    return {"gate_e_complete": False, "healing_regression": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

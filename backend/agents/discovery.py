@@ -2998,14 +2998,16 @@ def discovery_agent(state: QAState) -> QAState:
     save_inventory(run_dir, app_map, reg)
     provenanced = write_graph(run_dir, app_map, crawl)
     from ..portfolio_capture import capture_portfolios
-    portfolios = capture_portfolios(run_dir, app_map, source_url=state.get("url") or start_url)
+    portfolios = capture_portfolios(
+        run_dir, app_map, source_url=state.get("url") or start_url, crawl=crawl if isinstance(crawl, dict) else None)
     print(f"  [discovery] registry: {len(reg['pages'])} page pattern(s), {len(reg['features'])} feature(s) / "
           f"control(s), {len(reg['edges'])} link(s) between pages")
     print(f"  [discovery] provenance graph: {provenanced['counts']['nodes']} node(s), "
           f"{provenanced['counts']['edges']} edge(s) (Gate A not complete)")
     print(f"  [discovery] portfolio capture: a11y={bool(portfolios.get('a11y_page'))} "
           f"perf={portfolios.get('performance') is not None} "
-          f"security={portfolios.get('security_headers') is not None} (Gate F not complete)", flush=True)
+          f"security={portfolios.get('security_headers') is not None} "
+          f"compat={portfolios.get('compatibility') is not None} (Gate F not complete)", flush=True)
     from ..device_matrix import viewport_evidence_from_app_map
     from ..surface_coverage import summarize_surfaces
     from ..swarm_evidence import record_swarm
