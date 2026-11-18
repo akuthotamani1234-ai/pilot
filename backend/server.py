@@ -753,6 +753,46 @@ def ops_android_appium_product_matrix():
     return {"gate_d_complete": False, "android_appium_product_matrix": evidence}
 
 
+@app.post("/api/ops/drills/multi-api-android-matrix")
+def ops_multi_api_android_matrix():
+    """Gate D: combine API24 smoke + API30+ Appium matrix rows (still incomplete)."""
+    from backend.multi_api_android_matrix_drill import run_multi_api_android_matrix_drill
+    evidence = run_multi_api_android_matrix_drill()
+    _audit(
+        "ops_multi_api_android_matrix",
+        ok=bool(evidence.get("ok")),
+        apis=",".join(str(a) for a in (evidence.get("api_levels") or [])),
+    )
+    return {"gate_d_complete": False, "multi_api_android_matrix": evidence}
+
+
+@app.post("/api/ops/drills/mutation-score")
+def ops_mutation_score():
+    """Gate J / QX-A09: DemoStore planted-defect mutation score (still incomplete)."""
+    from backend.mutation_score_drill import run_mutation_score_drill
+    evidence = run_mutation_score_drill()
+    caught = len((evidence.get("score") or {}).get("caught") or [])
+    _audit("ops_mutation_score", ok=bool(evidence.get("ok")), caught=caught)
+    return {"gate_j_complete": False, "mutation_score": evidence}
+
+
+@app.post("/api/ops/drills/cross-platform-journey")
+def ops_cross_platform_journey():
+    """QX-A10: cross-platform DemoStore (+ optional Android) journey (still incomplete)."""
+    from backend.cross_platform_journey_drill import run_cross_platform_journey_drill
+    evidence = run_cross_platform_journey_drill()
+    _audit(
+        "ops_cross_platform_journey",
+        ok=bool(evidence.get("ok")),
+        surfaces=len(evidence.get("surfaces") or []),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "cross_platform_journey": evidence,
+    }
+
+
 @app.post("/api/ops/drills/locale-portfolio")
 def ops_locale_portfolio():
     """Gate F: DemoStore locale portfolio evidence (still incomplete)."""

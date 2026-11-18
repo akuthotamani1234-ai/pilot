@@ -78,3 +78,10 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     )
     assert snap["checks"]["sso_tenant_acl_drill"]["ready"] is has("sso_tenant_acl_drill.json")
     assert snap["checks"]["independent_review_checklist"]["ready"] is True
+    assert snap["checks"]["mutation_score_drill"]["ready"] is has("mutation_score_drill.json")
+    assert snap["checks"]["cross_platform_journey_drill"]["ready"] is has(
+        "cross_platform_journey_drill.json"
+    )
+    assert snap["checks"]["multi_api_android_matrix_drill"]["ready"] is has(
+        "multi_api_android_matrix_drill.json"
+    )
