@@ -95,12 +95,8 @@ def authorize(authorization: str | None, *, x_qa_token: str | None = None,
         }
     try:
         from .rbac import allow
-        from .tenancy_store import DEFAULT_DB, _connect
-        with _connect(DEFAULT_DB) as conn:
-            row = conn.execute(
-                "SELECT principal_id, tenant_id, role FROM principals WHERE principal_id=?",
-                (principal_id,),
-            ).fetchone()
+        from .tenancy_store import get_principal
+        row = get_principal(principal_id)
         if row is None:
             return {
                 "ok": False,

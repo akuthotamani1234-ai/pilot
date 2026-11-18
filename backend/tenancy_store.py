@@ -83,3 +83,114 @@ def can_read_run(*, role: str, actor_tenant: str, run_tenant: str) -> bool:
     """Deny cross-tenant reads (RBAC + tenant check)."""
     verdict = allow(role=role, action="run.read", tenant_id=actor_tenant, resource_tenant=run_tenant)
     return bool(verdict.get("allowed"))
+
+
+def get_principal(principal_id: str, *, db_path: str | Path | None = None) -> dict | None:
+    """Lookup one principal row, or None."""
+    path = Path(db_path) if db_path else DEFAULT_DB
+    if not path.is_file():
+        return None
+    pid = (principal_id or "").strip()
+    if not pid:
+        return None
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT principal_id, tenant_id, email, role, created_at FROM principals WHERE principal_id=?",
+            (pid,),
+        ).fetchone()
+    return dict(row) if row is not None else None
+
+
+def get_run_tenant(run_id: str, *, db_path: str | Path | None = None) -> str | None:
+    path = Path(db_path) if db_path else DEFAULT_DB
+    if not path.is_file():
+        return None
+    rid = (run_id or "").strip()
+    if not rid:
+        return None
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT tenant_id FROM run_index WHERE run_id=?",
+            (rid,),
+        ).fetchone()
+    return str(row["tenant_id"]) if row is not None else None
+
+
+def assert_run_access(
+    *,
+    principal_id: str,
+    run_id: str,
+    db_path: str | Path | None = None,
+    audit: bool = True,
+) -> dict:
+    """Whether principal may read ``run_id``. Cross-tenant denials are audited when ``audit``."""
+    principal = get_principal(principal_id, db_path=db_path)
+    if principal is None:
+        return {"allowed": False, "reason": "unknown principal", "principal_id": principal_id, "run_id": run_id}
+    run_tenant = get_run_tenant(run_id, db_path=db_path)
+    if run_tenant is None:
+        return {
+            "allowed": False,
+            "reason": "unknown run",
+            "principal_id": principal_id,
+            "run_id": run_id,
+            "tenant_id": principal["tenant_id"],
+        }
+    ok = can_read_run(
+        role=principal["role"],
+        actor_tenant=principal["tenant_id"],
+        run_tenant=run_tenant,
+    )
+    detail = f"run={run_id} resource_tenant={run_tenant}"
+    if audit and not ok:
+        from .audit_store import record_audit
+        record_audit(
+            actor=principal_id,
+            action="run.read",
+            allowed=False,
+            tenant_id=principal["tenant_id"],
+            detail=detail,
+            db_path=db_path,
+        )
+    return {
+        "allowed": ok,
+        "reason": "" if ok else "tenant isolation",
+        "principal_id": principal_id,
+        "run_id": run_id,
+        "tenant_id": principal["tenant_id"],
+        "role": principal["role"],
+        "resource_tenant": run_tenant,
+    }
+
+
+def runs_visible_to_principal(principal_id: str, *, db_path: str | Path | None = None) -> dict:
+    """Tenant-scoped run list for a principal (Gate G ACL helper; Studio SSO still open)."""
+    principal = get_principal(principal_id, db_path=db_path)
+    if principal is None:
+        return {
+            "ok": False,
+            "reason": "unknown principal",
+            "runs": [],
+            "gate_g_complete": False,
+        }
+    if not can_read_run(role=principal["role"], actor_tenant=principal["tenant_id"],
+                        run_tenant=principal["tenant_id"]):
+        return {
+            "ok": False,
+            "reason": "role cannot read runs",
+            "principal_id": principal_id,
+            "tenant_id": principal["tenant_id"],
+            "role": principal["role"],
+            "runs": [],
+            "gate_g_complete": False,
+        }
+    runs = list_runs_for_tenant(principal["tenant_id"], db_path=db_path)
+    return {
+        "ok": True,
+        "reason": "tenant-scoped runs (multi-tenant Studio SSO still open)",
+        "principal_id": principal_id,
+        "tenant_id": principal["tenant_id"],
+        "role": principal["role"],
+        "runs": runs,
+        "gate_g_complete": False,
+    }

@@ -734,6 +734,56 @@ def decide_approval_api(
     return row
 
 
+@app.get("/api/tenancy/runs")
+def tenancy_runs_for_principal(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: list runs visible to the authenticated principal (tenant isolation).
+
+    Requires QPILOT_DASHBOARD_AUTH=principal. Live Studio SSO remains open.
+    """
+    from backend.dashboard_auth import authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    if not verdict.get("ok"):
+        raise HTTPException(401, verdict.get("reason") or "unauthorized")
+    if verdict.get("mode") != "principal" or not verdict.get("principal_id"):
+        raise HTTPException(
+            400,
+            "Set QPILOT_DASHBOARD_AUTH=principal and pass Authorization: Bearer <principal_id>",
+        )
+    from backend.tenancy_store import runs_visible_to_principal
+    body = runs_visible_to_principal(verdict["principal_id"])
+    _audit("tenancy_runs", principal=verdict["principal_id"], ok=bool(body.get("ok")),
+           count=len(body.get("runs") or []))
+    return body
+
+
+@app.get("/api/tenancy/runs/{run_id}/access")
+def tenancy_run_access(
+    run_id: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: check (and audit) whether the principal may read ``run_id``."""
+    from backend.dashboard_auth import authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    if not verdict.get("ok"):
+        raise HTTPException(401, verdict.get("reason") or "unauthorized")
+    if verdict.get("mode") != "principal" or not verdict.get("principal_id"):
+        raise HTTPException(
+            400,
+            "Set QPILOT_DASHBOARD_AUTH=principal and pass Authorization: Bearer <principal_id>",
+        )
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=verdict["principal_id"], run_id=run_id)
+    _audit("tenancy_run_access", principal=verdict["principal_id"], run=run_id,
+           allowed=bool(access.get("allowed")))
+    if not access.get("allowed"):
+        raise HTTPException(403, access.get("reason") or "forbidden")
+    return {**access, "gate_g_complete": False}
+
+
 @app.get("/api/check")
 def check_source(source: str):
     """Step 2: open the website once (or recognise a GitHub repo / project folder) before testing starts."""
