@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 
 from .api_versioning import SUPPORTED
+from .blueprint_progress import progress as blueprint_progress
 from .migrate import migration_status
 from .object_store import open_object_store
 from .queue_backend import open_durable_queue
@@ -86,10 +87,12 @@ def readiness() -> dict:
     if components["schema_migrations"]["ready"]:
         ready.append("schema_migrations")
     missing = [name for name, row in components.items() if not row["ready"]]
+    blueprint = blueprint_progress()
     return {
         "gate_g_complete": False,
         "gate_i_complete": False,
         "ready": ready,
         "missing": missing,
         "components": components,
+        "blueprint": blueprint,
     }

@@ -2194,6 +2194,16 @@ def discovery_agent(state: QAState) -> QAState:
                 entry["status"] = resp.status if resp else (200 if "#" in url else None)
                 entry["load_time_ms"] = int((time.time() - t0) * 1000)
                 entry["final_url"] = page.url
+                if resp is not None:
+                    try:
+                        hdrs = resp.headers or {}
+                        keep = ("content-security-policy", "strict-transport-security",
+                                "x-content-type-options", "content-type")
+                        captured = {k: hdrs.get(k) for k in keep if hdrs.get(k)}
+                        if captured:
+                            entry["response_headers"] = captured
+                    except Exception:
+                        pass
                 # a redirect that left the approved scope: what the browser got there is not used
                 why = scope.navigation_blocked(page.url)
                 if why and not app_map and _same_site(urlparse(page.url).hostname, base_host):
@@ -2970,10 +2980,15 @@ def discovery_agent(state: QAState) -> QAState:
     registry.save(reg, run_dir)
     save_inventory(run_dir, app_map, reg)
     provenanced = write_graph(run_dir, app_map, crawl)
+    from ..portfolio_capture import capture_portfolios
+    portfolios = capture_portfolios(run_dir, app_map, source_url=state.get("url") or start_url)
     print(f"  [discovery] registry: {len(reg['pages'])} page pattern(s), {len(reg['features'])} feature(s) / "
           f"control(s), {len(reg['edges'])} link(s) between pages")
     print(f"  [discovery] provenance graph: {provenanced['counts']['nodes']} node(s), "
           f"{provenanced['counts']['edges']} edge(s) (Gate A not complete)")
+    print(f"  [discovery] portfolio capture: a11y={bool(portfolios.get('a11y_page'))} "
+          f"perf={portfolios.get('performance') is not None} "
+          f"security={portfolios.get('security_headers') is not None} (Gate F not complete)", flush=True)
     if blocked:
         print(f"  [discovery] the safety rules blocked {len(blocked)} request(s) (private network / outside the scope)")
     log = state.get("log", []) + [

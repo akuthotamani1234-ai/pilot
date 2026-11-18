@@ -22,6 +22,7 @@ from .mutation_score import score_planted
 from .ops_readiness import readiness as ops_readiness
 from .oracle import bind_assertion, cart_expected, decide_observation
 from .plugins import review_plugin
+from .portfolio_capture import capture_portfolios
 from .portfolio_gates import evaluate_portfolios
 from .quality_trends import cluster_runs, keep_verdict
 from .release_row import from_run
@@ -308,6 +309,7 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     locale = _locale(run_dir, sample, catalog)
     locale_raw = _read_json(run_dir / "locale.json")
     locale_file = locale_raw if isinstance(locale_raw, dict) else {}
+    capture_portfolios(run_dir, app_map, source_url=str(state.get("url") or ""))
     applied = {
         "sample_unchanged": True,
         "sample": sample,

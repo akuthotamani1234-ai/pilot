@@ -70,23 +70,62 @@
     return true;
   }
 
+  function blueprintTodoItems(bp) {
+    const items = [];
+    const activeId = bp.active && bp.active.id;
+    (bp.gates || []).forEach((g) => {
+      const status = g.id === activeId ? "active" : (g.status || "open");
+      items.push({ id: g.id, label: g.label, note: g.note || "", status });
+    });
+    (bp.upcoming || []).filter((u) => u.status === "active" || u.status === "open").slice(0, 4).forEach((u) => {
+      if (items.some((row) => row.id === u.id)) return;
+      items.push({ id: u.id, label: u.label, note: "Next", status: u.status || "open" });
+    });
+    return items;
+  }
+
   async function loadBlueprintStatus() {
     const box = $("blueprintStatus");
     if (!box) return;
     try {
-      const r = await fetch("/api/v1/enterprise/readiness");
-      if (!r.ok) throw new Error("readiness unavailable");
-      const d = await r.json();
-      const ready = (d.ready || []).slice(0, 5).map(esc).join(", ") || "none";
-      const missing = (d.missing || []).slice(0, 5).map(esc).join(", ") || "none";
-      const opsMissing = ((d.ops && d.ops.missing) || []).slice(0, 3).map(esc).join(", ") || "n/a";
-      box.innerHTML =
-        "<small><b>Ready</b> " + ready + "</small>" +
-        "<small><b>Open</b> " + missing + "</small>" +
-        "<small><b>Ops gaps</b> " + opsMissing + "</small>" +
-        "<small class=\"muted\">Gates G/H/I not complete</small>";
+      let bp = null;
+      const direct = await fetch("/api/v1/blueprint/progress");
+      if (direct.ok) bp = await direct.json();
+      if (!bp) {
+        const r = await fetch("/api/v1/enterprise/readiness");
+        if (!r.ok) throw new Error("readiness unavailable");
+        const d = await r.json();
+        bp = d.blueprint || null;
+      }
+      if (!bp) throw new Error("no blueprint payload");
+      const counts = bp.counts || {};
+      const active = bp.active || {};
+      const meta =
+        "<div class=\"bp-meta\">" +
+          "<small><b>Progress</b> " + esc(String(counts.gates_strong_or_done || 0)) +
+          " strong · " + esc(String(counts.gates_partial || 0)) +
+          " partial · " + esc(String(counts.gates_open || 0)) + " open / " +
+          esc(String(counts.gates_total || 10)) + "</small>" +
+          "<small><b>Now</b> " + esc(active.label || "Advancing Partial gates") + "</small>" +
+          "<small class=\"muted\">" + esc(bp.rule || "Gates A–J not complete") + "</small>" +
+        "</div>";
+      const rows = blueprintTodoItems(bp).map((row) => {
+        const cls = row.status === "done" || row.status === "strong" ? "done"
+          : row.status === "active" ? "active"
+          : row.status === "partial" ? "partial" : "open";
+        const badge = row.status === "strong" ? "strong"
+          : row.status === "done" ? "done"
+          : row.status === "active" ? "now"
+          : row.status === "partial" ? "partial" : "next";
+        return "<li class=\"" + cls + "\">" +
+          "<span class=\"bp-badge\">" + esc(badge) + "</span>" +
+          "<span class=\"bp-copy\"><b>" + esc(row.label) + "</b>" +
+          (row.note ? "<span class=\"muted\">" + esc(row.note) + "</span>" : "") +
+          "</span></li>";
+      }).join("");
+      box.innerHTML = meta + "<ol class=\"bp-todo\" id=\"blueprintTodo\">" + rows + "</ol>";
     } catch (_err) {
-      box.innerHTML = "<span class=\"muted small\">Blueprint readiness unavailable</span>";
+      box.innerHTML = "<span class=\"muted small\">Blueprint progress unavailable</span>";
     }
   }
 
