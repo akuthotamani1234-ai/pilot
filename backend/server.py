@@ -1091,6 +1091,16 @@ def ops_remaining_blockers():
     return {"complete": False, "remaining_blockers": evidence}
 
 
+@app.post("/api/ops/drills/classic-mutation-score")
+def ops_classic_mutation_score():
+    """Gate J: ClassicShop planted-defect mutation score (still incomplete)."""
+    from backend.classic_mutation_score_drill import run_classic_mutation_score_drill
+    evidence = run_classic_mutation_score_drill()
+    caught = len((evidence.get("score") or {}).get("caught") or [])
+    _audit("ops_classic_mutation_score", ok=bool(evidence.get("ok")), caught=caught)
+    return {"gate_j_complete": False, "classic_mutation_score": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
