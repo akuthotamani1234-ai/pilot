@@ -18,7 +18,7 @@ Each capability is **DONE** only when:
 | Gate | Required deliverable | Current status |
 |---|---|---|
 | A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial; live completeness not established |
-| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; concurrent browser workers and task protocol exist |
+| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; SQLite durable queue + supervisor added (`swarm_queue`/`swarm_supervisor`). Redis/Postgres + full agent wiring still open. See `docs/QPILOT_X_PHASE3_SWARM.md` |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial; device matrix unverified |
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial |
