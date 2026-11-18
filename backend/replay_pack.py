@@ -44,7 +44,8 @@ def replay(package: dict) -> dict:
     missing = missing_fields(package)
     if missing:
         return {"ran": False, "missing": missing, "steps": []}
-    return {"ran": True, "missing": [], "steps": list(package.get("actions") or [])}
+    return {"ran": True, "missing": [], "steps": list(package.get("actions") or []),
+            "executed": False, "evidence_ready": True}
 
 
 def saved_replays(run_dir: Path) -> list[dict]:
@@ -78,4 +79,9 @@ def run_saved(run_dir: Path) -> dict:
     if not (Path(run_dir) / "generated_tests").is_dir():
         return {"ran": False, "reason": "this run has no test scripts", "results": {}}
     out = recheck(run_dir, names)
-    return {"ran": True, "reason": "", "results": out.get("results") or {}}
+    results = out.get("results") or {}
+    if not results:
+        return {"ran": False, "reason": out.get("note") or "test runner returned no results", "results": {}}
+    if not any(row.get("outcome") not in (None, "not run") for row in results.values() if isinstance(row, dict)):
+        return {"ran": False, "reason": "no selected test actually executed", "results": results}
+    return {"ran": True, "reason": "", "results": results}
