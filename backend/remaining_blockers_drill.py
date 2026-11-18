@@ -66,6 +66,7 @@ BLOCKERS = (
         "local_partial": [
             "multi_browser_portfolio_suite_drill.json",
             "multi_browser_ci_contract.json",
+            "portfolio_artifact_manifest_drill.json",
         ],
     },
     {

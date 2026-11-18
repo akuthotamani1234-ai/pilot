@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:46:56Z",
+  "ran_at": "2026-11-18T23:48:04Z",
   "ok": true,
   "blockers": [
     {
@@ -90,12 +90,14 @@
       "label": "Broad hosted multi-browser portfolio CI artifacts",
       "local_partial": [
         "multi_browser_portfolio_suite_drill.json",
-        "multi_browser_ci_contract.json"
+        "multi_browser_ci_contract.json",
+        "portfolio_artifact_manifest_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "multi_browser_portfolio_suite_drill.json",
-        "multi_browser_ci_contract.json"
+        "multi_browser_ci_contract.json",
+        "portfolio_artifact_manifest_drill.json"
       ],
       "local_partial_missing": []
     },

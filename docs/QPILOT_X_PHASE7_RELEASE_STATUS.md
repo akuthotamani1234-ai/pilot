@@ -29,7 +29,7 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | C | Partial | Lifecycle + cart drills + multi-portal oracle bind (4 truths); broader live portal paths open |
 | D | Partial | API24 smoke + API30 Appium + multi-device CI contract; broad multi-device CI execution open |
 | E | Partial | Offline taxonomy + multi-app healing + 4-app production-like multi-failure matrix; production suite open |
-| F | Partial | Live Chromium/Firefox/WebKit suite + multi-browser CI contract; hosted runner matrix open |
+| F | Partial | Live Chromium/Firefox/WebKit suite + CI contract + portfolio artifact manifest; hosted runner matrix open |
 | G | Partial | Live Postgres/Redis/MinIO + OIDC ACL + review pack + blockers inventory; independent sign-off open |
 | H | Partial | Local DR + dual-region PG/MinIO/Redis + failover RTO pack + paging + observability; hosted multi-region on-call open |
 | I | Partial | Dashboard + loopback OIDC JWT/ACL + auth-code + PKCE S256 + Studio `/api/sso/callback`; hosted IdP Studio SSO open |
