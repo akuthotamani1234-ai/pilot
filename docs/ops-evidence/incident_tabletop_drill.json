@@ -1,0 +1,48 @@
+{
+  "gate_h_complete": false,
+  "drill": "incident_tabletop_cross_check",
+  "ran_at": "2026-11-18T19:36:20Z",
+  "runbook": "docs/INCIDENT_RUNBOOK.md",
+  "runbook_present": true,
+  "roles_exercised": [
+    "local_operator"
+  ],
+  "steps": [
+    {
+      "id": "confirm_blast_radius",
+      "role": "local_operator",
+      "done": true
+    },
+    {
+      "id": "capture_artifacts",
+      "role": "local_operator",
+      "done": true
+    },
+    {
+      "id": "backup_restore_path",
+      "role": "local_operator",
+      "done": true,
+      "evidence": "backup_restore_drill.json"
+    },
+    {
+      "id": "loopback_paging",
+      "role": "local_operator",
+      "done": true,
+      "evidence": "paging_rehearsal.json"
+    },
+    {
+      "id": "controlled_soak_reference",
+      "role": "local_operator",
+      "done": true,
+      "evidence": "controlled_soak_drill.json"
+    },
+    {
+      "id": "hosted_on_call",
+      "role": "on_call",
+      "done": false,
+      "note": "Live hosted paging / on-call still open"
+    }
+  ],
+  "ok": true,
+  "reason": "Offline incident tabletop cross-checked local backup/paging/soak evidence; live hosted on-call still open"
+}

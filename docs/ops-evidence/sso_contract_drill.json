@@ -1,0 +1,14 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_hosting_env_contract",
+  "ran_at": "2026-11-18T19:35:38Z",
+  "configured": false,
+  "ready": false,
+  "oidc_issuer_env": null,
+  "oidc_client_env": null,
+  "oidc_audience_env": null,
+  "dashboard_host_env": null,
+  "jwt_helper": "backend.oidc_jwt.validate_bearer",
+  "ok": true,
+  "reason": "SSO/OIDC + hosted dashboard contracts not configured; JWT helper available; localhost Studio only"
+}

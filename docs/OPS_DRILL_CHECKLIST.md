@@ -11,7 +11,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | Backup of run store / object store | Partial (SQLite + MinIO object copy) | `docs/ops-evidence/backup_restore_drill.json` + `docs/ops-evidence/minio_backup_restore_drill.json` — hosted DR still open |
 | Restore from backup into an isolated env | Partial (local folder + MinIO restore-to-key) | same artifacts — live isolated env still open |
 | Load / soak against a controlled fixture | Partial (local API probe + AdminPortal soak) | `docs/ops-evidence/local_load_probe.json` + `docs/ops-evidence/controlled_soak_drill.json` — hosted/prod-like load still open |
-| Incident runbook tabletop | Partial (draft + stub only) | `docs/INCIDENT_RUNBOOK.md` + `docs/ops-evidence/incident_tabletop_stub.json` — live paging still open |
+| Incident runbook tabletop | Partial (draft + offline cross-check) | `docs/INCIDENT_RUNBOOK.md` + `docs/ops-evidence/incident_tabletop_drill.json` — live hosted paging still open |
 | CI deploy + rollback rehearsal | Partial (offline rehearsal only) | `docs/ops-evidence/ci_rollback_rehearsal.json` — live hosted rollback still open |
 | Paging / alert path | Partial (loopback sink only) | `docs/ops-evidence/paging_rehearsal.json` — live hosted on-call still open |
 
@@ -34,7 +34,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
 | F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json` |
 | G | Postgres/Redis/MinIO + `/api/audit/export` + `/api/ops/drills/audit-export` | `docs/ops-evidence/pg_tenancy_drill.json`, `audit_export_drill.json` (+ infra drills) |
-| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals` | `docs/ops-evidence/api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json` |
+| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract` | `docs/ops-evidence/api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json` |
 
 Studio sidebar Blueprint TODO (`/api/v1/blueprint/progress`) lists done vs open upcoming items for these increments.
 
