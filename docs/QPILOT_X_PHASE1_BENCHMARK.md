@@ -136,6 +136,17 @@ After adding standalone `textbox` control cases (covers Nickname inside open sha
 `widgets.shadow_nickname` now verified (`TC-13A298F9`). Clean/buggy false alarms remain.  
 Artifacts: `deep_validation/live_runs/phase1_admin_portal_run2.json` + `phase1_admin_portal_run2_summary.json`.
 
+## AdminPortal run 4 (search openers for row-select learned cases — 2026-11-18)
+
+Named `Select <person>` learned cases no longer replay brittle Next/page-size openers (concurrent creates shift row pages). They fill the Users search box instead (`open_path` supports `fill`).
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **8/8** | **25/25** | **0** | n/a |
+| buggy | **8/8** | 8/8 judged | **0** | **7/7** |
+
+Artifacts: `deep_validation/live_runs/phase1_admin_portal_run4.json` + `phase1_admin_portal_run4_summary.json`.
+
 ## Travel site run 1 (fourth controlled fixture — 2026-11-18)
 
 `accuracy_benchmark --site travel --mode first` with `REVIEW=off`. **Partial**.
