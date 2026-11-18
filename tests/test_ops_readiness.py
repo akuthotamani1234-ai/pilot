@@ -112,6 +112,9 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
         "independent_review_pack.json"
     )
     assert snap["checks"]["mutation_score_drill"]["ready"] is has("mutation_score_drill.json")
+    assert snap["checks"]["classic_mutation_score_drill"]["ready"] is has(
+        "classic_mutation_score_drill.json"
+    )
     assert snap["checks"]["cross_platform_journey_drill"]["ready"] is has(
         "cross_platform_journey_drill.json"
     )

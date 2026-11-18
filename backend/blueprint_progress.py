@@ -168,6 +168,7 @@ def progress() -> dict:
         {"id": "D-multi-device-contract", "label": "Offline multi-device CI runner contract", "status": "done"},
         {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
         {"id": "J-mutation-score", "label": "DemoStore planted-defect mutation score 6/6", "status": "done"},
+        {"id": "J-classic-mutation", "label": "ClassicShop planted-defect mutation score 3/3", "status": "done"},
         {"id": "QX-capabilities", "label": "QX-A02/A07/A12–A18 offline capability drill bundle", "status": "done"},
         {"id": "QX-core-capabilities", "label": "QX-A01/A03–A06/A08/A11 core capability drill bundle", "status": "done"},
         {"id": "I-loopback-sso", "label": "Loopback OIDC JWKS + RS256 JWT signature drill", "status": "done"},

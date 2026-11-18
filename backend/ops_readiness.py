@@ -494,6 +494,14 @@ def readiness() -> dict:
                 else "No mutation score drill evidence"
             ),
         },
+        "classic_mutation_score_drill": {
+            "ready": _ops_evidence("classic_mutation_score_drill.json"),
+            "reason": (
+                "ClassicShop mutation score evidence present; broader third-party suites still open"
+                if _ops_evidence("classic_mutation_score_drill.json")
+                else "No ClassicShop mutation score evidence"
+            ),
+        },
         "cross_platform_journey_drill": {
             "ready": _ops_evidence("cross_platform_journey_drill.json"),
             "reason": (
