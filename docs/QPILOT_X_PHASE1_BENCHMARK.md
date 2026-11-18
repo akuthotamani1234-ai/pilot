@@ -65,6 +65,13 @@ Remaining clean gap after run4: `orders.tracking` not tested (journey-budget cro
 Artifact: `deep_validation/live_runs/phase1_demo_store_run5_orders_tracking.json`.  
 `orders.tracking` now tested + verified (`TC-9C3AE640`). Gate J DemoStore seeded-defect evidence is strong; broader third-party sites and live Android remain out of scope for this fixture.
 
-## Run 6 (Gate A surface page — in progress / pending)
+## Run 6 (Gate A surface page `/lab`)
 
-DemoStore gained public `/lab` (same-site iframe + open shadow root) and truth pages are now **19**. Re-benchmark artifact target: `deep_validation/live_runs/phase1_demo_store_run6_lab_surfaces.json`.
+DemoStore public `/lab` (same-site iframe + open shadow root); truth pages **19**.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **19/19** | **24/24** | **0** | n/a |
+| buggy | **19/19** | 10/10 judged | **0** | **6/6** |
+
+Artifact: `deep_validation/live_runs/phase1_demo_store_run6_lab_surfaces.json`.
