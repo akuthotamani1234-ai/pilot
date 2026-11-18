@@ -88,6 +88,14 @@ def readiness() -> dict:
                 else "No AdminPortal surface coverage inventory"
             ),
         },
+        "demo_store_surfaces": {
+            "ready": _ops_evidence("demo_store_surface_coverage.json"),
+            "reason": (
+                "DemoStore surface_coverage inventory present; full Gate A live matrix still open"
+                if _ops_evidence("demo_store_surface_coverage.json")
+                else "No DemoStore surface coverage inventory"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (

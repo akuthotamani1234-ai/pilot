@@ -754,6 +754,15 @@ def ops_admin_portal_surfaces():
     return {"gate_a_surfaces_complete": False, "surfaces": evidence}
 
 
+@app.post("/api/ops/drills/demo-store-surfaces")
+def ops_demo_store_surfaces():
+    """Gate A: DemoStore surface_coverage inventory incl. /lab (still incomplete)."""
+    from backend.surface_evidence_drill import run_demo_store_surface_drill
+    evidence = run_demo_store_surface_drill()
+    _audit("ops_demo_store_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
 @app.post("/api/ops/drills/ci-rollback")
 def ops_ci_rollback():
     """Offline CI/deploy rollback rehearsal (Gate H still incomplete)."""

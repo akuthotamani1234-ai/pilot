@@ -1,0 +1,99 @@
+{
+  "gate_a_surfaces_complete": false,
+  "drill": "demo_store_surface_coverage",
+  "ran_at": "2026-11-18T16:08:30Z",
+  "fixture": "DemoStore",
+  "pages_walked": [
+    "home",
+    "about",
+    "lab",
+    "deals",
+    "signin"
+  ],
+  "surfaces": {
+    "gate_a_surfaces_complete": false,
+    "pages": 5,
+    "frames": {
+      "testable": 1,
+      "external": 0,
+      "unreachable": 0,
+      "pages_with_frames": 1,
+      "listed_iframes": 1
+    },
+    "shadow": {
+      "open_roots_seen": 1,
+      "pages_with_shadow": 1,
+      "closed_unsupported": 0
+    },
+    "dialogs": {
+      "pages_with_dialogs": 0,
+      "form_dialogs": 0,
+      "modal_buttons": 0
+    },
+    "downloads": {
+      "pages_with_downloads": 0,
+      "links": 0
+    },
+    "rich_controls": {
+      "canvas": 0,
+      "file_upload": 0,
+      "web_component": 1,
+      "pages_with_rich": 1
+    },
+    "unknown": [
+      "no lazy-loaded content signals recorded",
+      "no dialog/modal surfaces recorded",
+      "no download links recorded"
+    ],
+    "evidence": {
+      "pages": 5,
+      "frames": {
+        "testable": 1,
+        "external": 0,
+        "unreachable": 0,
+        "pages_with_frames": 1,
+        "listed_iframes": 1
+      },
+      "shadow": {
+        "open_roots_seen": 1,
+        "pages_with_shadow": 1,
+        "closed_unsupported": 0
+      },
+      "api": {
+        "network_seeded": 0,
+        "openapi_or_scrape": 1,
+        "blocked_requests": 0
+      },
+      "lazy": {
+        "pages_with_lazy": 0,
+        "items_seen": 0
+      },
+      "metadata": {
+        "pages_with_locale": 5,
+        "pages_with_skeleton": 0,
+        "title_or_meta": 5
+      },
+      "viewports": {
+        "desktop_or_default": 5,
+        "mobile_checked": 1
+      },
+      "dialogs": {
+        "pages_with_dialogs": 0,
+        "form_dialogs": 0,
+        "modal_buttons": 0
+      },
+      "downloads": {
+        "pages_with_downloads": 0,
+        "links": 0
+      },
+      "rich_controls": {
+        "canvas": 0,
+        "file_upload": 0,
+        "web_component": 1,
+        "pages_with_rich": 1
+      }
+    },
+    "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."
+  },
+  "reason": "DemoStore public surface inventory captured (incl. /lab iframe+shadow when present); full Gate A live matrix still open"
+}

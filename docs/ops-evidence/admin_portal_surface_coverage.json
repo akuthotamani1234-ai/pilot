@@ -1,7 +1,7 @@
 {
   "gate_a_surfaces_complete": false,
   "drill": "admin_portal_surface_coverage",
-  "ran_at": "2026-11-18T15:40:43Z",
+  "ran_at": "2026-11-18T16:08:33Z",
   "fixture": "AdminPortal",
   "pages_walked": [
     "home",
@@ -35,6 +35,12 @@
     "downloads": {
       "pages_with_downloads": 1,
       "links": 1
+    },
+    "rich_controls": {
+      "canvas": 0,
+      "file_upload": 1,
+      "web_component": 2,
+      "pages_with_rich": 1
     },
     "unknown": [
       "no API/network/openapi seeds recorded",
@@ -80,9 +86,15 @@
       "downloads": {
         "pages_with_downloads": 1,
         "links": 1
+      },
+      "rich_controls": {
+        "canvas": 0,
+        "file_upload": 1,
+        "web_component": 2,
+        "pages_with_rich": 1
       }
     },
-    "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads."
+    "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."
   },
-  "reason": "AdminPortal surface inventory captured (iframe/shadow/dialog/download when present); full Gate A live matrix still open"
+  "reason": "AdminPortal surface inventory captured (iframe/shadow/dialog/download/rich when present); full Gate A live matrix still open"
 }
