@@ -31,6 +31,7 @@ BLOCKERS = (
         "local_partial": [
             "loopback_sso_drill.json",
             "loopback_auth_code_sso_drill.json",
+            "studio_oidc_callback_drill.json",
             "sso_tenant_acl_drill.json",
         ],
     },

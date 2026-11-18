@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T22:06:47Z",
+  "ran_at": "2026-11-18T22:43:10Z",
   "ok": true,
   "blockers": [
     {
@@ -30,12 +30,14 @@
       "local_partial": [
         "loopback_sso_drill.json",
         "loopback_auth_code_sso_drill.json",
+        "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "loopback_sso_drill.json",
         "loopback_auth_code_sso_drill.json",
+        "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json"
       ],
       "local_partial_missing": []
