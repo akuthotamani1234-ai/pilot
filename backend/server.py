@@ -665,6 +665,16 @@ def ops_locale_portfolio():
     return {"gate_f_complete": False, "locale_portfolio": evidence}
 
 
+@app.post("/api/ops/drills/security-portfolio")
+def ops_security_portfolio():
+    """Gate F: passive DemoStore security portfolio (no probing; still incomplete)."""
+    from backend.security_portfolio_drill import run_security_portfolio_drill
+    evidence = run_security_portfolio_drill()
+    _audit("ops_security_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""))
+    return {"gate_f_complete": False, "security_portfolio": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
