@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .queue_backend import open_durable_queue
 from .swarm import is_payment_url, partition_site
 from .swarm_protocol import new_task, validate_task
 from .swarm_queue import DurableQueue
@@ -81,5 +82,8 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
 
 
 def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
-    """Queue file for one run directory."""
-    return DurableQueue(Path(run_dir) / "swarm_queue.sqlite", **kwargs)
+    """Queue file for one run directory (local SQLite via the backend selector)."""
+    opened = open_durable_queue(f"sqlite:{Path(run_dir) / 'swarm_queue.sqlite'}", **kwargs)
+    if not opened.get("ready") or opened.get("queue") is None:
+        raise RuntimeError(opened.get("reason") or "durable queue is not ready")
+    return opened["queue"]
