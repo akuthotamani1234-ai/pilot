@@ -1,7 +1,7 @@
 {
   "gate_h_complete": false,
   "drill": "postgres_dump_restore_isolated",
-  "ran_at": "2026-11-18T20:02:35Z",
+  "ran_at": "2026-11-18T20:03:07Z",
   "ok": true,
   "isolated_db": "qpilot_dr_restore",
   "dump_bytes": 4211,
@@ -11,8 +11,8 @@
       "rc": 0
     },
     {
-      "step": "SELECT",
-      "rc": 0
+      "step": "terminate",
+      "rc": 1
     },
     {
       "step": "DROP",

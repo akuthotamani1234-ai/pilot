@@ -63,12 +63,26 @@ def run_postgres_dr_drill(*, ops_dir: Path | None = None) -> dict:
             if dump.returncode != 0:
                 raise RuntimeError((dump.stderr or dump.stdout or "pg_dump failed")[:300])
 
-            # Drop/create isolated DB via admin connection (ISOLATED_DB is a fixed constant).
-            for sql in (
-                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                f"WHERE datname = '{ISOLATED_DB}' AND pid <> pg_backend_pid();",  # noqa: S608
-                f"DROP DATABASE IF EXISTS {ISOLATED_DB};",  # noqa: S608
-                f"CREATE DATABASE {ISOLATED_DB};",  # noqa: S608
+            # Drop/create isolated DB via admin connection (fixed identifier only).
+            if not ISOLATED_DB.isidentifier():
+                raise RuntimeError("isolated DB name is not a safe identifier")
+            term = subprocess.run(
+                [
+                    "psql", admin, "-v", "ON_ERROR_STOP=1",
+                    "-v", f"db={ISOLATED_DB}",
+                    "-c",
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname = :'db' AND pid <> pg_backend_pid();",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            steps.append({"step": "terminate", "rc": term.returncode})
+            for label, sql in (
+                ("DROP", f"DROP DATABASE IF EXISTS {ISOLATED_DB}"),
+                ("CREATE", f"CREATE DATABASE {ISOLATED_DB}"),
             ):
                 proc = subprocess.run(
                     ["psql", admin, "-v", "ON_ERROR_STOP=1", "-c", sql],
@@ -77,8 +91,8 @@ def run_postgres_dr_drill(*, ops_dir: Path | None = None) -> dict:
                     timeout=60,
                     check=False,
                 )
-                steps.append({"step": sql.split()[0], "rc": proc.returncode})
-                if proc.returncode != 0 and "pg_terminate_backend" not in sql:
+                steps.append({"step": label, "rc": proc.returncode})
+                if proc.returncode != 0:
                     raise RuntimeError((proc.stderr or proc.stdout or "psql failed")[:300])
 
             restore = subprocess.run(
