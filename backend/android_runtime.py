@@ -46,23 +46,42 @@ def read_only_case(case):
 
 
 def settled_screen(inspect, expected=None, timeout=8):
-    """Require a rendered, non-loading hierarchy twice before recording/replaying it."""
+    """Require a rendered, non-loading hierarchy twice before recording/replaying it.
+
+    The timeout is the ceiling. A blank page and a security check are not a successful launch.
+    Launch keeps the caller's ceiling, including the 30 second splash wait. A stuck tap command
+    uses command_timeout_s, which defaults to 20 seconds.
+    """
+    from .android_dynamic import BLANK_NOTE, SETTLE_NOTE, frame_key, note, security_reason
+
+    note(SETTLE_NOTE)
     deadline = time.monotonic() + timeout
     previous = None
+    last = None
     while time.monotonic() < deadline:
         screen = inspect()
-        ready = not screen.get("loading") and any(e.get("visible") and e.get("locators") and
+        last = screen
+        blocked = security_reason(screen)
+        ready = not blocked and not screen.get("loading") and any(e.get("visible") and e.get("locators") and
             (e.get("text") or e.get("accessibility_id") or e.get("clickable") or e.get("input_capable")) for e in screen["elements"])
         if ready and (expected is None or same_screen(screen, expected)):
             # The expected screen with the same stable identity is there: no need for a second identical frame
             if expected is not None and screen.get("identity") and screen["identity"] == expected.get("identity"):
                 return screen
-            if previous == screen["fingerprint"]:
+            if previous == frame_key(screen):
                 return screen
-            previous = screen["fingerprint"]
+            previous = frame_key(screen)
         else:
+            if blocked:
+                note(blocked)
             previous = None
         time.sleep(.25)
+    if last and security_reason(last):
+        raise AndroidEnvironmentError(security_reason(last) + ". Nothing behind it was tested.")
+    if last and not any(e.get("visible") and (e.get("text") or e.get("accessibility_id") or e.get("clickable"))
+                        for e in last.get("elements") or []):
+        note(BLANK_NOTE)
+        raise AndroidEnvironmentError(BLANK_NOTE + ". Opening the app or Chrome is not a successful launch.")
     name = expected.get("screen_name") if expected else "a stable rendered screen"
     raise AndroidEnvironmentError("Android did not settle on " + name + ".")
 
@@ -132,6 +151,8 @@ class MobileRuntime:
         self.timeline = Timeline(run_dir, case, secrets=secret_values())
         self.steps = LiveSteps(self.timeline)
         self.started = time.monotonic()
+        from .android_dynamic import ActionRecovery
+        self.recovery = ActionRecovery(retries=int(self.config.get("dynamic_retries", 1) or 0))
 
     def _inspect(self):
         if (self.run_dir / "STOP").exists():
@@ -286,7 +307,30 @@ class MobileRuntime:
             raise AndroidEnvironmentError("Blocked: the live control is not uniquely identified safe navigation.")
         if not element.is_enabled():
             raise AndroidEnvironmentError("The navigation control is disabled.")
-        element.click()
+        from .android import capture_screenshot, find_unique
+        from .android_dynamic import data_change_blocked, perform_tap
+
+        label = original.get("text") or original.get("accessibility_id") or ""
+        blocked = data_change_blocked(
+            label, test_build=bool(self.config.get("interaction_testing")),
+            locator=(original.get("locators") or [None])[0], contract=self.config.get("qa_contract"))
+        if blocked:
+            raise AndroidEnvironmentError(blocked)
+
+        def shoot(name):
+            return capture_screenshot(self.driver, self.run_dir, name, self.config.get("package_name"))
+
+        def press_label(text):
+            find_unique(self.driver, {"strategy": "text", "value": text}).click()
+
+        try:
+            perform_tap(
+                element, click=lambda found: found.click(), refind=lambda: self._element(element_id),
+                recovery=self.recovery, screen=live, contract=self.config.get("qa_contract"),
+                run_dir=self.run_dir, shoot=shoot, press_label=press_label, inspect=self._inspect,
+            )
+        except RuntimeError as error:
+            raise AndroidEnvironmentError(str(error)) from error
         time.sleep(0.25)
         self._inspect()
         self.steps.append(
@@ -355,8 +399,11 @@ class MobileRuntime:
         contract = parse_contract(raw)
         if flow_id not in {flow.id for flow in contract.flows}:
             raise ValueError("Unknown test-build flow")
-        runtime = ContractRuntime(AndroidContractAdapter(self.driver, self.config, contract, stop_path=self.run_dir / "STOP"),
-                                  contract.model_dump(), private_inputs(self.run_dir))
+        # These flows were kept only after test-build confirmation. Replaying one is not a production write.
+        runtime = ContractRuntime(
+            AndroidContractAdapter(self.driver, {**self.config, "interaction_testing": True}, contract,
+                                   stop_path=self.run_dir / "STOP"),
+            contract.model_dump(), private_inputs(self.run_dir))
         runtime.timeline.case = self.case
         try:
             runtime.execute(flow_id)

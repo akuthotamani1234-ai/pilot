@@ -827,6 +827,25 @@ def failure_analysis_agent(state: QAState) -> QAState:
             print(f"  [failure-analysis] LLM explanation skipped: {e}")
 
     Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    from ..release_row import record_step, seeded_defect
+    run_dir = Path(state["run_dir"])
+    planted_id = ""
+    planted_path = run_dir / "planted.json"
+    if planted_path.is_file():
+        try:
+            planted = json.loads(planted_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            planted = None
+        if isinstance(planted, list) and planted and isinstance(planted[0], dict):
+            planted_id = str(planted[0].get("id") or "")
+        elif isinstance(planted, dict):
+            planted_id = str(planted.get("id") or "")
+    seed = seeded_defect(planted_id, failures) if planted_id else {
+        "caught": False, "reason": "no seeded defect", "replay": {"ran": False}}
+    seed["ok"] = True
+    record_step(run_dir, "seed", seed)
+    from ..run_rules import apply_analysis
+    apply_analysis(state, failures)
     counts = {}
     for f in failures:
         counts[f["category"]] = counts.get(f["category"], 0) + 1

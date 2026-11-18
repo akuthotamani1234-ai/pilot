@@ -64,7 +64,6 @@ MCP setup reuses these controls and launchers. Web configuration opens the exist
 Android configuration moves the existing provider and advanced controls rather than creating duplicate IDs. Prepared
 settings remain in server memory for 15 minutes. Passwords, usernames, keys and authenticator secrets are excluded
 from copied text and cleared from input fields after preparation. Editing settings revokes the reference.
-See [MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md) for lifecycle and compatibility details.
 
 ## Rules for changing the page
 - Show text from a website or a run only through the escape helper (`esc(...)`): it may contain HTML.

@@ -83,6 +83,8 @@ def setup_agent(state):
 def discovery_agent(state):
     config = state["config"].copy()
     run_dir = _run_dir(state)
+    from .android_dynamic import set_progress_log
+    set_progress_log(run_dir / "progress.log")
     driver = create_session(config)
     screens, actions, issues, unvisited = [], [], [], []
     from .android import EXHAUSTIVE_WALL_CLOCK_S
@@ -108,7 +110,9 @@ def discovery_agent(state):
         bot_gate = BotCheckGate(config, stop_path=run_dir / "STOP")
         driver._blowai_bot_gate = bot_gate
 
-    def settled(expected=None, timeout=10):
+    def settled(expected=None, timeout=None):
+        if timeout is None:
+            timeout = int(config.get("dynamic_wait_s") or 12)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise DiscoveryLimitReached("Discovery time limit reached")

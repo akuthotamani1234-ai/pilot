@@ -513,6 +513,9 @@
     // Test mode's limits are sent explicitly, so a run never falls back to an older server's smaller defaults
     data.append("max_interactions", $("androidMaxInteractions").value || "0");
     data.append("interaction_timeout_s", $("androidInteractionTimeout").value || "0");
+    data.append("dynamic_wait_s", $("androidDynamicWait") ? $("androidDynamicWait").value : "12");
+    data.append("dynamic_retries", $("androidDynamicRetries") ? $("androidDynamicRetries").value : "1");
+    data.append("scroll_stalls", $("androidScrollStalls") ? $("androidScrollStalls").value : "2");
     data.append("allow_rules_fallback", $("androidFallback").checked ? "true" : "false");
     if ($("androidProvider").value) data.append("llm_provider", $("androidProvider").value);
     if ($("androidModel").value.trim()) data.append("llm_model", $("androidModel").value.trim());
@@ -689,7 +692,7 @@
         loadCases(result.run);
       }
       if (result.status === "running") {
-        setStatus(result.current ? `Android · ${result.current.replaceAll("_", " ")}` : "Testing Android…", "");
+        setStatus(result.note || (result.current ? `Android · ${result.current.replaceAll("_", " ")}` : "Testing Android…"), "");
         return;
       }
       clearInterval(timer);
@@ -1960,6 +1963,15 @@
         <p class="muted small">Observed/scripted controls are not the same as business-verified checks.</p>
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
+        ${s.qx_card && s.qx_card.counts ? `<h4>Qpilot X <span class="muted small">– ${esc(s.qx_card.completed)} of ${esc(s.qx_card.total)} rules are in this run</span></h4>
+          <div class="stats">
+            ${stat(s.qx_card.counts.discovered, "discovered")}
+            ${stat(s.qx_card.counts.tested, "tested")}
+            ${stat(s.qx_card.counts.passed, "passed", "good")}
+            ${stat(s.qx_card.counts.failed, "failed", s.qx_card.counts.failed ? "bad" : "")}
+            ${stat(s.qx_card.counts.blocked, "blocked")}
+            ${stat(s.qx_card.counts.unknown, "unknown")}
+          </div>` : ""}
         ${s.result_status_counts ? `<div class="stats">
           ${stat(s.result_status_counts.PASS, "PASS", "good")}
           ${stat(s.result_status_counts.FAIL, "FAIL", s.result_status_counts.FAIL ? "bad" : "")}

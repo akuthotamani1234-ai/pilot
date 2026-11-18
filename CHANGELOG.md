@@ -2,6 +2,42 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-17 - Remaining Qpilot X rules
+
+- The large-listing sample is unchanged: a listing still opens the configured few products and leaves the rest, and checkout and payment stay blocked.
+- At the end of a run the same rules are applied to that run's pages, failures, roles, and optional spec, locale, journey, plugin, and planted-defect files. The decisions are stored in `qx_applied.json`. The run's verdict is not rewritten.
+- The report also runs the section 22 row in order: authorized target, resumable inventory, graph, isolated workers, seeded defect, the six separate counts, and the operation checks.
+- A run now stores that registration in `target.json` before the crawl. A stopped crawl keeps its inventory and remaining pages, and resume continues from them. Execution writes `workers.json` for the cases that have a trustworthy assertion.
+- Each later stage stores its own row step, in order: inventory, graph, workers, seeded defect, the six dashboard counts, and the operation checks.
+- The live run now applies the remaining rules in place: role sessions, environment controls, locale sample, schema diff, plugins, worker test data, dependency faults, replay packages, mutation score, journeys, evaluation, and trends.
+- The crawl orders ordinary links by the next-page score, writes the locale facts a page actually showed, and saves an OpenAPI spec when one is found. A checkout page is still opened so its pay button can be recorded as blocked; it is not preferred over ordinary pages. A fixed clock, a network fault, or a dependency fault reaches the test browser only when that run asks for it. Payment, delete, and logout stay blocked.
+- An accepted plugin assertion is written as a test. A workflow whose API spec changed is not turned into a trusted test. When a stub is asked for, a faulted call gets a JSON stand-in instead of only failing. `python main.py --replay RUN_ID` shows the saved steps and runs the test again when the package names one.
+- Each worker's synthetic records stay ready while the tests run. A form tag uses that worker's own account record. The records are marked cleaned after the browsers stop.
+- The finished report in the studio shows the six Qpilot X counts: discovered, tested, passed, failed, blocked, and unknown.
+- An unanswered sensitive case stays unrun. A locator repair remains a proposal and keeps the original error. A plugin cannot turn off authorization, secret redaction, payment, delete, or logout. Production does not get environment controls or dependency faults.
+
+## 2026-11-17 - Swarm test data per worker
+
+- When a large listing is sampled, each worker that receives a product gets its own synthetic account, cart, and order.
+- Those records are tagged with the run id, start from a known reset, and are cleaned up only for that run.
+- A production environment and a real customer email are refused. The plan is stored on the crawl under `swarm.data`.
+
+## 2026-11-16 - Remove leftover documentation
+
+- Removed the phase notes in `docs/`, the live-run write-ups in `deep_validation/`, and the duplicate essays, diagrams, and sample copies in `project-docs/`.
+- The product docs that remain are `README.md`, `DEPLOYMENT.md`, `SECURITY.md`, `CONTRIBUTING.md`, `ARCHITECTURE.md`, `STATUS.md`, and the short folder guides.
+- Contract examples the Studio loads stay in `demo-apps/`.
+
+## 2026-11-16 - Android dynamic recovery
+
+- Ordinary content waits use `dynamic_wait_s` (1–20 seconds, default 12). A stuck tap or Chrome page load gives up after 20 seconds. A splash screen still has 30 seconds. A shop page is not held open until ads and analytics go quiet.
+- One recovery path for Android Chrome and native apps: handle one exact safe popup, tap, and retry a stale or covered control once.
+- Dismiss only an exact Close, Dismiss, Skip, Not now, Maybe later, No thanks, Cancel, or X. Any other popup needs an approved `overlay_choices` entry, and a protected target is rejected.
+- A blank page is not a successful launch. A security check pauses for the person and does not count as the shop.
+- A production run does not add to the cart or log in. A structural locator cannot change data unless the contract names that control.
+- Screen signatures ignore flickering prices, ad ids, and carousel text, and still include a popup.
+- `summary.json`, `progress.log`, and `dynamic.json` record the source, device, locator, retry count, overlay text, and blocked reason. Credentials stay out of those files.
+
 ## 2026-11-15 - Workspace naming and cleanup
 
 - Use `Qpilot` for the local checkout, controlled APK filename and Java fixture source package.

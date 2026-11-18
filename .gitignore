@@ -69,10 +69,7 @@ artifacts/
 .claude/
 .cursor/
 *.log
-deep_validation/**/*.txt
-deep_validation/**/*.log
-!deep_validation/**/*.md
-!deep_validation/README.md
+deep_validation/
 
 # Node (if a demo or tooling adds it later)
 node_modules/
@@ -85,12 +82,6 @@ yarn-error.log*
 *.bak
 *.orig
 .Python
-deep_validation/live_runs/*.txt
-deep_validation/phase1-linux-pytest-nonslow-serial.txt
 
 # ephemeral validation scratch
 /.pytest-*/
-deep_validation/**/.pytest-*/
-deep_validation/**/pytest-*/
-deep_validation/**/pytest-tmp/
-deep_validation/**/*-pytest-tmp/

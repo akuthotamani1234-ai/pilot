@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..advice import build_fixes
+from ..apply_run import write_applied
 from ..cost import fmt_usd, write_report as write_cost_report
 from ..excel import write_workbook
 from ..page_status import page_testable
@@ -1181,6 +1182,18 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
     proj = state.get("project")
     log_items = "".join(f"<li>{_e(l)}</li>" for l in state.get("log", []))
     pct = lambda n: f"{100 * n / total:.1f}%"  # noqa: E731
+    from ..release_row import from_run, record_step
+    release = from_run(dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
+                            environment=cfg.environment))
+    record_step(run_dir, "dashboard", {**(release.get("dashboard") or {}), "ok": True})
+    record_step(run_dir, "operations", release.get("operations") or {"ok": False})
+    release_counts = release.get("dashboard") or {}
+    from ..qx_status import card as qx_card_for
+    qx_card = qx_card_for(release_counts)
+    release_html = "".join(
+        f"<div class='n'><b>{int(release_counts.get(name) or 0)}</b><span>{name}</span></div>"
+        for name in ("discovered", "tested", "passed", "failed", "blocked", "unknown")
+    )
 
     doc = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1297,6 +1310,8 @@ This report never claims the entire site was tested.</p>
   <div class="n"><b>{clarity['result_status_counts']['INCONCLUSIVE']}</b><span>INCONCLUSIVE</span></div>
 </div>
 <p class="muted">Test-case outcomes stay separate: blocked, skipped, not tested and inconclusive are never counted as PASS.</p>
+<div class="box"><h3>Release counts</h3><div class="nums">{release_html}</div>
+<p>Discovered, tested, passed, failed, blocked, and unknown stay separate. Unknown is not counted as passed.</p></div>
 {limits_html}
 
 <div class="nums">
@@ -1398,6 +1413,10 @@ function copyCode(b) {{
         "healed": sum(1 for h in heals if h["status"] == "healed"),
         "repaired_real_failure": sum(1 for h in heals if h["status"] == "repaired"), "fixes": len(fixes),
         "source": state.get("source"), "run_id": state["run_id"],
+        "qx": "qx_applied.json",
+        "qx_card": qx_card,
+        "qx_areas": [item.get("category") or item.get("page_url") or "" for item in failures
+                     if item.get("category") or item.get("page_url")],
         "cost_usd": cost["cost_usd"], "cost_per_case_usd": cost["avg_cost_per_case_usd"],
         "tokens": cost["tokens_in"] + cost["tokens_out"], "llm": f"{cost['provider']} {cost['model']}".strip(),
         "run_seconds": cost["run_seconds"],
@@ -1419,6 +1438,15 @@ function copyCode(b) {{
         "metrics": {k: m[k] for k in ("single_tests", "assertions", "test_cases", "workflows", "findings", "rates",
                                       "headline", "consistency", "consistent", "result_status_counts",
                                       "feature_status_counts")}}, indent=2), encoding="utf-8")
-    log = state.get("log", []) + [f"Report: verdict = {verdict}."]
+    state_for_rules = dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
+                           environment=cfg.environment)
+    from ..run_rules import apply_report
+    apply_report(state_for_rules, verdict=verdict, failures=failures, results=results)
+    applied = write_applied(state_for_rules)
+    kept = applied["trends"]["verdict"]
+    log = state.get("log", []) + [
+        f"Report: verdict = {verdict}.",
+        f"Qpilot X rules applied ({len(applied['replay'])} replay package(s)); the verdict stays {kept}.",
+    ]
     return {"verdict": verdict, "report_path": str(report), "log": log,
             "results": results, "failures": failures, "test_cases": cases}

@@ -2677,9 +2677,63 @@ def _check_counts(out_dir: Path) -> dict[str, int]:
                                      for f in out_dir.glob("test_*_data.py"))}
 
 
+def _hold_broken_workflows(state: QAState, cases: list[dict]) -> tuple[list[dict], list[dict]]:
+    """A workflow whose API changed is not turned into a trusted test."""
+    try:
+        schema = json.loads((Path(state["run_dir"]) / "qx_schema.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, KeyError):
+        return cases, []
+    if not isinstance(schema, dict) or not schema.get("trust_broken"):
+        return cases, []
+    paths = []
+    for row in schema.get("broken") or []:
+        operation = str(row.get("operation") or "") if isinstance(row, dict) else ""
+        path = operation.split(" ", 1)[-1]
+        if path.startswith("/"):
+            paths.append(path)
+    for row in schema.get("removed") or []:
+        path = str(row).split(" ", 1)[-1]
+        if path.startswith("/"):
+            paths.append(path)
+    if not paths:
+        return cases, []
+    kept, held = [], []
+    for case in cases:
+        blob = f"{case.get('url') or ''} {case.get('title') or ''}"
+        if any(path in blob for path in paths):
+            case["blocked"] = True
+            case["skip_reason"] = "this workflow changed in the API spec, so the test is not trusted yet"
+            held.append(case)
+        else:
+            kept.append(case)
+    return kept, held
+
+
+def plugin_script(cases: list[dict]) -> str:
+    """One test per accepted plugin assertion. The page must show that text."""
+    lines = ['"""Assertions added by an accepted plugin."""', "import pytest", ""]
+    for case in cases:
+        name = _ident(str(case.get("id") or "plugin"))
+        title = str(case.get("title") or "plugin assertion").replace('"', "'").replace("\\", "/")
+        expected = str(case.get("expected") or "")
+        url = str(case.get("url") or "/")
+        lines += [
+            f"def test_{name}(page):",
+            f'    """{title}"""',
+            f"    page.goto({url!r})",
+            "    body = page.locator('body').inner_text()",
+            f"    assert {expected!r} in body",
+            "",
+        ]
+    return "\n".join(lines)
+
+
 def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: list, notes: list) -> tuple[list, list]:
     """Write new scripts for the test cases. Returns (test cases - built-in ones replace the AI's if its code
     failed, notes)."""
+    cases, held = _hold_broken_workflows(state, cases)
+    if held:
+        notes.append(f"{len(held)} test(s) are not trusted until the API change is accepted")
     # 1) the large test cases written by the AI -> its own code; if that fails, built-in large cases instead
     ai = [c for c in cases if c.get("kind") == "flow" and c.get("ai")]
     if ai:
@@ -2824,13 +2878,21 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
     code, n_links = all_links_script(state["app_map"])
     if n_links:
         save("test_all_links.py", code, "template")
+    plugins = [c for c in cases if c.get("kind") == "plugin" and not c.get("blocked")]
+    if plugins:
+        code = plugin_script(plugins)
+        err = validate_script(code)
+        if err:
+            rejected.append({"page": "site", "error": f"test_plugins.py: {err}"})
+        else:
+            save("test_plugins.py", code, "template")
     data = next((c.get("checks") or [] for c in cases if c.get("id") == "site_input_values"), [])
     for slug in dict.fromkeys(c["page"] for c in data):
         if slug in pages:
             code = data_script(pages[slug], [c for c in data if c["page"] == slug])
             if not validate_script(code):
                 save(f"test_{_ident(slug)}_data.py", code, "template")
-    return cases, notes
+    return cases + held, notes
 
 
 def script_generator_agent(state: QAState) -> QAState:

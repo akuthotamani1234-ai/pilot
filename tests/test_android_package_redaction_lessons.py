@@ -220,7 +220,7 @@ def test_android_conftest_prefers_config_package_for_reset_and_launch():
     ).read_text(encoding="utf-8")
     assert "def _app_package():" in source
     assert 'CONFIG.get("package_name")' in source
-    assert "reset_app_data(driver, _app_package())" in source
+    assert "reset_for_check(driver, CONFIG, _app_package())" in source
     assert "driver.activate_app(_app_package())" in source
     assert 'reset_app_data(driver, SCREENS[0]["package_name"])' not in source
 
