@@ -1,0 +1,31 @@
+{
+  "gate_i_complete": false,
+  "gate_g_complete": false,
+  "drill": "sso_tenant_acl",
+  "ran_at": "2026-11-18T20:06:17Z",
+  "principal_id": "loopback-user-1",
+  "email": "loopback@example.test",
+  "oidc_authorize": {
+    "ok": true,
+    "mode": "oidc",
+    "signature_verified": true,
+    "reason": "OIDC JWT claims accepted (live hosted SSO still open)"
+  },
+  "acl": {
+    "same_tenant_allowed": true,
+    "cross_tenant_denied": true,
+    "allow": {
+      "allowed": true,
+      "reason": "",
+      "tenant_id": "tenant-a"
+    },
+    "deny": {
+      "allowed": false,
+      "reason": "tenant isolation",
+      "tenant_id": "tenant-a"
+    }
+  },
+  "signature_verified": true,
+  "ok": true,
+  "reason": "Loopback OIDC JWT authorized + SQLite tenant ACL (same allow / cross deny); hosted IdP Studio SSO still open"
+}

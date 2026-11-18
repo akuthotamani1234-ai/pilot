@@ -630,6 +630,19 @@ def ops_demo_store_healing_live():
     return {"gate_e_complete": False, "demo_store_healing_live": evidence}
 
 
+@app.post("/api/ops/drills/live-failure-matrix")
+def ops_live_failure_matrix():
+    """Gate E: live DemoStore provoked failure matrix + healing policy (still incomplete)."""
+    from backend.live_failure_matrix_drill import run_live_failure_matrix_drill
+    evidence = run_live_failure_matrix_drill()
+    _audit(
+        "ops_live_failure_matrix",
+        ok=bool(evidence.get("ok")),
+        failed=int(evidence.get("failed") or 0),
+    )
+    return {"gate_e_complete": False, "live_failure_matrix": evidence}
+
+
 @app.post("/api/ops/drills/api-version-contract")
 def ops_api_version_contract():
     """Gate I: API versioning contract snapshot (SSO still open)."""
@@ -894,6 +907,24 @@ def ops_loopback_sso():
         signature=bool(evidence.get("signature_verified")),
     )
     return {"gate_i_complete": False, "loopback_sso": evidence}
+
+
+@app.post("/api/ops/drills/sso-tenant-acl")
+def ops_sso_tenant_acl():
+    """Gate I/G: loopback OIDC JWT + SQLite tenant ACL (hosted IdP still open)."""
+    from backend.sso_tenant_acl_drill import run_sso_tenant_acl_drill
+    evidence = run_sso_tenant_acl_drill()
+    _audit(
+        "ops_sso_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        allow=bool((evidence.get("acl") or {}).get("same_tenant_allowed")),
+        deny=bool((evidence.get("acl") or {}).get("cross_tenant_denied")),
+    )
+    return {
+        "gate_i_complete": False,
+        "gate_g_complete": False,
+        "sso_tenant_acl": evidence,
+    }
 
 
 @app.post("/api/ops/drills/incident-tabletop")

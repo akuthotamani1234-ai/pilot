@@ -24,16 +24,16 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 
 | Gate | Status | Why not COMPLETE |
 |---|---|---|
-| A | Partial | Controlled discovery improved; not every surface proven live |
-| B | Partial | Durable SQLite plan/drain wired on discovery/apply; Redis/Postgres open |
-| C | Partial | Durable lifecycle + oracle bind; live portal adapters open |
-| D | Partial | Desktop+phone viewport evidence from discovery; live Android open |
-| E | Partial | Replay + healing guards offline; live failure matrix open |
-| F | Partial | Portfolio + visual capture on apply_run; broad live CI artifacts open |
-| G | Partial foundations | SQLite audit persist + RBAC/store; no live Postgres/Redis/MinIO |
-| H | Partial foundations | Ops checklist present; drills/load/observability open |
-| I | Partial | React/TS dashboard scaffold at `/dashboard/`; auth/approvals open |
-| J | Strong (DemoStore) | Run5: **24/24** clean features, **6/6** bugs, **0** false alarms; broader sites / Android still open |
+| A | Partial | Surface inventories + /lab canvas/lazy; full live surface completeness open |
+| B | Partial | Redis preferred DurableQueue + claim/checkpoint/cancel/retry drills; product-wide review open |
+| C | Partial | Lifecycle + AdminPortal/DemoStore cart + oracle bind; broader live portal paths open |
+| D | Partial | API24 smoke + API30 Appium (system+ApiDemos) + Appium workflow; broad multi-device CI open |
+| E | Partial | Offline taxonomy + live DemoStore failure matrix/healing; production suite open |
+| F | Partial | Live Chromium/Firefox/WebKit suite + workflow_dispatch job; hosted runner matrix open |
+| G | Partial | Live Postgres/Redis/MinIO + OIDC ACL drill + review checklist; independent sign-off open |
+| H | Partial | Local DR (SQLite/MinIO/Postgres) + soak + loopback paging; hosted multi-region on-call open |
+| I | Partial | Dashboard + loopback OIDC JWT/ACL + approvals; hosted IdP Studio SSO open |
+| J | Strong (fixtures) | DemoStore/classic/AdminPortal/travel strong; Android/third-party broader still open |
 
 ## Issue #22 mapping (suggested checks — apply only with evidence)
 

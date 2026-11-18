@@ -1,0 +1,52 @@
+# Gate F: optional multi-browser DemoStore portfolio suite (not on every PR).
+# Manual workflow_dispatch — uploads suite evidence. Default CI stays Windows
+# quick tests in ci.yml. Hosted multi-browser matrix runners still open.
+name: Multi-browser portfolios
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portfolios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m playwright install --with-deps chromium firefox webkit
+
+      - name: Run multi-browser portfolio suite drill
+        run: |
+          python -c "from backend.multi_browser_portfolio_suite_drill import run_multi_browser_portfolio_suite_drill; \
+            ev=run_multi_browser_portfolio_suite_drill(); \
+            assert ev.get('gate_f_complete') is False; \
+            print(ev.get('reason')); \
+            raise SystemExit(0 if ev.get('ok') else 1)"
+
+      - name: Upload portfolio evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-browser-portfolio-evidence
+          path: |
+            docs/ops-evidence/multi_browser_portfolio_suite_drill.json
+            docs/ops-evidence/compatibility_portfolio_drill.json
+            docs/ops-evidence/a11y_portfolio_drill.json
+            docs/ops-evidence/locale_portfolio_drill.json
+            docs/ops-evidence/security_portfolio_drill.json
+            docs/ops-evidence/perf_portfolio_drill.json
+            docs/ops-evidence/visual_portfolio_drill.json

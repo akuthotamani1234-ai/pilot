@@ -24,9 +24,10 @@ A dated tabletop with roles, paging, and restore proof is still required.
 - Local Studio: notify the tester who owns the machine.
 - Shared/hosted deploy (not supported yet): page on-call — **hosting path still open for Gate H/I**.
 
-## Exit criteria for Gate H (still unmet)
+## Exit criteria for Gate H
 
-- [ ] Dated tabletop with named roles
-- [ ] Live restore into an isolated environment
-- [ ] Load/soak against a controlled fixture beyond the local API probe
-- [ ] Paging / alert path proven (loopback rehearsal only so far — `docs/ops-evidence/paging_rehearsal.json`)
+- [x] Dated tabletop with named roles (local) — `docs/ops-evidence/incident_tabletop_drill.json`
+- [x] Live restore into an isolated environment (local) — SQLite + MinIO + Postgres (`postgres_dr_drill.json`)
+- [x] Load/soak against a controlled fixture beyond the local API probe — `controlled_soak_drill.json`
+- [x] Paging / alert path proven on loopback — `paging_rehearsal.json`
+- [ ] **Hosted** multi-region DR + live on-call paging (still open — do not mark Gate H complete)
