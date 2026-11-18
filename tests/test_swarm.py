@@ -1,5 +1,13 @@
 """The large-shop swarm keeps two or three products and leaves the rest of the list."""
-from backend.swarm import assign_workers, choose_listing, is_payment_url, partition_site, perform, sample_limit
+from backend.swarm import (
+    SiteSwarm,
+    assign_workers,
+    choose_listing,
+    is_payment_url,
+    partition_site,
+    perform,
+    sample_limit,
+)
 
 
 def test_a_long_saree_list_keeps_three_products():
@@ -123,6 +131,35 @@ def test_other_pages_are_not_pushed_out_by_a_long_product_list():
     assert "https://shop.example/checkout" not in chosen
     assert sum(1 for url in chosen if "/product/" in url) < len(chosen)
     assert {row["worker"] for row in plan} == {1, 2, 3}
+
+
+def test_workers_stay_for_the_whole_run_then_close():
+    opened = []
+    notes = []
+
+    def session():
+        def open_page(url):
+            opened.append(url)
+
+        return open_page, lambda: None
+
+    swarm = SiteSwarm(2, 4, session, on_status=lambda worker, status, url: notes.append((worker, status, url)))
+    swarm.submit([
+        "https://shop.example/",
+        "https://shop.example/about",
+        "https://shop.example/checkout",
+    ])
+    swarm.submit([
+        "https://shop.example/account",
+        "https://shop.example/contact",
+        "https://shop.example/help",
+    ])
+    rows = swarm.finish()
+    assert len(rows) == 4
+    assert "https://shop.example/checkout" not in {row["url"] for row in rows}
+    assert set(opened) == {row["url"] for row in rows}
+    assert swarm.submit(["https://shop.example/later"]) == []
+    assert any(status == "finished" for _worker, status, _url in notes)
 
 
 def test_swarm_size_wins_over_the_older_pattern_sample():

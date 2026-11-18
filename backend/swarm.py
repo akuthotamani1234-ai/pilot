@@ -145,3 +145,88 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
     with ThreadPoolExecutor(max_workers=max(1, len(order))) as pool:
         parts = list(pool.map(run_group, order))
     return [row for part in parts for row in part]
+
+
+class SiteSwarm:
+    """Workers that stay up for the whole crawl.
+
+    Pages are handed over as they are found, up to the run's page budget.
+    Each worker opens its own pages. ``finish`` closes the browsers.
+    """
+
+    def __init__(self, worker_count: int, limit: int, session, on_status=None):
+        import queue
+        import threading
+
+        self.worker_count = max(1, int(worker_count or 1))
+        self.limit = max(0, int(limit or 0))
+        self._session = session
+        self._on_status = on_status
+        self._seen: set[str] = set()
+        self._lock = threading.Lock()
+        self._queues = {n: queue.Queue() for n in range(1, self.worker_count + 1)}
+        self.rows: list[dict] = []
+        self._closed = False
+        self._threads = [
+            threading.Thread(target=self._run, args=(n,), name=f"swarm-{n}", daemon=True)
+            for n in range(1, self.worker_count + 1)
+        ]
+        for thread in self._threads:
+            thread.start()
+
+    def submit(self, urls: list[str]) -> list[dict]:
+        """Give new safe pages to the workers. Payment addresses and repeats are skipped."""
+        with self._lock:
+            if self._closed:
+                return []
+            fresh = []
+            for raw in urls:
+                url = (raw or "").strip()
+                if not url or url in self._seen or is_payment_url(url):
+                    continue
+                fresh.append(url)
+            if not fresh:
+                return []
+            room = None if self.limit <= 0 else self.limit - len(self.rows)
+            if room is not None and room <= 0:
+                return []
+            plan = partition_site(fresh, self.worker_count, room)
+            for row in plan:
+                self._seen.add(row["url"])
+                self.rows.append(row)
+                self._queues[row["worker"]].put(row["url"])
+            return list(plan)
+
+    def _run(self, worker: int) -> None:
+        open_page, close = self._session()
+        try:
+            while True:
+                url = self._queues[worker].get()
+                if url is None:
+                    if self._on_status:
+                        self._on_status(worker, "finished", "")
+                    return
+                if self._on_status:
+                    self._on_status(worker, "opening", url)
+                try:
+                    open_page(url)
+                except Exception:
+                    if self._on_status:
+                        self._on_status(worker, "stopped", url)
+                    continue
+                if self._on_status:
+                    self._on_status(worker, "opened", url)
+        finally:
+            close()
+
+    def finish(self) -> list[dict]:
+        """Tell every worker to close, then wait until they have."""
+        with self._lock:
+            if self._closed:
+                return list(self.rows)
+            self._closed = True
+        for worker_queue in self._queues.values():
+            worker_queue.put(None)
+        for thread in self._threads:
+            thread.join(timeout=60)
+        return list(self.rows)
