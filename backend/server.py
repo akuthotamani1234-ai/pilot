@@ -646,6 +646,16 @@ def ops_swarm_control():
     return {"gate_b_complete": False, "swarm_control": evidence}
 
 
+@app.post("/api/ops/drills/device-matrix")
+def ops_device_matrix():
+    """Gate D: combined web + Android dry-run + ADB probe snapshot (still incomplete)."""
+    from backend.device_matrix_drill import run_device_matrix_drill
+    evidence = run_device_matrix_drill()
+    _audit("ops_device_matrix", android_dry=int(evidence.get("android_dry_run_rows") or 0),
+           online=int((evidence.get("adb_probe") or {}).get("devices_online") or 0))
+    return {"gate_d_complete": False, "device_matrix": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

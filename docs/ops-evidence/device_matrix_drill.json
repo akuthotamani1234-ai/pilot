@@ -1,0 +1,64 @@
+{
+  "gate_d_complete": false,
+  "drill": "combined_device_matrix_snapshot",
+  "ran_at": "2026-11-18T17:02:48Z",
+  "web_rows": 0,
+  "android_dry_run_rows": 1,
+  "adb_probe": {
+    "ok": true,
+    "adb_present": true,
+    "devices_online": 0,
+    "reason": "ADB present but no online emulator/device \u2014 Gate D Android rows stay unverified"
+  },
+  "matrix": {
+    "complete": false,
+    "verified": [],
+    "unverified": [
+      "web.desktop",
+      "web.phone",
+      "android.emulator",
+      "android.api24+"
+    ],
+    "profiles": [
+      {
+        "id": "web.desktop",
+        "surface": "web",
+        "viewport": "1366x900",
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      },
+      {
+        "id": "web.phone",
+        "surface": "web",
+        "viewport": "390x844",
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      },
+      {
+        "id": "android.emulator",
+        "surface": "android",
+        "form": "emulator",
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      },
+      {
+        "id": "android.api24+",
+        "surface": "android",
+        "api_min": 24,
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      }
+    ],
+    "live_emulator_required": true
+  },
+  "ok": true,
+  "reason": "Combined web + Android protocol dry-run + ADB probe snapshot recorded; live emulator/API24+ executed matrix still open"
+}
