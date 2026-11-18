@@ -574,6 +574,57 @@ def ops_readiness_api():
     return readiness()
 
 
+@app.post("/api/ops/drills/backup-restore")
+def ops_backup_restore_drill():
+    """Run the local SQLite backup/restore drill and record evidence (Gate H still incomplete)."""
+    from backend.ops_drill import run_backup_restore_drill, write_local_metrics_snapshot
+    evidence = run_backup_restore_drill()
+    metrics = write_local_metrics_snapshot()
+    _audit("ops_backup_restore_drill", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "backup_restore": evidence, "metrics": metrics}
+
+
+@app.get("/api/approvals")
+def list_approval_queue(status: str = "pending", limit: int = 50):
+    """Gate I: list human-review approvals (pending by default)."""
+    from backend.approvals import list_approvals
+    return {"approvals": list_approvals(status=status, limit=limit), "gate_i_complete": False}
+
+
+class CreateApproval(BaseModel):
+    kind: str
+    subject: str
+    detail: str = ""
+
+
+@app.post("/api/approvals")
+def create_approval(req: CreateApproval):
+    """Enqueue an uncertain_assertion / heal / sensitive item for a person."""
+    from backend.approvals import create
+    try:
+        row = create(req.kind, req.subject, detail=req.detail or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    _audit("approval_create", approval=row["id"], kind=row["kind"])
+    return row
+
+
+class DecideApproval(BaseModel):
+    answer: str  # yes/accept/approved or no/reject (empty keeps safe reject)
+
+
+@app.post("/api/approvals/{approval_id}/decide")
+def decide_approval_api(approval_id: str, req: DecideApproval):
+    """Record a person's answer via human_review.decide."""
+    from backend.approvals import decide_approval
+    try:
+        row = decide_approval(approval_id, req.answer)
+    except KeyError as e:
+        raise HTTPException(404, "Approval not found.") from e
+    _audit("approval_decide", approval=approval_id, status=row.get("status"))
+    return row
+
+
 @app.get("/api/check")
 def check_source(source: str):
     """Step 2: open the website once (or recognise a GitHub repo / project folder) before testing starts."""

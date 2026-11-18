@@ -73,13 +73,33 @@
   function blueprintTodoItems(bp) {
     const items = [];
     const activeId = bp.active && bp.active.id;
+    // Phases first so the sidebar shows how far implementation has reached.
+    (bp.phases || []).forEach((p) => {
+      items.push({
+        id: "phase-" + p.id,
+        label: p.label,
+        note: p.note || "",
+        status: p.status || "open",
+      });
+    });
     (bp.gates || []).forEach((g) => {
       const status = g.id === activeId ? "active" : (g.status || "open");
-      items.push({ id: g.id, label: g.label, note: g.note || "", status });
+      items.push({ id: "gate-" + g.id, label: g.label, note: g.note || "", status });
     });
-    (bp.upcoming || []).filter((u) => u.status === "active" || u.status === "open").slice(0, 4).forEach((u) => {
+    const upcoming = bp.upcoming || [];
+    // Recent done work (implemented) then active/open (where we are going).
+    upcoming.filter((u) => u.status === "done").slice(-3).forEach((u) => {
       if (items.some((row) => row.id === u.id)) return;
-      items.push({ id: u.id, label: u.label, note: "Next", status: u.status || "open" });
+      items.push({ id: u.id, label: u.label, note: "Landed", status: "done" });
+    });
+    upcoming.filter((u) => u.status === "active" || u.status === "open").slice(0, 5).forEach((u) => {
+      if (items.some((row) => row.id === u.id)) return;
+      items.push({
+        id: u.id,
+        label: u.label,
+        note: u.status === "active" ? "In progress" : "Next",
+        status: u.status || "open",
+      });
     });
     return items;
   }
@@ -100,12 +120,19 @@
       if (!bp) throw new Error("no blueprint payload");
       const counts = bp.counts || {};
       const active = bp.active || {};
+      const upcoming = bp.upcoming || [];
+      const doneWork = upcoming.filter((u) => u.status === "done").length;
+      const openWork = upcoming.filter((u) => u.status === "active" || u.status === "open").length;
       const meta =
         "<div class=\"bp-meta\">" +
-          "<small><b>Progress</b> " + esc(String(counts.gates_strong_or_done || 0)) +
+          "<small><b>Phases</b> " + esc(String(counts.phases_done || 0)) +
+          " / " + esc(String(counts.phases_total || 0)) + " landed</small>" +
+          "<small><b>Gates</b> " + esc(String(counts.gates_strong_or_done || 0)) +
           " strong · " + esc(String(counts.gates_partial || 0)) +
           " partial · " + esc(String(counts.gates_open || 0)) + " open / " +
           esc(String(counts.gates_total || 10)) + "</small>" +
+          "<small><b>Work</b> " + esc(String(doneWork)) + " done · " +
+          esc(String(openWork)) + " remaining</small>" +
           "<small><b>Now</b> " + esc(active.label || "Advancing Partial gates") + "</small>" +
           "<small class=\"muted\">" + esc(bp.rule || "Gates A–J not complete") + "</small>" +
         "</div>";
