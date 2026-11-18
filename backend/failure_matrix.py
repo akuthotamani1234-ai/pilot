@@ -12,11 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "failure_matrix_drill.json"
 
-# Deterministic shapes covering the main Gate E taxonomy buckets.
+# Deterministic shapes covering Gate E taxonomy buckets (strings must match classify() rules).
 FIXTURES: list[dict] = [
     {"id": "assert-product", "outcome": "failed", "error_type": "AssertionError",
      "error": "AssertionError: price was 10 expected 12", "flaky": False},
-    {"id": "locator", "outcome": "failed", "error_type": "AssertionError",
+    {"id": "opener-unique", "outcome": "failed", "error_type": "AssertionError",
      "error": "AssertionError: The recorded opener must resolve uniquely", "flaky": False},
     {"id": "script-bug", "outcome": "failed", "error_type": "NameError",
      "error": "E   NameError: name 'el' is not defined", "flaky": False},
@@ -25,9 +25,22 @@ FIXTURES: list[dict] = [
     {"id": "flaky-pass", "outcome": "failed", "error_type": "AssertionError",
      "error": "AssertionError: not visible", "flaky": True},
     {"id": "session", "outcome": "failed", "error_type": "AssertionError",
-     "error": "Session expired: login page returned after navigate", "flaky": False},
+     "error": "logged out - the website ended the test account's session during the run",
+     "flaky": False},
     {"id": "infra-block", "outcome": "failed", "error_type": "AssertionError",
-     "error": "blocked by security software / captive portal page", "flaky": False},
+     "error": "This page has been blocked by security software (Network Attack Defense)",
+     "flaky": False},
+    {"id": "infra-econn", "outcome": "failed", "error_type": "Error",
+     "error": "Error: connect ECONNREFUSED 127.0.0.1:9", "flaky": False},
+    {"id": "auth-login", "outcome": "failed", "error_type": "AssertionError",
+     "error": "AssertionError: sent me back to the login page after submit", "flaky": False},
+    {"id": "test-account", "outcome": "failed", "error_type": "AssertionError",
+     "error": "AssertionError: no test account configured; set TEST_USERNAME", "flaky": False},
+    {"id": "locator-gone", "outcome": "failed", "error_type": "TimeoutError",
+     "error": "Timeout 30000ms exceeded.\nwaiting for locator('button#buy')\nError: element(s) not found",
+     "flaky": False},
+    {"id": "rule-tag", "outcome": "failed", "error_type": "AssertionError",
+     "error": "AssertionError: [rule] irreversible action blocked", "flaky": False},
     {"id": "inconclusive", "outcome": "inconclusive", "error_type": "",
      "error": "Inconclusive: nothing was asserted", "flaky": False},
 ]
@@ -57,8 +70,8 @@ def build_failure_matrix(fixtures: list[dict] | None = None) -> dict:
         "counts": counts,
         "rows": rows,
         "reason": (
-            "Controlled offline failure taxonomy matrix recorded; live failure matrix / "
-            "healing regression suite still open"
+            "Controlled offline failure taxonomy matrix recorded (incl. auth/infra/test_data/"
+            "locator/rule); live failure matrix / production healing still open"
         ),
     }
 
