@@ -1423,6 +1423,21 @@ def ops_dual_tenant_oidc_acl():
     }
 
 
+@app.post("/api/ops/drills/workflow-dispatch-contracts")
+def ops_workflow_dispatch_contracts():
+    """Gates D/F: validate workflow_dispatch YAML contracts (hosted runners open)."""
+    from backend.workflow_dispatch_contract_drill import (
+        run_workflow_dispatch_contract_drill,
+    )
+    evidence = run_workflow_dispatch_contract_drill()
+    _audit("ops_workflow_dispatch_contracts", ok=bool(evidence.get("ok")))
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "workflow_dispatch_contracts": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

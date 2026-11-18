@@ -62,6 +62,7 @@ BLOCKERS = (
             "multi_api_android_matrix_drill.json",
             "multi_device_ci_contract.json",
             "device_artifact_manifest_drill.json",
+            "workflow_dispatch_contract_drill.json",
         ],
     },
     {
@@ -72,6 +73,7 @@ BLOCKERS = (
             "multi_browser_portfolio_suite_drill.json",
             "multi_browser_ci_contract.json",
             "portfolio_artifact_manifest_drill.json",
+            "workflow_dispatch_contract_drill.json",
         ],
     },
     {

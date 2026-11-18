@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:52:34Z",
+  "ran_at": "2026-11-18T23:53:25Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 83,
+  "artifact_count": 84,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -20,7 +20,7 @@
     {
       "name": "admin_portal_surface_coverage.json",
       "bytes": 2383,
-      "sha256": "79c750ab7c6fd0a9015fa1dd4e2bcc334750a1bc2df33fa0b05740c3eea13251"
+      "sha256": "6f7f3d4a8f2a400d1481a7b481dea85f6efa5476f504490a4b5426c4f19cb50c"
     },
     {
       "name": "android_adb_probe.json",
@@ -80,7 +80,7 @@
     {
       "name": "classic_shop_surface_coverage.json",
       "bytes": 2594,
-      "sha256": "4d4ce8d16d47f7a7cd02c61366f2a5df8e141888572874131124ba858c1b3071"
+      "sha256": "838f28f0f3d9e7ab071b53dae2655d3c4658bedadbe8a59ffe4fd574b21df569"
     },
     {
       "name": "compatibility_portfolio_drill.json",
@@ -115,12 +115,12 @@
     {
       "name": "demo_store_surface_coverage.json",
       "bytes": 2318,
-      "sha256": "111761dd2e9d11e90fdb2980f0e2e7a8257415dddd4c82dcf2a6b83575baca31"
+      "sha256": "9a4c5be3f41f88f06b2f571e29b6039f4d2d89ed2a9b4a7bf60e38e61e9a649d"
     },
     {
       "name": "device_artifact_manifest_drill.json",
       "bytes": 2448,
-      "sha256": "8bb6228f98d1b43d02bbff119c85fac19e7b65184cfeb9c085deee6b05b7e6fd"
+      "sha256": "0b9d22e14d8d0b06df6c83ee12329236494e074f5cfc42663bf9c859171a8735"
     },
     {
       "name": "device_matrix_drill.json",
@@ -130,7 +130,7 @@
     {
       "name": "discovery_score_drill.json",
       "bytes": 1015,
-      "sha256": "9af9153ce542551cc008b241227e7194e9f0eced1772a350422af777eb363c36"
+      "sha256": "7aac5f1d937e206d892311d4cf9f38d94bf88328747c268597035c8c7cace519"
     },
     {
       "name": "dual_tenant_oidc_acl_drill.json",
@@ -320,7 +320,7 @@
     {
       "name": "portfolio_artifact_manifest_drill.json",
       "bytes": 2706,
-      "sha256": "afda3c212da46af00842b514e0a87452513a5c4c5df2f07c814c461eb53987ba"
+      "sha256": "113d7baffcecc87d61d287f1402e60d608850cc18d65977e54bdb83e5157683e"
     },
     {
       "name": "postgres_dr_drill.json",
@@ -369,8 +369,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 4339,
-      "sha256": "007ff78d621c925add176f8ce2031ee6669de249d28e4ac97be8864b22a8ab83"
+      "bytes": 4535,
+      "sha256": "9d0d3f928abaad17eb085e776eb768f1e41cfb6208962b24b0766704041580f3"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -415,14 +415,19 @@
     {
       "name": "travel_site_surface_coverage.json",
       "bytes": 2526,
-      "sha256": "e569529b0276c824ced32a906ee1a237124d36282f13d325a71262755d9b523e"
+      "sha256": "34c058fbf05167078b11d023a821549d8d76585aa96ff5450e9f1ba5df0a1bc9"
     },
     {
       "name": "visual_portfolio_drill.json",
       "bytes": 476,
       "sha256": "dd02f73fe91fd57a0a67b9cff6d1113d749b58ce43cc7d93e07f6d98ce51df65"
+    },
+    {
+      "name": "workflow_dispatch_contract_drill.json",
+      "bytes": 1101,
+      "sha256": "11ab4c00c3f329b6872e219097347f9b9ea9aa8b9b54943808f66732d9e0fbde"
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (83 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (84 artifacts hashed); independent human/reviewer sign-off still pending"
 }

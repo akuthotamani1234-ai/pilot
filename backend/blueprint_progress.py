@@ -171,6 +171,7 @@ def progress() -> dict:
         {"id": "D-cross-journey", "label": "Cross-platform DemoStore(+Android) journey drill", "status": "done"},
         {"id": "D-multi-device-contract", "label": "Offline multi-device CI runner contract", "status": "done"},
         {"id": "D-device-manifest", "label": "Device/Appium CI artifact manifest (hashed upload shape)", "status": "done"},
+        {"id": "DF-workflow-contracts", "label": "workflow_dispatch YAML contracts (Appium + portfolios)", "status": "done"},
         {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
         {"id": "J-mutation-score", "label": "DemoStore planted-defect mutation score 6/6", "status": "done"},
         {"id": "J-classic-mutation", "label": "ClassicShop planted-defect mutation score 3/3", "status": "done"},
