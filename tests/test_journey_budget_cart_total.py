@@ -1,4 +1,4 @@
-"""Phase 1 lesson: many short Shop-on journeys must not crowd out the cart-total shopping journey."""
+"""Phase 1/2 lesson: many short Shop-on journeys must not crowd out priority journeys."""
 from backend.agents.test_design import LARGE, builtin_journeys
 
 
@@ -19,7 +19,7 @@ def _product(n: int) -> dict:
     }
 
 
-def test_product_change_cart_journey_survives_many_product_pages():
+def _pages_with_orders():
     shop = {
         "url": "http://shop.test/shop",
         "slug": "shop",
@@ -51,12 +51,53 @@ def test_product_change_cart_journey_survives_many_product_pages():
         "forms": [],
         "itemLinks": {"links": [], "selector": ""},
     }
-    pages = [shop, cart] + [_product(n) for n in range(1, 25)]
+    orders = {
+        "url": "http://shop.test/orders",
+        "slug": "orders",
+        "page_type": "orders",
+        "auth": True,
+        "title": "Orders",
+        "headings": ["Orders"],
+        "buttons": [],
+        "links": [{"href": "http://shop.test/orders/1001", "text": "Order 1001"}],
+        "inputs": [],
+        "forms": [],
+        "itemLinks": {"links": [], "selector": ""},
+        "features": [],
+    }
+    detail = {
+        "url": "http://shop.test/orders/1001",
+        "slug": "order_1001",
+        "page_type": "order_detail",
+        "auth": True,
+        "title": "Order 1001",
+        "headings": ["Order 1001"],
+        "buttons": [],
+        "links": [{"href": "http://shop.test/orders/1001/tracking", "text": "Track shipment"}],
+        "inputs": [],
+        "forms": [],
+        "itemLinks": {"links": [], "selector": ""},
+    }
+    pages = [shop, cart, orders, detail] + [_product(n) for n in range(1, 25)]
     for p in pages:
         p["site_word"] = "Item"
+    return pages, orders, detail
+
+
+def test_product_change_cart_journey_survives_many_product_pages():
+    pages, _, _ = _pages_with_orders()
     journeys = builtin_journeys(pages, limit=LARGE)
     product = next(j for j in journeys if j["journey"] == "product")
     assert product["spec"]["change_cart"] is True
     assert any(j["journey"] == "product" for j in journeys[:3]), journeys[:5]
-    # Under the default LARGE budget the cart-total journey must still be present.
     assert "cart total goes up by exactly its price" in " ".join(product["steps"])
+
+
+def test_orders_tracking_journey_survives_many_product_pages():
+    pages, _, _ = _pages_with_orders()
+    journeys = builtin_journeys(pages, limit=LARGE)
+    kinds = [j["journey"] for j in journeys]
+    assert "orders" in kinds, kinds
+    assert kinds.index("orders") < kinds.index("shop")
+    order = next(j for j in journeys if j["journey"] == "orders")
+    assert any("Track" in step or "tracking" in step.lower() for step in order["steps"] + [order["title"]])
