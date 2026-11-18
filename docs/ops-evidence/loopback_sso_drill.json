@@ -1,0 +1,21 @@
+{
+  "gate_i_complete": false,
+  "drill": "loopback_oidc_jwt",
+  "ran_at": "2026-11-18T20:00:59Z",
+  "issuer": "http://127.0.0.1:37643",
+  "audience": "qpilot-loopback",
+  "signature_verified": true,
+  "validate": {
+    "ok": true,
+    "reason": "JWT claims (+ signature) accepted structurally; live hosted SSO login still open",
+    "claims": {
+      "iss": "http://127.0.0.1:37643",
+      "aud": "qpilot-loopback",
+      "sub": "loopback-user-1",
+      "exp": 1795032659,
+      "email": "loopback@example.test"
+    }
+  },
+  "ok": true,
+  "reason": "Loopback OIDC JWKS + RS256 JWT signature verified; hosted IdP / Studio SSO login still open"
+}

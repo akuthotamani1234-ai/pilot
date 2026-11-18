@@ -31,10 +31,10 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | B | `/api/ops/drills/swarm-control`, `swarm-retry` | `docs/ops-evidence/swarm_control_drill.json`, `swarm_retry_drill.json` |
 | C | `/api/ops/drills/lifecycle-cleanup`, `admin-portal-lifecycle`, `oracle-spec`, `demo-store-cart-lifecycle` | `docs/ops-evidence/lifecycle_cleanup_drill.json`, `admin_portal_lifecycle_drill.json`, `oracle_spec_drill.json`, `demo_store_cart_lifecycle_drill.json` |
 | D | `/api/ops/drills/device-matrix`, `android-emulator-smoke`, `android-appium-product-matrix`, `android-adb-probe` | `docs/ops-evidence/device_matrix_drill.json`, `android_emulator_smoke_drill.json`, `android_appium_product_matrix_drill.json`, `android_adb_probe.json`, `android_appium_ci_contract.json` |
-| E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
-| F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json` |
+| E | `/api/ops/drills/failure-matrix`, `healing-regression`, `demo-store-healing-live` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json`, `demo_store_healing_live_drill.json` |
+| F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio`, `multi-browser-portfolio-suite` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json`, `multi_browser_portfolio_suite_drill.json` |
 | G | Postgres/Redis/MinIO + `/api/audit/export` + `/api/ops/drills/audit-export` | `docs/ops-evidence/pg_tenancy_drill.json`, `audit_export_drill.json` (+ infra drills) |
-| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract` | `docs/ops-evidence/api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json` |
+| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract`, `loopback-sso` | `docs/ops-evidence/api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json`, `loopback_sso_drill.json` |
 
 Studio sidebar Blueprint TODO (`/api/v1/blueprint/progress`) lists done vs open upcoming items for these increments.
 

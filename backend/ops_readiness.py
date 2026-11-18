@@ -319,6 +319,31 @@ def readiness() -> dict:
                 else "No Appium CI contract evidence"
             ),
         },
+        "multi_browser_portfolio_suite_drill": {
+            "ready": _ops_evidence("multi_browser_portfolio_suite_drill.json"),
+            "reason": (
+                "Live Chromium/Firefox/WebKit DemoStore portfolio suite present; "
+                "hosted multi-browser CI still open"
+                if _ops_evidence("multi_browser_portfolio_suite_drill.json")
+                else "No multi-browser portfolio suite evidence"
+            ),
+        },
+        "loopback_sso_drill": {
+            "ready": _ops_evidence("loopback_sso_drill.json"),
+            "reason": (
+                "Loopback OIDC JWT signature drill present; hosted IdP SSO still open"
+                if _ops_evidence("loopback_sso_drill.json")
+                else "No loopback SSO drill evidence"
+            ),
+        },
+        "demo_store_healing_live_drill": {
+            "ready": _ops_evidence("demo_store_healing_live_drill.json"),
+            "reason": (
+                "Live DemoStore healing policy drill present; production healing suite still open"
+                if _ops_evidence("demo_store_healing_live_drill.json")
+                else "No DemoStore healing live drill evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (

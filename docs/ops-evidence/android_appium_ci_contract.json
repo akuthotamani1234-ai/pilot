@@ -26,5 +26,6 @@
     "io.appium.android.apis"
   ],
   "live_local_evidence": "docs/ops-evidence/android_appium_product_matrix_drill.json",
-  "note": "Default PR CI remains Windows quick tests; broad multi-device Appium CI is a separate ubuntu+KVM job still open"
+  "workflow": ".github/workflows/android-appium.yml",
+  "note": "Default PR CI remains Windows quick tests; workflow_dispatch Android Appium matrix uploads contract evidence; full AVD boot on ubuntu+KVM still open"
 }

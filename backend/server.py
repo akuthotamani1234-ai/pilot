@@ -617,6 +617,19 @@ def ops_healing_regression():
     return {"gate_e_complete": False, "healing_regression": evidence}
 
 
+@app.post("/api/ops/drills/demo-store-healing-live")
+def ops_demo_store_healing_live():
+    """Gate E: live DemoStore missing-locator + healing policy drill (still incomplete)."""
+    from backend.demo_store_healing_live_drill import run_demo_store_healing_live_drill
+    evidence = run_demo_store_healing_live_drill()
+    _audit(
+        "ops_demo_store_healing_live",
+        ok=bool(evidence.get("ok")),
+        category=str((evidence.get("classification") or {}).get("category") or "")[:40],
+    )
+    return {"gate_e_complete": False, "demo_store_healing_live": evidence}
+
+
 @app.post("/api/ops/drills/api-version-contract")
 def ops_api_version_contract():
     """Gate I: API versioning contract snapshot (SSO still open)."""
@@ -789,6 +802,22 @@ def ops_compatibility_portfolio():
     return {"gate_f_complete": False, "compatibility_portfolio": evidence}
 
 
+@app.post("/api/ops/drills/multi-browser-portfolio-suite")
+def ops_multi_browser_portfolio_suite():
+    """Gate F: live Chromium/Firefox/WebKit DemoStore portfolio suite (still incomplete)."""
+    from backend.multi_browser_portfolio_suite_drill import (
+        run_multi_browser_portfolio_suite_drill,
+    )
+    evidence = run_multi_browser_portfolio_suite_drill()
+    _audit(
+        "ops_multi_browser_portfolio_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("suites_passed") or 0),
+        browsers=",".join(evidence.get("browsers") or [])[:80],
+    )
+    return {"gate_f_complete": False, "multi_browser_portfolio_suite": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
@@ -852,6 +881,19 @@ def ops_sso_contract():
     _audit("ops_sso_contract", ok=bool(evidence.get("ok")),
            configured=bool(evidence.get("configured")))
     return {"gate_i_complete": False, "sso_contract": evidence}
+
+
+@app.post("/api/ops/drills/loopback-sso")
+def ops_loopback_sso():
+    """Gate I: loopback OIDC JWKS + RS256 JWT verification (hosted IdP still open)."""
+    from backend.loopback_sso_drill import run_loopback_sso_drill
+    evidence = run_loopback_sso_drill()
+    _audit(
+        "ops_loopback_sso",
+        ok=bool(evidence.get("ok")),
+        signature=bool(evidence.get("signature_verified")),
+    )
+    return {"gate_i_complete": False, "loopback_sso": evidence}
 
 
 @app.post("/api/ops/drills/incident-tabletop")

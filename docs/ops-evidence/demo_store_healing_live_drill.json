@@ -1,0 +1,24 @@
+{
+  "gate_e_complete": false,
+  "drill": "demo_store_healing_live",
+  "ran_at": "2026-11-18T20:00:33Z",
+  "live": {
+    "url": "http://127.0.0.1:44279",
+    "missing_locator": true,
+    "good_locator": true,
+    "missing_error": "Locator.click: Timeout 800ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-buy-button\")\n"
+  },
+  "classification": {
+    "category": "locator",
+    "confidence": "medium",
+    "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b"
+  },
+  "healing": {
+    "locator_repair_allowed": true,
+    "weaken_denied": true,
+    "allow_reason": "",
+    "deny_reason": "a check of test_buy was changed or removed (only an element's address may change)"
+  },
+  "ok": true,
+  "reason": "Live DemoStore missing-locator failure classified + locator-only healing policy checked; production failure matrix / healing suite still open"
+}
