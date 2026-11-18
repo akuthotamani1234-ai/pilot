@@ -710,6 +710,23 @@ def ops_android_emulator_smoke():
     return {"gate_d_complete": False, "android_emulator_smoke": evidence}
 
 
+@app.post("/api/ops/drills/android-appium-product-matrix")
+def ops_android_appium_product_matrix():
+    """Gate D: live Appium UiAutomator2 product matrix (still incomplete)."""
+    from backend.android_appium_product_matrix_drill import (
+        run_android_appium_product_matrix_drill,
+    )
+    evidence = run_android_appium_product_matrix_drill()
+    _audit(
+        "ops_android_appium_product_matrix",
+        ok=bool(evidence.get("ok")),
+        api=int(evidence.get("api_level") or 0),
+        passed=int(evidence.get("apps_passed") or 0),
+        device=str(evidence.get("device_id") or "")[:40],
+    )
+    return {"gate_d_complete": False, "android_appium_product_matrix": evidence}
+
+
 @app.post("/api/ops/drills/locale-portfolio")
 def ops_locale_portfolio():
     """Gate F: DemoStore locale portfolio evidence (still incomplete)."""

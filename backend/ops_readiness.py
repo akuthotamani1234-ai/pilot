@@ -302,6 +302,15 @@ def readiness() -> dict:
                 else "No Android emulator smoke drill evidence"
             ),
         },
+        "android_appium_product_matrix_drill": {
+            "ready": _ops_evidence("android_appium_product_matrix_drill.json"),
+            "reason": (
+                "Live Appium system-app product matrix present; "
+                "third-party APK / broad CI matrix still open"
+                if _ops_evidence("android_appium_product_matrix_drill.json")
+                else "No Android Appium product matrix drill evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (
