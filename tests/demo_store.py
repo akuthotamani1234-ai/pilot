@@ -1,9 +1,10 @@
 """DemoStore - a small local online shop to show (and test) deep testing behind a login. No internet needed.
 
-  public:            /  /about  /register            (the home page only has a "Sign in" link - no login form)
+  public:            /  /about  /lab  /register       (the home page only has a "Sign in" link - no login form)
                      /deals (more deals load when you scroll down - one of them links to /weekend; an "Open help"
                      panel with controls that only appear after opening it; "Add to favourites" asks a visitor to
                      sign in; "Notify me" shows a message)
+                     /lab embeds a same-site iframe and an open shadow root for Gate A surface evidence
   two-step login:    /signin   email "demo@store.test" -> Continue -> password "Store#2024" -> Sign in
   behind the login:  /dashboard  /shop (search + suggestions, category filters, sort, 5 result pages)
                      /product/1 ... /product/40 (size option, quantity - / +, Add to cart, Add to wishlist,
@@ -46,7 +47,8 @@ main{{padding:16px}} .product-card{{display:inline-block;width:200px;border:1px 
 .msg{{color:green}} .msg.error{{color:#b91c1c}} .field-error{{color:#b91c1c}}
 .deal-card{{display:block;height:260px;border:1px solid #ddd;margin:8px 0;padding:8px}}</style></head>
 <body><header><nav>{nav}</nav></header><main><h1>{title}</h1>{body}</main></body></html>"""
-PUBLIC_NAV = '<a href="/">Home</a><a href="/about">About</a><a href="/deals">Deals</a><a href="/signin">Sign in</a>'
+PUBLIC_NAV = ('<a href="/">Home</a><a href="/about">About</a><a href="/lab">Component lab</a>'
+              '<a href="/deals">Deals</a><a href="/signin">Sign in</a>')
 DEALS = [f"{NAMES[n]} - {10 + n * 5}% off" for n in range(8)]
 POST_JS = """async function post(url, body, out) {
   const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body});
@@ -142,14 +144,36 @@ class DemoStore:
                 path = u.path.rstrip("/") or "/"
                 store.visited.append("GET " + path)
                 s = self._session()
-                public = path in ("/", "/about", "/register", "/signin", "/deals", "/weekend")
+                public = path in ("/", "/about", "/lab", "/register", "/signin", "/deals", "/weekend")
                 if not public and not s and path != "/logout":
                     return self._go(f"/signin?next={path}")
                 if path == "/":
                     return self._page("Welcome to DemoStore", '<p>Fresh food, delivered.</p><p><a href="/about">About us</a>'
                                       ' · <a href="/signin">Sign in</a> to shop · <a href="/deals">Today\'s deals</a></p>', s)
                 if path == "/about":
-                    return self._page("About", "<p>DemoStore is a practice shop for automated testing.</p>", s)
+                    return self._page(
+                        "About",
+                        "<p>DemoStore is a practice shop for automated testing.</p>"
+                        '<p><a href="/lab">Component lab</a> (iframe + open shadow root sample).</p>',
+                        s,
+                    )
+                if path == "/lab":
+                    return self._page(
+                        "Component lab",
+                        """<p>Iframe and open shadow-root sample for discovery surface coverage.</p>
+<iframe title="About frame" src="/about" width="420" height="140"></iframe>
+<div id="host"></div>
+<script>
+customElements.define('open-box', class extends HTMLElement {
+  connectedCallback() {
+    const root = this.attachShadow({mode: 'open'});
+    root.innerHTML = '<button type="button" id="shadow-btn">Shadow action</button>';
+  }
+});
+document.getElementById('host').appendChild(document.createElement('open-box'));
+</script>""",
+                        s,
+                    )
                 if path == "/deals":
                     return self._deals(s)
                 if path == "/weekend":  # only linked from the deals that load when you scroll down
