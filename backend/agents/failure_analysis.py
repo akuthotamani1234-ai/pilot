@@ -567,6 +567,13 @@ def _finding_from_result(
                     "the feature may have been removed or broken. Needs human review.")
         sev, conf = "medium", "low"
     case = _case_of(r, cases) or {}
+    from ..oracle_bind import soften_defect_category
+    cat, oracle_why, oracle_decision = soften_defect_category(cat, case, r)
+    if oracle_why:
+        why = oracle_why
+        conf = "medium"
+        sev, better = _severity(cat, r, err)
+        why = better or why
     page = pages.get(case.get("url") or r.get("url")) or pages.get(case.get("url")) or {}
     link = _evidence_linkage(r, case, page, err)
     evidence = [x for x in (r.get("screenshot"), r.get("trace")) if x]
@@ -601,6 +608,10 @@ def _finding_from_result(
         f["session_expired"] = True
     if provisional:
         f["provisional"] = True
+    if oracle_decision:
+        f["oracle_decision"] = oracle_decision
+        if case.get("assertion"):
+            f["assertion"] = case["assertion"]
     if r.get("vision"):  # what the AI saw on the screenshots (its verdict, the screen's words, its reason)
         f["seen_by_ai"] = r["vision"]
     if cat == "product_defect":  # a bug report a developer can act on

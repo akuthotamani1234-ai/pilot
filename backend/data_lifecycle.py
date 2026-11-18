@@ -3,12 +3,17 @@
 Records are tagged with the run id. A case starts from a known reset.
 Cleanup removes only what this run created. Production customer data is refused.
 """
+from __future__ import annotations
+
+import json
 import re
+from pathlib import Path
 
 KINDS = ("account", "cart", "order")
 _RESERVED_DOMAINS = frozenset({"example.com", "example.org", "example.net"})
 _TAG_UNSAFE = re.compile(r"[^a-zA-Z0-9_-]")
 _PRODUCTION = frozenset({"production", "prod", "live"})
+LIFECYCLE_FILE = "qx_lifecycle_state.json"
 
 
 def production_environment(environment: str) -> bool:
@@ -204,3 +209,121 @@ def plan_for_workers(run_id: str, environment: str, workers: list[int]) -> list[
             "cleanup": [row["tag"] for row in records],
         })
     return packs
+
+
+def to_state(life: Lifecycle) -> dict:
+    """Serialize a lifecycle for durable prepare/finish across process boundaries."""
+    return {
+        "run_id": life.run_id,
+        "environment": life.environment,
+        "workers": {
+            str(worker): [dict(row) for row in rows]
+            for worker, rows in life._by_worker.items()
+        },
+        "cases": {str(worker): case for worker, case in life._case.items()},
+    }
+
+
+def from_state(payload: dict) -> Lifecycle:
+    """Restore a lifecycle previously written with ``to_state``."""
+    life = Lifecycle(str(payload.get("run_id") or ""), str(payload.get("environment") or "test"))
+    workers = payload.get("workers") if isinstance(payload.get("workers"), dict) else {}
+    cases = payload.get("cases") if isinstance(payload.get("cases"), dict) else {}
+    for key, rows in workers.items():
+        worker = int(key)
+        life._by_worker[worker] = [dict(row) for row in rows if isinstance(row, dict)]
+        life._case[worker] = cases.get(key)
+    return life
+
+
+def save_lifecycle(run_dir: str | Path, life: Lifecycle) -> Path:
+    path = Path(run_dir) / LIFECYCLE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(to_state(life), indent=2), encoding="utf-8")
+    return path
+
+
+def load_lifecycle(run_dir: str | Path, *, run_id: str = "", environment: str = "test") -> Lifecycle:
+    path = Path(run_dir) / LIFECYCLE_FILE
+    if path.is_file():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict) and payload.get("run_id"):
+                return from_state(payload)
+        except (OSError, ValueError):
+            pass
+    return Lifecycle(run_id or Path(run_dir).name, environment)
+
+
+def latest_created(run_dir: str | Path) -> dict[str, dict]:
+    """Newest status per tag from staging ``created.jsonl``."""
+    path = Path(run_dir) / "created.jsonl"
+    latest: dict[str, dict] = {}
+    if not path.is_file():
+        return latest
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        tag = str(row.get("tag") or "").strip()
+        if not tag:
+            continue
+        latest[tag] = dict(row)
+    return latest
+
+
+def ingest_created(life: Lifecycle, run_dir: str | Path) -> list[dict]:
+    """Add created.jsonl tags into the lifecycle so finish cleanup can confirm them."""
+    added = []
+    known = {row.get("tag") for rows in life._by_worker.values() for row in rows}
+    worker = 0
+    for tag, row in latest_created(run_dir).items():
+        if tag in known:
+            continue
+        status = str(row.get("status") or "created").lower()
+        record = {
+            "run_id": life.run_id,
+            "worker": worker,
+            "kind": "created",
+            "tag": tag,
+            "email": "",
+            "state": "cleaned" if status == "deleted" else "ready",
+            "environment": life.environment,
+            "source": "created.jsonl",
+            "what": row.get("what") or "",
+            "where": row.get("where") or "",
+        }
+        life._by_worker.setdefault(worker, []).append(record)
+        life._case.setdefault(worker, None)
+        known.add(tag)
+        added.append(dict(record))
+    return added
+
+
+def created_jsonl_delete(run_dir: str | Path):
+    """Adapter: confirm remote cleanup from created.jsonl (never flip local-only)."""
+    latest = latest_created(run_dir)
+
+    def remote_delete(record: dict) -> dict:
+        tag = str(record.get("tag") or "")
+        row = latest.get(tag)
+        if row is None:
+            for candidate, payload in latest.items():
+                if candidate.startswith(tag) or tag.startswith(candidate) or tag in candidate:
+                    row = payload
+                    if str(payload.get("status") or "").lower() == "deleted":
+                        break
+        if row is not None:
+            if str(row.get("status") or "").lower() == "deleted":
+                return {"deleted": True, "proof": f"created.jsonl:deleted:{row.get('tag') or tag}"}
+            return {
+                "deleted": False,
+                "reason": f"created.jsonl still {row.get('status') or 'created'} for {row.get('tag') or tag}",
+            }
+        if record.get("source") == "synthetic":
+            # Synthetic plan row never written by staging tests — no remote fixture to delete.
+            return {"deleted": True, "proof": f"synthetic_unused:{tag}"}
+        return {"deleted": False, "reason": f"no cleanup proof in created.jsonl for {tag}"}
+
+    return remote_delete
