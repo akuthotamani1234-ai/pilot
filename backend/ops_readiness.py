@@ -208,6 +208,14 @@ def readiness() -> dict:
                 else "No AdminPortal lifecycle cleanup drill evidence"
             ),
         },
+        "oracle_spec_drill": {
+            "ready": _ops_evidence("oracle_spec_drill.json"),
+            "reason": (
+                "Approved-spec oracle bind evidence present; broader live portal oracles still open"
+                if _ops_evidence("oracle_spec_drill.json")
+                else "No oracle-spec drill evidence"
+            ),
+        },
         "swarm_control_drill": {
             "ready": _ops_evidence("swarm_control_drill.json"),
             "reason": (
