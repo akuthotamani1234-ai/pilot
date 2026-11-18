@@ -73,8 +73,14 @@ def readiness() -> dict:
             ),
         },
         "incident_runbook": {
-            "ready": (ROOT / "DEPLOYMENT.md").is_file() or (ROOT / "STATUS.md").is_file(),
-            "reason": "Operator docs exist; dedicated incident runbook drills not established",
+            "ready": (ROOT / "docs" / "INCIDENT_RUNBOOK.md").is_file()
+            or _ops_evidence("incident_tabletop_stub.json"),
+            "reason": (
+                "Incident runbook + stub tabletop present; live paging/restore tabletop still open"
+                if (ROOT / "docs" / "INCIDENT_RUNBOOK.md").is_file()
+                or _ops_evidence("incident_tabletop_stub.json")
+                else "Operator docs exist; dedicated incident runbook drills not established"
+            ),
         },
         "ops_drill_checklist": _file_check(
             "docs/OPS_DRILL_CHECKLIST.md",

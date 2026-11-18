@@ -42,6 +42,24 @@ export type ApprovalRow = {
   decided_at: number | null;
 };
 
+/** Optional bearer from localStorage `qpilot_dashboard_token` when QPILOT_DASHBOARD_TOKEN is set server-side. */
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (extra) {
+    const base = new Headers(extra);
+    base.forEach((value, key) => {
+      headers[key] = value;
+    });
+  }
+  try {
+    const token = localStorage.getItem("qpilot_dashboard_token") || "";
+    if (token.trim()) headers.Authorization = `Bearer ${token.trim()}`;
+  } catch {
+    /* private mode / non-browser */
+  }
+  return headers;
+}
+
 export async function loadBlueprint(): Promise<BlueprintProgress> {
   const direct = await fetch("/api/v1/blueprint/progress");
   if (direct.ok) return direct.json();
@@ -59,7 +77,9 @@ export async function loadReadiness(): Promise<EnterpriseReadiness> {
 }
 
 export async function loadApprovals(status = "pending"): Promise<ApprovalRow[]> {
-  const res = await fetch(`/api/v1/approvals?status=${encodeURIComponent(status)}`);
+  const res = await fetch(`/api/v1/approvals?status=${encodeURIComponent(status)}`, {
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error("Approvals unavailable");
   const body = await res.json();
   return body.approvals || [];
@@ -68,7 +88,7 @@ export async function loadApprovals(status = "pending"): Promise<ApprovalRow[]> 
 export async function decideApproval(id: string, answer: string): Promise<ApprovalRow> {
   const res = await fetch(`/api/v1/approvals/${encodeURIComponent(id)}/decide`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ answer }),
   });
   if (!res.ok) throw new Error("Decide failed");
