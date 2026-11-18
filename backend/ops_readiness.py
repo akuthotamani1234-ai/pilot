@@ -191,6 +191,14 @@ def readiness() -> dict:
                 else "No Postgres tenancy helper evidence"
             ),
         },
+        "audit_export_drill": {
+            "ready": _ops_evidence("audit_export_drill.json"),
+            "reason": (
+                "Tenant-scoped audit export evidence present; Studio SSO / review still open"
+                if _ops_evidence("audit_export_drill.json")
+                else "No audit export drill evidence"
+            ),
+        },
         "lifecycle_cleanup_drill": {
             "ready": _ops_evidence("lifecycle_cleanup_drill.json"),
             "reason": (
