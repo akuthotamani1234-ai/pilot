@@ -184,8 +184,10 @@ def progress() -> dict:
         {"id": "F-live-ci", "label": "Broad hosted multi-browser portfolio CI artifacts", "status": "open"},
         {"id": "G-review-checklist", "label": "Independent review checklist documented", "status": "done"},
         {"id": "G-review-pack", "label": "Independent review evidence pack (hashed, unsigned)", "status": "done"},
+        {"id": "blockers-inventory", "label": "Remaining hard-open blockers inventory published", "status": "done"},
         {"id": "G-review", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
+    blockers = [u for u in upcoming if u.get("status") == "open"]
     return {
         "complete": False,
         "rule": "Gates A–J stay Partial/open until controlled live evidence + independent review",
@@ -193,6 +195,7 @@ def progress() -> dict:
         "phases": phases,
         "gates": gates,
         "upcoming": upcoming,
+        "blockers": blockers,
         "counts": {
             "phases_done": sum(1 for p in phases if p["status"] in {"done", "strong"}),
             "phases_total": len(phases),
@@ -200,5 +203,6 @@ def progress() -> dict:
             "gates_partial": sum(1 for g in gates if g["status"] == "partial"),
             "gates_open": sum(1 for g in gates if g["status"] in {"open", "active"}),
             "gates_total": len(gates),
+            "blockers_open": len(blockers),
         },
     }

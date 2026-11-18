@@ -133,6 +133,8 @@
           esc(String(counts.gates_total || 10)) + "</small>" +
           "<small><b>Work</b> " + esc(String(doneWork)) + " done · " +
           esc(String(openWork)) + " remaining</small>" +
+          "<small><b>Blockers</b> " + esc(String((counts.blockers_open != null)
+            ? counts.blockers_open : openWork)) + " hard-open</small>" +
           "<small><b>Now</b> " + esc(active.label || "Advancing Partial gates") + "</small>" +
           "<small class=\"muted\">" + esc(bp.rule || "Gates A–J not complete") + "</small>" +
         "</div>";
