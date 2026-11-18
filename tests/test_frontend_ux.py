@@ -51,7 +51,7 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     css = (FRONTEND / "chat.css").read_text(encoding="utf-8")
     assert 'id="aiIntensity"' in script
     assert 'value="thorough"' in script and 'value="standard"' in script
-    assert 'value="thorough" selected' in script  # Thorough is the Studio default
+    assert 'value="standard" selected' in script  # Standard is the Studio default and uses the swarm
     assert "function applyExplorationIntensity()" in script
     assert "function focusThoroughSetup()" in script
     assert "function coverageReminderHtml(" in script
@@ -73,6 +73,8 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "Run Thorough again" in script and "thorough-again" in script
     assert "Observed/scripted controls are not the same as business-verified checks." in script
     assert "Qpilot X" in script and "s.qx_card.counts.discovered" in script
+    assert "function swarmCard(" in script and "swarm worker" in script
+    assert 'id="aiSwarmNote"' in script
     assert "rules are in this run" in script
     assert 'id="androidThorough"' in (FRONTEND / "chat.html").read_text(encoding="utf-8")
     assert 'data.append("thorough"' in script and "androidThorough" in script
