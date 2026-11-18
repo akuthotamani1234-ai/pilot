@@ -13,16 +13,22 @@
 
 ## Environment note
 
-This Cloud Agent image has **no `adb` / emulator / Appium** on PATH. Live device-matrix evidence remains open and must stay `@pytest.mark.slow` / `BLOWAI_ANDROID_E2E=1` (existing `tests/test_android_device.py`).
+Default PR CI is Windows quick tests (no emulator). Live Android evidence is opt-in:
+local AVD + Appium, or a future ubuntu+KVM workflow job. Contract:
+`docs/ops-evidence/android_appium_ci_contract.json`. Keep slow paths behind
+`@pytest.mark.slow` / live drills (existing `tests/test_android_device.py`).
 
 ## Existing modules reused
 
 - Android pipeline: `backend/android*.py`, opt-in device tests
+- Live drills: `android_emulator_smoke_drill`, `android_appium_product_matrix_drill`
 - Visual: `backend/visual.py`
 - Locale: `backend/locale_check.py`
 
 ## Gate D / F status
 
 Still **Partial**:
-- Gate D: discovery/apply record desktop (`1366x900`) and phone (`390x844`) viewport evidence when phone checks ran. Android emulator/API24+ rows emit only when `android_environment.json` / config + executed results exist — never invented on web-only runs.
+- Gate D: web desktop+phone viewports + live API24 adb smoke + live API30 Appium
+  product matrix (Settings/Contacts/Chrome + ApiDemos APK). Broad multi-device CI
+  artifacts remain open (`D-android`).
 - Gate F: portfolio evaluators + capture exist; broad live CI portfolio artifacts are not closed.

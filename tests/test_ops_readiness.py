@@ -62,3 +62,6 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["android_appium_product_matrix_drill"]["ready"] is has(
         "android_appium_product_matrix_drill.json"
     )
+    assert snap["checks"]["android_appium_ci_contract"]["ready"] is has(
+        "android_appium_ci_contract.json"
+    )
