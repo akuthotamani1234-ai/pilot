@@ -1438,6 +1438,40 @@ def ops_workflow_dispatch_contracts():
     }
 
 
+@app.post("/api/ops/drills/classic-shop-cart-lifecycle")
+def ops_classic_shop_cart_lifecycle():
+    """Gate C: ClassicShop cart add→remove (broader portal paths still open)."""
+    from backend.classic_shop_cart_lifecycle_drill import (
+        run_classic_shop_cart_lifecycle_drill,
+    )
+    evidence = run_classic_shop_cart_lifecycle_drill()
+    _audit("ops_classic_shop_cart_lifecycle", ok=bool(evidence.get("ok")))
+    return {"gate_c_complete": False, "classic_shop_cart_lifecycle": evidence}
+
+
+@app.post("/api/ops/drills/redis-swarm-contention")
+def ops_redis_swarm_contention():
+    """Gate B: Redis multi-worker lease contention (product review still open)."""
+    from backend.redis_swarm_contention_drill import run_redis_swarm_contention_drill
+    evidence = run_redis_swarm_contention_drill()
+    _audit(
+        "ops_redis_swarm_contention",
+        ok=bool(evidence.get("ok")),
+        backend=str(evidence.get("backend") or ""),
+        claimed=int(evidence.get("total_claimed") or 0),
+    )
+    return {"gate_b_complete": False, "redis_swarm_contention": evidence}
+
+
+@app.post("/api/ops/drills/apidemos-interaction")
+def ops_apidemos_interaction():
+    """Gate D: deeper ApiDemos Appium interaction (broad CI runners still open)."""
+    from backend.apidemos_interaction_drill import run_apidemos_interaction_drill
+    evidence = run_apidemos_interaction_drill()
+    _audit("ops_apidemos_interaction", ok=bool(evidence.get("ok")))
+    return {"gate_d_complete": False, "apidemos_interaction": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

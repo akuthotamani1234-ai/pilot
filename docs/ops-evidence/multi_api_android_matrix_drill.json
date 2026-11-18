@@ -1,16 +1,15 @@
 {
   "gate_d_complete": false,
   "drill": "multi_api_android_matrix",
-  "ran_at": "2026-11-18T23:44:30Z",
+  "ran_at": "2026-11-18T23:56:23Z",
   "sources": {
     "api24_smoke": true,
     "api30_appium": true
   },
   "api_levels": [
-    24,
     30
   ],
-  "rows": 6,
+  "rows": 3,
   "matrix": {
     "complete": false,
     "verified": [
@@ -46,7 +45,7 @@
         "form": "emulator",
         "required": true,
         "status": "verified",
-        "evidence_count": 6,
+        "evidence_count": 3,
         "outcomes": [
           "passed"
         ]
@@ -57,7 +56,7 @@
         "api_min": 24,
         "required": true,
         "status": "verified",
-        "evidence_count": 6,
+        "evidence_count": 3,
         "outcomes": [
           "passed"
         ]
@@ -70,5 +69,5 @@
     "android.api24+"
   ],
   "ok": true,
-  "reason": "Multi-API Android matrix api_levels=[24, 30] (smoke=True, appium=True); broad multi-device CI runners still open"
+  "reason": "Multi-API Android matrix api_levels=[30] (smoke=True, appium=True); broad multi-device CI runners still open"
 }

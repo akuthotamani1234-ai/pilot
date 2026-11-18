@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-18T23:56:23Z",
   "ok": true,
   "blockers": [
     {
@@ -84,6 +84,7 @@
         "multi_api_android_matrix_drill.json",
         "multi_device_ci_contract.json",
         "device_artifact_manifest_drill.json",
+        "apidemos_interaction_drill.json",
         "workflow_dispatch_contract_drill.json"
       ],
       "status": "open",
@@ -92,6 +93,7 @@
         "multi_api_android_matrix_drill.json",
         "multi_device_ci_contract.json",
         "device_artifact_manifest_drill.json",
+        "apidemos_interaction_drill.json",
         "workflow_dispatch_contract_drill.json"
       ],
       "local_partial_missing": []
