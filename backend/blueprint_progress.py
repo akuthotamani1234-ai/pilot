@@ -52,7 +52,7 @@ def progress() -> dict:
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
          "note": "Auth modes + OIDC/hosting contract snapshot; live SSO login still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
-         "note": "Four controlled fixtures strong (Demo/classic/Admin/travel); Android/third-party open"},
+         "note": "Four fixtures strong + AdminPortal 0 FA (run4); Android/third-party still open"},
     ]
     active = next((g for g in gates if g["status"] == "active"), None)
     upcoming = [
@@ -99,6 +99,8 @@ def progress() -> dict:
         {"id": "J-travel-run1", "label": "Travel site accuracy run1 (Partial 8/9, 6/6)", "status": "done"},
         {"id": "J-travel-sort-fix", "label": "Detect single-option Sort-by selects", "status": "done"},
         {"id": "J-travel-run2", "label": "Travel site accuracy run2 (9/9, 6/6, 0 FA)", "status": "done"},
+        {"id": "J-admin-row-search", "label": "Row-select learned cases use table search openers", "status": "done"},
+        {"id": "J-admin-run4", "label": "AdminPortal accuracy run4 (25/25, 7/7, 0 FA)", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

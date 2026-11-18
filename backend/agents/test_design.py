@@ -1971,6 +1971,36 @@ def learned_cases(pages: list[dict]) -> list[dict]:
                 continue
             opener = b.get("revealed_by")
             opener_name = (by_sel.get(b["selector"]) or {}).get("revealed_by_name") or "its opener"
+            # Named row checkboxes (Select <person>) are brittle when revealed via Next/Prev/page-size:
+            # concurrent creates shift which page a row sits on. Prefer the table search box.
+            openers_override = None
+            steps_prefix = []
+            row_sel = re.match(r"^\s*Select\s+(.+?)\s*$", name or "", re.I)
+            person = (row_sel.group(1).strip() if row_sel else "")
+            if person and person.lower() not in {"all", "none"}:
+                search_box = next(
+                    (i for i in p.get("inputs", [])
+                     if (i.get("type") or "").lower() == "search" and i.get("selector")),
+                    None,
+                )
+                pagerish = bool(
+                    opener and re.search(
+                        r"(^|[>#.\s_-])(next|prev|previous|page[-_]?size|page[-_]?\d*)([#.\s]|$)",
+                        opener or "",
+                        re.I,
+                    )
+                )
+                if search_box:
+                    openers_override = [{
+                        "selector": search_box["selector"],
+                        "action": "fill",
+                        "value": person,
+                        "name": _box_name(search_box),
+                    }]
+                    steps_prefix = [f"Search for '{person}'"]
+                    opener, opener_name = None, ""
+                elif pagerish:
+                    continue
             to = (_pattern(b["to"], False) or (0, urlparse(b["to"]).path))[1] if b.get("to") else ""
             if tone == "error":
                 title, expected, oracle = (f"'{name}' works without an error message", "No error message: while "
@@ -1994,16 +2024,21 @@ def learned_cases(pages: list[dict]) -> list[dict]:
             act = {"select": f"Choose another option in '{name}'", "tick": f"Tick '{name}'"}.get(b.get("action"),
                                                                                                   f"Click '{name}'")
             n = len(out) + 1
+            openers = openers_override if openers_override is not None else opener_path(p, b["selector"], opener)
             out.append({
                 "id": f"learned_{n}", "kind": "learned", "type": "exploratory" if oracle == "observed" else "positive",
                 "oracle": oracle, "priority": "medium", "title": f"{title} ({_short(p)})",
-                "steps": [f"Open {_page_name(p)}"] + ([f"Click '{opener_name}' first"] if opener else []) + [act],
+                "steps": (
+                    [f"Open {_page_name(p)}"]
+                    + (steps_prefix if steps_prefix else ([f"Click '{opener_name}' first"] if opener else []))
+                    + [act]
+                ),
                 "expected": expected, "page": p["slug"], "url": p["url"], "pages": [p["slug"]],
                 "guest": not p.get("auth"), "test_data": "",
                 "spec": {"url": p["url"], "name": name, "selector": b["selector"], "action": b.get("action", "click"),
                          "value": b.get("value"), "effect": eff, "message": b.get("message") or "", "tone": tone,
                          "to": to, "revealed": b.get("revealed") or [], "opener": opener,
-                         "openers": opener_path(p, b["selector"], opener), "guest": not p.get("auth"),
+                         "openers": openers, "guest": not p.get("auth"),
                          # what it showed while exploring ('Total users: 23') - not a clock / a date, which change
                          "added": [a for a in (b.get("added") or []) if a and len(a) < 120
                                    and not re.search(r"\d{1,2}:\d{2}|\b(19|20)\d\d\b|\bloaded\s*:|\d+(?:\.\d+)?\s*%|video player is loading", a, re.I)][:3]
