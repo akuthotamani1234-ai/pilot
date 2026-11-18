@@ -1,0 +1,40 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_contract",
+  "ran_at": "2026-11-18T23:50:37Z",
+  "kind": "contract_only",
+  "contract": {
+    "discovery": "/.well-known/openid-configuration",
+    "jwks": "/.well-known/jwks.json",
+    "authorize": "/authorize",
+    "token": "/token",
+    "response_type": "code",
+    "code_challenge_method": "S256",
+    "id_token_alg": "RS256",
+    "required_claims": [
+      "iss",
+      "aud",
+      "sub",
+      "exp",
+      "iat"
+    ],
+    "optional_claims": [
+      "email",
+      "tid",
+      "groups"
+    ],
+    "studio_callback": "/api/sso/callback",
+    "dashboard_auth_mode": "oidc",
+    "tenant_acl": "SQLite/Postgres principal scoping required"
+  },
+  "local_partial_present": [
+    "loopback_sso_drill.json",
+    "loopback_auth_code_sso_drill.json",
+    "loopback_pkce_sso_drill.json",
+    "studio_oidc_callback_drill.json",
+    "sso_tenant_acl_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted IdP SSO contract recorded (5/5 local partials present); live hosted IdP Studio SSO login still open"
+}

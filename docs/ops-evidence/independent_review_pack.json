@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:49:51Z",
+  "ran_at": "2026-11-18T23:50:47Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 79,
+  "artifact_count": 81,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -151,6 +151,16 @@
       "name": "healing_regression_drill.json",
       "bytes": 1554,
       "sha256": "1933128db8900bbfe6a1458ff49fdb9af40277ea85b581499f3aa0fd09ced7e0"
+    },
+    {
+      "name": "hosted_idp_contract_drill.json",
+      "bytes": 1082,
+      "sha256": "59e59aea14ee9aab7d7186c0f144a67438ff8529d8a432ffffbc54582547a2fc"
+    },
+    {
+      "name": "hosted_oncall_contract_drill.json",
+      "bytes": 1156,
+      "sha256": "ef49e2ae8b8e9e8a9527b8876a82d7dff00befe774312ac4978c06a71882e989"
     },
     {
       "name": "incident_tabletop_drill.json",
@@ -349,8 +359,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 3979,
-      "sha256": "867d3bbd4d125f9d591b9e067056f34673e34a9c4d767ee6cc32f59656346b4b"
+      "bytes": 4153,
+      "sha256": "67570558dd2c015b1a61be6cdb0e45e9029abcbd3b9dc517bbd9154991a14038"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -404,5 +414,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (79 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (81 artifacts hashed); independent human/reviewer sign-off still pending"
 }

@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:49:51Z",
+  "ran_at": "2026-11-18T23:50:47Z",
   "ok": true,
   "blockers": [
     {
@@ -14,7 +14,8 @@
         "redis_multi_region_drill.json",
         "multi_store_dr_drill.json",
         "failover_rto_drill.json",
-        "paging_escalation_drill.json"
+        "paging_escalation_drill.json",
+        "hosted_oncall_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -23,7 +24,8 @@
         "redis_multi_region_drill.json",
         "multi_store_dr_drill.json",
         "failover_rto_drill.json",
-        "paging_escalation_drill.json"
+        "paging_escalation_drill.json",
+        "hosted_oncall_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -36,7 +38,8 @@
         "loopback_auth_code_sso_drill.json",
         "loopback_pkce_sso_drill.json",
         "studio_oidc_callback_drill.json",
-        "sso_tenant_acl_drill.json"
+        "sso_tenant_acl_drill.json",
+        "hosted_idp_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -44,7 +47,8 @@
         "loopback_auth_code_sso_drill.json",
         "loopback_pkce_sso_drill.json",
         "studio_oidc_callback_drill.json",
-        "sso_tenant_acl_drill.json"
+        "sso_tenant_acl_drill.json",
+        "hosted_idp_contract_drill.json"
       ],
       "local_partial_missing": []
     },
