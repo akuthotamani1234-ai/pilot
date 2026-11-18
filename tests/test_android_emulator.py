@@ -192,16 +192,7 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, failu
         page.locator("#mobileModeBtn").click()
         expect(page.locator("#androidStart")).to_be_enabled()
         assert not prepared and not submitted
-        expect(page.locator("#androidEnvNote")).to_contain_text("launch local Appium")
-        expect(page.locator("#androidDevice")).to_have_value("emulator-5554" if previously_connected else "avd:demo")
-        page.locator("#androidMode").select_option("installed")
-        page.locator("#androidPackage").fill("com.example.demo")
-        page.locator("#androidProvider").select_option("none")
-        page.locator("#androidApiKey").fill("fixture-private-key")
-        page.locator("#androidAuthorized").check()
-        page.locator("#androidStart").click()
-        expect(page.locator("#androidStart")).to_be_disabled()
-        expect(page.locator("#androidRunNote")).to_contain_text("Starting local Appium")
+        expect(page.locator("#androidEnvNote")).to_contain_text("Ready to start")
 
         def wait_count(items, count):
             # The status line is painted before the matching request is sent.
@@ -210,6 +201,26 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, failu
                     return
                 page.wait_for_timeout(50)
             assert len(items) == count
+
+        if previously_connected:
+            page.locator("#androidDevice").select_option("emulator-5554")
+        else:
+            expect(page.locator("#androidDevice")).to_have_value("avd:demo")
+        page.locator("#androidMode").select_option("installed")
+        page.locator("#androidPackage").fill("com.example.demo")
+        page.locator("#androidProvider").select_option("none")
+        page.locator("#androidApiKey").fill("fixture-private-key")
+        page.locator("#androidAuthorized").check()
+        if not previously_connected:
+            # Permission on a stopped emulator starts it while the rest of the form is filled in.
+            wait_count(prepared, 1)
+            assert prepared[0].request.post_data_json["stage"] == "all"
+            prepared[0].fulfill(json={"device_id": "emulator-5554", "avd_name": "demo", "started": True})
+            expect(page.locator("#androidRunNote")).to_contain_text("is ready")
+            prepared.clear()
+        page.locator("#androidStart").click()
+        expect(page.locator("#androidStart")).to_be_disabled()
+        expect(page.locator("#androidRunNote")).to_contain_text("Starting local Appium")
 
         wait_count(prepared, 1)
         assert not submitted
