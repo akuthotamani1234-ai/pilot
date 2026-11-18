@@ -10,7 +10,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | Observability (metrics + traces + alerts) | Partial (local snapshot only) | `docs/ops-evidence/local_metrics_snapshot.json` — central stack still open |
 | Backup of run store / object store | Partial (local SQLite only) | `docs/ops-evidence/backup_restore_drill.json` — object-store DR still open |
 | Restore from backup into an isolated env | Partial (local folder restore) | same drill artifact — live isolated env still open |
-| Load / soak against a controlled fixture | Open | — |
+| Load / soak against a controlled fixture | Partial (local API probe only) | `docs/ops-evidence/local_load_probe.json` — controlled soak still open |
 | Incident runbook tabletop | Open | — |
 | CI deploy + rollback rehearsal | Open | — |
 
