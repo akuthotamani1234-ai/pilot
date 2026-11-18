@@ -322,6 +322,9 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   (header `X-QA-Token`, body `{"url": "https://..."}`).
 - `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`. Gate I still
   needs SSO/hosting before it can be marked complete.
+- `POSTGRES_URL` / `REDIS_URL` (optional): enable live drills via `POST /api/ops/drills/postgres-isolation` and
+  `POST /api/ops/drills/redis-lease`. Evidence lands under `docs/ops-evidence/`. Gate G stays incomplete without
+  MinIO/SSO and independent review; Redis DurableQueue adapter is still open.
 
 ## 7. AI cost
 Every AI call is logged with its tokens (`runs/<run>/llm_usage.jsonl`); `cost.json` holds the final breakdown.

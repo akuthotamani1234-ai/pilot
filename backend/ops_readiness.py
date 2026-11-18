@@ -33,10 +33,18 @@ def _file_check(rel: str, *, ready_reason: str, missing_reason: str) -> dict:
 def readiness() -> dict:
     """Snapshot of Gate H foundations. Never sets gate_h_complete True here."""
     checks = {
-        "ci_workflow": _file_check(
-            ".github/workflows/blow-ai.yml",
-            ready_reason="CI workflow file is present",
-            missing_reason="No blow-ai GitHub Actions workflow found",
+        "ci_workflow": (
+            _file_check(
+                ".github/workflows/qpilot.yml",
+                ready_reason="CI workflow qpilot.yml is present",
+                missing_reason="No qpilot.yml GitHub Actions workflow found",
+            )
+            if (ROOT / ".github" / "workflows" / "qpilot.yml").is_file()
+            else _file_check(
+                ".github/workflows/ci.yml",
+                ready_reason="CI workflow ci.yml is present",
+                missing_reason="No CI workflow found under .github/workflows/",
+            )
         ),
         "deployment_doc": _file_check(
             "DEPLOYMENT.md",

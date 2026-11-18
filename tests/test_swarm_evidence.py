@@ -38,3 +38,14 @@ def test_listing_dual_write_and_drain(tmp_path):
     assert out["ran"] is True
     assert out["listing_mirrored"] >= 1
     assert out["gate_b_complete"] is False
+    roles = {t.get("role") for t in out["tasks"]}
+    assert "coverage" in roles
+    assert "oracle" in roles
+
+
+def test_plan_includes_specialists():
+    from backend.swarm_supervisor import plan_run
+    planned = plan_run("run-x", ["https://shop.example/", "https://shop.example/p/1"], worker_count=2)
+    roles = {t["role"] for t in planned}
+    assert "coverage" in roles
+    assert "oracle" in roles

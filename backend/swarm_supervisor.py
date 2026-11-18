@@ -14,9 +14,10 @@ from .swarm_queue import DurableQueue
 
 
 def plan_run(run_id: str, urls: list[str], *, worker_count: int = 2, limit: int | None = None) -> list[dict]:
-    """Create leader + worker task envelopes for safe URLs only."""
+    """Create leader + worker + specialist (coverage/oracle) envelopes for safe URLs."""
     assignments = partition_site(urls, worker_count, limit=limit)
-    leader = new_task(role="leader", url=urls[0] if urls else "", scope="site",
+    home = urls[0] if urls else ""
+    leader = new_task(role="leader", url=home, scope="site",
                       status="completed", evidence=[f"planned {len(assignments)} worker page(s)"])
     tasks = [leader]
     for row in assignments:
@@ -27,6 +28,20 @@ def plan_run(run_id: str, urls: list[str], *, worker_count: int = 2, limit: int 
             role="worker", url=url, parent_task_id=leader["task_id"],
             worker=row["worker"], status="partial", reason="scheduled",
         ))
+    # Gate B specialists: one coverage + one oracle task per planned site (SQLite path).
+    safe = [u for u in urls if u and not is_payment_url(u)][: max(1, int(limit or 40))]
+    tasks.append(new_task(
+        role="coverage", url=home or (safe[0] if safe else "about:blank"),
+        parent_task_id=leader["task_id"], status="partial",
+        reason="verify listing coverage",
+        evidence=[],
+    ))
+    tasks.append(new_task(
+        role="oracle", url=home or (safe[0] if safe else "about:blank"),
+        parent_task_id=leader["task_id"], status="partial",
+        reason="bind approved assertion",
+        evidence=[],
+    ))
     return tasks
 
 

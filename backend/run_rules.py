@@ -310,12 +310,18 @@ def evaluation_for(results: list[dict]) -> dict:
     return scored
 
 
-def trends_for(state: dict, verdict: str, failures: list[dict]) -> dict:
+def trends_for(state: dict, verdict: str, failures: list[dict],
+               results: list[dict] | None = None) -> dict:
     """Cluster repeated failures. The verdict of this run stays as it was."""
     run_dir = Path(state.get("run_dir") or ".")
     areas = [str(item.get("category") or item.get("page_url") or "") for item in failures
              if item.get("category") or item.get("page_url")]
-    runs = [{"verdict": verdict, "failures": areas, "flaky": []}]
+    flaky_now = [
+        str(row.get("nodeid") or row.get("id") or row.get("test") or "")
+        for row in (results or [])
+        if row.get("flaky")
+    ]
+    runs = [{"verdict": verdict, "failures": areas, "flaky": flaky_now}]
     parent = run_dir.parent
     if parent.is_dir():
         for path in sorted(parent.glob("*/summary.json")):
@@ -323,8 +329,9 @@ def trends_for(state: dict, verdict: str, failures: list[dict]) -> dict:
                 continue
             summary = _read(path)
             if isinstance(summary, dict) and isinstance(summary.get("qx_areas"), list):
+                prior_flaky = summary.get("flaky") if isinstance(summary.get("flaky"), list) else []
                 runs.append({"verdict": summary.get("verdict") or "", "failures": summary.get("qx_areas") or [],
-                             "flaky": []})
+                             "flaky": prior_flaky})
     trends = cluster_runs(runs)
     trends["verdict"] = keep_verdict(verdict, trends)
     site = str(state.get("site_key") or "")
@@ -371,8 +378,8 @@ def apply_analysis(state: dict, failures: list[dict]) -> dict:
     environment = str(state.get("environment") or settings.environment or "test")
     packages = replay_for(failures, environment)
     replay_payload = {"packages": packages}
-    # Gate E: attempt bounded re-execution when complete packages name tests + scripts exist.
-    # Offline unit paths without generated_tests record a skip reason (not a fake pass).
+    # Persist packages before run_saved so the same call can re-execute complete ones.
+    _store(run_dir, "replay", replay_payload)
     from .replay_pack import run_saved
     try:
         executed = run_saved(run_dir, limit=3)
@@ -395,7 +402,7 @@ def apply_report(state: dict, *, verdict: str, failures: list[dict], results: li
     rules = {
         "journeys": {"compared": journeys_for(state)},
         "evaluation": evaluation_for(results),
-        "trends": trends_for(dict(state, run_dir=str(run_dir)), verdict, failures),
+        "trends": trends_for(dict(state, run_dir=str(run_dir)), verdict, failures, results),
     }
     for name, payload in rules.items():
         _store(run_dir, name, payload)
