@@ -1,0 +1,17 @@
+{
+  "gate_b_complete": false,
+  "drill": "swarm_cancel_checkpoint_budget",
+  "ran_at": "2026-11-18T16:41:41Z",
+  "backend": "redis",
+  "redis_url_set": true,
+  "run_id": "swarm-control-1795020101",
+  "task_id": "a224885f97ac498b9730a8b167f31a2f",
+  "action_budget": 5,
+  "time_budget_s": 30,
+  "claimed": true,
+  "checkpointed": true,
+  "cancelled": true,
+  "final_status": "cancelled",
+  "ok": true,
+  "reason": "Swarm control drill on redis: claim/checkpoint/cancel exercised; product-wide durable supervisor review still open"
+}

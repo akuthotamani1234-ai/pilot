@@ -636,6 +636,16 @@ def ops_lifecycle_cleanup():
     return {"gate_c_complete": False, "lifecycle_cleanup": evidence}
 
 
+@app.post("/api/ops/drills/swarm-control")
+def ops_swarm_control():
+    """Gate B: claim/checkpoint/cancel control drill (still incomplete)."""
+    from backend.swarm_control_drill import run_swarm_control_drill
+    evidence = run_swarm_control_drill()
+    _audit("ops_swarm_control", ok=bool(evidence.get("ok")),
+           backend=str(evidence.get("backend") or ""))
+    return {"gate_b_complete": False, "swarm_control": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
