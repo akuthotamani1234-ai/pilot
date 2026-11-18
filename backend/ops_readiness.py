@@ -88,6 +88,24 @@ def readiness() -> dict:
                 else "No Postgres DR drill evidence"
             ),
         },
+        "multi_region_dr_drill": {
+            "ready": _ops_evidence("multi_region_dr_drill.json"),
+            "reason": (
+                "Local dual-region Postgres failover rehearsal present; "
+                "hosted multi-region DR / on-call still open"
+                if _ops_evidence("multi_region_dr_drill.json")
+                else "No multi-region DR rehearsal evidence"
+            ),
+        },
+        "paging_escalation_drill": {
+            "ready": _ops_evidence("paging_escalation_drill.json"),
+            "reason": (
+                "Loopback primary→secondary paging escalation present; "
+                "live hosted on-call still open"
+                if _ops_evidence("paging_escalation_drill.json")
+                else "No paging escalation drill evidence"
+            ),
+        },
         "admin_portal_surfaces": {
             "ready": _ops_evidence("admin_portal_surface_coverage.json"),
             "reason": (
@@ -358,6 +376,22 @@ def readiness() -> dict:
                 "Live DemoStore failure matrix present; production healing suite still open"
                 if _ops_evidence("live_failure_matrix_drill.json")
                 else "No live failure matrix drill evidence"
+            ),
+        },
+        "multi_app_healing_suite_drill": {
+            "ready": _ops_evidence("multi_app_healing_suite_drill.json"),
+            "reason": (
+                "Multi-fixture healing suite present; production / third-party healing still open"
+                if _ops_evidence("multi_app_healing_suite_drill.json")
+                else "No multi-app healing suite evidence"
+            ),
+        },
+        "independent_review_pack": {
+            "ready": _ops_evidence("independent_review_pack.json"),
+            "reason": (
+                "Independent review evidence pack hashed; human sign-off still pending"
+                if _ops_evidence("independent_review_pack.json")
+                else "No independent review evidence pack"
             ),
         },
         "sso_tenant_acl_drill": {

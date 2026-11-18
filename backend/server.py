@@ -643,6 +643,20 @@ def ops_live_failure_matrix():
     return {"gate_e_complete": False, "live_failure_matrix": evidence}
 
 
+@app.post("/api/ops/drills/multi-app-healing-suite")
+def ops_multi_app_healing_suite():
+    """Gate E: multi-fixture live healing suite (production healing still open)."""
+    from backend.multi_app_healing_suite_drill import run_multi_app_healing_suite_drill
+    evidence = run_multi_app_healing_suite_drill()
+    _audit(
+        "ops_multi_app_healing_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "multi_app_healing_suite": evidence}
+
+
 @app.post("/api/ops/drills/api-version-contract")
 def ops_api_version_contract():
     """Gate I: API versioning contract snapshot (SSO still open)."""
@@ -1003,6 +1017,20 @@ def ops_incident_tabletop():
     return {"gate_h_complete": False, "incident_tabletop": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-pack")
+def ops_independent_review_pack():
+    """Gate G: hash ops-evidence pack for reviewers (sign-off still pending)."""
+    from backend.independent_review_pack_drill import run_independent_review_pack_drill
+    evidence = run_independent_review_pack_drill()
+    _audit(
+        "ops_independent_review_pack",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(evidence.get("artifact_count") or 0),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_pack": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
@@ -1098,6 +1126,16 @@ def ops_postgres_dr():
     return {"gate_h_complete": False, "postgres_dr": evidence}
 
 
+@app.post("/api/ops/drills/multi-region-dr")
+def ops_multi_region_dr():
+    """Gate H: local dual-region Postgres failover (hosted multi-region still open)."""
+    from backend.multi_region_dr_drill import run_multi_region_dr_drill
+    evidence = run_multi_region_dr_drill()
+    _audit("ops_multi_region_dr", ok=bool(evidence.get("ok")),
+           dump_bytes=int(evidence.get("dump_bytes") or 0))
+    return {"gate_h_complete": False, "multi_region_dr": evidence}
+
+
 @app.post("/api/ops/drills/admin-portal-surfaces")
 def ops_admin_portal_surfaces():
     """Gate A surface inventory against AdminPortal (still incomplete)."""
@@ -1150,6 +1188,16 @@ def ops_paging_rehearsal():
     evidence = run_paging_rehearsal()
     _audit("ops_paging_rehearsal", ok=bool(evidence.get("ok")))
     return {"gate_h_complete": False, "paging": evidence}
+
+
+@app.post("/api/ops/drills/paging-escalation")
+def ops_paging_escalation():
+    """Gate H: primary→secondary paging escalation (hosted on-call still open)."""
+    from backend.paging_escalation_drill import run_paging_escalation_drill
+    evidence = run_paging_escalation_drill()
+    _audit("ops_paging_escalation", ok=bool(evidence.get("ok")),
+           escalated=bool(evidence.get("escalated")))
+    return {"gate_h_complete": False, "paging_escalation": evidence}
 
 
 def _require_dashboard_auth(

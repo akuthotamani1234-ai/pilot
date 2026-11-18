@@ -1,0 +1,18 @@
+{
+  "gate_h_complete": false,
+  "drill": "paging_escalation",
+  "ran_at": "2026-11-18T20:19:35Z",
+  "ok": true,
+  "primary": {
+    "url": "http://127.0.0.1:59237/page",
+    "http_status": 500,
+    "hits": 1
+  },
+  "secondary": {
+    "url": "http://127.0.0.1:38043/page",
+    "http_status": 202,
+    "hits": 1
+  },
+  "escalated": true,
+  "reason": "Loopback primary\u2192secondary paging escalation accepted; live hosted on-call / multi-region paging still open"
+}

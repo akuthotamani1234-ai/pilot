@@ -73,11 +73,21 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
         "demo_store_healing_live_drill.json"
     )
     assert snap["checks"]["postgres_dr_drill"]["ready"] is has("postgres_dr_drill.json")
+    assert snap["checks"]["multi_region_dr_drill"]["ready"] is has("multi_region_dr_drill.json")
+    assert snap["checks"]["paging_escalation_drill"]["ready"] is has(
+        "paging_escalation_drill.json"
+    )
     assert snap["checks"]["live_failure_matrix_drill"]["ready"] is has(
         "live_failure_matrix_drill.json"
     )
+    assert snap["checks"]["multi_app_healing_suite_drill"]["ready"] is has(
+        "multi_app_healing_suite_drill.json"
+    )
     assert snap["checks"]["sso_tenant_acl_drill"]["ready"] is has("sso_tenant_acl_drill.json")
     assert snap["checks"]["independent_review_checklist"]["ready"] is True
+    assert snap["checks"]["independent_review_pack"]["ready"] is has(
+        "independent_review_pack.json"
+    )
     assert snap["checks"]["mutation_score_drill"]["ready"] is has("mutation_score_drill.json")
     assert snap["checks"]["cross_platform_journey_drill"]["ready"] is has(
         "cross_platform_journey_drill.json"

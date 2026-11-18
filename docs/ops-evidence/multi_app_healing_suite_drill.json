@@ -1,0 +1,87 @@
+{
+  "gate_e_complete": false,
+  "drill": "multi_app_healing_suite",
+  "ran_at": "2026-11-18T20:19:41Z",
+  "apps": [
+    {
+      "app": "demo_store",
+      "ok": true,
+      "live": {
+        "app": "demo_store",
+        "missing_locator": true,
+        "good_locator": true,
+        "missing_error": "Locator.click: Timeout 700ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-demo_store\")\n"
+      },
+      "classification": {
+        "category": "locator",
+        "confidence": "medium",
+        "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b"
+      },
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    },
+    {
+      "app": "classic_shop",
+      "ok": true,
+      "live": {
+        "app": "classic_shop",
+        "missing_locator": true,
+        "good_locator": true,
+        "missing_error": "Locator.click: Timeout 700ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-classic_shop\")\n"
+      },
+      "classification": {
+        "category": "locator",
+        "confidence": "medium",
+        "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b"
+      },
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    },
+    {
+      "app": "admin_portal",
+      "ok": true,
+      "live": {
+        "app": "admin_portal",
+        "missing_locator": true,
+        "good_locator": true,
+        "missing_error": "Locator.click: Timeout 700ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-admin_portal\")\n"
+      },
+      "classification": {
+        "category": "locator",
+        "confidence": "medium",
+        "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b"
+      },
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    },
+    {
+      "app": "travel_site",
+      "ok": true,
+      "live": {
+        "app": "travel_site",
+        "missing_locator": true,
+        "good_locator": true,
+        "missing_error": "Locator.click: Timeout 700ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-travel_site\")\n"
+      },
+      "classification": {
+        "category": "locator",
+        "confidence": "medium",
+        "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b"
+      },
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    }
+  ],
+  "passed": 4,
+  "total": 4,
+  "ok": true,
+  "reason": "Multi-app healing suite 4/4 fixtures ok; production / third-party healing suite still open"
+}
