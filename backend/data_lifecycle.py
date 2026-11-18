@@ -377,6 +377,60 @@ def admin_portal_delete(base_url: str):
     return remote_delete
 
 
+def demo_store_cart_delete(base_url: str, sid_cookie: str):
+    """Adapter: POST /cart/remove on the local DemoStore fixture (session cookie)."""
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    from urllib.parse import urljoin
+
+    root = (base_url or "").rstrip("/") + "/"
+    cookie = (sid_cookie or "").strip()
+
+    def remote_delete(record: dict) -> dict:
+        tag = str(record.get("tag") or "")
+        if record.get("source") == "synthetic":
+            return {"deleted": True, "proof": f"synthetic_unused:{tag}"}
+        line = record.get("line")
+        if line is None:
+            line = record.get("remote_id") or record.get("id")
+        if line is None:
+            for part in reversed(tag.replace("/", ":").split(":")):
+                if part.isdigit():
+                    line = part
+                    break
+        if line is None or str(line).strip() == "":
+            return {"deleted": False, "reason": f"no DemoStore cart line for {tag}"}
+        if not root.startswith(("http://127.0.0.1:", "http://localhost:")):
+            return {"deleted": False, "reason": "DemoStore adapter only allows localhost URLs"}
+        if not cookie.startswith("sid="):
+            return {"deleted": False, "reason": "DemoStore cart delete needs sid cookie"}
+        url = urljoin(root, "cart/remove")
+        body = urllib.parse.urlencode({"line": str(int(line))}).encode()
+        req = urllib.request.Request(  # noqa: S310
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": cookie,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
+                code = int(getattr(resp, "status", None) or resp.getcode())
+                raw = resp.read().decode("utf-8", errors="replace")
+                if code == 200:
+                    return {"deleted": True, "proof": f"demo_store:cart_removed:{line}:{code}:{raw[:80]}"}
+                return {"deleted": False, "reason": f"demo_store HTTP {code} for cart line {line}"}
+        except urllib.error.HTTPError as exc:
+            return {"deleted": False, "reason": f"demo_store HTTP {exc.code} for cart line {line}"}
+        except Exception as exc:
+            return {"deleted": False, "reason": f"demo_store cart remove failed: {exc}"}
+
+    return remote_delete
+
+
 def choose_remote_delete(run_dir: str | Path, state: dict | None = None):
     """Pick AdminPortal adapter when the run targets that fixture; else created.jsonl."""
     state = state or {}
