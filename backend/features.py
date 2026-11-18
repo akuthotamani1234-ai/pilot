@@ -169,7 +169,9 @@ def page_features(p: dict) -> list[dict]:
                     "names": [x["text"] for x in flinks] or [_box_name(b) for b in boxes[:6]]})
     for i in p.get("inputs", []):
         hint = f"{i.get('name')} {i.get('id')} {i.get('label')}"
-        if i.get("tag") == "select" and len(i.get("options") or []) >= 2 and SORT_HINT.search(hint):
+        # Discovery drops empty-value placeholders (e.g. "Recommended"), so a Sort-by with only
+        # "Price: low to high" still has len(options)==1 — require >=1 for SORT_HINT selects.
+        if i.get("tag") == "select" and len(i.get("options") or []) >= 1 and SORT_HINT.search(hint):
             out.append({"kind": "sort", "selector": i["selector"], "name": _box_name(i),
                         "options": [o["value"] for o in i["options"][:6]],
                         "labels": [o.get("text") or o["value"] for o in i["options"][:6]]})  # (the label says the order)
