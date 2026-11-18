@@ -47,18 +47,28 @@ def record_audit(*, actor: str, action: str, allowed: bool, tenant_id: str = "",
     return event
 
 
-def list_audits(*, limit: int = 50, db_path: str | Path | None = None) -> list[dict]:
-    """Newest audit events first."""
+def list_audits(*, limit: int = 50, tenant_id: str | None = None,
+                db_path: str | Path | None = None) -> list[dict]:
+    """Newest audit events first. Optional tenant_id scopes the list (Gate G)."""
     path = Path(db_path) if db_path else DEFAULT_DB
     if not path.is_file():
         return []
     conn = _connect(path)
     try:
-        rows = conn.execute(
-            "SELECT audit_id, tenant_id, actor, action, allowed, detail, created_at "
-            "FROM audit_events ORDER BY created_at DESC LIMIT ?",
-            (max(1, int(limit)),),
-        ).fetchall()
+        lim = max(1, int(limit))
+        tid = (tenant_id or "").strip()
+        if tid:
+            rows = conn.execute(
+                "SELECT audit_id, tenant_id, actor, action, allowed, detail, created_at "
+                "FROM audit_events WHERE tenant_id=? ORDER BY created_at DESC LIMIT ?",
+                (tid, lim),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT audit_id, tenant_id, actor, action, allowed, detail, created_at "
+                "FROM audit_events ORDER BY created_at DESC LIMIT ?",
+                (lim,),
+            ).fetchall()
         return [
             {
                 "audit_id": row["audit_id"],
@@ -73,3 +83,17 @@ def list_audits(*, limit: int = 50, db_path: str | Path | None = None) -> list[d
         ]
     finally:
         conn.close()
+
+
+def export_audits(*, limit: int = 200, tenant_id: str | None = None,
+                  db_path: str | Path | None = None) -> dict:
+    """Offline audit export package for Gate G evidence (Studio SSO still open)."""
+    events = list_audits(limit=limit, tenant_id=tenant_id, db_path=db_path)
+    return {
+        "gate_g_complete": False,
+        "export": "audit_events",
+        "tenant_id": (tenant_id or "").strip() or None,
+        "count": len(events),
+        "events": events,
+        "reason": "SQLite audit export available; Studio SSO / independent review still open",
+    }

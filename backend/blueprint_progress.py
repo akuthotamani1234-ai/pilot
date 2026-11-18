@@ -34,7 +34,7 @@ def progress() -> dict:
     ]
     gates = [
         {"id": "A", "label": "Gate A — Discovery surfaces", "status": "partial",
-         "note": "Graph + surface_coverage + AdminPortal inventory drill; full live matrix still open"},
+         "note": "Graph + surfaces (dialog/download/rich controls) + AdminPortal drill; full live matrix open"},
         {"id": "B", "label": "Gate B — Durable swarm", "status": "partial",
          "note": "Redis preferred when REDIS_URL set (else SQLite); specialists wired; review still open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "partial",
@@ -116,6 +116,8 @@ def progress() -> dict:
         {"id": "E-failure-matrix", "label": "Controlled offline failure taxonomy matrix evidence", "status": "done"},
         {"id": "F-compatibility", "label": "Compatibility portfolio (desktop+mobile viewport matrix)", "status": "done"},
         {"id": "E-healing-regression", "label": "Offline locator-only healing regression suite", "status": "done"},
+        {"id": "A-rich-controls", "label": "Surface coverage counts canvas/file-upload/web-component", "status": "done"},
+        {"id": "G-audit-export", "label": "Tenant-scoped audit list + /api/audit/export", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
