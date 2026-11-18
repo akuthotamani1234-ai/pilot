@@ -128,6 +128,7 @@ def progress() -> dict:
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
         {"id": "D-matrix-snapshot", "label": "Combined device matrix snapshot (web+ADB+dry-run)", "status": "done"},
         {"id": "F-locale-drill", "label": "DemoStore locale portfolio drill evidence", "status": "done"},
+        {"id": "H-checklist-cross-gate", "label": "Ops checklist lists cross-gate offline drill APIs", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

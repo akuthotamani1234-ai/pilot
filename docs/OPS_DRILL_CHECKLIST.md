@@ -23,6 +23,21 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 - Probe: `backend/ops_readiness.py` + `/api/ops/readiness` (never sets `gate_h_complete`)
 - Gate D ADB probe: `POST /api/ops/drills/android-adb-probe` → `docs/ops-evidence/android_adb_probe.json` (ADB may be present with zero devices; does not complete Gate D)
 
+## Cross-gate offline drills (still Partial; do not over-claim)
+
+| Gate | Drill API | Evidence |
+|---|---|---|
+| A | `/api/ops/drills/admin-portal-surfaces`, `demo-store-surfaces`, `classic-shop-surfaces`, `travel-site-surfaces` | `docs/ops-evidence/*_surface_coverage.json` |
+| B | `/api/ops/drills/swarm-control` | `docs/ops-evidence/swarm_control_drill.json` |
+| C | `/api/ops/drills/lifecycle-cleanup` | `docs/ops-evidence/lifecycle_cleanup_drill.json` |
+| D | `/api/ops/drills/device-matrix` | `docs/ops-evidence/device_matrix_drill.json` |
+| E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
+| F | `/api/ops/drills/locale-portfolio` | `docs/ops-evidence/locale_portfolio_drill.json` |
+| G | Postgres/Redis/MinIO + `/api/audit/export` | `docs/ops-evidence/pg_tenancy_drill.json` (+ infra drills) |
+| I | `/api/ops/drills/api-version-contract` | `docs/ops-evidence/api_version_contract.json` |
+
+Studio sidebar Blueprint TODO (`/api/v1/blueprint/progress`) lists done vs open upcoming items for these increments.
+
 ## Rule
 
 Do not mark Gate H complete in `FINAL_ACCEPTANCE_GATES.md` or issue #22 until each row above has a dated evidence artifact and an independent review notes the drill.
