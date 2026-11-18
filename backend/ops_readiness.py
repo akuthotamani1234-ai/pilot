@@ -65,8 +65,12 @@ def readiness() -> dict:
             ),
         },
         "load_test": {
-            "ready": False,
-            "reason": "No load-test suite or drill artifacts established",
+            "ready": _ops_evidence("local_load_probe.json"),
+            "reason": (
+                "Local API load probe present; controlled soak / prod-like load still open"
+                if _ops_evidence("local_load_probe.json")
+                else "No load-test suite or drill artifacts established"
+            ),
         },
         "incident_runbook": {
             "ready": (ROOT / "DEPLOYMENT.md").is_file() or (ROOT / "STATUS.md").is_file(),

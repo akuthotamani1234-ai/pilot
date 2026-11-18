@@ -584,6 +584,15 @@ def ops_backup_restore_drill():
     return {"gate_h_complete": False, "backup_restore": evidence, "metrics": metrics}
 
 
+@app.post("/api/ops/drills/load-probe")
+def ops_load_probe(requests: int = 40):
+    """Local TestClient load probe. Does not complete Gate H."""
+    from backend.ops_drill import run_local_load_probe
+    evidence = run_local_load_probe(requests=requests)
+    _audit("ops_load_probe", ok=int(evidence.get("ok") or 0), requests=int(evidence.get("requests") or 0))
+    return {"gate_h_complete": False, "load_probe": evidence}
+
+
 @app.get("/api/approvals")
 def list_approval_queue(status: str = "pending", limit: int = 50):
     """Gate I: list human-review approvals (pending by default)."""

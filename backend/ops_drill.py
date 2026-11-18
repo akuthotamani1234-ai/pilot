@@ -74,3 +74,45 @@ def write_local_metrics_snapshot(*, ops_dir: Path | None = None) -> dict:
     }
     (base / "local_metrics_snapshot.json").write_text(json.dumps(snap, indent=2), encoding="utf-8")
     return snap
+
+
+def run_local_load_probe(*, requests: int = 40, ops_dir: Path | None = None) -> dict:
+    """Hit /api/v1/blueprint/progress via TestClient. Not a production soak."""
+    from fastapi.testclient import TestClient
+
+    from backend.server import app
+
+    base = Path(ops_dir) if ops_dir else OPS_DIR
+    base.mkdir(parents=True, exist_ok=True)
+    client = TestClient(app)
+    headers = {"host": "127.0.0.1"}
+    n = max(1, min(500, int(requests)))
+    ok = 0
+    lat: list[float] = []
+    t0 = time.perf_counter()
+    for _ in range(n):
+        started = time.perf_counter()
+        resp = client.get("/api/v1/blueprint/progress", headers=headers)
+        lat.append((time.perf_counter() - started) * 1000)
+        if resp.status_code == 200 and resp.json().get("complete") is False:
+            ok += 1
+    elapsed = time.perf_counter() - t0
+    lat.sort()
+    evidence = {
+        "gate_h_complete": False,
+        "drill": "local_api_load_probe",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "requests": n,
+        "ok": ok,
+        "elapsed_s": round(elapsed, 3),
+        "rps": round(n / elapsed, 2) if elapsed else 0,
+        "p50_ms": round(lat[len(lat) // 2], 2) if lat else 0,
+        "p95_ms": round(lat[max(0, int(len(lat) * 0.95) - 1)], 2) if lat else 0,
+        "reason": "Local TestClient probe only; soak against controlled fixture / prod-like load still open",
+    }
+    (base / "local_load_probe.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    docs = ROOT / "docs" / "ops-evidence"
+    if ops_dir is None:
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "local_load_probe.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    return evidence

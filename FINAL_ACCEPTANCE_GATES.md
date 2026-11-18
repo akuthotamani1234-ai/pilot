@@ -24,7 +24,7 @@ Each capability is **DONE** only when:
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — bounded `run_saved` on analysis + `healing_policy.json` / locator-only guards; full live failure matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — a11y/perf/security + first-run `visual.json` capture on apply_run; broad live CI artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — SQLite `audit_events` persistence + migrations/RBAC/object store; live Postgres/Redis/MinIO isolation still not established |
-| H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local SQLite backup/restore + metrics snapshot under `artifacts/ops/`; live DR/load/incident drills still open |
+| H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local SQLite backup/restore + metrics snapshot + API load probe under `docs/ops-evidence/`; live DR/soak/incident drills still open |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + durable approvals queue/API; auth/hosting still not established |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run6: 19/19 pages, 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
