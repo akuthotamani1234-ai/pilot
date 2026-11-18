@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_contract",
-  "ran_at": "2026-11-18T23:50:37Z",
+  "ran_at": "2026-11-18T23:52:34Z",
   "kind": "contract_only",
   "contract": {
     "discovery": "/.well-known/openid-configuration",
@@ -32,9 +32,10 @@
     "loopback_auth_code_sso_drill.json",
     "loopback_pkce_sso_drill.json",
     "studio_oidc_callback_drill.json",
-    "sso_tenant_acl_drill.json"
+    "sso_tenant_acl_drill.json",
+    "dual_tenant_oidc_acl_drill.json"
   ],
   "local_partial_missing": [],
   "ok": true,
-  "reason": "Hosted IdP SSO contract recorded (5/5 local partials present); live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP SSO contract recorded (6/6 local partials present); live hosted IdP Studio SSO login still open"
 }

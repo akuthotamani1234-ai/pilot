@@ -19,6 +19,7 @@ LOCAL_PARTIAL = (
     "loopback_pkce_sso_drill.json",
     "studio_oidc_callback_drill.json",
     "sso_tenant_acl_drill.json",
+    "dual_tenant_oidc_acl_drill.json",
 )
 
 

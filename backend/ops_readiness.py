@@ -526,6 +526,22 @@ def readiness() -> dict:
                 else "No production healing matrix evidence"
             ),
         },
+        "production_healing_taxonomy_drill": {
+            "ready": _ops_evidence("production_healing_taxonomy_drill.json"),
+            "reason": (
+                "Production healing taxonomy present; production / third-party suite still open"
+                if _ops_evidence("production_healing_taxonomy_drill.json")
+                else "No production healing taxonomy evidence"
+            ),
+        },
+        "dual_tenant_oidc_acl_drill": {
+            "ready": _ops_evidence("dual_tenant_oidc_acl_drill.json"),
+            "reason": (
+                "Dual-tenant loopback OIDC ACL present; hosted IdP Studio SSO still open"
+                if _ops_evidence("dual_tenant_oidc_acl_drill.json")
+                else "No dual-tenant OIDC ACL evidence"
+            ),
+        },
         "independent_review_pack": {
             "ready": _ops_evidence("independent_review_pack.json"),
             "reason": (

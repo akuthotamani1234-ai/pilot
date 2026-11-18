@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:50:47Z",
+  "ran_at": "2026-11-18T23:52:34Z",
   "ok": true,
   "blockers": [
     {
@@ -39,6 +39,7 @@
         "loopback_pkce_sso_drill.json",
         "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json",
+        "dual_tenant_oidc_acl_drill.json",
         "hosted_idp_contract_drill.json"
       ],
       "status": "open",
@@ -48,6 +49,7 @@
         "loopback_pkce_sso_drill.json",
         "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json",
+        "dual_tenant_oidc_acl_drill.json",
         "hosted_idp_contract_drill.json"
       ],
       "local_partial_missing": []
@@ -60,6 +62,7 @@
         "live_failure_matrix_drill.json",
         "multi_app_healing_suite_drill.json",
         "production_healing_matrix_drill.json",
+        "production_healing_taxonomy_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
@@ -67,6 +70,7 @@
         "live_failure_matrix_drill.json",
         "multi_app_healing_suite_drill.json",
         "production_healing_matrix_drill.json",
+        "production_healing_taxonomy_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []
