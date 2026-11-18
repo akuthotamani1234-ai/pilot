@@ -216,6 +216,14 @@ def readiness() -> dict:
                 else "No oracle-spec drill evidence"
             ),
         },
+        "demo_store_cart_lifecycle_drill": {
+            "ready": _ops_evidence("demo_store_cart_lifecycle_drill.json"),
+            "reason": (
+                "DemoStore cart add→remove cleanup evidence present; broader live portal paths still open"
+                if _ops_evidence("demo_store_cart_lifecycle_drill.json")
+                else "No DemoStore cart lifecycle drill evidence"
+            ),
+        },
         "swarm_control_drill": {
             "ready": _ops_evidence("swarm_control_drill.json"),
             "reason": (

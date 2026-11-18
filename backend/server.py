@@ -657,6 +657,16 @@ def ops_oracle_spec():
     return {"gate_c_complete": False, "oracle_spec": evidence}
 
 
+@app.post("/api/ops/drills/demo-store-cart-lifecycle")
+def ops_demo_store_cart_lifecycle():
+    """Gate C: DemoStore cart add→remove cleanup confirmation (still incomplete)."""
+    from backend.demo_store_cart_lifecycle_drill import run_demo_store_cart_lifecycle_drill
+    evidence = run_demo_store_cart_lifecycle_drill()
+    _audit("ops_demo_store_cart_lifecycle", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0))
+    return {"gate_c_complete": False, "demo_store_cart_lifecycle": evidence}
+
+
 @app.post("/api/ops/drills/swarm-control")
 def ops_swarm_control():
     """Gate B: claim/checkpoint/cancel control drill (still incomplete)."""
