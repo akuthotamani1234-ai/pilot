@@ -151,6 +151,7 @@ def progress() -> dict:
         {"id": "D-emulator-smoke", "label": "Live API24 emulator adb smoke (profiles verified)", "status": "done"},
         {"id": "D-appium-system-apps", "label": "Live Appium Settings/Contacts/Chrome on API30+", "status": "done"},
         {"id": "D-appium-apk", "label": "Live Appium third-party ApiDemos APK on API30+", "status": "done"},
+        {"id": "D-appium-ci-contract", "label": "Offline Appium CI artifact contract (ubuntu+KVM)", "status": "done"},
         {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
         {"id": "E-live-matrix", "label": "Live failure matrix / production healing suite", "status": "open"},

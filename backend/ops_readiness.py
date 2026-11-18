@@ -311,6 +311,14 @@ def readiness() -> dict:
                 else "No Android Appium product matrix drill evidence"
             ),
         },
+        "android_appium_ci_contract": {
+            "ready": _ops_evidence("android_appium_ci_contract.json"),
+            "reason": (
+                "Appium CI artifact contract documented; ubuntu+KVM multi-device job still open"
+                if _ops_evidence("android_appium_ci_contract.json")
+                else "No Appium CI contract evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (
