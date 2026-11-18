@@ -247,6 +247,14 @@ def readiness() -> dict:
                 else "No performance portfolio drill evidence"
             ),
         },
+        "visual_portfolio_drill": {
+            "ready": _ops_evidence("visual_portfolio_drill.json"),
+            "reason": (
+                "DemoStore first-run visual portfolio evidence present; broad live CI still open"
+                if _ops_evidence("visual_portfolio_drill.json")
+                else "No visual portfolio drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
