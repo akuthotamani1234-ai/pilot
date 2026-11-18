@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:56:23Z",
+  "ran_at": "2026-11-18T23:57:17Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
@@ -250,7 +250,7 @@
     {
       "name": "minio_object_store_drill.json",
       "bytes": 442,
-      "sha256": "262e026c3533a02da84bb0ad1e7a2e801a76e36258b54d19f3a938f5dfc31a41"
+      "sha256": "fc219af02895ba447c64d87378eb756682853c79e50669a15a48df0c9e2a1744"
     },
     {
       "name": "multi_api_android_matrix_drill.json",
@@ -340,7 +340,7 @@
     {
       "name": "postgres_isolation_drill.json",
       "bytes": 530,
-      "sha256": "ed0b027dd20340fbb87fc07b014b450a46a8950e6a54836bab4c80029f2d229f"
+      "sha256": "831b8880522f5dd1cfac1f1c82401bb928758b20d94c47b3ce3f02bdf4aceb0f"
     },
     {
       "name": "production_healing_matrix_drill.json",
@@ -365,12 +365,12 @@
     {
       "name": "redis_durable_queue_drill.json",
       "bytes": 558,
-      "sha256": "866fa9056711327d4ac2a77c49a0aa1e288bf1b4672ae10f14d08c367dcb5daa"
+      "sha256": "edf5cc2c3fb19b2cac0f307e4b59fc75beba335f4befdca5667e5af169480312"
     },
     {
       "name": "redis_lease_drill.json",
       "bytes": 369,
-      "sha256": "2c769ceb3a92914da716483c31d7195154eed208d2437f02c5c8f381886517b5"
+      "sha256": "1e5a5f23b5f3e5536f74a6838599bafc2b240b78ec5240e5eb6b537a284452f1"
     },
     {
       "name": "redis_multi_region_drill.json",
@@ -385,7 +385,7 @@
     {
       "name": "remaining_blockers.json",
       "bytes": 4621,
-      "sha256": "6c595fde2ac13463b12409e43e45ae11ca4427304f1295b610b6039519b6aee5"
+      "sha256": "60575a25429f1337e2fea5b16c4bb18d8f135586ab611592b55d65fb740fdfa2"
     },
     {
       "name": "security_portfolio_drill.json",
