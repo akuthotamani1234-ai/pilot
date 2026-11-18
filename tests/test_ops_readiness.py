@@ -43,3 +43,4 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
         "admin_portal_lifecycle_drill.json"
     )
     assert snap["checks"]["oracle_spec_drill"]["ready"] is has("oracle_spec_drill.json")
+    assert snap["checks"]["swarm_retry_drill"]["ready"] is has("swarm_retry_drill.json")

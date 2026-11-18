@@ -667,6 +667,17 @@ def ops_swarm_control():
     return {"gate_b_complete": False, "swarm_control": evidence}
 
 
+@app.post("/api/ops/drills/swarm-retry")
+def ops_swarm_retry():
+    """Gate B: lease-expiry → retry_wait control drill (still incomplete)."""
+    from backend.swarm_retry_drill import run_swarm_retry_drill
+    evidence = run_swarm_retry_drill()
+    _audit("ops_swarm_retry", ok=bool(evidence.get("ok")),
+           backend=str(evidence.get("backend") or ""),
+           status=str(evidence.get("status_after_recover") or ""))
+    return {"gate_b_complete": False, "swarm_retry": evidence}
+
+
 @app.post("/api/ops/drills/device-matrix")
 def ops_device_matrix():
     """Gate D: combined web + Android dry-run + ADB probe snapshot (still incomplete)."""

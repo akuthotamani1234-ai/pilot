@@ -28,7 +28,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | Gate | Drill API | Evidence |
 |---|---|---|
 | A | `/api/ops/drills/admin-portal-surfaces`, `demo-store-surfaces`, `classic-shop-surfaces`, `travel-site-surfaces` | `docs/ops-evidence/*_surface_coverage.json` |
-| B | `/api/ops/drills/swarm-control` | `docs/ops-evidence/swarm_control_drill.json` |
+| B | `/api/ops/drills/swarm-control`, `swarm-retry` | `docs/ops-evidence/swarm_control_drill.json`, `swarm_retry_drill.json` |
 | C | `/api/ops/drills/lifecycle-cleanup`, `admin-portal-lifecycle`, `oracle-spec` | `docs/ops-evidence/lifecycle_cleanup_drill.json`, `admin_portal_lifecycle_drill.json`, `oracle_spec_drill.json` |
 | D | `/api/ops/drills/device-matrix` | `docs/ops-evidence/device_matrix_drill.json` |
 | E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |

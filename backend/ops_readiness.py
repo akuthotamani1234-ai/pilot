@@ -224,6 +224,14 @@ def readiness() -> dict:
                 else "No swarm control drill evidence"
             ),
         },
+        "swarm_retry_drill": {
+            "ready": _ops_evidence("swarm_retry_drill.json"),
+            "reason": (
+                "Swarm lease-expiry→retry_wait drill present; product-wide supervisor review still open"
+                if _ops_evidence("swarm_retry_drill.json")
+                else "No swarm retry drill evidence"
+            ),
+        },
         "device_matrix_drill": {
             "ready": _ops_evidence("device_matrix_drill.json"),
             "reason": (
