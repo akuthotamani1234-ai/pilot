@@ -35,10 +35,17 @@ Same command → `phase1_demo_store_run2.json`. Metrics matched run 1 exactly (i
 
 **Partial evidence recorded; gate not closed.**
 
-### Gap fixes in progress
-- **`cart_total` miss (confirmed):** journey budget (`LARGE=20`) let short “Shop on” cases crowd out the `change_cart` shopping journey. Fix: emit product/`change_cart` journey first (`backend/agents/test_design.py`) + `tests/test_journey_budget_cart_total.py`. Re-benchmark required.
-- **Quantity false alarm:** DemoStore accepts qty=2 correctly in isolation; likely shared-session/cart races across workers. Still open.
+### Gap fixes
+- **`cart_total` miss — fixed & verified:** journey budget crowding. After reorder, run3 (`phase1_demo_store_run3_after_cart_fix.json`) catches **6/6** seeded bugs including `cart_total` (shopping journey failed as expected: cart total stayed 198 when quantity increased).
+- **Quantity false alarm — still open:** run3 still has 1 false alarm (`TC-7E74C4E3`). DemoStore accepts qty=2 in isolation; likely shared-session/cart races.
+
+## Run 3 (after journey-budget fix)
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | 18/18 | 21/24 | 1 | n/a |
+| buggy | 18/18 | 10/10 judged | 1 | **6/6** |
 
 ## Next
 
-Re-run DemoStore accuracy after the journey-budget fix; then tackle quantity isolation if the false alarm remains.
+Isolate cart-mutating tests / sessions to clear the quantity false alarm before closing Gate J.
