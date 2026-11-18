@@ -111,3 +111,15 @@ Pay/checkout `<a class="btn">` links are now recorded as protected features (`ba
 
 Remaining gap: search page only reachable via the search box (truth path still missing).  
 Artifacts: `deep_validation/live_runs/phase1_classic_shop_run2.json` + `phase1_classic_shop_run2_summary.json`.
+
+## AdminPortal run 1 (third controlled fixture — 2026-11-18)
+
+`accuracy_benchmark --site admin --mode first` with `REVIEW=off` (staging would otherwise wait 900s). **Partial**.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **8/8** | **23/25** | 1 | n/a |
+| buggy | **8/8** | 8/8 judged | 3 | **7/7** |
+
+Gaps: `users.next_page`, `widgets.shadow_nickname` on clean; false alarms on buggy.  
+Artifacts: `deep_validation/live_runs/phase1_admin_portal_run1.json` + `phase1_admin_portal_run1_summary.json`.

@@ -1,0 +1,1443 @@
+{
+  "site": "admin",
+  "mode": "first",
+  "clean": {
+    "run": "127.0.0.1_34153_20261118_144454",
+    "pages": {
+      "discovered": 30,
+      "logged_in": 0,
+      "failed": 0,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 30,
+      "visited": 30,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 62,
+      "passed": 58,
+      "failed": 1,
+      "flaky": 0,
+      "skipped": 1,
+      "blocked": 0,
+      "inconclusive": 1,
+      "not_run": 1,
+      "click_only": 1,
+      "exploratory": 15
+    },
+    "result_status_counts": {
+      "PASS": 58,
+      "FAIL": 1,
+      "BLOCKED": 0,
+      "SKIPPED": 1,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 1,
+      "planned": 62,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 135,
+      "passed": 133,
+      "failed": 1,
+      "error": 0,
+      "skipped": 0,
+      "inconclusive": 1
+    },
+    "coverage_claimed": {
+      "tested": 188,
+      "total": 251
+    },
+    "coverage_limitations": {
+      "partial": true,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 30,
+        "visited": 30,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 21,
+      "actions_not_tried_limit": 16,
+      "limits_hit": [],
+      "exploration_status": "partial",
+      "statement": "Coverage is incomplete / exploration is partial: 16 control interaction(s) not tried (per-page limit). This report does not claim exhaustive reachability of the site or app.",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 18,
+      "learned": 17,
+      "no_effect": 0,
+      "failed": 1,
+      "blocked": 0,
+      "skipped": 12,
+      "forms_filled": 1,
+      "opener_replays": 7,
+      "not_tried_limit": 16,
+      "limit_per_page": 15,
+      "states": 6,
+      "blocked_list": [],
+      "skipped_list": [
+        {
+          "control": "Select Priya Kim",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Omar Garcia",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Nora Smith",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Mateo Patel",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Lena Novak",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Kofi Okafor",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Previous",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Name",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Email",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Role",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Score",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Joined",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Actions",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select all",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Delete",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        },
+        {
+          "control": "Select Asha Patel",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Ben Smith",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Chen Garcia",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Dina Kim",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Eli Okafor",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Farah Novak",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Gopal Patel",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Hana Smith",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Ivan Garcia",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Jia Kim",
+          "page": "http://127.0.0.1:34153/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Create user",
+          "page": "http://127.0.0.1:34153/users/new",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        },
+        {
+          "control": "Archive (no permission)",
+          "page": "http://127.0.0.1:34153/widgets",
+          "why": "disabled on the page"
+        },
+        {
+          "control": "Save changes",
+          "page": "http://127.0.0.1:34153/users/1/edit",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 8,
+        "inspected": 8,
+        "tested": 8,
+        "verified": 6,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 62,
+        "tested": 55,
+        "lifecycle": {
+          "discovered": 62,
+          "inspected": 62,
+          "test_generated": 55,
+          "tested": 55,
+          "verified": 8
+        },
+        "verified": 8,
+        "test_generated": 0,
+        "failed": 0,
+        "blocked": 0,
+        "needs_login": 0,
+        "inconclusive": 2,
+        "clicked_only": 12,
+        "skipped": 0,
+        "unresolved": 7,
+        "smoke": 33,
+        "suspect": 0,
+        "rule_violation": 0,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 54,
+            "verified": 6
+          },
+          "feature": {
+            "discovered": 6,
+            "verified": 2
+          },
+          "workflow": {
+            "discovered": 2,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 8,
+        "found": [
+          "/",
+          "/users",
+          "/users/new",
+          "/users/{id}/edit",
+          "/widgets",
+          "/reports",
+          "/help",
+          "/help/guide"
+        ],
+        "missing": [],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 25,
+        "detected": 24,
+        "tested": 23,
+        "verified": 23,
+        "judged": 25,
+        "correct": 23,
+        "rows": [
+          {
+            "id": "users.sort_name",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-6FB27F21"
+            ]
+          },
+          {
+            "id": "users.sort_score",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-222AFAB1"
+            ]
+          },
+          {
+            "id": "users.sort_joined",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-25BADD65"
+            ]
+          },
+          {
+            "id": "users.search",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-25BE485F"
+            ]
+          },
+          {
+            "id": "users.page_size",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-3F06C8E6",
+              "TC-6B3B93F6",
+              "TC-8585382D",
+              "TC-FE351855",
+              "TC-4CB8E2E6"
+            ]
+          },
+          {
+            "id": "users.select_all",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-BEB211E2"
+            ]
+          },
+          {
+            "id": "users.next_page",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": false,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-3820FA1C",
+              "TC-A27FD0DD",
+              "TC-3B5DD177",
+              "TC-837BEFD0"
+            ]
+          },
+          {
+            "id": "user_form.valid",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-EE115035b"
+            ]
+          },
+          {
+            "id": "user_form.email",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-012D7967"
+            ]
+          },
+          {
+            "id": "user_form.name",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B78EA125"
+            ]
+          },
+          {
+            "id": "user_form.age",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F348F420"
+            ]
+          },
+          {
+            "id": "users.crud",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F8AC5291"
+            ]
+          },
+          {
+            "id": "widgets.alert",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-72DDE51A",
+              "TC-713D4201"
+            ]
+          },
+          {
+            "id": "widgets.prompt",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B7DAB3DC",
+              "TC-311CE351"
+            ]
+          },
+          {
+            "id": "widgets.modal",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-24C94E1A"
+            ]
+          },
+          {
+            "id": "widgets.download",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-87398EB9"
+            ]
+          },
+          {
+            "id": "widgets.upload",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-1C583B9D"
+            ]
+          },
+          {
+            "id": "widgets.range",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-E6A0391A"
+            ]
+          },
+          {
+            "id": "widgets.details",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-7AA94021",
+              "TC-70F5500E"
+            ]
+          },
+          {
+            "id": "widgets.shadow_nickname",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "widgets.shadow_newsletter",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-8D4A61EE",
+              "TC-4A3C62BA"
+            ]
+          },
+          {
+            "id": "widgets.closed_shadow",
+            "expect": "unsupported",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "reports.load_totals",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A3BECAD3"
+            ]
+          },
+          {
+            "id": "reports.include_archived",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-64CDF999",
+              "TC-DD002636"
+            ]
+          },
+          {
+            "id": "help.guide_link",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-8B429D22",
+              "TC-00DBA372"
+            ]
+          }
+        ]
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-3820FA1C",
+          "title": "'Select Tomas Smith' changes its value (Users)",
+          "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+        }
+      ],
+      "questions": [],
+      "frames": {
+        "known": 2,
+        "found": 2,
+        "tested": 2,
+        "rows": [
+          {
+            "frame": "Totals",
+            "found": true,
+            "depth_ok": true,
+            "tested": true
+          },
+          {
+            "frame": "Archive options",
+            "found": true,
+            "depth_ok": true,
+            "tested": true
+          }
+        ]
+      },
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-pc3a517b/clean/runs/127.0.0.1_34153_20261118_144454"
+  },
+  "buggy": {
+    "run": "127.0.0.1_46811_20261118_144750",
+    "pages": {
+      "discovered": 30,
+      "logged_in": 0,
+      "failed": 1,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 30,
+      "visited": 30,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 60,
+      "passed": 47,
+      "failed": 10,
+      "flaky": 0,
+      "skipped": 1,
+      "blocked": 0,
+      "inconclusive": 1,
+      "not_run": 1,
+      "click_only": 1,
+      "exploratory": 13
+    },
+    "result_status_counts": {
+      "PASS": 47,
+      "FAIL": 10,
+      "BLOCKED": 0,
+      "SKIPPED": 1,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 1,
+      "planned": 60,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 131,
+      "passed": 120,
+      "failed": 10,
+      "error": 0,
+      "skipped": 0,
+      "inconclusive": 1
+    },
+    "coverage_claimed": {
+      "tested": 186,
+      "total": 224
+    },
+    "coverage_limitations": {
+      "partial": true,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 30,
+        "visited": 30,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 25,
+      "actions_not_tried_limit": 16,
+      "limits_hit": [],
+      "exploration_status": "partial",
+      "statement": "Coverage is incomplete / exploration is partial: 16 control interaction(s) not tried (per-page limit). This report does not claim exhaustive reachability of the site or app.",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 18,
+      "learned": 15,
+      "no_effect": 2,
+      "failed": 1,
+      "blocked": 0,
+      "skipped": 12,
+      "forms_filled": 1,
+      "opener_replays": 7,
+      "not_tried_limit": 16,
+      "limit_per_page": 15,
+      "states": 6,
+      "blocked_list": [],
+      "skipped_list": [
+        {
+          "control": "Select Priya Kim",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Omar Garcia",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Nora Smith",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Mateo Patel",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Lena Novak",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Kofi Okafor",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Previous",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Name",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Email",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Role",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Score",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Joined",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Actions",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select all",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Delete",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        },
+        {
+          "control": "Select Asha Patel",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Ben Smith",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "limit: MAX_INTERACTIONS_PER_PAGE=15"
+        },
+        {
+          "control": "Select Chen Garcia",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Dina Kim",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Eli Okafor",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Farah Novak",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Gopal Patel",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Hana Smith",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Ivan Garcia",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Select Jia Kim",
+          "page": "http://127.0.0.1:46811/users",
+          "why": "one of many alike (tick): the first 3 are learned"
+        },
+        {
+          "control": "Create user",
+          "page": "http://127.0.0.1:46811/users/new",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        },
+        {
+          "control": "Archive (no permission)",
+          "page": "http://127.0.0.1:46811/widgets",
+          "why": "disabled on the page"
+        },
+        {
+          "control": "Save changes",
+          "page": "http://127.0.0.1:46811/users/1/edit",
+          "why": "changes data: only the form / create-edit-delete tests do it (tagged test data, cleaned up)"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 8,
+        "inspected": 8,
+        "tested": 7,
+        "verified": 3,
+        "needs_permission": 0,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 62,
+        "tested": 54,
+        "lifecycle": {
+          "discovered": 62,
+          "inspected": 62,
+          "test_generated": 54,
+          "tested": 54,
+          "verified": 4
+        },
+        "verified": 4,
+        "test_generated": 0,
+        "failed": 6,
+        "blocked": 0,
+        "needs_login": 0,
+        "inconclusive": 5,
+        "clicked_only": 12,
+        "skipped": 0,
+        "unresolved": 7,
+        "smoke": 27,
+        "suspect": 1,
+        "rule_violation": 0,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 54,
+            "verified": 3
+          },
+          "feature": {
+            "discovered": 6,
+            "verified": 1
+          },
+          "workflow": {
+            "discovered": 2,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 8,
+        "found": [
+          "/",
+          "/users",
+          "/users/new",
+          "/users/{id}/edit",
+          "/widgets",
+          "/reports",
+          "/help",
+          "/help/guide"
+        ],
+        "missing": [],
+        "inaccessible_classified": {}
+      },
+      "features": {
+        "known": 25,
+        "detected": 24,
+        "tested": 23,
+        "verified": 17,
+        "judged": 8,
+        "correct": 8,
+        "rows": [
+          {
+            "id": "users.sort_name",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-6FB27F21"
+            ]
+          },
+          {
+            "id": "users.sort_score",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-222AFAB1"
+            ]
+          },
+          {
+            "id": "users.sort_joined",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-25BADD65"
+            ]
+          },
+          {
+            "id": "users.search",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-25BE485F"
+            ]
+          },
+          {
+            "id": "users.page_size",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-3F06C8E6",
+              "TC-6B3B93F6",
+              "TC-8585382D",
+              "TC-FE351855",
+              "TC-4CB8E2E6"
+            ]
+          },
+          {
+            "id": "users.select_all",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-BEB211E2"
+            ]
+          },
+          {
+            "id": "users.next_page",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-3820FA1C",
+              "TC-A27FD0DD",
+              "TC-3B5DD177",
+              "TC-837BEFD0"
+            ]
+          },
+          {
+            "id": "user_form.valid",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-EE115035b"
+            ]
+          },
+          {
+            "id": "user_form.email",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-012D7967"
+            ]
+          },
+          {
+            "id": "user_form.name",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B78EA125"
+            ]
+          },
+          {
+            "id": "user_form.age",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F348F420"
+            ]
+          },
+          {
+            "id": "users.crud",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-F8AC5291"
+            ]
+          },
+          {
+            "id": "widgets.alert",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-72DDE51A",
+              "TC-713D4201"
+            ]
+          },
+          {
+            "id": "widgets.prompt",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B7DAB3DC",
+              "TC-311CE351"
+            ]
+          },
+          {
+            "id": "widgets.modal",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-24C94E1A"
+            ]
+          },
+          {
+            "id": "widgets.download",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-87398EB9"
+            ]
+          },
+          {
+            "id": "widgets.upload",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-1C583B9D"
+            ]
+          },
+          {
+            "id": "widgets.range",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-E6A0391A"
+            ]
+          },
+          {
+            "id": "widgets.details",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-7AA94021",
+              "TC-70F5500E"
+            ]
+          },
+          {
+            "id": "widgets.shadow_nickname",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "widgets.shadow_newsletter",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-8D4A61EE",
+              "TC-4A3C62BA"
+            ]
+          },
+          {
+            "id": "widgets.closed_shadow",
+            "expect": "unsupported",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "reports.load_totals",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-A3BECAD3"
+            ]
+          },
+          {
+            "id": "reports.include_archived",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-64CDF999",
+              "TC-DD002636"
+            ]
+          },
+          {
+            "id": "help.guide_link",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-8B429D22",
+              "TC-00DBA372"
+            ]
+          }
+        ]
+      },
+      "bugs": {
+        "planted": 7,
+        "caught": [
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "B6",
+          "B7"
+        ],
+        "false_pass": [],
+        "not_tested": []
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-3820FA1C",
+          "title": "'Select Tomas Smith' changes its value (Users)",
+          "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+        },
+        {
+          "tc_id": "TC-A27FD0DD",
+          "title": "'Select Sara Patel' changes its value (Users)",
+          "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+        },
+        {
+          "tc_id": "TC-3B5DD177",
+          "title": "'Select Ravi Novak' changes its value (Users)",
+          "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+        }
+      ],
+      "questions": [
+        {
+          "tc_id": "TC-A3BECAD3",
+          "title": "'Load totals' gives a visible response when clicked (Reports)",
+          "why": "E   AssertionError: 'Load totals' gave no visible response (no message, nothing changed, the page did not move) | E   assert ([] or 'http://127.0.0.1:46811/reports' != 'http://127.0.0.1:46811/reports'"
+        }
+      ],
+      "frames": {
+        "known": 2,
+        "found": 2,
+        "tested": 2,
+        "rows": [
+          {
+            "frame": "Totals",
+            "found": true,
+            "depth_ok": true,
+            "tested": true
+          },
+          {
+            "frame": "Archive options",
+            "found": true,
+            "depth_ok": true,
+            "tested": true
+          }
+        ]
+      },
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-pc3a517b/buggy/runs/127.0.0.1_46811_20261118_144750"
+  }
+}
