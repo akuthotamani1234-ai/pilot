@@ -1,0 +1,18 @@
+{
+  "gate_h_complete": false,
+  "gate_g_complete": false,
+  "drill": "minio_object_backup_restore",
+  "ran_at": "2026-11-18T15:40:48Z",
+  "ok": true,
+  "reason": "Live MinIO backup-key + restore verified; hosted DR / multi-tenant ACLs still open",
+  "uri_scheme": "minio",
+  "open": {
+    "ready": true,
+    "backend": "minio",
+    "reason": ""
+  },
+  "primary_key": "dr/primary/1795016448.bin",
+  "backup_key": "dr/backup/1795016448.bin",
+  "bytes": 20,
+  "backend": "minio"
+}

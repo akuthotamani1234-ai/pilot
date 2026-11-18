@@ -661,6 +661,24 @@ def ops_minio_drill():
     return {"gate_g_complete": False, "minio": evidence}
 
 
+@app.post("/api/ops/drills/minio-backup-restore")
+def ops_minio_backup_restore():
+    """Live MinIO object backup/restore drill (Gate H still incomplete)."""
+    from backend.minio_dr_drill import object_store_backup_restore_drill
+    evidence = object_store_backup_restore_drill()
+    _audit("ops_minio_backup_restore", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "gate_g_complete": False, "minio_backup_restore": evidence}
+
+
+@app.post("/api/ops/drills/admin-portal-surfaces")
+def ops_admin_portal_surfaces():
+    """Gate A surface inventory against AdminPortal (still incomplete)."""
+    from backend.surface_evidence_drill import run_admin_portal_surface_drill
+    evidence = run_admin_portal_surface_drill()
+    _audit("ops_admin_portal_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
 @app.post("/api/ops/drills/ci-rollback")
 def ops_ci_rollback():
     """Offline CI/deploy rollback rehearsal (Gate H still incomplete)."""

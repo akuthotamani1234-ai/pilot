@@ -34,7 +34,7 @@ def progress() -> dict:
     ]
     gates = [
         {"id": "A", "label": "Gate A — Discovery surfaces", "status": "partial",
-         "note": "Graph + surface_coverage (iframe/shadow/API/lazy/meta/viewport/dialog/download); live matrix open"},
+         "note": "Graph + surface_coverage + AdminPortal inventory drill; full live matrix still open"},
         {"id": "B", "label": "Gate B — Durable swarm", "status": "partial",
          "note": "SQLite + Redis DurableQueue adapters, specialists; product-wide Redis default/review open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "partial",
@@ -106,6 +106,8 @@ def progress() -> dict:
         {"id": "A-dialog-download", "label": "Surface coverage counts dialogs + download links", "status": "done"},
         {"id": "H-controlled-soak", "label": "Controlled AdminPortal soak drill evidence", "status": "done"},
         {"id": "G-live-drills-refresh2", "label": "Re-verify live Postgres/Redis/MinIO after soak work", "status": "done"},
+        {"id": "H-minio-dr", "label": "MinIO object backup/restore DR drill", "status": "done"},
+        {"id": "A-admin-surfaces", "label": "AdminPortal surface_coverage inventory drill", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
