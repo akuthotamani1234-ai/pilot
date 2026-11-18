@@ -75,7 +75,7 @@ Copied from `FINAL_ACCEPTANCE_GATES.md` and confirmed against tree:
 | G Postgres/Redis/MinIO/RBAC/tenancy | **Not established** |
 | H Ops/observability/DR | **Not established** |
 | I React/TS enterprise dashboard | Partial; Studio is HTML/JS, not React |
-| J Owned demo-store seeded-defect benchmark | **Partial** — fixture + two URL→report runs recorded; see `docs/QPILOT_X_PHASE1_BENCHMARK.md` |
+| J Owned demo-store seeded-defect benchmark | **Partial→strong evidence** — run4: 18/18 pages, 6/6 bugs, 0 false alarms; 1 clean feature still imperfect (`docs/QPILOT_X_PHASE1_BENCHMARK.md`) |
 
 ## 5. Explicit gaps blocking later phases
 
