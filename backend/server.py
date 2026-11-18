@@ -794,6 +794,17 @@ def ops_audit_export():
     return {"gate_g_complete": False, "audit_export": evidence}
 
 
+@app.post("/api/ops/drills/dashboard-auth-matrix")
+def ops_dashboard_auth_matrix():
+    """Gate I: dashboard auth mode matrix (still incomplete — live SSO open)."""
+    from backend.dashboard_auth_matrix_drill import run_dashboard_auth_matrix_drill
+    evidence = run_dashboard_auth_matrix_drill()
+    _audit("ops_dashboard_auth_matrix", ok=bool(evidence.get("ok")),
+           passed=int(evidence.get("passed") or 0),
+           failed=int(evidence.get("failed") or 0))
+    return {"gate_i_complete": False, "dashboard_auth_matrix": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
