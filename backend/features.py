@@ -194,6 +194,27 @@ def page_features(p: dict) -> list[dict]:
         t = (b.get("text") or "").split("\n")[0].strip()
         if t and action_risk(t, b.get("selector"), b) == "protected" and not b.get("disabled"):
             protected.setdefault(t.lower(), {"text": t[:40], "selector": b.get("selector")})
+    # Pay/checkout destinations often render as <a class="btn"> and land in links, not buttons
+    # (classic shop cart Checkout). Still record them as protected so Gate J blocked expects hold.
+    for link in p.get("links", []):
+        if link.get("external"):
+            continue
+        t = (link.get("text") or "").split("\n")[0].strip()
+        if not t:
+            continue
+        ctx = {
+            "tag": "a",
+            "role": "link",
+            "href": link.get("href") or "",
+            "kind": "link",
+        }
+        if action_risk(t, link.get("selector"), ctx, href=ctx["href"], tag="a", role="link") != "protected":
+            continue
+        protected.setdefault(t.lower(), {
+            "text": t[:40],
+            "selector": link.get("selector") or "",
+            "href": ctx["href"],
+        })
     if protected:
         out.append({"kind": "protected", "actions": list(protected.values())[:8]})
     return out
