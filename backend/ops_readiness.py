@@ -170,6 +170,14 @@ def readiness() -> dict:
                 else "No multi-fixture discovery score evidence"
             ),
         },
+        "multi_portal_oracle_drill": {
+            "ready": _ops_evidence("multi_portal_oracle_drill.json"),
+            "reason": (
+                "Multi-portal oracle bind suite present; broader live portal oracles still open"
+                if _ops_evidence("multi_portal_oracle_drill.json")
+                else "No multi-portal oracle drill evidence"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (
