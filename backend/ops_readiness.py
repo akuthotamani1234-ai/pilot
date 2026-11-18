@@ -378,6 +378,14 @@ def readiness() -> dict:
                 else "No loopback SSO drill evidence"
             ),
         },
+        "loopback_auth_code_sso_drill": {
+            "ready": _ops_evidence("loopback_auth_code_sso_drill.json"),
+            "reason": (
+                "Loopback OIDC authorization-code SSO present; hosted IdP Studio SSO still open"
+                if _ops_evidence("loopback_auth_code_sso_drill.json")
+                else "No loopback auth-code SSO drill evidence"
+            ),
+        },
         "demo_store_healing_live_drill": {
             "ready": _ops_evidence("demo_store_healing_live_drill.json"),
             "reason": (

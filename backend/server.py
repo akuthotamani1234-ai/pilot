@@ -1031,6 +1031,15 @@ def ops_independent_review_pack():
     return {"gate_g_complete": False, "independent_review_pack": evidence}
 
 
+@app.post("/api/ops/drills/loopback-auth-code-sso")
+def ops_loopback_auth_code_sso():
+    """Gate I: loopback OIDC auth-code → JWT → dashboard (hosted IdP still open)."""
+    from backend.loopback_auth_code_sso_drill import run_loopback_auth_code_sso_drill
+    evidence = run_loopback_auth_code_sso_drill()
+    _audit("ops_loopback_auth_code_sso", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "loopback_auth_code_sso": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
