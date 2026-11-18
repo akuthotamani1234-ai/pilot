@@ -28,6 +28,7 @@ from .release_row import from_run
 from .replay_pack import replay
 from .schema_diff import diff_specs
 from .sessions import RoleBook
+from .surface_coverage import summarize_surfaces
 
 _CART_WORDS = ("cart", "add to cart", "add-to-cart")
 
@@ -332,9 +333,14 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "enterprise": enterprise_readiness(),
         "ops": ops_readiness(),
         "discovery_graph": write_graph(run_dir, app_map, crawl),
+        "surfaces": summarize_surfaces(app_map, crawl),
     }
     applied["trends"]["verdict"] = keep_verdict(verdict, applied["trends"])
     applied["release"] = from_run(state)
+    (run_dir / "portfolio_gates.json").write_text(
+        json.dumps(applied["portfolios"], indent=2), encoding="utf-8")
+    (run_dir / "surface_coverage.json").write_text(
+        json.dumps(applied["surfaces"], indent=2), encoding="utf-8")
     return applied
 
 
