@@ -1,14 +1,19 @@
 {
   "gate_e_complete": false,
   "drill": "controlled_failure_classification_matrix",
-  "ran_at": "2026-11-18T15:45:56Z",
-  "cases": 8,
+  "ran_at": "2026-11-18T19:35:04Z",
+  "cases": 13,
   "counts": {
-    "product_defect": 3,
+    "product_defect": 1,
     "test_defect": 2,
     "timeout": 1,
     "flaky": 1,
-    "inconclusive": 1
+    "inconclusive": 2,
+    "infrastructure": 2,
+    "auth_problem": 1,
+    "test_data": 1,
+    "locator": 1,
+    "rule_violation": 1
   },
   "rows": [
     {
@@ -20,7 +25,7 @@
       "outcome": "failed"
     },
     {
-      "id": "locator",
+      "id": "opener-unique",
       "category": "test_defect",
       "confidence": "high",
       "why": "The automation could not establish a unique, reachable target or grounded value.",
@@ -53,17 +58,57 @@
     },
     {
       "id": "session",
-      "category": "product_defect",
+      "category": "inconclusive",
       "confidence": "high",
-      "why": "The website did not behave as expected.",
+      "why": "Session expired mid-test (login page returned). Protected reauth was attempted where configured; this is not a broken credential assumption (auth_problem).",
       "flaky": false,
       "outcome": "failed"
     },
     {
       "id": "infra-block",
-      "category": "product_defect",
+      "category": "infrastructure",
       "confidence": "high",
-      "why": "The website did not behave as expected.",
+      "why": "This computer's or network's security software (antivirus, firewall, company proxy) blocked the website during the test: the test saw its block page, not the we",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "infra-econn",
+      "category": "infrastructure",
+      "confidence": "medium",
+      "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "auth-login",
+      "category": "auth_problem",
+      "confidence": "medium",
+      "why": "The login was refused or did not hold (sent back to the login page / 401 / 403).",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "test-account",
+      "category": "test_data",
+      "confidence": "high",
+      "why": "The test needs a test account, and none was given.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "locator-gone",
+      "category": "locator",
+      "confidence": "medium",
+      "why": "The element the test uses was not found on the page (renamed, moved or removed) - not proof of a website bug: self-healing tries to repair the script; if no rep",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "rule-tag",
+      "category": "rule_violation",
+      "confidence": "medium",
+      "why": "irreversible action blocked",
       "flaky": false,
       "outcome": "failed"
     },
@@ -76,5 +121,5 @@
       "outcome": "inconclusive"
     }
   ],
-  "reason": "Controlled offline failure taxonomy matrix recorded; live failure matrix / healing regression suite still open"
+  "reason": "Controlled offline failure taxonomy matrix recorded (incl. auth/infra/test_data/locator/rule); live failure matrix / production healing still open"
 }
