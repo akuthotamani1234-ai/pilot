@@ -1,8 +1,8 @@
-"""A small swarm for a large shop.
+"""Workers share a website.
 
-The results page may list hundreds of products. One leader keeps two or three.
-Each chosen product is given to its own worker. Payment and checkout links are
-never handed to a worker.
+Every safe page is given to a worker. The workers open their own pages at the
+same time, then close. Payment and checkout links are never handed to a worker.
+A long product list can still keep a short sample for the deeper crawl.
 """
 import re
 from urllib.parse import urlsplit
@@ -62,31 +62,86 @@ def assign_workers(urls: list[str], worker_count: int) -> list[dict]:
     return [{"worker": (index % count) + 1, "url": url} for index, url in enumerate(urls)]
 
 
-def perform(assignments: list[dict], open_page, *, on_status=None) -> list[dict]:
-    """Open each worker's product at the same time. A payment address is not opened."""
+def partition_site(urls: list[str], worker_count: int, limit: int | None = None) -> list[dict]:
+    """Give every safe page to a worker. Payment addresses are left out.
+
+    Pages from different parts of the site are taken in turn, so a long product
+    list does not crowd out the home page, account, or other sections.
+    ``limit`` stops this pass at the crawl's page budget.
+    """
+    buckets: dict[str, list[str]] = {}
+    order: list[str] = []
+    seen: set[str] = set()
+    for raw in urls:
+        url = (raw or "").strip()
+        if not url or url in seen or is_payment_url(url):
+            continue
+        seen.add(url)
+        folder = urlsplit(url).path.strip("/").split("/", 1)[0]
+        if folder not in buckets:
+            buckets[folder] = []
+            order.append(folder)
+        buckets[folder].append(url)
+    picked: list[str] = []
+    cap = limit if limit and limit > 0 else None
+    while order and (cap is None or len(picked) < cap):
+        folder = order.pop(0)
+        pages = buckets[folder]
+        picked.append(pages.pop(0))
+        if pages:
+            order.append(folder)
+    return assign_workers(picked, worker_count)
+
+
+def perform(assignments: list[dict], open_page, *, on_status=None, session=None) -> list[dict]:
+    """Each worker opens its own pages, then finishes. Workers run at the same time.
+
+    ``session`` returns ``(open_page, close)`` for one worker's own browser.
+    Without it, every worker uses the shared ``open_page``. A payment address
+    is not opened.
+    """
+    from collections import defaultdict
     from concurrent.futures import ThreadPoolExecutor
 
-    def run(row: dict) -> dict:
+    groups: dict[int, list[dict]] = defaultdict(list)
+    order: list[int] = []
+    for row in assignments:
         worker = int(row.get("worker") or 0)
-        url = str(row.get("url") or "")
-        if on_status:
-            on_status(worker, "opening", url)
-        if not url or is_payment_url(url):
-            if on_status:
-                on_status(worker, "blocked", url)
-            return {**row, "status": "blocked"}
+        if worker not in groups:
+            order.append(worker)
+        groups[worker].append(row)
+
+    def run_group(worker: int) -> list[dict]:
+        own_open, close = session() if session else (open_page, lambda: None)
+        done: list[dict] = []
         try:
-            open_page(url)
-        except Exception:
+            for row in groups[worker]:
+                url = str(row.get("url") or "")
+                if on_status:
+                    on_status(worker, "opening", url)
+                if not url or is_payment_url(url):
+                    if on_status:
+                        on_status(worker, "blocked", url)
+                    done.append({**row, "status": "blocked"})
+                    continue
+                try:
+                    own_open(url)
+                except Exception:
+                    if on_status:
+                        on_status(worker, "stopped", url)
+                    done.append({**row, "status": "stopped"})
+                    continue
+                if on_status:
+                    on_status(worker, "opened", url)
+                done.append({**row, "status": "opened"})
             if on_status:
-                on_status(worker, "stopped", url)
-            return {**row, "status": "stopped"}
-        if on_status:
-            on_status(worker, "opened", url)
-        return {**row, "status": "opened"}
+                on_status(worker, "finished", "")
+        finally:
+            close()
+        return done
 
     if not assignments:
         return []
-    with ThreadPoolExecutor(max_workers=min(len(assignments), 4)) as pool:
-        done = list(pool.map(run, assignments))
-    return done
+    with ThreadPoolExecutor(max_workers=max(1, len(order))) as pool:
+        parts = list(pool.map(run_group, order))
+    return [row for part in parts for row in part]
