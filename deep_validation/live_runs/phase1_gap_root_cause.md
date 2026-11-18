@@ -32,7 +32,14 @@ Planted `cart_total` only breaks `#cart-total` via `store._total()`; line-total 
 
 Run3 buggy result: **bugs caught 6/6** including `cart_total`. Shopping journey `TC-2EF282F6` failed with signature `should add 141 to the cart total, it went 198 -> 198`.
 
+## Quantity false-alarm fix
+
+**Fix:** quantity feature scripts now remove any existing cart line for the product, clear the qty input, assert `start == 0`, then always cleanup (`backend/agents/script_generator.py`, `tests/test_quantity_cart_isolation.py`).
+
+**Verified (run4):** clean + buggy false alarms **0**; bugs still **6/6**.
+
 ## Status
 
-- `cart_total`: **closed** (measured).
-- Quantity false alarm: **still open** (run3 still 1 false alarm). Gate J stays partial until that is fixed or explicitly accepted as a documented unknown.
+- `cart_total`: **closed** (run3/run4).
+- Quantity false alarm: **closed** (run4).
+- Gate J: strong partial evidence; 1 clean feature still imperfect (23/24) — keep explicit.
