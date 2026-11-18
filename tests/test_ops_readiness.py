@@ -39,3 +39,6 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["compatibility_portfolio_drill"]["ready"] is has(
         "compatibility_portfolio_drill.json"
     )
+    assert snap["checks"]["admin_portal_lifecycle_drill"]["ready"] is has(
+        "admin_portal_lifecycle_drill.json"
+    )
