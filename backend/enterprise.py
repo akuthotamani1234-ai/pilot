@@ -39,9 +39,12 @@ def readiness() -> dict:
     dashboard_configured = DASHBOARD_PKG.is_file()
     dashboard_built = DASHBOARD_DIST.is_file()
     pg_evidence = ROOT / "docs" / "ops-evidence" / "postgres_isolation_drill.json"
+    pg_tenancy_evidence = ROOT / "docs" / "ops-evidence" / "pg_tenancy_drill.json"
     redis_evidence = ROOT / "docs" / "ops-evidence" / "redis_lease_drill.json"
     redis_queue_evidence = ROOT / "docs" / "ops-evidence" / "redis_durable_queue_drill.json"
     minio_evidence = ROOT / "docs" / "ops-evidence" / "minio_object_store_drill.json"
+    api_version_evidence = ROOT / "docs" / "ops-evidence" / "api_version_contract.json"
+    swarm_control_evidence = ROOT / "docs" / "ops-evidence" / "swarm_control_drill.json"
 
     def _evidence_ok(path: Path) -> bool:
         if not path.is_file():
@@ -53,10 +56,13 @@ def readiness() -> dict:
             return False
 
     pg_live = bool(postgres) and _evidence_ok(pg_evidence)
+    pg_tenancy_live = bool(postgres) and pg_tenancy_evidence.is_file()
     redis_live = bool(redis) and (
         _evidence_ok(redis_queue_evidence) or _evidence_ok(redis_evidence) or bool(redis_queue.get("ready"))
     )
     minio_live = bool(object_uri) and _evidence_ok(minio_evidence)
+    api_version_ready = api_version_evidence.is_file()
+    swarm_control_ready = swarm_control_evidence.is_file()
     components = {
         "postgres": {
             "configured": bool(postgres),
@@ -116,7 +122,30 @@ def readiness() -> dict:
             "configured": True,
             "ready": True,
             "supported": sorted(SUPPORTED),
-            "reason": "legacy /api maps to v1; /api/v1 is canonical",
+            "contract_evidence": api_version_ready,
+            "reason": (
+                "legacy /api maps to v1; /api/v1 is canonical"
+                + ("; contract drill evidence present" if api_version_ready else "")
+            ),
+        },
+        "pg_tenancy": {
+            "configured": bool(postgres),
+            "ready": pg_tenancy_live,
+            "reason": (
+                "Postgres tenancy helpers verified; Studio SSO ACLs still open"
+                if pg_tenancy_live else
+                ("POSTGRES_URL set but pg_tenancy drill evidence missing" if postgres
+                 else "Postgres not configured for tenancy helpers")
+            ),
+        },
+        "swarm_control": {
+            "configured": True,
+            "ready": swarm_control_ready,
+            "reason": (
+                "Swarm claim/checkpoint/cancel drill evidence present; product-wide review still open"
+                if swarm_control_ready else
+                "No swarm control drill evidence yet"
+            ),
         },
         "react_dashboard": {
             "configured": dashboard_configured,
@@ -164,6 +193,10 @@ def readiness() -> dict:
         ready.append("postgres")
     if components["redis"]["ready"]:
         ready.append("redis")
+    if components["pg_tenancy"]["ready"]:
+        ready.append("pg_tenancy")
+    if components["swarm_control"]["ready"]:
+        ready.append("swarm_control")
     missing = [name for name, row in components.items() if not row["ready"]]
     blueprint = blueprint_progress()
     return {
