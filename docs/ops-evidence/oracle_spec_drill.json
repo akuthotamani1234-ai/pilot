@@ -1,0 +1,62 @@
+{
+  "gate_c_complete": false,
+  "drill": "demo_store_oracle_spec",
+  "ran_at": "2026-11-18T19:23:38Z",
+  "fixture": "DemoStore truth",
+  "truth_path": "tests/demo_store_truth.json",
+  "features_bound": 5,
+  "approved_cases": [
+    {
+      "id": "login.wrong_password",
+      "accepted": true,
+      "oracle_source": "fixture",
+      "status": "active"
+    },
+    {
+      "id": "shop.search",
+      "accepted": true,
+      "oracle_source": "fixture",
+      "status": "active"
+    },
+    {
+      "id": "shop.search_nothing",
+      "accepted": true,
+      "oracle_source": "fixture",
+      "status": "active"
+    },
+    {
+      "id": "shop.suggestions",
+      "accepted": true,
+      "oracle_source": "fixture",
+      "status": "active"
+    },
+    {
+      "id": "shop.filter",
+      "accepted": true,
+      "oracle_source": "fixture",
+      "status": "active"
+    }
+  ],
+  "approved_pass_verdicts": [
+    "pass",
+    "pass",
+    "pass",
+    "pass",
+    "pass"
+  ],
+  "ai_proposal": {
+    "accepted": false,
+    "status": "needs_review",
+    "decide_verdict": "needs_review",
+    "softened_category": "inconclusive",
+    "soften_reason": "Oracle needs review before this can be a product defect: an AI proposal is not a passing rule until a person accepts it",
+    "soften_verdict": "needs_review"
+  },
+  "business_rule": {
+    "accepted": true,
+    "pass_verdict": "pass",
+    "fail_verdict": "fail"
+  },
+  "ok": true,
+  "reason": "DemoStore fixture/business_rule oracles bind and decide; AI stays needs_review; broader live portal oracle paths still open"
+}

@@ -647,6 +647,16 @@ def ops_admin_portal_lifecycle():
     return {"gate_c_complete": False, "admin_portal_lifecycle": evidence}
 
 
+@app.post("/api/ops/drills/oracle-spec")
+def ops_oracle_spec():
+    """Gate C: approved-spec oracle bind + AI needs_review (still incomplete)."""
+    from backend.oracle_spec_drill import run_oracle_spec_drill
+    evidence = run_oracle_spec_drill()
+    _audit("ops_oracle_spec", ok=bool(evidence.get("ok")),
+           features=int(evidence.get("features_bound") or 0))
+    return {"gate_c_complete": False, "oracle_spec": evidence}
+
+
 @app.post("/api/ops/drills/swarm-control")
 def ops_swarm_control():
     """Gate B: claim/checkpoint/cancel control drill (still incomplete)."""
