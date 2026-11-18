@@ -588,6 +588,16 @@ def device_matrix_status(include_android_dry_run: bool = False):
     return scored
 
 
+@app.post("/api/ops/drills/android-adb-probe")
+def ops_android_adb_probe():
+    """Gate D: probe local ADB (does not verify emulator matrix)."""
+    from backend.android_adb_probe import run_adb_probe
+    evidence = run_adb_probe()
+    _audit("ops_android_adb_probe", ok=bool(evidence.get("ok")),
+           online=int(evidence.get("devices_online") or 0))
+    return {"gate_d_complete": False, "adb_probe": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

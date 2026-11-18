@@ -43,3 +43,31 @@ def test_principal_mode_uses_rbac(monkeypatch, tmp_path):
     assert authorize("Bearer p-op")["ok"] is True
     assert authorize("Bearer p-view")["ok"] is False  # viewer lacks review.write
     assert authorize("Bearer missing")["ok"] is False
+
+
+def test_oidc_mode_accepts_valid_jwt_claims(monkeypatch):
+    import base64
+    import json
+    import time
+
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "oidc")
+    monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
+    monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
+
+    def enc(obj: dict) -> str:
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    payload = {
+        "iss": "https://idp.example",
+        "aud": "qpilot-dashboard",
+        "sub": "user-1",
+        "exp": int(time.time()) + 3600,
+    }
+    token = f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(payload)}.sig"
+    ok = authorize(f"Bearer {token}")
+    assert ok["ok"] is True
+    assert ok["mode"] == "oidc"
+    assert ok["gate_i_complete"] is False
+    bad = authorize("Bearer not-a-jwt")
+    assert bad["ok"] is False

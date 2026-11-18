@@ -21,6 +21,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 - Deploy notes: `DEPLOYMENT.md`
 - Security reporting: `SECURITY.md`
 - Probe: `backend/ops_readiness.py` + `/api/ops/readiness` (never sets `gate_h_complete`)
+- Gate D ADB probe: `POST /api/ops/drills/android-adb-probe` → `docs/ops-evidence/android_adb_probe.json` (ADB may be present with zero devices; does not complete Gate D)
 
 ## Rule
 

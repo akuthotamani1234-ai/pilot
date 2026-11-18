@@ -321,9 +321,9 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
 - `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.
-- `QPILOT_DASHBOARD_AUTH` (optional): `none` | `bearer` | `webhook` | `principal`. Webhook also accepts `X-QA-Token` /
-  `WEBHOOK_TOKEN`; principal resolves Bearer `<principal_id>` via tenancy RBAC (`review.write`). Gate I still needs
-  SSO/hosting before it can be marked complete.
+- `QPILOT_DASHBOARD_AUTH` (optional): `none` | `bearer` | `webhook` | `principal` | `oidc`. Webhook also accepts
+  `X-QA-Token` / `WEBHOOK_TOKEN`; principal resolves Bearer `<principal_id>` via tenancy RBAC; `oidc` validates JWT
+  iss/aud/exp. Gate I still needs live hosted SSO before it can be marked complete.
 - `QPILOT_TENANT_ID` (optional): when set, finished runs are indexed into SQLite tenancy for
   `GET /api/tenancy/runs` (principal mode). Cross-tenant denials are audited. Studio SSO still required for Gate G.
 - `QPILOT_OIDC_ISSUER` / `QPILOT_OIDC_CLIENT_ID` / `QPILOT_OIDC_AUDIENCE` / `QPILOT_DASHBOARD_HOST` (optional): declare

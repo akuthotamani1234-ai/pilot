@@ -1,10 +1,11 @@
 """Gate I: pluggable dashboard auth for approvals (not full SSO).
 
 Modes via QPILOT_DASHBOARD_AUTH / BLOWAI_DASHBOARD_AUTH:
-  none     — open on localhost (default when no token)
-  bearer   — Authorization: Bearer <QPILOT_DASHBOARD_TOKEN>
-  webhook  — X-QA-Token / Bearer matching WEBHOOK_TOKEN or dashboard token
+  none      — open on localhost (default when no token)
+  bearer    — Authorization: Bearer <QPILOT_DASHBOARD_TOKEN>
+  webhook   — X-QA-Token / Bearer matching WEBHOOK_TOKEN or dashboard token
   principal — Bearer principal_id resolved via tenancy_store + rbac.allow(review.write)
+  oidc      — Bearer JWT validated via oidc_jwt (iss/aud/exp; live IdP SSO still open)
 
 Hosting and real IdP SSO remain open. gate_i_complete stays False.
 """
@@ -28,7 +29,7 @@ def auth_mode() -> str:
         or os.getenv("BLOWAI_DASHBOARD_AUTH")
         or ""
     ).strip().lower()
-    if raw in {"none", "bearer", "webhook", "principal"}:
+    if raw in {"none", "bearer", "webhook", "principal", "oidc"}:
         return raw
     if configured_token():
         return "bearer"
@@ -82,6 +83,42 @@ def authorize(authorization: str | None, *, x_qa_token: str | None = None,
             "required": True,
             "mode": mode,
             "reason": "X-QA-Token or Bearer matching WEBHOOK_TOKEN/QPILOT_DASHBOARD_TOKEN required",
+        }
+
+    if mode == "oidc":
+        from .oidc_jwt import validate_bearer
+        if not bearer:
+            return {
+                "ok": False,
+                "required": True,
+                "mode": mode,
+                "reason": "Authorization Bearer <jwt> required for OIDC dashboard auth",
+            }
+        verdict = validate_bearer(bearer, verify_signature=True)
+        if not verdict.get("ok"):
+            return {
+                "ok": False,
+                "required": True,
+                "mode": mode,
+                "reason": verdict.get("reason") or "OIDC JWT rejected",
+                "claims": verdict.get("claims") or {},
+            }
+        return {
+            "ok": True,
+            "required": True,
+            "mode": mode,
+            "reason": "OIDC JWT claims accepted (live hosted SSO still open)",
+            "claims": verdict.get("claims") or {},
+            "signature_verified": bool(verdict.get("signature_verified")),
+            "gate_i_complete": False,
+        }
+
+    if mode != "principal":
+        return {
+            "ok": False,
+            "required": True,
+            "mode": mode,
+            "reason": f"unsupported dashboard auth mode: {mode}",
         }
 
     # principal mode
