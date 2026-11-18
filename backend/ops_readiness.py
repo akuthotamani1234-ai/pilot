@@ -105,6 +105,14 @@ def readiness() -> dict:
                 else "No MinIO multi-region failover evidence"
             ),
         },
+        "redis_multi_region_drill": {
+            "ready": _ops_evidence("redis_multi_region_drill.json"),
+            "reason": (
+                "Local Redis dual-DB failover present; hosted Redis multi-region/sentinel still open"
+                if _ops_evidence("redis_multi_region_drill.json")
+                else "No Redis multi-region failover evidence"
+            ),
+        },
         "observability_probe_drill": {
             "ready": _ops_evidence("observability_probe_drill.json"),
             "reason": (

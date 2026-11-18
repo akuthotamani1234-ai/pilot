@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T21:15:56Z",
+  "ran_at": "2026-11-18T21:29:59Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 64,
+  "artifact_count": 65,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -190,7 +190,7 @@
     {
       "name": "minio_object_store_drill.json",
       "bytes": 442,
-      "sha256": "8446e3ed180c70217a25deeae84a692afa34daac3a4b467de5e0b42dea8fdc43"
+      "sha256": "262e026c3533a02da84bb0ad1e7a2e801a76e36258b54d19f3a938f5dfc31a41"
     },
     {
       "name": "multi_api_android_matrix_drill.json",
@@ -265,7 +265,7 @@
     {
       "name": "postgres_isolation_drill.json",
       "bytes": 530,
-      "sha256": "ece6ec5da3594446665e7320fe96f5f81aa527f44a045d7467430437de6faca0"
+      "sha256": "ed0b027dd20340fbb87fc07b014b450a46a8950e6a54836bab4c80029f2d229f"
     },
     {
       "name": "qx_capabilities_drill.json",
@@ -285,7 +285,12 @@
     {
       "name": "redis_lease_drill.json",
       "bytes": 369,
-      "sha256": "e095d3b131093c354d2ac5fbce6a0e7f0edd1b2209016327818f1bfd746814f3"
+      "sha256": "2c769ceb3a92914da716483c31d7195154eed208d2437f02c5c8f381886517b5"
+    },
+    {
+      "name": "redis_multi_region_drill.json",
+      "bytes": 868,
+      "sha256": "db162e128ec48269720d93bc1efeb6a7f3232ad40832c1bc0c4afd1835d4ef17"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -329,5 +334,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (64 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (65 artifacts hashed); independent human/reviewer sign-off still pending"
 }

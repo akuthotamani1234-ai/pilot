@@ -1168,6 +1168,19 @@ def ops_minio_multi_region():
     return {"gate_h_complete": False, "minio_multi_region": evidence}
 
 
+@app.post("/api/ops/drills/redis-multi-region")
+def ops_redis_multi_region():
+    """Gate H/B: Redis dual-DB failover (hosted Redis multi-region still open)."""
+    from backend.redis_multi_region_drill import run_redis_multi_region_drill
+    evidence = run_redis_multi_region_drill()
+    _audit("ops_redis_multi_region", ok=bool(evidence.get("ok")))
+    return {
+        "gate_h_complete": False,
+        "gate_b_complete": False,
+        "redis_multi_region": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
