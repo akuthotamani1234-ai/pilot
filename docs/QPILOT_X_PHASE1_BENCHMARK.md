@@ -99,3 +99,15 @@ Gate J DemoStore evidence remains **strong**; broader third-party sites and live
 
 Gaps: search page only via search box; `cart.checkout` expected `blocked` but executed as Passed (permission/policy mismatch).  
 Artifacts: `deep_validation/live_runs/phase1_classic_shop_run1.json` + `phase1_classic_shop_run1_summary.json`.
+
+## Classic shop run 2 (after checkout-link protect — 2026-11-18)
+
+Pay/checkout `<a class="btn">` links are now recorded as protected features (`backend/features.py`).
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | 13/14 | **20/20** | **0** | n/a |
+| buggy | 13/14 | 6/6 judged | **0** | **3/3** |
+
+Remaining gap: search page only reachable via the search box (truth path still missing).  
+Artifacts: `deep_validation/live_runs/phase1_classic_shop_run2.json` + `phase1_classic_shop_run2_summary.json`.
