@@ -1,0 +1,16 @@
+{
+  "gate_i_complete": false,
+  "drill": "approvals_enqueue_decide",
+  "ran_at": "2026-11-18T19:31:35Z",
+  "pending_before": 2,
+  "pending_after": 0,
+  "accepted_status": "accepted",
+  "rejected_status": "rejected",
+  "snapshot": {
+    "gate_i_approvals_ready": true,
+    "gate_i_complete": false,
+    "pending": 0
+  },
+  "ok": true,
+  "reason": "Approvals enqueue\u2192accept/reject verified offline; live hosted SSO / dashboard auth still open"
+}

@@ -51,3 +51,4 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["dashboard_auth_matrix_drill"]["ready"] is has(
         "dashboard_auth_matrix_drill.json"
     )
+    assert snap["checks"]["approvals_drill"]["ready"] is has("approvals_drill.json")
