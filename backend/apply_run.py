@@ -414,19 +414,32 @@ def _index_run_for_tenant(run_dir: Path, state: dict, verdict: str) -> dict | No
     tenant = (os.getenv("QPILOT_TENANT_ID") or os.getenv("BLOWAI_TENANT_ID") or "").strip()
     if not tenant:
         return None
+    source = str(state.get("source") or state.get("base_url") or "")[:300]
+    backends: list[str] = []
     try:
         from .tenancy_store import index_run, upsert_tenant
         upsert_tenant(tenant, tenant)
-        row = index_run(
-            run_dir.name,
-            tenant,
-            source=str(state.get("source") or state.get("base_url") or "")[:300],
-            verdict=verdict,
-        )
-        return {**row, "gate_g_complete": False, "reason": "indexed for tenant ACL; Studio SSO still open"}
+        index_run(run_dir.name, tenant, source=source, verdict=verdict)
+        backends.append("sqlite")
     except Exception as exc:
         return {"ok": False, "tenant_id": tenant, "reason": f"tenancy index failed: {exc}",
                 "gate_g_complete": False}
+    try:
+        from .pg_tenancy import index_run_pg, postgres_configured
+        if postgres_configured():
+            index_run_pg(run_dir.name, tenant, source=source, verdict=verdict)
+            backends.append("postgres")
+    except Exception:
+        pass
+    return {
+        "run_id": run_dir.name,
+        "tenant_id": tenant,
+        "source": source,
+        "verdict": verdict,
+        "backends": backends,
+        "gate_g_complete": False,
+        "reason": f"indexed for tenant ACL on {','.join(backends)}; Studio SSO still open",
+    }
 
 
 def write_applied(state: dict, *, root: Path | None = None) -> dict:
