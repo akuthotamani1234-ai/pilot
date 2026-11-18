@@ -76,8 +76,12 @@ def build_graph(app_map: list[dict], crawl: dict | None = None) -> dict:
 
 def write_graph(run_dir: str | Path, app_map: list[dict], crawl: dict | None = None) -> dict:
     """Write discovery_graph.json beside other run artifacts."""
+    from .surface_coverage import summarize_surfaces
+
     path = Path(run_dir)
     path.mkdir(parents=True, exist_ok=True)
     graph = build_graph(app_map, crawl)
+    graph["surfaces"] = summarize_surfaces(app_map, crawl)
     (path / "discovery_graph.json").write_text(json.dumps(graph, indent=2), encoding="utf-8")
+    (path / "surface_coverage.json").write_text(json.dumps(graph["surfaces"], indent=2), encoding="utf-8")
     return graph

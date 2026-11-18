@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 
 from .api_versioning import SUPPORTED
+from .migrate import migration_status
 from .object_store import open_object_store
 from .queue_backend import open_durable_queue
 from .rbac import ROLES
@@ -24,12 +25,22 @@ def readiness() -> dict:
     object_uri = _present("OBJECT_STORE_URI") or _present("MINIO_URL")
     store = open_object_store(object_uri or None)
     queue = open_durable_queue(redis or None)
+    migrations = migration_status(postgres or None)
     components = {
         "postgres": {
             "configured": bool(postgres),
             "ready": False,
-            "reason": "Postgres URL set but migrations/driver not established" if postgres
-            else "Postgres not configured; local SQLite remains default",
+            "migrations": migrations.get("versions") or [],
+            "reason": "Postgres URL set but live driver/isolation drill not established" if postgres
+            else "Postgres not configured; SQLite migrations can still apply offline",
+        },
+        "schema_migrations": {
+            "configured": bool(migrations.get("configured")),
+            "ready": bool(migrations.get("ready")),
+            "backend": migrations.get("backend"),
+            "versions": migrations.get("versions") or [],
+            "applied": migrations.get("applied") or [],
+            "reason": migrations.get("reason") or "",
         },
         "redis": {
             "configured": bool(redis),
@@ -72,6 +83,8 @@ def readiness() -> dict:
         ready.append("object_store")
     if components["durable_queue"]["ready"]:
         ready.append("durable_queue")
+    if components["schema_migrations"]["ready"]:
+        ready.append("schema_migrations")
     missing = [name for name, row in components.items() if not row["ready"]]
     return {
         "gate_g_complete": False,

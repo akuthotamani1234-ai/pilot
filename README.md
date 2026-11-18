@@ -137,6 +137,9 @@ Other settings you may want:
 - `UI_PORT` (default 8000): the web UI's port.
 - Optional enterprise URLs (`POSTGRES_URL`, `REDIS_URL`, `OBJECT_STORE_URI`): leave empty for local-first mode.
   A URL alone does not enable Postgres/Redis/MinIO until those adapters are wired and verified.
+- Schema SQL lives in `migrations/`. Apply offline with
+  `python -c "from backend.migrate import apply_migrations; print(apply_migrations())"`
+  (SQLite default). Postgres apply/isolation drills are not established yet.
 
 **`.env` holds your keys. Never share it, copy it to another person or put it in a repository.** `.env.example` is
 the empty template that is shared. Git ignores `.env` (see `.gitignore`).

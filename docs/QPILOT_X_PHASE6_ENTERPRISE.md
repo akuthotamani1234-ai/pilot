@@ -13,6 +13,11 @@
 | Readiness probe | `backend/enterprise.py` — never marks Gate G/I complete while Postgres/Redis/React missing |
 | Config knobs | `.env.example` optional `POSTGRES_URL`, `REDIS_URL`, `OBJECT_STORE_URI` |
 
+## Later increments
+- `migrations/001_tenancy.sql` + `backend/migrate.py` (SQLite apply offline; Postgres URI stays unready)
+- Queue backend selector + swarm supervisor wiring
+- Readiness lists schema migration files without auto-applying on every probe
+
 ## Explicitly not done
 
 - No live Postgres migrations / Redis queue swap / MinIO deployment
@@ -21,3 +26,4 @@
 
 ## Tests
 - `tests/test_enterprise_phase6.py`
+- `tests/test_migrate.py`
