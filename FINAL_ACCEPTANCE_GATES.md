@@ -26,7 +26,7 @@ Each capability is **DONE** only when:
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — SQLite-applied `migrations/001_tenancy.sql` + RBAC/object store/queue selector; live Postgres/Redis/MinIO isolation still not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial foundations — `ops_readiness` probe lists CI/docs vs missing observability/DR/load evidence; gate not complete |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` helpers + Studio blueprint readiness panel; React/TS dashboard still not established |
-| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run5: 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
+| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run6: 19/19 pages, 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
 ## Required live test protocol
 

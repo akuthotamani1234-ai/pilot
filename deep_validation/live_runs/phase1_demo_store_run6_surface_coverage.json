@@ -1,0 +1,27 @@
+{
+  "gate_a_surfaces_complete": false,
+  "unknown": [
+    "no API/network/openapi seeds recorded"
+  ],
+  "evidence": {
+    "pages": 77,
+    "frames": {
+      "testable": 1,
+      "external": 0,
+      "unreachable": 3,
+      "pages_with_frames": 4,
+      "listed_iframes": 1
+    },
+    "shadow": {
+      "open_roots_seen": 1,
+      "pages_with_shadow": 1,
+      "closed_unsupported": 0
+    },
+    "api": {
+      "network_seeded": 0,
+      "openapi_or_scrape": 0,
+      "blocked_requests": 0
+    }
+  },
+  "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API."
+}
