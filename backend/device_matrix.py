@@ -157,12 +157,36 @@ def viewport_evidence_from_app_map(app_map: list[dict] | None = None) -> list[di
     return evidence
 
 
+def protocol_dry_run_evidence(*, device_id: str = "protocol-fixture", api_level: int = 36,
+                              outcome: str = "passed", apk_ok: bool | None = None) -> list[dict]:
+    """Android rows from the Appium protocol fixture — never verify Gate D profiles.
+
+    Marked ``dry_run: true`` / ``source: protocol_dry_run`` so ``evaluate_matrix``
+    ignores them for completeness. Live emulator/API24+ evidence still required.
+    """
+    return [{
+        "surface": "android",
+        "device_id": device_id,
+        "form": "emulator" if str(device_id).startswith("emulator-") else "protocol",
+        "api_level": api_level,
+        "outcome": outcome if outcome in _DONE else "passed",
+        "source": "protocol_dry_run",
+        "dry_run": True,
+        "apk_validated": apk_ok,
+        "gate_d_note": "dry-run only; live emulator evidence still required",
+    }]
+
+
 def evaluate_matrix(evidence: list[dict] | None = None) -> dict:
     """Score required profiles against recorded run evidence.
 
     Evidence rows need ``outcome`` in {passed, failed, blocked, error} to count.
+    Rows with ``dry_run: true`` or ``source: protocol_dry_run`` never verify.
     """
-    rows = evidence or []
+    rows = [
+        e for e in (evidence or [])
+        if not e.get("dry_run") and (e.get("source") or "") != "protocol_dry_run"
+    ]
     profiles = []
     for profile in default_matrix():
         hits = [e for e in rows if _match(profile, e) and (e.get("outcome") or "").lower() in _DONE]

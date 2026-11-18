@@ -320,8 +320,10 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   are never sent.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
-- `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`. Gate I still
-  needs SSO/hosting before it can be marked complete.
+- `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.
+- `QPILOT_DASHBOARD_AUTH` (optional): `none` | `bearer` | `webhook` | `principal`. Webhook also accepts `X-QA-Token` /
+  `WEBHOOK_TOKEN`; principal resolves Bearer `<principal_id>` via tenancy RBAC (`review.write`). Gate I still needs
+  SSO/hosting before it can be marked complete.
 - `POSTGRES_URL` / `REDIS_URL` / `OBJECT_STORE_URI` (optional): live drills via
   `POST /api/ops/drills/postgres-isolation`, `/redis-queue`, `/minio`. Evidence under `docs/ops-evidence/`.
   Gate G stays incomplete without Studio SSO/multi-tenant ACLs and independent review.

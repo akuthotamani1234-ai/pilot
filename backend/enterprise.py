@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .api_versioning import SUPPORTED
 from .blueprint_progress import progress as blueprint_progress
+from .dashboard_auth import snapshot as dashboard_auth_snapshot
 from .migrate import migration_status
 from .object_store import open_object_store
 from .queue_backend import open_durable_queue
@@ -132,14 +133,13 @@ def readiness() -> dict:
         },
         "dashboard_auth": {
             "configured": bool(
-                _present("QPILOT_DASHBOARD_TOKEN") or _present("BLOWAI_DASHBOARD_TOKEN")
+                _present("QPILOT_DASHBOARD_TOKEN")
+                or _present("BLOWAI_DASHBOARD_TOKEN")
+                or _present("QPILOT_DASHBOARD_AUTH")
+                or _present("WEBHOOK_TOKEN")
             ),
             "ready": False,
-            "reason": (
-                "Optional bearer token configured; SSO/multi-tenant hosting still open"
-                if (_present("QPILOT_DASHBOARD_TOKEN") or _present("BLOWAI_DASHBOARD_TOKEN"))
-                else "Dashboard token unset; approvals open on localhost (SSO/hosting still open)"
-            ),
+            "reason": dashboard_auth_snapshot()["reason"],
         },
     }
     ready = ["rbac", "api_versioning", "approvals"]

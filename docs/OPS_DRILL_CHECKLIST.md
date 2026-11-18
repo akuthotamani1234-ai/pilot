@@ -12,7 +12,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | Restore from backup into an isolated env | Partial (local folder restore) | same drill artifact — live isolated env still open |
 | Load / soak against a controlled fixture | Partial (local API probe only) | `docs/ops-evidence/local_load_probe.json` — controlled soak still open |
 | Incident runbook tabletop | Partial (draft + stub only) | `docs/INCIDENT_RUNBOOK.md` + `docs/ops-evidence/incident_tabletop_stub.json` — live paging still open |
-| CI deploy + rollback rehearsal | Open | — |
+| CI deploy + rollback rehearsal | Partial (offline rehearsal only) | `docs/ops-evidence/ci_rollback_rehearsal.json` — live hosted rollback still open |
 
 ## Local foundations already present
 
