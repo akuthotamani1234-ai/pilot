@@ -231,6 +231,22 @@ def readiness() -> dict:
                 else "No security portfolio drill evidence"
             ),
         },
+        "a11y_portfolio_drill": {
+            "ready": _ops_evidence("a11y_portfolio_drill.json"),
+            "reason": (
+                "DemoStore a11y portfolio evidence present; broad live CI still open"
+                if _ops_evidence("a11y_portfolio_drill.json")
+                else "No a11y portfolio drill evidence"
+            ),
+        },
+        "perf_portfolio_drill": {
+            "ready": _ops_evidence("perf_portfolio_drill.json"),
+            "reason": (
+                "DemoStore performance portfolio evidence present; broad live CI still open"
+                if _ops_evidence("perf_portfolio_drill.json")
+                else "No performance portfolio drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
