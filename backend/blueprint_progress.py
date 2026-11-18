@@ -33,8 +33,8 @@ def progress() -> dict:
          "note": "Graph, ops probe, Studio panel — not complete"},
     ]
     gates = [
-        {"id": "A", "label": "Gate A — Discovery surfaces", "status": "partial",
-         "note": "Surfaces incl. DemoStore /lab canvas+lazy; full live matrix still open"},
+        {"id": "A", "label": "Gate A — Discovery surfaces", "status": "active",
+         "note": "Multi-fixture discovery score + surface inventories; full live matrix still open"},
         {"id": "B", "label": "Gate B — Durable swarm", "status": "partial",
          "note": "Redis preferred + claim/checkpoint/cancel + lease-expiry retry drills; review still open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "partial",
@@ -147,6 +147,7 @@ def progress() -> dict:
         {"id": "F-visual-drill", "label": "DemoStore first-run visual portfolio drill", "status": "done"},
         {"id": "F-compat-drill", "label": "DemoStore compatibility portfolio drill (desktop+mobile)", "status": "done"},
         {"id": "A-lab-canvas-lazy", "label": "DemoStore /lab canvas + lazy surface signals", "status": "done"},
+        {"id": "A-discovery-score", "label": "Multi-fixture discovery completeness score (4 demos)", "status": "done"},
         {"id": "F-compat-engines", "label": "Offline Chromium/Firefox/WebKit compatibility matrix", "status": "done"},
         {"id": "H-postgres-dr", "label": "Postgres dump→isolated-DB restore DR drill", "status": "done"},
         {"id": "H-multi-region-dr", "label": "Local dual-region Postgres failover rehearsal", "status": "done"},

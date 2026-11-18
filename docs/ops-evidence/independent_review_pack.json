@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T21:29:59Z",
+  "ran_at": "2026-11-18T21:41:36Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 65,
+  "artifact_count": 66,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -20,7 +20,7 @@
     {
       "name": "admin_portal_surface_coverage.json",
       "bytes": 2383,
-      "sha256": "4a7191c3b2584f750eba7f071d87d0b4da35f5c90b7be80e914363db41c7f3eb"
+      "sha256": "79c750ab7c6fd0a9015fa1dd4e2bcc334750a1bc2df33fa0b05740c3eea13251"
     },
     {
       "name": "android_adb_probe.json",
@@ -75,7 +75,7 @@
     {
       "name": "classic_shop_surface_coverage.json",
       "bytes": 2594,
-      "sha256": "5f41260ffc9666c8a83ead584b737cc6c3c476837038dab78145ea7f2f548d33"
+      "sha256": "4d4ce8d16d47f7a7cd02c61366f2a5df8e141888572874131124ba858c1b3071"
     },
     {
       "name": "compatibility_portfolio_drill.json",
@@ -110,12 +110,17 @@
     {
       "name": "demo_store_surface_coverage.json",
       "bytes": 2318,
-      "sha256": "245644359f16eead23a7b0f5e62e1bec29eea5ac19eff931cbe548bec9a6ea3a"
+      "sha256": "111761dd2e9d11e90fdb2980f0e2e7a8257415dddd4c82dcf2a6b83575baca31"
     },
     {
       "name": "device_matrix_drill.json",
       "bytes": 1859,
       "sha256": "c81449ff915d6f9ef0cae9b0eace955813468a12440d644c519d9a1bccfebd8e"
+    },
+    {
+      "name": "discovery_score_drill.json",
+      "bytes": 1015,
+      "sha256": "9af9153ce542551cc008b241227e7194e9f0eced1772a350422af777eb363c36"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -325,7 +330,7 @@
     {
       "name": "travel_site_surface_coverage.json",
       "bytes": 2526,
-      "sha256": "8aaf6a7f6414e828d9539de6cacdf3f3e1ca85eb853f48db4b5f22ef929b9b45"
+      "sha256": "e569529b0276c824ced32a906ee1a237124d36282f13d325a71262755d9b523e"
     },
     {
       "name": "visual_portfolio_drill.json",
@@ -334,5 +339,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (65 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (66 artifacts hashed); independent human/reviewer sign-off still pending"
 }

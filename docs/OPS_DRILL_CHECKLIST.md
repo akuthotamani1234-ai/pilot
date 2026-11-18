@@ -27,7 +27,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 
 | Gate | Drill API | Evidence |
 |---|---|---|
-| A | `/api/ops/drills/admin-portal-surfaces`, `demo-store-surfaces`, `classic-shop-surfaces`, `travel-site-surfaces` | `docs/ops-evidence/*_surface_coverage.json` |
+| A | `/api/ops/drills/admin-portal-surfaces`, `demo-store-surfaces`, `classic-shop-surfaces`, `travel-site-surfaces`, `discovery-score` | `docs/ops-evidence/*_surface_coverage.json`, `discovery_score_drill.json` |
 | B | `/api/ops/drills/swarm-control`, `swarm-retry` | `docs/ops-evidence/swarm_control_drill.json`, `swarm_retry_drill.json` |
 | C | `/api/ops/drills/lifecycle-cleanup`, `admin-portal-lifecycle`, `oracle-spec`, `demo-store-cart-lifecycle` | `docs/ops-evidence/lifecycle_cleanup_drill.json`, `admin_portal_lifecycle_drill.json`, `oracle_spec_drill.json`, `demo_store_cart_lifecycle_drill.json` |
 | D | `/api/ops/drills/device-matrix`, `android-emulator-smoke`, `android-appium-product-matrix`, `multi-api-android-matrix`, `cross-platform-journey`, `android-adb-probe`, `hosted-runner-contracts` | `device_matrix_drill.json`, `android_emulator_smoke_drill.json`, `android_appium_product_matrix_drill.json`, `multi_api_android_matrix_drill.json`, `cross_platform_journey_drill.json`, `android_adb_probe.json`, `android_appium_ci_contract.json`, `multi_device_ci_contract.json` |

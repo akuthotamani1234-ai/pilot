@@ -1053,6 +1053,20 @@ def ops_hosted_runner_contracts():
     }
 
 
+@app.post("/api/ops/drills/discovery-score")
+def ops_discovery_score():
+    """Gate A: multi-fixture discovery completeness score (full matrix still open)."""
+    from backend.discovery_score_drill import run_discovery_score_drill
+    evidence = run_discovery_score_drill()
+    _audit(
+        "ops_discovery_score",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_a_complete": False, "discovery_score": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
