@@ -196,9 +196,16 @@ def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
     life = Lifecycle(run_dir.name, environment)
     for worker in workers:
         life.prepare(worker)
-    cleaned = life.cleanup() if finish else []
+    cleanup = {"confirmed": [], "failed": [], "complete": True, "local_only": False}
+    if finish:
+        # Synthetic fixture records exist only in this Lifecycle. Real remote backends must
+        # supply an adapter that proves delete; local flag flips alone are not enough.
+        def _synthetic_remote_delete(record: dict) -> dict:
+            return {"deleted": True, "proof": f"synthetic:{record.get('tag')}"}
+
+        cleanup = life.cleanup_confirmed(remote_delete=_synthetic_remote_delete)
     prepared = [life.snapshot(worker) for worker in workers]
-    return {"refused": "", "prepared": prepared, "cleaned": cleaned}
+    return {"refused": "", "prepared": prepared, "cleaned": cleanup["confirmed"], "cleanup": cleanup}
 
 
 def dependency_for(environment: str) -> dict:
