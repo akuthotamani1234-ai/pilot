@@ -1077,6 +1077,15 @@ def ops_studio_oidc_callback():
     return {"gate_i_complete": False, "studio_oidc_callback": evidence}
 
 
+@app.post("/api/ops/drills/loopback-pkce-sso")
+def ops_loopback_pkce_sso():
+    """Gate I: loopback OIDC PKCE S256 auth-code (hosted IdP still open)."""
+    from backend.loopback_pkce_sso_drill import run_loopback_pkce_sso_drill
+    evidence = run_loopback_pkce_sso_drill()
+    _audit("ops_loopback_pkce_sso", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "loopback_pkce_sso": evidence}
+
+
 @app.post("/api/ops/drills/swarm-review-checklist")
 def ops_swarm_review_checklist():
     """Gate B: product-wide swarm review checklist (sign-off still pending)."""
@@ -1302,6 +1311,20 @@ def ops_multi_store_dr():
         total=int(evidence.get("total") or 0),
     )
     return {"gate_h_complete": False, "multi_store_dr": evidence}
+
+
+@app.post("/api/ops/drills/failover-rto")
+def ops_failover_rto():
+    """Gate H: timed multi-store failover RTO pack (hosted multi-region still open)."""
+    from backend.failover_rto_drill import run_failover_rto_drill
+    evidence = run_failover_rto_drill()
+    _audit(
+        "ops_failover_rto",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total_ms=int(evidence.get("total_elapsed_ms") or 0),
+    )
+    return {"gate_h_complete": False, "failover_rto": evidence}
 
 
 @app.post("/api/ops/drills/observability-probe")

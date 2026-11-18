@@ -121,6 +121,14 @@ def readiness() -> dict:
                 else "No multi-store DR pack evidence"
             ),
         },
+        "failover_rto_drill": {
+            "ready": _ops_evidence("failover_rto_drill.json"),
+            "reason": (
+                "Local multi-store failover RTO pack present; hosted multi-region DR still open"
+                if _ops_evidence("failover_rto_drill.json")
+                else "No failover RTO drill evidence"
+            ),
+        },
         "observability_probe_drill": {
             "ready": _ops_evidence("observability_probe_drill.json"),
             "reason": (
@@ -508,6 +516,14 @@ def readiness() -> dict:
                 "Loopback OIDC + tenant ACL drill present; hosted IdP Studio SSO still open"
                 if _ops_evidence("sso_tenant_acl_drill.json")
                 else "No SSO tenant ACL drill evidence"
+            ),
+        },
+        "loopback_pkce_sso_drill": {
+            "ready": _ops_evidence("loopback_pkce_sso_drill.json"),
+            "reason": (
+                "Loopback OIDC PKCE S256 drill present; hosted IdP Studio SSO still open"
+                if _ops_evidence("loopback_pkce_sso_drill.json")
+                else "No loopback PKCE SSO drill evidence"
             ),
         },
         "independent_review_checklist": {
