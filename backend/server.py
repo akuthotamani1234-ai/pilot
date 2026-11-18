@@ -1371,6 +1371,24 @@ def ops_independent_review_readiness():
     return {"gate_g_complete": False, "independent_review_readiness": evidence}
 
 
+@app.post("/api/ops/drills/hosted-idp-contract")
+def ops_hosted_idp_contract():
+    """Gate I: hosted IdP SSO contract snapshot (live IdP login still open)."""
+    from backend.hosted_idp_contract_drill import run_hosted_idp_contract_drill
+    evidence = run_hosted_idp_contract_drill()
+    _audit("ops_hosted_idp_contract", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "hosted_idp_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-contract")
+def ops_hosted_oncall_contract():
+    """Gate H: hosted DR/on-call contract snapshot (live paging still open)."""
+    from backend.hosted_oncall_contract_drill import run_hosted_oncall_contract_drill
+    evidence = run_hosted_oncall_contract_drill()
+    _audit("ops_hosted_oncall_contract", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "hosted_oncall_contract": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

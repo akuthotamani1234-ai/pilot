@@ -1,0 +1,38 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_oncall_contract",
+  "ran_at": "2026-11-18T23:50:37Z",
+  "kind": "contract_only",
+  "contract": {
+    "regions": [
+      "primary",
+      "secondary"
+    ],
+    "stores": [
+      "postgres",
+      "minio",
+      "redis"
+    ],
+    "failover_evidence": "multi_store_dr_drill.json + failover_rto_drill.json",
+    "paging_tiers": [
+      "primary",
+      "secondary"
+    ],
+    "paging_evidence": "paging_escalation_drill.json",
+    "observability": "readiness inventory + metrics/tracing/alerting (hosted)",
+    "incident_runbook": "docs/INCIDENT_RUNBOOK.md",
+    "note": "Live multi-region cutover + pager duty acknowledgement still required"
+  },
+  "local_partial_present": [
+    "multi_region_dr_drill.json",
+    "minio_multi_region_drill.json",
+    "redis_multi_region_drill.json",
+    "multi_store_dr_drill.json",
+    "failover_rto_drill.json",
+    "paging_escalation_drill.json",
+    "observability_probe_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted DR/on-call contract recorded (7/7 local partials present); live hosted multi-region DR / on-call paging still open"
+}

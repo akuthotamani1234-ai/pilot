@@ -24,6 +24,7 @@ BLOCKERS = (
             "multi_store_dr_drill.json",
             "failover_rto_drill.json",
             "paging_escalation_drill.json",
+            "hosted_oncall_contract_drill.json",
         ],
     },
     {
@@ -36,6 +37,7 @@ BLOCKERS = (
             "loopback_pkce_sso_drill.json",
             "studio_oidc_callback_drill.json",
             "sso_tenant_acl_drill.json",
+            "hosted_idp_contract_drill.json",
         ],
     },
     {

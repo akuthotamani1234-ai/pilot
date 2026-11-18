@@ -107,8 +107,14 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     )
     assert snap["checks"]["multi_store_dr_drill"]["ready"] is has("multi_store_dr_drill.json")
     assert snap["checks"]["failover_rto_drill"]["ready"] is has("failover_rto_drill.json")
+    assert snap["checks"]["hosted_oncall_contract_drill"]["ready"] is has(
+        "hosted_oncall_contract_drill.json"
+    )
     assert snap["checks"]["loopback_pkce_sso_drill"]["ready"] is has(
         "loopback_pkce_sso_drill.json"
+    )
+    assert snap["checks"]["hosted_idp_contract_drill"]["ready"] is has(
+        "hosted_idp_contract_drill.json"
     )
     assert snap["checks"]["production_healing_matrix_drill"]["ready"] is has(
         "production_healing_matrix_drill.json"

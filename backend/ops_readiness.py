@@ -129,6 +129,14 @@ def readiness() -> dict:
                 else "No failover RTO drill evidence"
             ),
         },
+        "hosted_oncall_contract_drill": {
+            "ready": _ops_evidence("hosted_oncall_contract_drill.json"),
+            "reason": (
+                "Hosted DR/on-call contract present; live multi-region paging still open"
+                if _ops_evidence("hosted_oncall_contract_drill.json")
+                else "No hosted on-call contract evidence"
+            ),
+        },
         "observability_probe_drill": {
             "ready": _ops_evidence("observability_probe_drill.json"),
             "reason": (
@@ -548,6 +556,14 @@ def readiness() -> dict:
                 "Loopback OIDC PKCE S256 drill present; hosted IdP Studio SSO still open"
                 if _ops_evidence("loopback_pkce_sso_drill.json")
                 else "No loopback PKCE SSO drill evidence"
+            ),
+        },
+        "hosted_idp_contract_drill": {
+            "ready": _ops_evidence("hosted_idp_contract_drill.json"),
+            "reason": (
+                "Hosted IdP SSO contract present; live hosted IdP login still open"
+                if _ops_evidence("hosted_idp_contract_drill.json")
+                else "No hosted IdP contract evidence"
             ),
         },
         "independent_review_checklist": {
