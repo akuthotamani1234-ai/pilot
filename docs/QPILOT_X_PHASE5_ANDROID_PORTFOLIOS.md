@@ -24,5 +24,5 @@ This Cloud Agent image has **no `adb` / emulator / Appium** on PATH. Live device
 ## Gate D / F status
 
 Still **Partial**:
-- Gate D: discovery/apply now record desktop (`1366x900`) and phone (`390x844`) viewport evidence when phone checks ran (`device_matrix_evidence.json` / `device_matrix.json`). Live Android emulator + API 24+ evidence remains open.
+- Gate D: discovery/apply record desktop (`1366x900`) and phone (`390x844`) viewport evidence when phone checks ran. Android emulator/API24+ rows emit only when `android_environment.json` / config + executed results exist — never invented on web-only runs.
 - Gate F: portfolio evaluators + capture exist; broad live CI portfolio artifacts are not closed.
