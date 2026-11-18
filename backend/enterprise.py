@@ -107,7 +107,10 @@ def readiness() -> dict:
             "configured": True,
             "ready": True,
             "roles": sorted(ROLES),
-            "reason": "deny-by-default helper available; Studio multi-tenant auth not wired",
+            "reason": (
+                "deny-by-default RBAC + tenant run ACL helpers (/api/tenancy/runs); "
+                "Studio multi-tenant SSO still open"
+            ),
         },
         "api_versioning": {
             "configured": True,
