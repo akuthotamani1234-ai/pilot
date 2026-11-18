@@ -118,8 +118,8 @@ Artifacts: `deep_validation/live_runs/phase1_classic_shop_run2.json` + `phase1_c
 
 | Mode | Pages | Features correct | False alarms | Bugs |
 |---|---|---|---|---|
-| clean | **8/8** | **23/25** | 1 | n/a |
+| clean | **8/8** | **24/25** | 1 | n/a |
 | buggy | **8/8** | 8/8 judged | 3 | **7/7** |
 
-Gaps: `users.next_page`, `widgets.shadow_nickname` on clean; false alarms on buggy.  
+Gaps: `widgets.shadow_nickname` still untested; `users.next_page` truth pattern tightened (no longer matches unrelated `'Next'` steps). Buggy false alarms remain.  
 Artifacts: `deep_validation/live_runs/phase1_admin_portal_run1.json` + `phase1_admin_portal_run1_summary.json`.
