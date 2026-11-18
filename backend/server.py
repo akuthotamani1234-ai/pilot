@@ -763,6 +763,24 @@ def ops_demo_store_surfaces():
     return {"gate_a_surfaces_complete": False, "surfaces": evidence}
 
 
+@app.post("/api/ops/drills/classic-shop-surfaces")
+def ops_classic_shop_surfaces():
+    """Gate A: ClassicShop surface_coverage inventory (still incomplete)."""
+    from backend.surface_evidence_drill import run_classic_shop_surface_drill
+    evidence = run_classic_shop_surface_drill()
+    _audit("ops_classic_shop_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
+@app.post("/api/ops/drills/travel-site-surfaces")
+def ops_travel_site_surfaces():
+    """Gate A: TravelSite surface_coverage inventory (still incomplete)."""
+    from backend.surface_evidence_drill import run_travel_site_surface_drill
+    evidence = run_travel_site_surface_drill()
+    _audit("ops_travel_site_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
 @app.post("/api/ops/drills/ci-rollback")
 def ops_ci_rollback():
     """Offline CI/deploy rollback rehearsal (Gate H still incomplete)."""

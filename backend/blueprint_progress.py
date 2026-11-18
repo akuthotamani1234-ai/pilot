@@ -123,6 +123,8 @@ def progress() -> dict:
         {"id": "C-lifecycle-cleanup-drill", "label": "Offline lifecycle + created.jsonl cleanup drill", "status": "done"},
         {"id": "A-demo-surfaces", "label": "DemoStore surface_coverage inventory (incl. /lab)", "status": "done"},
         {"id": "A-admin-rich-refresh", "label": "AdminPortal surface drill counts rich controls", "status": "done"},
+        {"id": "A-classic-surfaces", "label": "ClassicShop surface_coverage inventory", "status": "done"},
+        {"id": "A-travel-surfaces", "label": "TravelSite surface_coverage inventory", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
