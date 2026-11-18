@@ -69,6 +69,7 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["multi_portal_oracle_drill"]["ready"] is has(
         "multi_portal_oracle_drill.json"
     )
+    assert snap["checks"]["remaining_blockers"]["ready"] is has("remaining_blockers.json")
     assert snap["checks"]["multi_browser_portfolio_suite_drill"]["ready"] is has(
         "multi_browser_portfolio_suite_drill.json"
     )

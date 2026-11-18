@@ -178,6 +178,14 @@ def readiness() -> dict:
                 else "No multi-portal oracle drill evidence"
             ),
         },
+        "remaining_blockers": {
+            "ready": _ops_evidence("remaining_blockers.json"),
+            "reason": (
+                "Hard-open blockers inventory present; gates stay Partial until hosted/independent proof"
+                if _ops_evidence("remaining_blockers.json")
+                else "No remaining-blockers inventory"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (

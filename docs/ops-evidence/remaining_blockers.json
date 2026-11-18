@@ -1,0 +1,110 @@
+{
+  "complete": false,
+  "drill": "remaining_blockers",
+  "ran_at": "2026-11-18T22:06:47Z",
+  "ok": true,
+  "blockers": [
+    {
+      "id": "H-drills",
+      "gate": "H",
+      "label": "Live hosted multi-region DR / on-call paging",
+      "local_partial": [
+        "multi_region_dr_drill.json",
+        "minio_multi_region_drill.json",
+        "redis_multi_region_drill.json",
+        "paging_escalation_drill.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "multi_region_dr_drill.json",
+        "minio_multi_region_drill.json",
+        "redis_multi_region_drill.json",
+        "paging_escalation_drill.json"
+      ],
+      "local_partial_missing": []
+    },
+    {
+      "id": "I-auth",
+      "gate": "I",
+      "label": "Live hosted IdP Studio SSO login + multi-tenant ACLs",
+      "local_partial": [
+        "loopback_sso_drill.json",
+        "loopback_auth_code_sso_drill.json",
+        "sso_tenant_acl_drill.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "loopback_sso_drill.json",
+        "loopback_auth_code_sso_drill.json",
+        "sso_tenant_acl_drill.json"
+      ],
+      "local_partial_missing": []
+    },
+    {
+      "id": "E-live-matrix",
+      "gate": "E",
+      "label": "Production failure matrix / healing suite",
+      "local_partial": [
+        "live_failure_matrix_drill.json",
+        "multi_app_healing_suite_drill.json",
+        "healing_regression_drill.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "live_failure_matrix_drill.json",
+        "multi_app_healing_suite_drill.json",
+        "healing_regression_drill.json"
+      ],
+      "local_partial_missing": []
+    },
+    {
+      "id": "D-android",
+      "gate": "D",
+      "label": "Broad multi-device CI Appium product-matrix artifacts",
+      "local_partial": [
+        "android_appium_product_matrix_drill.json",
+        "multi_api_android_matrix_drill.json",
+        "multi_device_ci_contract.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "android_appium_product_matrix_drill.json",
+        "multi_api_android_matrix_drill.json",
+        "multi_device_ci_contract.json"
+      ],
+      "local_partial_missing": []
+    },
+    {
+      "id": "F-live-ci",
+      "gate": "F",
+      "label": "Broad hosted multi-browser portfolio CI artifacts",
+      "local_partial": [
+        "multi_browser_portfolio_suite_drill.json",
+        "multi_browser_ci_contract.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "multi_browser_portfolio_suite_drill.json",
+        "multi_browser_ci_contract.json"
+      ],
+      "local_partial_missing": []
+    },
+    {
+      "id": "G-review",
+      "gate": "G",
+      "label": "Independent security/reliability review sign-off",
+      "local_partial": [
+        "independent_review_checklist.json",
+        "independent_review_pack.json"
+      ],
+      "status": "open",
+      "local_partial_present": [
+        "independent_review_checklist.json",
+        "independent_review_pack.json"
+      ],
+      "local_partial_missing": []
+    }
+  ],
+  "open_count": 6,
+  "reason": "6 hard-open blockers remain (hosted DR/SSO, production healing, broad CI runners, independent sign-off); gates A\u2013J stay Partial"
+}

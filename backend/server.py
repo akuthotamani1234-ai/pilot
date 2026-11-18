@@ -1081,6 +1081,16 @@ def ops_multi_portal_oracle():
     return {"gate_c_complete": False, "multi_portal_oracle": evidence}
 
 
+@app.post("/api/ops/drills/remaining-blockers")
+def ops_remaining_blockers():
+    """Inventory hard-open hosted/independent blockers (gates stay Partial)."""
+    from backend.remaining_blockers_drill import run_remaining_blockers_drill
+    evidence = run_remaining_blockers_drill()
+    _audit("ops_remaining_blockers", ok=bool(evidence.get("ok")),
+           open_count=int(evidence.get("open_count") or 0))
+    return {"complete": False, "remaining_blockers": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
