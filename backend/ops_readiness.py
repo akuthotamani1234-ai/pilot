@@ -80,6 +80,14 @@ def readiness() -> dict:
                 else "No MinIO object-store backup/restore evidence"
             ),
         },
+        "postgres_dr_drill": {
+            "ready": _ops_evidence("postgres_dr_drill.json"),
+            "reason": (
+                "Postgres dump→isolated-DB restore evidence present; hosted multi-region DR still open"
+                if _ops_evidence("postgres_dr_drill.json")
+                else "No Postgres DR drill evidence"
+            ),
+        },
         "admin_portal_surfaces": {
             "ready": _ops_evidence("admin_portal_surface_coverage.json"),
             "reason": (

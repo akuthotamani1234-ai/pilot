@@ -991,6 +991,16 @@ def ops_minio_backup_restore():
     return {"gate_h_complete": False, "gate_g_complete": False, "minio_backup_restore": evidence}
 
 
+@app.post("/api/ops/drills/postgres-dr")
+def ops_postgres_dr():
+    """Gate H: Postgres dump→restore into isolated DB (hosted DR still open)."""
+    from backend.postgres_dr_drill import run_postgres_dr_drill
+    evidence = run_postgres_dr_drill()
+    _audit("ops_postgres_dr", ok=bool(evidence.get("ok")),
+           dump_bytes=int(evidence.get("dump_bytes") or 0))
+    return {"gate_h_complete": False, "postgres_dr": evidence}
+
+
 @app.post("/api/ops/drills/admin-portal-surfaces")
 def ops_admin_portal_surfaces():
     """Gate A surface inventory against AdminPortal (still incomplete)."""
