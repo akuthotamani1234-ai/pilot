@@ -1,0 +1,10 @@
+{
+  "gate_h_complete": false,
+  "drill": "incident_tabletop_stub",
+  "ran_at": "2026-11-18T12:00:00Z",
+  "ok": true,
+  "runbook": "docs/INCIDENT_RUNBOOK.md",
+  "roles_exercised": ["local_operator"],
+  "outcome": "Draft tabletop reviewed against local Studio failure modes; no live paging/restore",
+  "reason": "Runbook + stub tabletop only; live incident drill with paging still open"
+}

@@ -3027,6 +3027,7 @@ def discovery_agent(state: QAState) -> QAState:
     print(f"  [discovery] surface coverage: pages={surfaces.get('pages')} "
           f"frames={((surfaces.get('frames') or {}).get('listed_iframes'))} "
           f"shadow_roots={((surfaces.get('shadow') or {}).get('open_roots_seen'))} "
+          f"lazy={((surfaces.get('evidence') or {}).get('lazy') or {}).get('pages_with_lazy')} "
           f"(Gate A not complete)", flush=True)
     print(f"  [discovery] durable swarm: processed={swarm.get('processed')} "
           f"statuses={swarm.get('statuses')} (Gate B not complete)", flush=True)
