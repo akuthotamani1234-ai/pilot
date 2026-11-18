@@ -1,5 +1,5 @@
 """The large-shop swarm keeps two or three products and leaves the rest of the list."""
-from backend.swarm import assign_workers, choose_listing, is_payment_url, sample_limit
+from backend.swarm import assign_workers, choose_listing, is_payment_url, perform, sample_limit
 
 
 def test_a_long_saree_list_keeps_three_products():
@@ -43,6 +43,27 @@ def test_each_chosen_product_gets_its_own_worker():
     plan = assign_workers(urls, 4)
     assert [row["worker"] for row in plan] == [1, 2, 3]
     assert [row["url"] for row in plan] == urls
+
+
+def test_workers_open_their_products_at_the_same_time_and_leave_checkout_closed():
+    opened = []
+    notes = []
+
+    def open_page(url):
+        opened.append(url)
+
+    rows = perform(
+        [
+            {"worker": 1, "url": "https://shop.example/product/saree-1"},
+            {"worker": 2, "url": "https://shop.example/checkout"},
+        ],
+        open_page,
+        on_status=lambda worker, status, url: notes.append((worker, status, url)),
+    )
+    assert opened == ["https://shop.example/product/saree-1"]
+    assert {row["status"] for row in rows} == {"opened", "blocked"}
+    assert (1, "opened", "https://shop.example/product/saree-1") in notes
+    assert (2, "blocked", "https://shop.example/checkout") in notes
 
 
 def test_swarm_size_wins_over_the_older_pattern_sample():
