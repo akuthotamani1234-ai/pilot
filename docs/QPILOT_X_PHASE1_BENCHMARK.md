@@ -87,3 +87,15 @@ Repeat of controlled DemoStore `accuracy_benchmark --mode first` on this phase b
 
 Artifacts: `deep_validation/live_runs/phase1_demo_store_run7.json` + `phase1_demo_store_run7_summary.json`.  
 Gate J DemoStore evidence remains **strong**; broader third-party sites and live Android still open.
+
+## Classic shop run 1 (second controlled fixture — 2026-11-18)
+
+`accuracy_benchmark --site classic --mode first` (3 planted bugs). **Partial**, not DemoStore-strong.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | 13/14 | **19/20** | **0** | n/a |
+| buggy | 13/14 | 5/6 judged | **0** | **3/3** |
+
+Gaps: search page only via search box; `cart.checkout` expected `blocked` but executed as Passed (permission/policy mismatch).  
+Artifacts: `deep_validation/live_runs/phase1_classic_shop_run1.json` + `phase1_classic_shop_run1_summary.json`.
