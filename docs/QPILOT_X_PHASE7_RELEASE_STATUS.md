@@ -25,9 +25,9 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | Gate | Status | Why not COMPLETE |
 |---|---|---|
 | A | Partial | Controlled discovery improved; not every surface proven live |
-| B | Partial | Local durable queue yes; Redis/Postgres enterprise queue no |
-| C | Partial | Provenance + cleanup APIs; not fully wired every run path |
-| D | Partial | Matrix declared; live emulator matrix missing here |
+| B | Partial | Durable SQLite plan/drain wired on discovery/apply; Redis/Postgres open |
+| C | Partial | Durable lifecycle + oracle bind; live portal adapters open |
+| D | Partial | Desktop+phone viewport evidence from discovery; live Android open |
 | E | Partial | Replay + healing guards offline; live failure matrix open |
 | F | Partial | Portfolio + visual capture on apply_run; broad live CI artifacts open |
 | G | Partial foundations | SQLite audit persist + RBAC/store; no live Postgres/Redis/MinIO |

@@ -2995,6 +2995,21 @@ def discovery_agent(state: QAState) -> QAState:
     print(f"  [discovery] portfolio capture: a11y={bool(portfolios.get('a11y_page'))} "
           f"perf={portfolios.get('performance') is not None} "
           f"security={portfolios.get('security_headers') is not None} (Gate F not complete)", flush=True)
+    from ..device_matrix import viewport_evidence_from_app_map
+    from ..swarm_evidence import record_swarm
+    viewport_rows = viewport_evidence_from_app_map(app_map)
+    (run_dir / "device_matrix_evidence.json").write_text(
+        json.dumps(viewport_rows, indent=2), encoding="utf-8")
+    swarm = record_swarm(
+        run_dir,
+        [page.get("url") or "" for page in app_map if page.get("url")],
+        run_id=run_dir.name,
+        worker_count=max(1, int(settings.test_workers or 1)),
+    )
+    print(f"  [discovery] device matrix evidence: {len(viewport_rows)} profile row(s) "
+          f"(Gate D not complete)", flush=True)
+    print(f"  [discovery] durable swarm: processed={swarm.get('processed')} "
+          f"statuses={swarm.get('statuses')} (Gate B not complete)", flush=True)
     if blocked:
         print(f"  [discovery] the safety rules blocked {len(blocked)} request(s) (private network / outside the scope)")
     log = state.get("log", []) + [

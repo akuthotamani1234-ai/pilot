@@ -42,7 +42,8 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
         "dependency_permitted": True,
         "requirements": "https://shop.example/wishlist",
         "crawl": {"swarm": {"sample": 3}, "not_visited": ["https://shop.example/missed"], "blocked_requests": []},
-        "app_map": [{"url": "https://shop.example/saree", "error": True, "depth": 1, "itemLinks": {"links": [{}, {}, {}]}}],
+        "app_map": [{"url": "https://shop.example/saree", "status": 200, "depth": 1,
+                     "mobile_only": [], "itemLinks": {"links": [{}, {}, {}]}}],
         "roles": {"shopper": {"pages": {"https://shop.example/orders": "denied"}, "login": "session_expired"}},
         "failures": [{"id": "price", "nodeid": "t::one", "test": "test_cart", "file": "test_cart.py",
                       "page_url": "https://shop.example/saree", "error": "price changed", "category": "product_defect"}],
@@ -63,7 +64,13 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert applied["healing_policy"]["gate_e_complete"] is False
     assert applied["device_matrix"]["complete"] is False
     assert "web.desktop" in applied["device_matrix"]["verified"]
+    assert "web.phone" in applied["device_matrix"]["verified"]
     assert "android.emulator" in applied["device_matrix"]["unverified"]
+    assert applied["swarm"]["gate_b_complete"] is False
+    assert applied["swarm"]["ran"] is True
+    assert (tmp_path / "swarm_evidence.json").is_file()
+    assert (tmp_path / "device_matrix.json").is_file()
+    assert (tmp_path / "device_matrix_evidence.json").is_file()
     assert applied["portfolios"]["complete"] is False
     assert "locale" in applied["portfolios"]["passed"]
     assert applied["enterprise"]["gate_g_complete"] is False

@@ -23,4 +23,6 @@ This Cloud Agent image has **no `adb` / emulator / Appium** on PATH. Live device
 
 ## Gate D / F status
 
-Still **Partial**: declarative matrix + portfolio evaluators exist offline. Full cross-surface live matrix and CI-linked portfolio artifacts are not closed.
+Still **Partial**:
+- Gate D: discovery/apply now record desktop (`1366x900`) and phone (`390x844`) viewport evidence when phone checks ran (`device_matrix_evidence.json` / `device_matrix.json`). Live Android emulator + API 24+ evidence remains open.
+- Gate F: portfolio evaluators + capture exist; broad live CI portfolio artifacts are not closed.

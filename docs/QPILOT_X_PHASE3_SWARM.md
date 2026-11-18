@@ -26,10 +26,16 @@ Existing `swarm_protocol.Lease` is in-memory only. Blueprint Gate B requires dur
 - Cancel prevents further claims
 - Checkout/payment URLs never scheduled as workers
 
+## Pipeline wiring (this branch)
+- `backend/swarm_evidence.record_swarm` plans + drains the durable queue over crawled URLs
+- Called at end of discovery and as a fallback in `apply_run`
+- Writes `swarm_evidence.json` + per-run `swarm_queue.sqlite`
+- Payment/checkout URLs still never scheduled as workers
+
 ## Not yet Gate B complete
 - Redis/Postgres enterprise queue backend
 - Full LangGraph wiring of every specialist agent through DurableQueue
 - Live multi-worker crash drill artifacts linked in issue #22
 
 ## Next
-Phase 4 correctness (oracles, fixture cleanup, replay/healing) while keeping this queue as the swarm substrate.
+Keep this queue as the swarm substrate while closing Redis/Postgres and live crash drills.

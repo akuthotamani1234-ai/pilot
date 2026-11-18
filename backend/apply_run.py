@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent_eval import evaluate, model_change_allowed
 from .coverage_verify import verify_sources
 from .dependency_fault import inject_fault
-from .device_matrix import evaluate_matrix
+from .device_matrix import evaluate_matrix, viewport_evidence_from_app_map
 from .discovery_graph import write_graph
 from .enterprise import readiness as enterprise_readiness
 from .env_controls import CONTROLS, action_still_blocked, enable_control
@@ -32,6 +32,7 @@ from .run_rules import lifecycle_for
 from .schema_diff import diff_specs
 from .sessions import RoleBook
 from .surface_coverage import summarize_surfaces
+from .swarm_evidence import record_swarm
 from .visual_capture import capture_visual
 
 _CART_WORDS = ("cart", "add to cart", "add-to-cart")
@@ -142,16 +143,23 @@ def _device_evidence(state: dict, results: list[dict]) -> list[dict]:
     """Build Gate D evidence rows from this run only — never invent unverified profiles."""
     evidence = []
     target = str(state.get("target_type") or "web").lower()
-    outcomes = [_outcome(row) for row in results if _outcome(row)]
-    if not outcomes:
-        return evidence
-    primary = outcomes[0]
+    app_map = state.get("app_map") or []
+    # Discovery already exercised desktop (+ phone when recorded); count even before pytest results.
     if target in {"web", ""}:
-        evidence.append({"surface": "web", "viewport": "1366x900", "outcome": primary})
+        evidence.extend(viewport_evidence_from_app_map(app_map))
+        stored = _read_json(Path(state.get("run_dir") or ".") / "device_matrix_evidence.json")
+        if isinstance(stored, list):
+            evidence.extend([row for row in stored if isinstance(row, dict)])
+    outcomes = [_outcome(row) for row in results if _outcome(row)]
+    primary = outcomes[0] if outcomes else ""
+    if primary and target in {"web", ""}:
+        if not any(e.get("viewport") == "1366x900" for e in evidence):
+            evidence.append({"surface": "web", "viewport": "1366x900", "outcome": primary})
         if any("mobile" in str(row.get("nodeid") or row.get("file") or "").lower()
                or "phone" in str(row.get("title") or "").lower() for row in results):
-            evidence.append({"surface": "web", "viewport": "390x844", "outcome": primary})
-    if target in {"mobile", "android"}:
+            if not any(e.get("viewport") == "390x844" for e in evidence):
+                evidence.append({"surface": "web", "viewport": "390x844", "outcome": primary})
+    if target in {"mobile", "android"} and primary:
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
         evidence.append({
             "surface": "android",
@@ -160,7 +168,16 @@ def _device_evidence(state: dict, results: list[dict]) -> list[dict]:
             "api_level": config.get("api_level") or config.get("android_version"),
             "outcome": primary,
         })
-    return evidence
+    # Deduplicate by surface/viewport/device while keeping first outcome.
+    seen = set()
+    unique = []
+    for row in evidence:
+        key = (row.get("surface"), row.get("viewport"), row.get("device_id"), row.get("form"), row.get("api_level"))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+    return unique
 
 
 def _portfolios(run_dir: Path, locale_payload: dict) -> dict:
@@ -329,6 +346,15 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     oracle = _cart_checks(cases)
     lifecycle = lifecycle_for(state, finish=True)
     healing = summarize_healing(list(state.get("healing_log") or []))
+    swarm = _read_json(run_dir / "swarm_evidence.json")
+    if not isinstance(swarm, dict) or not swarm.get("ran"):
+        swarm = record_swarm(
+            run_dir,
+            [page.get("url") or "" for page in app_map if page.get("url")],
+            run_id=str(state.get("run_id") or run_dir.name),
+        )
+    device_rows = _device_evidence(state, results)
+    matrix = evaluate_matrix(device_rows)
     applied = {
         "sample_unchanged": True,
         "sample": sample,
@@ -351,7 +377,8 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "review": _heals(list(state.get("healing_log") or []), {}),
         "trends": _trends(run_dir, verdict, failures),
         "plugins": _plugins(root or Path(".")),
-        "device_matrix": evaluate_matrix(_device_evidence(state, results)),
+        "device_matrix": matrix,
+        "swarm": swarm,
         "portfolios": _portfolios(run_dir, locale_file),
         "enterprise": enterprise_readiness(),
         "ops": ops_readiness(),
@@ -367,6 +394,8 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     (run_dir / "oracle_decisions.json").write_text(json.dumps(oracle, indent=2), encoding="utf-8")
     (run_dir / "lifecycle.json").write_text(json.dumps(lifecycle, indent=2), encoding="utf-8")
     (run_dir / "healing_policy.json").write_text(json.dumps(healing, indent=2), encoding="utf-8")
+    (run_dir / "device_matrix.json").write_text(json.dumps(matrix, indent=2), encoding="utf-8")
+    (run_dir / "device_matrix_evidence.json").write_text(json.dumps(device_rows, indent=2), encoding="utf-8")
     return applied
 
 
