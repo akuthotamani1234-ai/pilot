@@ -72,6 +72,8 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "Coverage reminder:" in script
     assert "Run Thorough again" in script and "thorough-again" in script
     assert "Observed/scripted controls are not the same as business-verified checks." in script
+    assert "Qpilot X" in script and "s.qx_card.counts.discovered" in script
+    assert "rules are in this run" in script
     assert 'id="androidThorough"' in (FRONTEND / "chat.html").read_text(encoding="utf-8")
     assert 'data.append("thorough"' in script and "androidThorough" in script
     assert "Stopped early:" in script

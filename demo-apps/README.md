@@ -18,8 +18,6 @@ These files are kept outside `runs` so clearing history does not remove them.
   `https://the-internet.herokuapp.com/dropdown` in Android Chrome.
 - `webdriverio-expanded-checks.json`: ten native functional checks, including
   dropdowns, validation, dialogs, swiping, scrolling and drag-and-drop.
-  See the [current reliability audit](../docs/28_APPIUM_RELIABILITY_AUDIT.md)
-  for execution evidence and scope limits.
 - `apk-source.json`: public download provenance for the WebdriverIO APK.
 - `webdriverio-complete-checks.json`: 33 configured WebdriverIO v2.2.0 flows,
   including menus, demo account validation, persistence and optional permissions.
@@ -33,11 +31,5 @@ These files are kept outside `runs` so clearing history does not remove them.
   New fixture source builds use `com.qpilot.demo`.
 
 Copy a checks file's contents into the studio's **Approved test flows and
-business checks (JSON)** field. Tick configured-flows-only to reproduce that
-bounded example.
-
-Full workflow: [Run Android tests yourself](../docs/27_RUN_ANDROID_TESTS_YOURSELF.md).
-
-Latest samples, private test credentials and permission setup:
-[Expanded Android workflow](../docs/29_ANDROID_FEATURE_EXPANSION.md).
-You can also load these examples from the Advanced settings sample picker.
+business checks (JSON)** field, or load one from the Advanced settings sample picker.
+Tick configured-flows-only to reproduce that bounded example.

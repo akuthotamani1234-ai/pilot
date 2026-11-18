@@ -39,6 +39,7 @@ STATIC = ROOT / "frontend"   # the web page files (served at /static/...)
 AUDIT = ROOT / "logs" / "audit.jsonl"  # who started / stopped / deleted what, and when (never secrets)
 RUNS.mkdir(exist_ok=True)
 STAGE_RE = re.compile(r"^::stage::(\w+)::(start|done)$")
+NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)
 HUMAN_RE = re.compile(r"^::human::(\{.*\})$")  # the login needs a person (one-time code / CAPTCHA) - and the outcome
 RUN_NAME = re.compile(r"^[\w.\-]+$")
@@ -273,6 +274,11 @@ def _reader(job: dict) -> None:
     proc = job["proc"]
     for raw in proc.stdout:
         line = redact(raw.rstrip("\r\n"), job.get("secrets") or [])  # (passwords / keys never reach the page)
+        m = NOTE_RE.match(line.strip())
+        if m:
+            job["note"] = m.group(1).strip()
+            job["lines"].append(job["note"])
+            continue
         m = STAGE_RE.match(line.strip())
         if m:
             name, ev = m.groups()
@@ -446,6 +452,7 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         # exit_code is set when the worker process ends (None while still running)
         "exit_code": job.get("exit_code"),
         "stages": job["stages"], "current": job["current"], "human": job.get("human"),
+        "note": job.get("note") or "",
         "lines": job["lines"][since:], "next": len(job["lines"]),
         "live_pages": job.get("pages", [])[psince:], "pnext": len(job.get("pages", [])),
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
@@ -581,6 +588,22 @@ def providers():
             "privacy": public_policy()}
 
 
+def _require_registered_target(req: RunRequest, url: str) -> None:
+    """A run starts only with an authorized target, a scope, and a budget."""
+    from backend.config import settings as cfg
+    from backend.release_row import open_target
+    registered = open_target(
+        url=url,
+        scope=req.crawl_scope or "site",
+        page_budget=req.max_pages,
+        hard_cap=cfg.hard_page_cap,
+        time_budget_min=cfg.crawl_time_limit_min or cfg.run_time_limit_min,
+        authorized=req.authorized,
+    )
+    if not registered["ok"]:
+        raise HTTPException(400, registered["problems"][0])
+
+
 def _validate(req: RunRequest, source: str) -> None:
     """Setup checks with a plain-English message for each problem (HTTP 400)."""
     from backend.agents.setup_agent import is_github, is_local_project
@@ -617,6 +640,7 @@ def _validate(req: RunRequest, source: str) -> None:
     if is_github(source) or is_local_project(source):
         if req.website_only or req.discovery_only:
             raise HTTPException(400, "This operation accepts website URLs only, not repositories or project folders.")
+        _require_registered_target(req, source)
         return
     url = source if "://" in source else ("http://" + source if source.startswith(("localhost", "127."))
                                           else "https://" + source)
@@ -641,6 +665,7 @@ def _validate(req: RunRequest, source: str) -> None:
                 raise UrlError("The login page must be on the same website (or add its host to 'Allowed hosts').")
     except UrlError as e:
         raise HTTPException(400, str(e)) from e
+    _require_registered_target(req, url)
 
 
 @app.post("/api/runs")
@@ -729,7 +754,10 @@ def start_run(req: RunRequest):
                 cases_cap = 0
             env["MAX_TEST_CASES"] = str(max(500, cases_cap))
             env["PATTERN_SAMPLES"] = "0"
+            env["SWARM_SAMPLE"] = "0"
             env["QA_THOROUGH"] = "1"
+        else:
+            env.setdefault("SWARM_SAMPLE", "3")
         if req.auth_mode in ("public", "signup", "existing"):
             env.update({"TEST_USERNAME": "", "TEST_PASSWORD": "", "TEST_TOTP_SECRET": "", "TEST_ACCOUNTS": ""})
         env.update({"QA_EVENTS": "1", "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
@@ -882,6 +910,11 @@ async def start_mobile_run(
     interaction_timeout_s: int = Form(0),
     bot_check_wait_s: int = Form(30),
     human_wait_s: int = Form(180),
+    dynamic_wait_s: int = Form(12),
+    dynamic_retries: int = Form(1),
+    overlay_attempts: int = Form(1),
+    repeated_failures: int = Form(1),
+    scroll_stalls: int = Form(2),
     max_test_cases: int = Form(300),
     allow_rules_fallback: bool = Form(True),
     api_key: str = Form("", max_length=4096),
@@ -931,7 +964,9 @@ async def start_mobile_run(
             "max_interactions": max_interactions,
             "test_all_discovered": test_all_discovered,
             "interaction_timeout_s": interaction_timeout_s, "bot_check_wait_s": bot_check_wait_s,
-            "human_wait_s": human_wait_s,
+            "human_wait_s": human_wait_s, "dynamic_wait_s": dynamic_wait_s,
+            "dynamic_retries": dynamic_retries, "overlay_attempts": overlay_attempts,
+            "repeated_failures": repeated_failures, "scroll_stalls": scroll_stalls,
         })
     except AndroidEnvironmentError as e:
         raise HTTPException(400, str(e)) from e

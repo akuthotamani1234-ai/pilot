@@ -22,13 +22,30 @@ from playwright.sync_api import TimeoutError as PageTimeout, sync_playwright
 from .. import runctl, visual
 from ..actions import action_risk
 from ..auth import CAPTCHA, NOTES, log_in, login_form, looks_logged_out, wait_for_person
+from ..capabilities import run_record
 from ..config import settings
+from ..coverage_verify import verify_listing
+from ..data_lifecycle import plan_for_workers
+from ..explore_score import rank_candidates, score_candidate
+from ..locale_check import remember_locale, write_locale
 from ..observe import DIALOG_INIT_JS, Explorer, autoscroll, close_consent
 from ..page_inventory import DOM_COMPONENTS_JS, merge_snapshots, save_inventory
 from ..page_status import page_testable
+from ..release_row import (
+    inventory_pages,
+    link_graph,
+    load_saved_crawl,
+    page_record,
+    read_target,
+    record_step,
+    save_crawl_progress,
+)
+from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
+from ..swarm import assign_workers, choose_listing, is_payment_url, sample_limit
+from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
 
@@ -663,9 +680,18 @@ EXTRACT_JS = r"""
   try { component_snapshot = (
 """ + DOM_COMPONENTS_JS + r"""
   )(); } catch (error) { component_snapshot = {components:[], error:"DOM component collection failed: " + error.name}; }
+  // Language and currency already on the page. A symbol is kept as a symbol; a missing fact is left out.
+  const qaLocaleLang = (document.documentElement && document.documentElement.lang || '').trim();
+  const qaLocaleText = ((document.body && document.body.innerText) || '').replace(/\s+/g, ' ').slice(0, 20000);
+  const qaLocaleIso = qaLocaleText.match(/\b(AED|AUD|CAD|CHF|CNY|EUR|GBP|INR|JPY|SAR|SGD|USD)\b/);
+  const qaLocaleSym = qaLocaleText.match(/[₹€£¥$]/);
+  const locale = {};
+  if (qaLocaleLang) locale.language = qaLocaleLang;
+  if (qaLocaleIso) locale.currency = qaLocaleIso[1];
+  else if (qaLocaleSym) locale.currency = qaLocaleSym[0];
   return { component_snapshot, links, buttons, inputs, forms, headings, itemNames: [...new Set([...cardNames, ...itemNames])].slice(0, 20), draggables, droppables, hovers, iframes, itemLinks,
            productNames, imageCount: images.length, brokenImages, unsupported, shadowRoots: roots.length - 1, tables,
-           totals, skeleton };
+           totals, skeleton, locale };
 }
 """
 
@@ -1266,17 +1292,38 @@ class _Frontier:
     """The pages still to visit: pages behind the login ALWAYS come first (they are the app the test account was given
     for), then the public pages - and in each, the SECTIONS of the site's own menu first (append_menu: so a time limit
     can only cut deep pages, never a whole section - OrangeHRM's Recruitment, Time, Maintenance were never reached),
-    then a page that probably shows something NEW before more pages of a kind already known (append_later). Used like
-    a deque by the crawl loop."""
+    then a page that probably shows something NEW before more pages of a kind already known (append_later). Inside a
+    band, a higher next-page score is opened first. A checkout or payment address is queued last in that band. Used like a deque
+    by the crawl loop."""
     ORDER = ((True, "menu"), (True, False), (True, True), (False, "menu"), (False, False), (False, True))
 
     def __init__(self, first: tuple):
         self.lanes = {k: deque() for k in self.ORDER}
         self.menu: set = set()  # (the menu's sections - to list the ones never reached)
+        self.scores: dict[tuple, int] = {}
+        self.anchor = first  # the address the user asked for stays first until it is opened
         self.append(first)
 
-    def append(self, item: tuple) -> None:
-        self.lanes[(bool(item[3]), False)].append(item)
+    def _place(self, lane: deque, item: tuple, score: int | None) -> None:
+        if score is None:
+            lane.append(item)
+            return
+        self.scores[item] = score
+        # Do not jump ahead of the start address while it is still waiting.
+        start = 1 if lane and lane[0] == self.anchor else 0
+        url = str(item[0])
+        for index in range(start, len(lane)):
+            current = lane[index]
+            other = self.scores.get(current)
+            if other is None:
+                continue
+            if score > other or (score == other and url < str(current[0])):
+                lane.insert(index, item)
+                return
+        lane.append(item)
+
+    def append(self, item: tuple, score: int | None = None) -> None:
+        self._place(self.lanes[(bool(item[3]), False)], item, score)
 
     def menu_left(self) -> list[str]:
         """The menu sections never reached (the crawl stopped first)."""
@@ -1286,8 +1333,8 @@ class _Frontier:
         self.menu.add(item)
         self.lanes[(bool(item[3]), "menu")].append(item)
 
-    def append_later(self, item: tuple) -> None:
-        self.lanes[(bool(item[3]), True)].append(item)
+    def append_later(self, item: tuple, score: int | None = None) -> None:
+        self._place(self.lanes[(bool(item[3]), True)], item, score)
 
     def appendleft(self, item: tuple) -> None:  # (the login link, a page to read again: before even the menu)
         self.lanes[(bool(item[3]), "menu")].appendleft(item)
@@ -1307,6 +1354,53 @@ class _Frontier:
 
     def __len__(self) -> int:
         return sum(len(v) for v in self.lanes.values())
+
+
+def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool = False,
+               priorities: list[str] | None = None, failed: bool = False, uncertain: bool = False) -> bool:
+    """Queue one normal link by its next-page score. Menu links stay in the menu band.
+
+    A checkout or payment address is queued last in its band, so the page is seen and its
+    pay button stays unclicked. A previous run's priority token marks an ordinary address
+    changed, which scores it higher inside the same band.
+    """
+    url = str(item[0])
+    if is_payment_url(url):
+        if menu:
+            queue.append_menu(item)
+        elif known:
+            queue.append_later(item, score=0)
+        else:
+            queue.append(item, score=0)
+        return True
+    if menu:
+        queue.append_menu(item)
+        return True
+    depth = int(item[1]) if len(item) > 1 else 0
+    score = score_candidate({
+        "url": url,
+        "new_template": not known,
+        "failed": failed,
+        "uncertain": uncertain,
+        "changed": any(token and token in url for token in (priorities or [])),
+        "journey_distance": depth,
+    })
+    if known:
+        queue.append_later(item, score=score)
+    else:
+        queue.append(item, score=score)
+    return True
+
+
+def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
+    """Write this run's API spec. A missing baseline spec is not invented."""
+    if operations is None:
+        return False
+    folder = Path(run_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "api_spec.json").write_text(
+        json.dumps({"operations": operations}, indent=2), encoding="utf-8")
+    return True
 
 
 # At phone width: does the page scroll sideways, and which controls are cut off (outside the screen) or covered?
@@ -1674,6 +1768,17 @@ def discovery_agent(state: QAState) -> QAState:
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
     shots.mkdir(parents=True, exist_ok=True)
+    target = read_target(run_dir)
+    if target is not None and target.get("ok") is False:
+        reason = "; ".join(target.get("problems") or ["the target is not registered"])
+        print(f"  [discovery] stopped before the crawl: {reason}", flush=True)
+        return {
+            "app_map": [], "crawl_issues": [], "roles": {},
+            "login": {"found": False, "logged_in": False, "note": reason, "outcome": "not_required"},
+            "crawl": {"start_url": start_url, "stopped": reason, "visited": 0, "sample_unchanged": True,
+                      "swarm": {"sample": settings.swarm_sample}},
+            "log": state.get("log", []) + [f"Discovery stopped before the crawl: {reason}"],
+        }
     base_host = urlparse(start_url).hostname
     start_scheme = urlparse(start_url).scheme + ":"
     scope = Scope(start_url, settings.allowed_hosts)  # approved hosts; private / metadata addresses are blocked
@@ -1691,10 +1796,34 @@ def discovery_agent(state: QAState) -> QAState:
         "page": "Specific page – I'll test only this page, and check that every link on it works.",
     }[mode], flush=True)
 
+    app_map, issues = [], []
+    locale_seen: dict = {}
+    priorities = priority_urls(state.get("site_key") or "")
     # (url, depth, inside the address you gave?, logged in?) - pages behind a login are visited in a 2nd,
     # logged-in browser session, so the public pages (login, register) are still seen as a visitor sees them
     queue = _Frontier((start_url, 0, True, False))  # (logged-in pages always first)
     seen = {(start_url, False)}
+    skipped: dict = {}  # url -> reason (filled as links are refused)
+    resumed_urls: set[str] = set()
+    if state.get("resuming"):
+        saved_pages, pending = load_saved_crawl(run_dir)
+        if saved_pages:
+            app_map.extend(saved_pages)
+            for page in saved_pages:
+                saved_url = _normalize(page.get("url") or "")
+                if not saved_url:
+                    continue
+                resumed_urls.add(saved_url)
+                seen.add((saved_url, False))
+                seen.add((saved_url, True))
+            for raw in pending:
+                waiting = _normalize(raw)
+                if not waiting or (waiting, False) in seen:
+                    continue
+                seen.add((waiting, False))
+                place_link(queue, (waiting, 1, True, False), priorities=priorities, uncertain=True)
+            print(f"  [discovery] resumed {len(saved_pages)} inventoried page(s), "
+                  f"{len(pending)} still waiting", flush=True)
     crawl_started, time_limited, stopped = time.time(), False, ""
     from ..scheduling import discovery_minutes
     crawl_budget_min = discovery_minutes(settings)
@@ -1706,8 +1835,7 @@ def discovery_agent(state: QAState) -> QAState:
         named = _normalize(settings.login_url)
         if scope.in_scope(named) and (named, False) not in seen:
             seen.add((named, False))
-            queue.append((named, 1, True, False))
-    app_map, issues = [], []
+            place_link(queue, (named, 1, True, False), priorities=priorities)
     used_slugs = set()
     not_app = 0  # pages outside the address that turned out to be a different site
     MAX_NOT_APP = 10  # after this many, stop checking outside links (keeps the crawl quick)
@@ -1729,9 +1857,13 @@ def discovery_agent(state: QAState) -> QAState:
     landed: set = set()  # (address the browser ended up on, logged in?) - to spot addresses that only redirect
     # route coverage: what was NOT visited and why (shown in the report - nothing is skipped silently)
     blocked: list = []  # requests stopped by the safety rules
-    skipped: dict = {}  # url -> reason
     routes = {"redirected_out": [], "session_expired": [], "external": set(), "needs_permission": [], "sampled": 0,
               "needs_login": []}  # (needs_login: a visitor was sent to the login page - not tested without an account)
+    swarm_rows: list = []  # chosen products and which worker owns each one
+    swarm_tasks: list = []  # QX-A01 handoffs for those choices
+    swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
+    swarm_workers: set[int] = set()  # workers that received a chosen product
+    n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
     session = {"form": None, "user": "", "password": "", "landing": "", "relogins": 0}  # in memory only
@@ -1744,6 +1876,7 @@ def discovery_agent(state: QAState) -> QAState:
     typed: dict = {}  # folder -> its design (once PATTERN_SAMPLES pages showed it)
     counted: set = set()  # the addresses counted as one more page of a known design (once: as a visitor or logged in)
 
+    role_map: dict = {}
     with _browser_session(app_map) as pw:
         browser = pw.chromium.launch(headless=settings.headless, slow_mo=watched_slow_mo_ms(),
                                      args=fit_window_args())  # (visible: the whole window on the screen)
@@ -1761,7 +1894,7 @@ def discovery_agent(state: QAState) -> QAState:
         extra_found = []
         if mode != "page":
             try:
-                from ..scrape_seed import seed_entries
+                from ..scrape_seed import harvest_openapi_operations, seed_entries
                 start_html = ""
                 try:
                     r0 = contexts[False].request.get(start_url, timeout=15000)
@@ -1771,6 +1904,13 @@ def discovery_agent(state: QAState) -> QAState:
                     start_html = ""
                 # Preserve provenance: sitemap stays "sitemap"; HTML/openapi are "scrape".
                 extra_found = seed_entries(contexts[False].request, start_url, html=start_html or None)
+                try:
+                    operations = harvest_openapi_operations(contexts[False].request, start_url)
+                    if store_api_spec(run_dir, operations):
+                        print(f"  [discovery] API spec: {len(operations or [])} operation(s) "
+                              "(checkout and payment left out)", flush=True)
+                except Exception as spec_error:
+                    print(f"  [discovery] API spec skipped: {str(spec_error).splitlines()[0][:120]}", flush=True)
                 if extra_found:
                     n_sm = sum(1 for _u, how in extra_found if how == "sitemap")
                     n_sc = sum(1 for _u, how in extra_found if how == "scrape")
@@ -1875,15 +2015,17 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
+            if url in resumed_urls and (url, auth) not in reread:
+                continue
             if not inside and not_app >= MAX_NOT_APP:
                 continue
             folder = _parent_path(url)
-            if settings.pattern_samples > 0 and folder in typed and depth > 0 \
+            if n_sample > 0 and folder in typed and depth > 0 \
                     and (url, auth) not in reread and not _pattern(url, auth):
                 # queued before its folder's design was known (the sitemap lists every product at once): a sample
                 kind = f"{folder}/* (one design)"
-                kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": settings.pattern_samples,
-                                                                               "sampled": settings.pattern_samples,
+                kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
+                                                                               "sampled": n_sample,
                                                                                "smoke": []})
                 if url not in counted:
                     counted.add(url)
@@ -1891,7 +2033,7 @@ def discovery_agent(state: QAState) -> QAState:
                     routes["sampled"] += 1
                     if len(kinds["smoke"]) < 10:
                         kinds["smoke"].append(url)
-                skipped.setdefault(url, f"the same page design as {settings.pattern_samples} tested pages of "
+                skipped.setdefault(url, f"the same page design as {n_sample} tested pages of "
                                         f"{folder}/ - a sample was tested")
                 continue
             again = next((n for n, p in enumerate(app_map) if p["url"] == url and p["auth"] == auth), None) \
@@ -2001,8 +2143,8 @@ def discovery_agent(state: QAState) -> QAState:
                 if folder and page_testable(entry):
                     designs[(folder, entry["skeleton"])] = designs.get((folder, entry["skeleton"]), 0) + 1
                     counted.add(url)  # (a sample: already one of the pages its kind counts)
-                    if settings.pattern_samples > 0 \
-                            and designs[(folder, entry["skeleton"])] >= settings.pattern_samples and folder not in typed:
+                    if n_sample > 0 \
+                            and designs[(folder, entry["skeleton"])] >= n_sample and folder not in typed:
                         typed[folder] = entry["skeleton"]
                         print(f"  [discovery] the pages of {folder}/ share one design: more of them are a sample "
                               "(smoke-checked, not explored again)", flush=True)
@@ -2397,11 +2539,11 @@ def discovery_agent(state: QAState) -> QAState:
                     found_by.setdefault(nxt, how)
                     key = _pattern(nxt, auth)
                     folder = _parent_path(nxt)
-                    if settings.pattern_samples > 0 and not key and folder in typed:
+                    if n_sample > 0 and not key and folder in typed:
                         # a page of a folder whose pages share one design: its kind is
                         kind = f"{folder}/* (one design)"  # known - a sample is tested, the rest smoke-checked
-                        kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": settings.pattern_samples,
-                                                                                       "sampled": settings.pattern_samples,
+                        kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
+                                                                                       "sampled": n_sample,
                                                                                        "smoke": []})
                         if nxt not in counted:  # (the same address found as a visitor AND logged in: one page)
                             counted.add(nxt)
@@ -2409,7 +2551,7 @@ def discovery_agent(state: QAState) -> QAState:
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:
                                 kinds["smoke"].append(nxt)
-                        skipped.setdefault(nxt, f"the same page design as {settings.pattern_samples} tested pages of "
+                        skipped.setdefault(nxt, f"the same page design as {n_sample} tested pages of "
                                                 f"{folder}/ - a sample was tested")
                         return False
                     if key:
@@ -2418,11 +2560,11 @@ def discovery_agent(state: QAState) -> QAState:
                         kinds = routes.setdefault("item_types", {}).setdefault(shown, {"found": 0, "sampled": 0,
                                                                                         "smoke": []})
                         kinds["found"] += 1
-                        if settings.pattern_samples > 0 and patterns[key] > settings.pattern_samples:
+                        if n_sample > 0 and patterns[key] > n_sample:
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:  # (up to 10 more of the same kind: smoke-checked by a test)
                                 kinds["smoke"].append(nxt)
-                            skipped.setdefault(nxt, f"more than {settings.pattern_samples} pages with the same "
+                            skipped.setdefault(nxt, f"more than {n_sample} pages with the same "
                                                     f"address pattern ({shown}) - a sample was tested")
                             return False
                         kinds["sampled"] += 1
@@ -2430,16 +2572,34 @@ def discovery_agent(state: QAState) -> QAState:
                     # (a page one step outside the section, reached from its content, is tested like the section)
                     item = (nxt, depth + 1, _in_scope(nxt, section) or not widen, auth)
                     # a page that probably shows something NEW first; more pages of a kind already seen (its address
-                    # pattern, or its folder's design) later
+                    # pattern, or its folder's design) later. Inside that band the next-page score decides the order.
                     known = (key and patterns.get(key, 0) > 1) or (folder and any(f == folder for f, _s in designs))
                     # a section of the site's own menu (found near the start): before every deeper page
                     menu = chrome and depth <= 2 and how == "link" and not known
-                    (queue.append_menu if menu else queue.append_later if known else queue.append)(item)
+                    if not place_link(queue, item, known=known, menu=menu, priorities=priorities):
+                        skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
+                        seen.discard((nxt, auth))
+                        return False
                     return True
 
                 # With full exploration, follow every listed item; otherwise visit representative examples.
                 items = [l["href"] for l in (entry.get("itemLinks") or {}).get("links") or [] if l.get("href")]
-                if settings.pattern_samples > 0 and len(items) >= 3:
+                if settings.swarm_sample > 0 and len(items) > settings.swarm_sample:
+                    picked, left = choose_listing(items, settings.swarm_sample)
+                    left_norm = [(_normalize(urljoin(url, href)), reason) for href, reason in left]
+                    for href, reason in left_norm:
+                        skipped.setdefault(href, reason)
+                    picked_norm = [_normalize(urljoin(url, href)) for href in picked]
+                    listed = [_normalize(urljoin(url, href)) for href in items]
+                    if picked_norm:
+                        assigned = assign_workers(picked_norm, settings.test_workers)
+                        swarm_rows.extend(assigned)
+                        swarm_workers.update(row["worker"] for row in assigned)
+                        print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
+                              f"({settings.test_workers} workers)", flush=True)
+                    swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
+                    swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
+                elif n_sample > 0 and len(items) >= 3:
                     odd = [h for h in (entry.get("itemLinks") or {}).get("odd") or [] if h in items][:1]
                     picked = list(dict.fromkeys([items[0], *odd, items[len(items) // 2], items[-1]]))
                 else:
@@ -2555,6 +2715,15 @@ def discovery_agent(state: QAState) -> QAState:
                 queue.appendleft((url, depth, inside, auth))  # (counted as not visited)
                 break
             app_map.append(entry)
+            if remember_locale(locale_seen, entry):
+                write_locale(run_dir, locale_seen)
+            waiting = [item[0] for item in queue]
+            ranked_waiting = rank_candidates([
+                {"url": item, "new_template": True, "journey_distance": 1,
+                 "changed": any(token and token in item for token in priorities)} for item in waiting
+            ])
+            ranked_urls = [row["url"] for row in ranked_waiting]
+            save_crawl_progress(run_dir, app_map, ranked_urls + [item for item in waiting if item not in set(ranked_urls)])
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
@@ -2620,6 +2789,28 @@ def discovery_agent(state: QAState) -> QAState:
     # route coverage: visited / not visited because of the limit / skipped on purpose / blocked by the safety rules
     pending = [u for u, _d, _i, _a in queue]
     ok = [p for p in app_map if page_testable(p)]
+    swarm_data = plan_for_workers(run_dir.name, settings.environment, sorted(swarm_workers))
+    if swarm_data and swarm_data[0].get("refused"):
+        print(f"  [discovery] swarm test data refused: {swarm_data[0]['refused']}", flush=True)
+    elif swarm_data:
+        print(f"  [discovery] swarm test data: {len(swarm_data)} worker(s), tagged {run_dir.name}", flush=True)
+    candidates = [{
+        "url": page.get("url") or "",
+        "new_template": True,
+        "failed": bool(page.get("error")),
+        "uncertain": bool(page.get("still_loading")),
+        "journey_distance": int(page.get("depth") or 0),
+        "changed": False,
+    } for page in app_map[:80]]
+    capabilities = run_record(
+        run_id=run_dir.name,
+        environment=settings.environment,
+        sample=settings.swarm_sample,
+        candidates=candidates,
+        roles=sorted(role_map),
+        catalog_size=sum(len((page.get("itemLinks") or {}).get("links") or []) for page in app_map),
+    )
+    (run_dir / "capabilities.json").write_text(json.dumps(capabilities, indent=2), encoding="utf-8")
     crawl = {
         "start_url": start_url, "approved_hosts": list(dict.fromkeys([base_host] + scope.extra)),
         "mode": mode, "section": section, "limit": limit, "max_depth": settings.max_depth,
@@ -2643,6 +2834,15 @@ def discovery_agent(state: QAState) -> QAState:
         "sections_not_reached": queue.menu_left()[:100],  # (menu sections the crawl never opened - limits)
         "still_loading": [p["url"] for p in app_map if p.get("still_loading")][:100],  # (tested as they showed)
         "max_interactions_per_page": settings.max_interactions_per_page,
+        "swarm": {
+            "sample": settings.swarm_sample,
+            "workers": settings.test_workers,
+            "assigned": swarm_rows[:300],
+            "tasks": swarm_tasks[:300],
+            "coverage": swarm_checks[:50],
+            "data": swarm_data,
+        },
+        "capabilities": {"sample_unchanged": True, "file": "capabilities.json"},
         "actions": explorer.summary(),  # what was tried / learned / blocked / skipped (and why) while exploring
         "page_types": {t: sum(1 for p in app_map if p.get("page_type") == t) for t in
                        sorted({p.get("page_type") or "content" for p in app_map})},
@@ -2653,6 +2853,18 @@ def discovery_agent(state: QAState) -> QAState:
     if not settings.discovery_only:
         vision.look_at_pages(app_map, run_dir)
     (run_dir / "app_map.json").write_text(json.dumps(app_map, indent=2), encoding="utf-8")
+    records = [page_record(page) for page in app_map]
+    target = read_target(run_dir) or {}
+    found = inventory_pages(records, done=sorted(resumed_urls), page_budget=int(target.get("page_budget") or limit))
+    found["ok"] = True
+    graph = link_graph(records)
+    graph["ok"] = True
+    record_step(run_dir, "inventory", found)
+    record_step(run_dir, "graph", graph)
+    print(f"  [discovery] inventory: {len(found['opened'])} opened, {len(found['blocked'])} blocked, "
+          f"{len(found['remaining'])} still waiting", flush=True)
+    print(f"  [discovery] graph: {len(graph['templates'])} template(s), {len(graph['elements'])} element(s), "
+          f"{len(graph['transitions'])} transition(s)", flush=True)
     (run_dir / "login.json").write_text(json.dumps(login, indent=2), encoding="utf-8")
     (run_dir / "crawl.json").write_text(json.dumps(crawl, indent=2), encoding="utf-8")
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)
@@ -2671,6 +2883,18 @@ def discovery_agent(state: QAState) -> QAState:
         + (f" {len(skipped)} link(s) were skipped on purpose (see the coverage section)." if skipped else "")
     ] + ([f"Login: {login['note']}"] if login["found"] else [])
     roles = json.loads((run_dir / "roles.json").read_text(encoding="utf-8")) if (run_dir / "roles.json").exists() else {}
+    locale_written = write_locale(run_dir, locale_seen)
+    if locale_written["observed"]:
+        shown = ", ".join(f"{key}={locale_written['observed'][key]}" for key in locale_written["observed"])
+        print(f"  [discovery] locale: {shown}", flush=True)
+    rules = apply_discovery({
+        "run_dir": str(run_dir), "run_id": run_dir.name, "site_key": state.get("site_key") or "",
+        "environment": settings.environment, "app_map": app_map, "crawl": crawl, "roles": roles,
+    })
+    if rules["schema"].get("trust_broken"):
+        print("  [discovery] API spec changed: broken workflows are named before those tests are trusted", flush=True)
+    print(f"  [discovery] rules: {len(rules['sessions']['roles'])} role session(s), "
+          f"locale sample {rules['locale']['sample']}, {len(rules['plugins'])} plugin(s)", flush=True)
     return {"app_map": app_map, "crawl_issues": issues, "log": log, "login": login, "crawl": crawl, "roles": roles}
 
 

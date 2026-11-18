@@ -2135,6 +2135,11 @@ def test_design_agent(state: QAState) -> QAState:
     print(f"  [test-design] {summary}")
     _link_registry(state, cases)
 
+    from ..run_rules import plugin_cases
+    extra = plugin_cases()
+    if extra:
+        cases = finalize_cases(cases + extra, state)
+        print(f"  [test-design] {len(extra)} accepted plugin assertion(s) added")
     Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
     write_workbook(Path(state["run_dir"]), cases)  # Excel copy; results are added by the Report step
     return {"test_cases": cases, "app_map": state["app_map"], "cases_left_out": max(0, len(designed) - room),

@@ -335,6 +335,8 @@ class BotCheckGate:
         if self.blocked:
             raise BotCheckBlocked(self.blocked)
         started = time.monotonic()
+        from .android_dynamic import note
+        note("A security check needs you on the device")
         print(f"[android] The website shows a bot check ({kind}) instead of its page. Waiting up to {self.wait_s} s "
               "for it to finish by itself, as it does for a normal visitor.", flush=True)
         data = self._wait(read, self.wait_s)
@@ -344,6 +346,7 @@ class BotCheckGate:
             print("[android] The bot check finished by itself; the real website is shown.", flush=True)
             return data
         if self.human_s:
+            note("A security check needs you on the device")
             print("::human::" + json.dumps({"what": "bot_check", "kind": kind, "wait_s": self.human_s}), flush=True)
             print(f"[android] Please complete the security check yourself on the Android device (the emulator "
                   f"window). Qpilot never solves or bypasses these checks. Waiting up to {self.human_s} s.", flush=True)
@@ -452,13 +455,16 @@ def inspect_web(driver, config):
             else:
                 safe = bool(SAFE_NAVIGATION.search(label) or node['tag'] == 'summary'
                             or node['role'] in ('tab', 'menuitem') or node['expands'])
+        locator = {'strategy': 'css', 'value': node['selector']}
+        from .android_dynamic import locator_confidence
         element = {
             'class_name': node['tag'], 'type': 'input' if node['input'] else 'button' if node['clickable'] else 'text',
             'text': node['text'], 'accessibility_id': node['label'], 'resource_id': node['dom_id'],
             'visible': not node['focus_only'], 'enabled': node['enabled'], 'clickable': node['clickable'],
             'focus_only': node['focus_only'],
-            'input_capable': node['input'], 'locators': [{'strategy': 'css', 'value': node['selector']}],
-            'locator_unique': True, 'safe_web_navigation': safe, 'options': node['options'], 'href': node['href'],
+            'input_capable': node['input'], 'locators': [locator],
+            'locator_unique': True, 'locator_confidence': locator_confidence(locator),
+            'safe_web_navigation': safe, 'options': node['options'], 'href': node['href'],
             'text_comparable': node['text_comparable'],
         }
         if in_test_mode:
@@ -477,6 +483,7 @@ def inspect_web(driver, config):
     route = urlsplit(data['url']).path or '/'
     title = data['title'].strip()
     screen_name = f"{title} — {route}" if title else route
+    from .android_dynamic import stable_fingerprint
     screen = {'platform': 'android', 'package_name': 'com.android.chrome', 'device_id': config['device_id'],
               'activity': data['url'], 'web_url': data['url'], 'screen_name': screen_name,
               'fingerprint': fingerprint, 'elements': elements,
@@ -487,6 +494,7 @@ def inspect_web(driver, config):
                       # A page still loading, or still waiting for its own requests (jQuery), is not read as settled
                       loading=data.get('ready') == 'loading' or bool(data.get('busy')),
                       captcha_groups=(data.get('challenge') or {}).get('groups', []))
+    screen['stable_fingerprint'] = stable_fingerprint(screen)
     return screen
 
 
@@ -517,15 +525,25 @@ def reset_site_data(driver, config) -> None:
     drain_alerts(driver)
 
 
-def scroll_to_end(driver, limit: int = 25) -> int:
-    """Scroll down like a user until the page ends (content that loads while scrolling appears), then back to the
-    top. Returns the number of scroll steps."""
-    steps, last = 0, None
+def scroll_to_end(driver, limit: int = 25, stall_limit: int = 2) -> int:
+    """Scroll down like a user until the page ends or new content stops appearing, then back to the top."""
+    from .android_dynamic import note, scroll_stalled
+
+    steps, last, stalls, previous_total = 0, None, 0, None
     for _ in range(limit):
         position, height, total = alert_safe(driver, lambda: driver.execute_script(SCROLL_STEP))
         steps += 1
-        if position == last or position + height >= total - 2:
+        # A fixed page is still read to the bottom. Stop early only when the page neither moves nor grows.
+        if last is not None and position == last:
+            stalls, stalled = scroll_stalled(previous_total, total, stalls, stall_limit)
+            if stalled or previous_total == total:
+                note("No new content appeared. Scrolling stopped.")
+                break
+        elif position + height >= total - 2:
             break
+        else:
+            stalls = 0
+        previous_total = total
         last = position
         time.sleep(.3)
     alert_safe(driver, lambda: driver.execute_script("window.scrollTo(0, 0); return true;"))

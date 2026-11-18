@@ -2,7 +2,7 @@
 
 Read this file **before** adding or moving files. It protects the codebase during human and assistant-assisted
 ("vibe coding") changes. Product behavior rules (safety, secrets, verdicts) remain as defined in
-`project-docs/03_RULES.md`, `CONTRIBUTING.md`, and `backend/README.md`.
+`README.md`, `SECURITY.md`, `CONTRIBUTING.md`, and `backend/README.md`.
 
 ## 1. System shape
 
@@ -15,7 +15,7 @@ Qpilot is a **local QA product** (primary target: Windows) with:
 | Pipeline | `backend/graph.py`, `backend/agents/` | LangGraph agents; each agent is `state -> partial state` |
 | Shared domain | `backend/*.py` (non-agent modules) | Safety, metrics, Android/web runtimes, contracts |
 | Generated tests | `runs/<run>/generated_tests/` (gitignored) | Ephemeral Playwright/Appium scripts |
-| Docs | `README.md`, `docs/`, `project-docs/` | Operator and contributor truth |
+| Docs | `README.md`, `DEPLOYMENT.md`, `STATUS.md` | Operator and contributor truth |
 
 **Rules decide; optional LLM providers only assist.** Verdicts, severities, and defect categories come from code
 (`backend/metrics.py`, reporters, gates). Never invent counts.
@@ -31,9 +31,9 @@ Qpilot is a **local QA product** (primary target: Windows) with:
 | Safety / secrets / URL policy | `backend/safety.py`, `backend/actions.py` | Inline checks scattered in UI |
 | Shared types / state keys | `backend/state.py` (`QAState` TypedDict) | Untyped dict keys invented in one agent only |
 | Unit / regression tests | `tests/test_*.py` mirroring the module under test | Embedding heavy live network tests without `@pytest.mark.slow` |
-| Operator guides | `docs/` or `project-docs/` | Long essays inside source comments |
+| Operator guides | `README.md` or `DEPLOYMENT.md` | Extra phase notes, audits, or essays inside source comments |
 | Demo contracts / sample APKs metadata | `demo-apps/` (APKs remain gitignored) | Committing binary APKs or real credentials |
-| Validation evidence | `STATUS.md` + `deep_validation/live_runs/*.md` | Committing `.env`, `runs/`, raw pytest dumps |
+| Current verification | `STATUS.md` | Committing `.env`, `runs/`, or raw pytest dumps |
 
 ## 3. Coding constraints
 
@@ -71,8 +71,8 @@ Before generating or editing files, an assistant or developer **must**:
 
 ## 5. Related documents
 
-- `project-docs/02_ARCHITECTURE.md` — product pipeline narrative  
-- `project-docs/03_RULES.md` — safety and QA rules  
-- `CONTRIBUTING.md` — branching, commits, PR checklist  
-- `SECURITY.md` — security reporting  
-- `.cursorrules` and `.github/copilot-instructions.md` — short copies of these guardrails for assistants  
+- `README.md` — how to install and run Qpilot
+- `backend/README.md` — pipeline and modules
+- `CONTRIBUTING.md` — branching, commits, PR checklist
+- `SECURITY.md` — security reporting
+- `.cursorrules` and `.github/copilot-instructions.md` — short copies of these guardrails for assistants

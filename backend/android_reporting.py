@@ -6,7 +6,25 @@ import re
 from pathlib import Path
 
 from .android_design import normalize_case
+from .android_dynamic import SAFETY_RESTRICTIONS, dynamic_summary
 from .safety import redact, redact_json
+
+
+def _dynamic_report(run_dir: Path, state: dict) -> dict:
+    """Progress a stopped or failed run can be diagnosed from, without credentials."""
+    events = list((state.get("dynamic") or {}).get("events") or [])
+    path = Path(run_dir) / "dynamic.json"
+    if path.is_file():
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            saved = {}
+        events = list(saved.get("events") or events)
+    report = dynamic_summary(events)
+    report["source"] = state.get("source") or ""
+    report["device_id"] = (state.get("config") or {}).get("device_id") or ""
+    report["safety_restrictions"] = list(SAFETY_RESTRICTIONS)
+    return report
 
 
 def classify_failure(result: dict) -> str:
@@ -402,6 +420,7 @@ def report(state: dict) -> dict:
         for outcome in ("passed", "failed", "error", "blocked", "inconclusive", "skipped")
     }
     screens = state.get("screens", [])
+    dynamic_report = _dynamic_report(run_dir, state)
     summary = {
         "source": state.get("source", "Android application"),
         "url": config.get("start_url") or state.get("source", "Android application"),
@@ -454,6 +473,8 @@ def report(state: dict) -> dict:
             "failed": sum(r["outcome"] in ("failed", "error") for r in results if r.get("auto_flow_id")),
         },
         "app_crashes": sum(r.get("exception_type") in ("AppCrash", "AppNotResponding") for r in results),
+        "dynamic": dynamic_report,
+        "safety_restrictions": dynamic_report.get("safety_restrictions", []),
     }
     for name, value in (
         ("summary.json", summary),
@@ -699,6 +720,16 @@ def render_mobile_report(summary, cases, results, failures, screens, healing):
     account = summary.get("account_setup") or {}
     account_section = ('<section class="scope"><b>Test account: ' + esc(account.get("status", ""))
                        + '</b><p>' + esc(account.get("detail", "")) + '</p></section>' if account.get("detail") else '')
+    dynamic = summary.get("dynamic") or {}
+    dynamic_section = (
+        '<section class="scope"><b>Dynamic screens</b><p>Overlays detected: '
+        + esc(dynamic.get("overlays_detected", 0)) + '. Dismissed: ' + esc(dynamic.get("overlays_dismissed", 0))
+        + '. Approved choices: ' + esc(dynamic.get("choices_applied", 0)) + '. Retries: '
+        + esc(dynamic.get("retries", 0)) + '.</p><ul>'
+        + ''.join('<li>' + esc(reason) + '</li>' for reason in dynamic.get("blocked_reasons") or [])
+        + ''.join('<li>' + esc(rule) + '</li>' for rule in summary.get("safety_restrictions") or [])
+        + '</ul></section>'
+    )
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Qpilot ? Android evidence report</title><style>
 *{{box-sizing:border-box}}body{{margin:0;background:#f5f7fb;color:#18223a;font:15px/1.6 system-ui,sans-serif}}
@@ -714,7 +745,7 @@ pre{{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}}code{{overflow-
 </style></head><body><main><header><div class="brand">QPILOT / ANDROID</div><h1>Test results with evidence</h1>
 <p>{esc(summary["package_name"])} ? Android {esc(summary["android_version"])} ? {esc(summary["device_id"])}</p>
 <span class="verdict">{esc(summary["verdict"])}</span><p>{esc(" ".join(summary["reasons"]))}</p></header>
-{bot_section}{early}{ai_warning}{incomplete_warning}{account_section}<div class="metrics">{cards}</div>{interaction_section}<section class="scope"><b>Coverage has limits</b><p>Only discovered controls and approved expectations were checked.
+{bot_section}{early}{ai_warning}{incomplete_warning}{account_section}{dynamic_section}<div class="metrics">{cards}</div>{interaction_section}<section class="scope"><b>Coverage has limits</b><p>Only discovered controls and approved expectations were checked.
 Blocked, inferred and unexplored functionality is not counted as passed. A changed observed label needs review; business correctness requires explicit requirements.</p>
 <p>{summary["coverage"]["tested"]} controls have passing execution evidence across {summary["screens_visited"]} inspected screens. No whole-app accuracy percentage is claimed.</p></section>
 <p>Configured functional checks passed: <b>{summary.get('functional_checks', {}).get('passed', 0)}</b>. UI checks passed: <b>{summary.get('ui_checks', {}).get('passed', 0)}</b>. Observed controls still needing functional checks: <b>{summary.get('controls_needing_functional_checks_count', 0)}</b>.</p>

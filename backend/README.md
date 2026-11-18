@@ -22,7 +22,7 @@ setup ─▶ discovery ─▶ change_detection ─▶ visual_check ─▶ test_d
 | Step | File | What it does |
 |---|---|---|
 | setup | `agents/setup_agent.py` | GitHub link or folder → download, install, start it on localhost (skipped for a URL) |
-| discovery | `agents/discovery.py` | crawl the website: pages, screenshots, console / network errors, login, item lists, phone width |
+| discovery | `agents/discovery.py` | crawl the website: pages, screenshots, console / network errors, login, item lists, phone width; the frontier uses the next-page score, and the crawl writes `locale.json` and `api_spec.json` |
 | change_detection | `agents/change_detection.py` | compare with `baseline/<site>/` (new / changed / removed pages); also `save_baseline` |
 | visual_check | `visual.py` | each page's look (desktop + phone) vs. its approved look: missing / moved / overlapping elements, the changed picture (`VISUAL_CHECK`) |
 | test_design | `agents/test_design.py` | the test cases: built-in rules, plus the AI's cases (validated) |
@@ -63,7 +63,8 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `safety.py` | which addresses may be opened, secret removal (`redact`), a clean environment for child processes |
 | `actions.py` | which clicks are allowed (delete / pay / logout … are blocked unless allowed on staging) |
 | `secret_store.py` | a test account the tester created, encrypted with Windows DPAPI (`accounts/<site>.json`) |
-| `templates/conftest.py` | copied next to every generated test: fixtures, the sandbox guards, the write guard |
+| `templates/conftest.py` | copied next to every generated test: fixtures, the sandbox guards, the write guard, the fixed clock and dependency faults |
+| `browser_controls.py` | reads `qx_environment.json` and `qx_dependency.json` and decides which browser requests fail; payment, delete, and logout stay blocked |
 | `templates/pytest.ini` | the generated tests' pytest settings |
 
 **Exploring and understanding pages**
@@ -84,6 +85,10 @@ run. A crash, a stop or `RUN_TIME_LIMIT_MIN` still ends with a report (`runctl.p
 | `form_rules.py` | rules between fields (date ranges, totals, passengers …), and a multi-step form's later step opened alone |
 | `my_tests.py` | your own tests in plain English, kept per website (the AI designs them in `test_design.my_test_cases`) |
 | `testdata.py` | test values that fit each input box (read from its label and type) |
+| `data_lifecycle.py` | synthetic account, cart, and order for each swarm worker, tagged with the run; production customer data is refused |
+| `release_row.py` | section 22 in order: register, inventory, graph, isolated workers, seeded defect, six dashboard counts, and the operation checks. Each stage writes its step into `row.json` |
+| `run_rules.py` | the live rules at the stage they belong to: sessions, environment, locale, schema, plugins, worker data, dependency faults, replay, mutation score, journeys, evaluation, and trends |
+| `explore_score.py`, `sessions.py`, `env_controls.py`, `replay_pack.py`, `mutation_score.py`, `journey_map.py`, `locale_check.py`, `agent_eval.py`, `incremental_map.py`, `dependency_fault.py`, `schema_diff.py`, `human_review.py`, `quality_trends.py`, `plugins.py` | the remaining blueprint rules, used while the crawl runs: next-page score (frontier order), sessions, staging controls, replay, mutation score, journeys, locale (observed facts only), evaluation, incremental reopen, dependency faults, schema diffs, human review, trends, and plugin locks |
 | `assert_strength.py` | how strong each generated test's checks are (read from the code), so a weak test is "smoke" |
 
 **Results and the report**
@@ -115,11 +120,10 @@ log out) and `android_site.py` explores a website in Android Chrome (every menu 
 page to its end, then every feature; a pop-up dialog an entry opens - a login or sign-up modal - is a state whose
 forms are filled like a page's) and `android_web.py` handles the page reader (what is a menu toggle, a dialog
 opener, a form group), bot checks, browser alerts and a fresh visit.
-See [Android architecture, setup and verification](../project-docs/12_ANDROID.md).
+Android setup and safety rules are in the repository `README.md`.
 
 `android_forms.py` handles native form control grouping, safe unfamiliar-submit fallback, standard Spinner selection
-and destination evidence. It reuses the existing trusted adapter, scope guards and replay machinery. See
-[native form reliability](../docs/36_ANDROID_NATIVE_FORM_RELIABILITY.md) for supported widgets and live-check limits.
+and destination evidence. It reuses the existing trusted adapter, scope guards and replay machinery.
 
 ## How the web UI follows a run
 `server.py` starts `main.py` as its own process with `QA_EVENTS=1`. The run then prints marker lines that the server
@@ -143,7 +147,6 @@ AI-written test code is also checked before it runs (an import allow-list in `sc
 
 Current configuration uses `QPILOT_UI_URL`, `QPILOT_SECRET_*` and `QPILOT_DB_*`. Legacy aliases remain accepted for
 saved contracts and installed clients. Never remove their redaction or leak them into generated-code environments.
-See [private MCP configuration](../docs/34_MCP_SHARED_CONFIGURATION.md).
 
 - **Rules decide, the AI only explains.** The verdict, the failure categories and the severities come from code.
   (One written exception: with `VISION` on, `failure_analysis.classify` lets the AI's look at a failed test's

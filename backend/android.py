@@ -448,7 +448,13 @@ def validate_mobile_config(config: dict) -> dict:
         ("max_interactions", 0, 0, 500),
         ("interaction_timeout_s", 0, 0, 3600),
         ("bot_check_wait_s", 30, 0, 120),
-        ("human_wait_s", 180, 0, 900),
+        ("human_wait_s", 180, 0, 300),
+        # Ceilings for a changing shop page. Zero is not allowed: a wait must end.
+        ("dynamic_wait_s", 12, 1, 20),
+        ("dynamic_retries", 1, 0, 1),
+        ("overlay_attempts", 1, 0, 2),
+        ("repeated_failures", 1, 1, 3),
+        ("scroll_stalls", 2, 1, 5),
     ):
         try:
             value = int(config.get(key, default))
@@ -754,7 +760,7 @@ def create_session(config: dict):
         client.timeout = cfg["command_timeout_s"]
         if cfg["app_mode"] == "web":
             try:
-                driver.set_page_load_timeout(45)
+                driver.set_page_load_timeout(20)
                 driver.get(cfg["start_url"])
             except BaseException:
                 close_session(driver)
@@ -1241,6 +1247,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
                 element['in_scroller'] = description or resource or ancestor.attrib.get('class', '')
                 break
             ancestor = parents.get(ancestor)
+    from .android_dynamic import locator_confidence
+
+    for element in elements:
+        element["locator_confidence"] = locator_confidence((element.get("locators") or [None])[0])
     signatures = sorted(
         (e["class_name"], e["resource_id"], e["accessibility_id"], e["text"]) for e in elements if e["visible"]
     )
@@ -1373,7 +1383,7 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
     if any(e["visible"] and e["resource_id"] in ("android:id/alertTitle", "android:id/parentPanel") for e in elements):
         identity = ["dialog", first_text.casefold()[:120], *identity]
     fingerprint = json.dumps(signatures, ensure_ascii=True, separators=(",", ":"))
-    return {
+    screen = {
         "platform": "android",
         "package_name": package_name,
         "device_id": device_id,
@@ -1384,6 +1394,10 @@ def extract_screen(xml: str, package_name: str, device_id: str, activity: str = 
         "fingerprint": fingerprint,
         "elements": elements,
     }
+    from .android_dynamic import stable_fingerprint
+
+    screen["stable_fingerprint"] = stable_fingerprint(screen)
+    return screen
 
 
 def safe_navigation_elements(screen: dict) -> list[dict]:

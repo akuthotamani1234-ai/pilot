@@ -202,7 +202,17 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, failu
         page.locator("#androidStart").click()
         expect(page.locator("#androidStart")).to_be_disabled()
         expect(page.locator("#androidRunNote")).to_contain_text("Starting local Appium")
-        assert not submitted and len(prepared) == 1
+
+        def wait_count(items, count):
+            # The status line is painted before the matching request is sent.
+            for _ in range(100):
+                if len(items) >= count:
+                    return
+                page.wait_for_timeout(50)
+            assert len(items) == count
+
+        wait_count(prepared, 1)
+        assert not submitted
         payload = prepared[0].request.post_data_json
         assert set(payload) == {"device_id", "avd_name", "appium_url", "authorized", "stage"}
         assert payload["stage"] == "appium"
@@ -215,7 +225,8 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, failu
         else:
             prepared[0].fulfill(json={"appium": {"started": True, "url": "http://127.0.0.1:4723"}})
             expect(page.locator("#androidRunNote")).to_contain_text("Waiting for Android to boot")
-            assert not submitted and len(prepared) == 2
+            wait_count(prepared, 2)
+            assert not submitted
             assert prepared[1].request.post_data_json["stage"] == "device"
         if failure_stage == "device":
             prepared[1].fulfill(status=409, json={"detail": "Android did not finish booting"})
@@ -224,7 +235,8 @@ def test_start_button_prepares_android_before_submitting_the_test(browser, failu
         elif not failure_stage:
             prepared[1].fulfill(json={"device_id": "emulator-5554", "avd_name": "demo", "started": True})
             expect(page.locator("#androidRunNote")).to_contain_text("Verification stopped")
-            assert len(submitted) == 1 and "emulator-5554" in submitted[0]
+            wait_count(submitted, 1)
+            assert "emulator-5554" in submitted[0]
             assert "avd:demo" not in submitted[0]
         expect(page.locator("#androidStart")).to_be_enabled()
         expect(page.locator("#androidApiKey")).to_have_value("fixture-private-key")
