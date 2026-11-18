@@ -859,14 +859,14 @@
       '<p>Whole website is the default. Every limit and inaccessible area is reported.</p></div></div>' +
       '<div class="fields"><label>Exploration intensity <select id="aiIntensity" aria-describedby="aiIntensityNote">' +
       '<option value="thorough">Thorough — raised budgets within safety caps</option>' +
-      '<option value="standard" selected>Standard — swarm opens 3 products from a large list</option></select></label>' +
+      '<option value="standard" selected>Standard — workers share this website</option></select></label>' +
       '<label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
       '<option value="section">Only the URL section</option><option value="page">Only the supplied page</option></select></label>' +
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
       '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80" data-standard-default="' + standardActions + '"></label></div>' +
-      '<p class="note" id="aiSwarmNote">Standard uses a swarm. Each large product list gives 3 products to the workers and leaves the rest. Checkout and payment stay blocked.</p>' +
+      '<p class="note" id="aiSwarmNote">Standard uses a swarm. The pages of the website are split across workers. Each worker opens its own pages, then closes. Checkout and payment stay blocked.</p>' +
       '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥' + thoroughCrawlMin +
       ' min crawl time (max of 60 and your CRAWL_TIME_LIMIT_MIN), 80 actions/page (max 100), ' +
       '≥500 test cases, repeated controls, every URL pattern (PATTERN_SAMPLES=0). Still finite — HARD_PAGE_CAP (' + cap +
@@ -1376,13 +1376,23 @@
     const text = lines || [];
     const status = text.map((line) => line.match(/\[discovery\] swarm: (.+)$/)).filter(Boolean).pop();
     const chose = text.map((line) => line.match(/\[discovery\] swarm chose (\d+) of (\d+) products \((\d+) workers\)/)).filter(Boolean);
-    const events = text.map((line) => line.match(/\[discovery\] swarm worker (\d+): (opening|opened|blocked|stopped) (\S+)/)).filter(Boolean);
+    const events = text.map((line) => line.match(/\[discovery\] swarm worker (\d+): (opening|opened|blocked|stopped|finished)(?: (\S+))?/)).filter(Boolean);
     const latest = new Map();
-    events.forEach((match) => latest.set(match[1], match));
+    const opened = new Map();
+    events.forEach((match) => {
+      latest.set(match[1], match);
+      if (match[2] === "opened") opened.set(match[1], (opened.get(match[1]) || 0) + 1);
+    });
     const workers = [...latest.values()];
     if (!status && !chose.length && !workers.length) return "";
-    const rows = workers.slice(0, 12).map((match) => `<li>Worker ${esc(match[1])} is ${esc(match[2])}: ${esc(match[3])}</li>`).join("");
-    const choice = chose.length ? `<p>${esc(chose[chose.length - 1][1])} of ${esc(chose[chose.length - 1][2])} products went to ${esc(chose[chose.length - 1][3])} workers.</p>` : "";
+    const rows = workers.slice(0, 12).map((match) => {
+      const page = match[3] ? `: ${esc(match[3])}` : "";
+      const count = opened.get(match[1]) || 0;
+      const done = count ? ` (${count} page${count === 1 ? "" : "s"})` : "";
+      return `<li>Worker ${esc(match[1])} is ${esc(match[2])}${page}${done}</li>`;
+    }).join("");
+    const sharing = status && /share/i.test(status[1]);
+    const choice = !sharing && chose.length ? `<p>${esc(chose[chose.length - 1][1])} of ${esc(chose[chose.length - 1][2])} products went to ${esc(chose[chose.length - 1][3])} workers.</p>` : "";
     return `<div class="card"><h4>Swarm</h4><p>${esc(status ? status[1] : "Workers are sharing this run.")}</p>${choice}${rows ? `<ul>${rows}</ul>` : ""}</div>`;
   }
 

@@ -74,7 +74,8 @@ def test_thorough_exploration_preset_and_coverage_reminder_are_wired():
     assert "Observed/scripted controls are not the same as business-verified checks." in script
     assert "Qpilot X" in script and "s.qx_card.counts.discovered" in script
     assert "function swarmCard(" in script and "swarm worker" in script
-    assert "opening|opened|blocked|stopped" in script
+    assert "opening|opened|blocked|stopped|finished" in script
+    assert "workers share this website" in script
     assert 'id="aiSwarmNote"' in script
     assert "rules are in this run" in script
     assert 'id="androidThorough"' in (FRONTEND / "chat.html").read_text(encoding="utf-8")

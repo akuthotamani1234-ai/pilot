@@ -44,7 +44,7 @@ from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
-from ..swarm import assign_workers, choose_listing, is_payment_url, sample_limit
+from ..swarm import assign_workers, choose_listing, is_payment_url, partition_site, perform, sample_limit
 from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
@@ -1797,8 +1797,8 @@ def discovery_agent(state: QAState) -> QAState:
     }[mode], flush=True)
     workers = max(1, int(settings.test_workers or 1))
     if settings.swarm_sample > 0:
-        print(f"  [discovery] swarm: {workers} workers, {settings.swarm_sample} products from each large list",
-              flush=True)
+        print(f"  [discovery] swarm: {workers} workers share this website. "
+              "Each worker opens its own pages, then closes.", flush=True)
     else:
         print(f"  [discovery] swarm: {workers} workers run the tests; this run opens every product link", flush=True)
 
@@ -2001,6 +2001,59 @@ def discovery_agent(state: QAState) -> QAState:
             print("  [discovery] the browser was closed (its window, or Chrome stopped) - opened a new one"
                   + (" with the saved login" if saved_login["state"] else "") + " and going on", flush=True)
             return True
+
+        def _share_site(urls: list[str], base: str = start_url) -> None:
+            """Split the pages we know across workers. Each worker uses its own browser, then closes."""
+            if swarm_state["done"] or settings.swarm_sample <= 0:
+                return
+            clean: list[str] = []
+            for raw in urls:
+                href = (raw or "").strip()
+                if not href:
+                    continue
+                nxt = _normalize(urljoin(base, href))
+                if not _is_crawlable(nxt, base_host):
+                    continue
+                nxt = start_scheme + nxt.split(":", 1)[1]
+                clean.append(nxt)
+            assigned = partition_site(clean, workers, min(limit, 24))
+            if len(assigned) < 2:
+                return
+            swarm_state["done"] = True
+            swarm_rows.extend(assigned)
+            swarm_workers.update(row["worker"] for row in assigned)
+            print(f"  [discovery] swarm: {len(swarm_workers)} workers share {len(assigned)} pages of this website",
+                  flush=True)
+
+            def _tell(worker: int, status: str, address: str) -> None:
+                if address:
+                    print(f"  [discovery] swarm worker {worker}: {status} {address}", flush=True)
+                else:
+                    print(f"  [discovery] swarm worker {worker}: {status}", flush=True)
+
+            def _session():
+                from playwright.sync_api import sync_playwright
+                playwright = sync_playwright().start()
+                browser = playwright.chromium.launch(headless=settings.headless)
+
+                def open_page(address: str) -> None:
+                    page = browser.new_page()
+                    try:
+                        page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                    finally:
+                        page.close()
+
+                def close() -> None:
+                    try:
+                        browser.close()
+                    finally:
+                        playwright.stop()
+
+                return open_page, close
+
+            perform(assigned, lambda _address: None, on_status=_tell, session=_session)
+
+        _share_site([start_url, *[address for address, _how in extra_found]])
 
         while queue and len(app_map) < limit:
             if time.time() - crawl_started > crawl_budget_min * 60:
@@ -2591,6 +2644,8 @@ def discovery_agent(state: QAState) -> QAState:
 
                 # With full exploration, follow every listed item; otherwise visit representative examples.
                 items = [l["href"] for l in (entry.get("itemLinks") or {}).get("links") or [] if l.get("href")]
+                page_links = [link.get("href") or "" for link in entry.get("links") or []]
+                _share_site([url, *page_links, *items], url)
                 if settings.swarm_sample > 0 and len(items) > settings.swarm_sample:
                     picked, left = choose_listing(items, settings.swarm_sample)
                     left_norm = [(_normalize(urljoin(url, href)), reason) for href, reason in left]
@@ -2604,24 +2659,6 @@ def discovery_agent(state: QAState) -> QAState:
                         swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
-                        if not swarm_state["done"]:
-                            swarm_state["done"] = True
-                            from ..swarm import perform
-
-                            def _tell(worker: int, status: str, address: str) -> None:
-                                print(f"  [discovery] swarm worker {worker}: {status} {address}", flush=True)
-
-                            def _open(address: str) -> None:
-                                from playwright.sync_api import sync_playwright
-                                with sync_playwright() as playwright:
-                                    browser = playwright.chromium.launch(headless=settings.headless)
-                                    page = browser.new_page()
-                                    try:
-                                        page.goto(address, wait_until="domcontentloaded", timeout=20000)
-                                    finally:
-                                        browser.close()
-
-                            perform(assigned, _open, on_status=_tell)
                     swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
                     swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
                 elif n_sample > 0 and len(items) >= 3:
