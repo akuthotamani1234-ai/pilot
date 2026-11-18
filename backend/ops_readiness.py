@@ -215,6 +215,14 @@ def readiness() -> dict:
                 else "No combined device matrix snapshot evidence"
             ),
         },
+        "locale_portfolio_drill": {
+            "ready": _ops_evidence("locale_portfolio_drill.json"),
+            "reason": (
+                "DemoStore locale portfolio evidence present; broad live multi-browser CI still open"
+                if _ops_evidence("locale_portfolio_drill.json")
+                else "No locale portfolio drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
