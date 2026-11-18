@@ -24,7 +24,7 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 
 | Gate | Status | Why not COMPLETE |
 |---|---|---|
-| A | Partial | Surface inventories + /lab canvas/lazy; full live surface completeness open |
+| A | Partial | Surface inventories + multi-fixture discovery score (4 demos); full live surface completeness open |
 | B | Partial | Redis preferred DurableQueue + claim/checkpoint/cancel/retry drills; product-wide review open |
 | C | Partial | Lifecycle + AdminPortal/DemoStore cart + oracle bind; broader live portal paths open |
 | D | Partial | API24 smoke + API30 Appium (system+ApiDemos) + Appium workflow; broad multi-device CI open |
