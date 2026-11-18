@@ -35,7 +35,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | F | `/api/ops/drills/…-portfolio`, `multi-browser-portfolio-suite` (+ `multi-browser-portfolios.yml`) | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json`, `multi_browser_portfolio_suite_drill.json` |
 | G | Postgres/Redis/MinIO + audit export + `sso-tenant-acl` + review checklist/pack | `pg_tenancy_drill.json`, `audit_export_drill.json`, `sso_tenant_acl_drill.json`, `independent_review_checklist.json`, `independent_review_pack.json` |
 | H | + `multi-region-dr`, `minio-multi-region`, `paging-escalation`, `observability-probe` | `multi_region_dr_drill.json`, `minio_multi_region_drill.json`, `paging_escalation_drill.json`, `observability_probe_drill.json` |
-| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract`, `loopback-sso`, `sso-tenant-acl` | `api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json`, `loopback_sso_drill.json`, `sso_tenant_acl_drill.json` |
+| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract`, `loopback-sso`, `loopback-auth-code-sso`, `sso-tenant-acl` | `api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json`, `loopback_sso_drill.json`, `loopback_auth_code_sso_drill.json`, `sso_tenant_acl_drill.json` |
 
 | QX | `/api/ops/drills/qx-capabilities`, `qx-core-capabilities` | `qx_capabilities_drill.json` (A02/A07/A12–A18), `qx_core_capabilities_drill.json` (A01/A03–A06/A08/A11) |
 | J | `/api/ops/drills/mutation-score` | `docs/ops-evidence/mutation_score_drill.json` |

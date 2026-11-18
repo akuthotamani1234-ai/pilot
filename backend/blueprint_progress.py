@@ -50,7 +50,7 @@ def progress() -> dict:
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Local dual-region PG failover + paging escalation; hosted multi-region DR/on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "Loopback OIDC JWT + tenant ACL drill; hosted IdP Studio SSO still open"},
+         "note": "Loopback OIDC auth-code + JWT/ACL; hosted IdP Studio SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "Fixtures strong + mutation score 6/6 DemoStore; broader third-party still open"},
     ]
@@ -167,6 +167,7 @@ def progress() -> dict:
         {"id": "QX-core-capabilities", "label": "QX-A01/A03–A06/A08/A11 core capability drill bundle", "status": "done"},
         {"id": "I-loopback-sso", "label": "Loopback OIDC JWKS + RS256 JWT signature drill", "status": "done"},
         {"id": "I-sso-tenant-acl", "label": "Loopback OIDC JWT + SQLite tenant ACL drill", "status": "done"},
+        {"id": "I-auth-code-sso", "label": "Loopback OIDC authorization-code → dashboard oidc", "status": "done"},
         {"id": "I-auth", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
         {"id": "E-demo-healing-live", "label": "Live DemoStore missing-locator + healing policy drill", "status": "done"},
         {"id": "E-live-failure-matrix", "label": "Live DemoStore provoked failure matrix + healing", "status": "done"},
