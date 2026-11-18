@@ -118,6 +118,27 @@ body {
 .gates li.partial .pill { background: var(--warn-soft); color: var(--warn); border-color: #e6d3ab; }
 .gates li.now .pill { background: #14201a; color: #fff; border-color: #14201a; }
 
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.actions button {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 @media (max-width: 640px) {
   .shell { padding: 28px 16px 48px; }
   .panel-head { flex-direction: column; gap: 4px; }

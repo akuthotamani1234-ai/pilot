@@ -85,21 +85,28 @@ def readiness() -> dict:
             "ready": dashboard_built,
             "path": "frontend/dashboard",
             "reason": (
-                "React/TS dashboard built at /dashboard/; Gate I still incomplete without auth/approvals hosting"
+                "React/TS dashboard built at /dashboard/; Gate I still incomplete without auth/hosting"
                 if dashboard_built else
                 "React/TS dashboard scaffold at frontend/dashboard; run npm run build (Gate I still incomplete)"
                 if dashboard_configured else
                 "React/TS dashboard not established"
             ),
         },
+        "approvals": {
+            "configured": True,
+            "ready": True,
+            "reason": "Durable approvals queue + decide API; Studio auth still open",
+        },
     }
-    ready = ["rbac", "api_versioning"]
+    ready = ["rbac", "api_versioning", "approvals"]
     if components["object_store"]["ready"]:
         ready.append("object_store")
     if components["durable_queue"]["ready"]:
         ready.append("durable_queue")
     if components["schema_migrations"]["ready"]:
         ready.append("schema_migrations")
+    if components["react_dashboard"]["ready"]:
+        ready.append("react_dashboard")
     missing = [name for name, row in components.items() if not row["ready"]]
     blueprint = blueprint_progress()
     return {

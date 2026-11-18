@@ -1,0 +1,11 @@
+{
+  "gate_h_complete": false,
+  "kind": "local_process_snapshot",
+  "ran_at": "2026-11-18T11:53:23Z",
+  "metrics": {
+    "approvals_db_present": false,
+    "ops_dir_present": true,
+    "ci_workflow_present": false
+  },
+  "reason": "Local snapshot only; central metrics/tracing/alerting still open"
+}

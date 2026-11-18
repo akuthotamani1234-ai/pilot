@@ -2705,8 +2705,19 @@ def discovery_agent(state: QAState) -> QAState:
                         swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
-                    swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
+                    listing_batch = tasks_for_listing(url, picked_norm, left_norm, settings.test_workers)
+                    swarm_tasks.extend(listing_batch)
                     swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
+                    # Gate B: dual-write listing handoffs into durable SQLite while crawling.
+                    try:
+                        from ..swarm_evidence import mirror_listing
+                        mirrored = mirror_listing(run_dir, listing_batch, run_id=run_dir.name)
+                        if mirrored.get("mirrored"):
+                            print(f"  [discovery] durable swarm mirrored {mirrored['mirrored']} "
+                                  f"listing task(s) (Gate B not complete)", flush=True)
+                    except Exception as e:
+                        print(f"  [discovery] durable listing mirror skipped: "
+                              f"{str(e).splitlines()[0][:120]}", flush=True)
                 elif n_sample > 0 and len(items) >= 3:
                     odd = [h for h in (entry.get("itemLinks") or {}).get("odd") or [] if h in items][:1]
                     picked = list(dict.fromkeys([items[0], *odd, items[len(items) // 2], items[-1]]))
@@ -3005,6 +3016,7 @@ def discovery_agent(state: QAState) -> QAState:
         [page.get("url") or "" for page in app_map if page.get("url")],
         run_id=run_dir.name,
         worker_count=max(1, int(settings.test_workers or 1)),
+        listing_tasks=swarm_tasks[:300],
     )
     print(f"  [discovery] device matrix evidence: {len(viewport_rows)} profile row(s) "
           f"(Gate D not complete)", flush=True)
