@@ -236,7 +236,7 @@
   }
 
   function greet() {
-    $("thread").insertAdjacentHTML("beforeend", '<div class="workspace-welcome"><div class="welcome-top"><span class="section-label">FROM PRODUCT TO PROOF</span><span class="subtle-label">One connected workflow</span></div><div class="workflow-cards"><article><span class="workflow-icon violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 10 5-10 5L2 8l10-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg></span><span class="step-label">01 / DISCOVER</span><h3>Know your product</h3><p>Map pages, menus, and components within your selected scope.</p></article><article><span class="workflow-icon sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg></span><span class="step-label">02 / GENERATE</span><h3>Build meaningful checks</h3><p>Turn observed controls and expected behavior into executable tests.</p></article><article><span class="workflow-icon mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><span class="step-label">03 / VERIFY</span><h3>See the evidence</h3><p>Review actual results, screenshots, coverage, and release gates.</p></article></div><div class="welcome-note"><span class="note-dot"></span>Discovery and functional verification are reported separately.</div></div>');
+    $("thread").insertAdjacentHTML("beforeend", '<div class="workspace-welcome"><div class="welcome-top"><span class="section-label">FROM PRODUCT TO PROOF</span><span class="subtle-label">One connected workflow</span></div><div class="workflow-cards"><article><span class="workflow-icon violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 10 5-10 5L2 8l10-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg></span><span class="step-label">01 / DISCOVER</span><h3>Know your product</h3><p>Map pages, menus, and components within your selected scope.</p></article><article><span class="workflow-icon sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Z"/></svg></span><span class="step-label">02 / GENERATE</span><h3>Build meaningful checks</h3><p>Turn observed controls and expected behavior into executable tests.</p></article><article><span class="workflow-icon mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><span class="step-label">03 / VERIFY</span><h3>See the evidence</h3><p>Review actual results, screenshots, coverage, and release gates.</p></article></div><div class="welcome-note"><span class="note-dot"></span>Discovery and functional verification are reported separately. A run in the sidebar is an earlier result. Start a new test to see the swarm.</div></div>');
     setWorkspaceMode("web");
   }
 
@@ -858,14 +858,15 @@
       '<section class="setup-section" id="setupScope"><div class="setup-section-title"><span>03</span><div><h3>Choose exploration scope</h3>' +
       '<p>Whole website is the default. Every limit and inaccessible area is reported.</p></div></div>' +
       '<div class="fields"><label>Exploration intensity <select id="aiIntensity" aria-describedby="aiIntensityNote">' +
-      '<option value="thorough" selected>Thorough — raised budgets within safety caps</option>' +
-      '<option value="standard">Standard — current defaults</option></select></label>' +
+      '<option value="thorough">Thorough — raised budgets within safety caps</option>' +
+      '<option value="standard" selected>Standard — swarm opens 3 products from a large list</option></select></label>' +
       '<label>Area to explore <select id="aiScope"><option value="site">Whole website: reachable same-site pages</option>' +
       '<option value="section">Only the URL section</option><option value="page">Only the supplied page</option></select></label>' +
       '<label>Page coverage <select id="aiCrawlMode"><option value="full">All discovered pages within safety budgets</option>' +
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
       '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80" data-standard-default="' + standardActions + '"></label></div>' +
+      '<p class="note" id="aiSwarmNote">Standard uses a swarm. Each large product list gives 3 products to the workers and leaves the rest. Checkout and payment stay blocked.</p>' +
       '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥' + thoroughCrawlMin +
       ' min crawl time (max of 60 and your CRAWL_TIME_LIMIT_MIN), 80 actions/page (max 100), ' +
       '≥500 test cases, repeated controls, every URL pattern (PATTERN_SAMPLES=0). Still finite — HARD_PAGE_CAP (' + cap +
@@ -1037,6 +1038,7 @@
     if (!$("aiIntensity")) return;
     const thorough = $("aiIntensity").value === "thorough";
     $("aiIntensityNote").hidden = !thorough;
+    if ($("aiSwarmNote")) $("aiSwarmNote").hidden = thorough;
     if (thorough) {
       // Full crawl: max_pages 0 → HARD_PAGE_CAP, site scope, repeated controls, ≥80 actions/page.
       $("aiCrawlMode").value = "full";
@@ -1121,6 +1123,7 @@
     const limited = $("aiCrawlMode").value === "limited";
     $("aiPageBudget").hidden = !limited;
     if ($("aiIntensityNote")) $("aiIntensityNote").hidden = !thorough;
+    if ($("aiSwarmNote")) $("aiSwarmNote").hidden = thorough;
     const area = $("aiScope").value === "site" ? "Whole website" : $("aiScope").value === "section" ? "URL section" : "One page";
     const account = $("aiAccountMode").selectedOptions[0].textContent;
     const provider = (providers || []).find((p) => p.id === chosen);
@@ -1369,6 +1372,17 @@
     setStatus(verdict, verdict === "Ready" ? "ok" : verdict === "Not Ready" ? "bad" : "warn");
   }
 
+  function swarmCard(lines) {
+    const text = lines || [];
+    const status = text.map((line) => line.match(/\[discovery\] swarm: (.+)$/)).filter(Boolean).pop();
+    const chose = text.map((line) => line.match(/\[discovery\] swarm chose (\d+) of (\d+) products \((\d+) workers\)/)).filter(Boolean);
+    const workers = text.map((line) => line.match(/\[discovery\] swarm worker (\d+): (\S+)/)).filter(Boolean);
+    if (!status && !chose.length && !workers.length) return "";
+    const rows = workers.slice(0, 12).map((match) => `<li>Worker ${esc(match[1])}: ${esc(match[2])}</li>`).join("");
+    const choice = chose.length ? `<p>${esc(chose[chose.length - 1][1])} of ${esc(chose[chose.length - 1][2])} products went to ${esc(chose[chose.length - 1][3])} workers.</p>` : "";
+    return `<div class="card"><h4>Swarm</h4><p>${esc(status ? status[1] : "Workers are sharing this run.")}</p>${choice}${rows ? `<ul>${rows}</ul>` : ""}</div>`;
+  }
+
   // ------------------------------------------------------------ 3) live progress -> to-do ticks + chat messages
   function applyUpdate(d) {
     if (window.QpilotLive) window.QpilotLive.update(d);
@@ -1433,6 +1447,11 @@
       posted.login = 1;
       const ok = /^Logged in/.test(loginLine[1]);
       later(() => say(ok ? `<p>🔑 ${esc(loginLine[1])}</p>` : `<div class="warn">🔑 ${esc(loginLine[1])}</div>`));
+    }
+    const swarm = swarmCard(logLines);
+    if (swarm && swarm !== posted.swarm) {
+      posted.swarm = swarm;
+      update("swarm", swarm);
     }
 
     if (d.excel) setExcel(d.run);
@@ -1963,6 +1982,7 @@
         <p class="muted small">Observed/scripted controls are not the same as business-verified checks.</p>
         ${(s.ai_warnings || []).map(warning => `<div class="warn">${esc(warning)}</div>`).join("")}
         ${good ? `<h4>✅ What works well</h4><ul class="goodlist">${good}</ul>` : ""}
+        ${swarmCard(d.console || [])}
         ${s.qx_card && s.qx_card.counts ? `<h4>Qpilot X <span class="muted small">– ${esc(s.qx_card.completed)} of ${esc(s.qx_card.total)} rules are in this run</span></h4>
           <div class="stats">
             ${stat(s.qx_card.counts.discovered, "discovered")}

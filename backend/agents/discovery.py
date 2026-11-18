@@ -1795,6 +1795,12 @@ def discovery_agent(state: QAState) -> QAState:
                     f"content links to (not the site-wide menu) - up to {limit} pages."),
         "page": "Specific page – I'll test only this page, and check that every link on it works.",
     }[mode], flush=True)
+    workers = max(1, int(settings.test_workers or 1))
+    if settings.swarm_sample > 0:
+        print(f"  [discovery] swarm: {workers} workers, {settings.swarm_sample} products from each large list",
+              flush=True)
+    else:
+        print(f"  [discovery] swarm: {workers} workers run the tests; this run opens every product link", flush=True)
 
     app_map, issues = [], []
     locale_seen: dict = {}
@@ -2597,6 +2603,8 @@ def discovery_agent(state: QAState) -> QAState:
                         swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
+                        for row in assigned:
+                            print(f"  [discovery] swarm worker {row['worker']}: {row['url']}", flush=True)
                     swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
                     swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
                 elif n_sample > 0 and len(items) >= 3:
