@@ -1,0 +1,58 @@
+# Qpilot X — Phase 7 release status (honest)
+
+**Date:** 2026-11-18  
+**Branch:** `cursor/qpilot-x-phase0-baseline-f72b`  
+**PR:** https://github.com/akuthotamani1234-ai/pilot/pull/23  
+**Tracker:** https://github.com/akuthotamani1234-ai/pilot/issues/22
+
+## Rule
+Do **not** mark gates A–J or issue #22 boxes complete without linked commits, offline tests, and controlled live evidence. This document records progress, not certification.
+
+## Phase evidence map
+
+| Phase | Doc | Commit themes |
+|---|---|---|
+| 0 Baseline | `docs/QPILOT_X_PHASE0_BASELINE.md` | Inventory + offline baseline |
+| 1 Benchmark | `docs/QPILOT_X_PHASE1_BENCHMARK.md` | DemoStore Gate J runs (run4: 6/6 bugs, 0 false alarms; 1 clean gap) |
+| 2 Discovery | `docs/QPILOT_X_PHASE2_DISCOVERY.md` | Truth-page coverage verifier |
+| 3 Swarm | `docs/QPILOT_X_PHASE3_SWARM.md` | SQLite durable queue + leases |
+| 4 Correctness | `docs/QPILOT_X_PHASE4_CORRECTNESS.md` | Oracle provenance + remote cleanup confirm |
+| 5 Portfolios | `docs/QPILOT_X_PHASE5_ANDROID_PORTFOLIOS.md` | Device matrix + portfolio evaluators |
+| 6 Enterprise | `docs/QPILOT_X_PHASE6_ENTERPRISE.md` | RBAC / API v1 / local object store foundations |
+
+## Gates A–J (current)
+
+| Gate | Status | Why not COMPLETE |
+|---|---|---|
+| A | Partial | Controlled discovery improved; not every surface proven live |
+| B | Partial | Local durable queue yes; Redis/Postgres enterprise queue no |
+| C | Partial | Provenance + cleanup APIs; not fully wired every run path |
+| D | Partial | Matrix declared; live emulator matrix missing here |
+| E | Partial | Replay + healing guards offline; live failure matrix open |
+| F | Partial | Portfolio evaluators offline; live artifacts open |
+| G | Partial foundations | RBAC/local store/readiness only — no live Postgres/Redis/MinIO |
+| H | Not established | Ops/DR/load not done |
+| I | Partial | API v1 helpers; Studio still HTML/JS (not React) |
+| J | Partial→strong | DemoStore evidence strong; `orders.tracking` residual + broader sites open |
+
+## Issue #22 mapping (suggested checks — apply only with evidence)
+
+Items that now have **partial** verified offline evidence on this PR (still not end-to-end “done”):
+- Phase 1 fixture + bounded DemoStore URL→report repeats (see Phase 1 doc + `deep_validation/live_runs/`)
+- Phase 2 independent coverage checks against DemoStore truth
+- Phase 3 durable local queue with lease/retry tests
+- Phase 4 oracle provenance + remote-confirmed cleanup unit tests
+- Phase 5 device matrix + portfolio gate unit tests (no live Android in this environment)
+- Phase 6 RBAC / API versioning / local object store foundations
+
+Still **unchecked** for full blueprint completion: Redis/Postgres/MinIO, React dashboard, Gate H ops, full Android device matrix live proof, independent security/reliability review, closing all gates A–J.
+
+## Offline suite (this environment)
+
+```
+ruff check backend tests  → All checks passed
+pytest -m "not slow" --ignore=tests/test_android_device.py
+→ 1204 passed, 11 skipped, 62 deselected in 1184.66s
+```
+
+Branch HEAD at measurement: see PR #23 commits through Phase 6 foundations. Live Android (`BLOWAI_ANDROID_E2E`) and enterprise Postgres/Redis/MinIO were **not** exercised here.
