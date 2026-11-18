@@ -1063,6 +1063,16 @@ def ops_studio_oidc_callback():
     return {"gate_i_complete": False, "studio_oidc_callback": evidence}
 
 
+@app.post("/api/ops/drills/swarm-review-checklist")
+def ops_swarm_review_checklist():
+    """Gate B: product-wide swarm review checklist (sign-off still pending)."""
+    from backend.swarm_review_checklist_drill import run_swarm_review_checklist_drill
+    evidence = run_swarm_review_checklist_drill()
+    _audit("ops_swarm_review_checklist", ok=bool(evidence.get("ok")),
+           signed_off=bool(evidence.get("signed_off")))
+    return {"gate_b_complete": False, "swarm_review_checklist": evidence}
+
+
 @app.post("/api/ops/drills/hosted-runner-contracts")
 def ops_hosted_runner_contracts():
     """Gates D/F: offline multi-device + multi-browser CI runner contracts."""

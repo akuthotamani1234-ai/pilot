@@ -186,6 +186,18 @@ def readiness() -> dict:
                 else "No remaining-blockers inventory"
             ),
         },
+        "swarm_review_checklist": {
+            "ready": _ops_evidence("swarm_review_checklist.json")
+            or (ROOT / "docs" / "SWARM_PRODUCT_REVIEW_CHECKLIST.md").is_file(),
+            "reason": (
+                "Swarm product review checklist present; independent sign-off still pending"
+                if (
+                    _ops_evidence("swarm_review_checklist.json")
+                    or (ROOT / "docs" / "SWARM_PRODUCT_REVIEW_CHECKLIST.md").is_file()
+                )
+                else "No swarm product review checklist"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (

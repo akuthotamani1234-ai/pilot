@@ -1,0 +1,19 @@
+{
+  "gate_b_complete": false,
+  "drill": "swarm_product_review_checklist",
+  "ran_at": "2026-11-18T23:20:19Z",
+  "checklist": "docs/SWARM_PRODUCT_REVIEW_CHECKLIST.md",
+  "checklist_present": true,
+  "signed_off": false,
+  "evidence_pointers_present": [
+    "redis_durable_queue_drill.json",
+    "swarm_redis_default.json",
+    "redis_lease_drill.json",
+    "swarm_retry_drill.json",
+    "swarm_control_drill.json",
+    "redis_multi_region_drill.json"
+  ],
+  "evidence_pointers_missing": [],
+  "ok": true,
+  "reason": "Swarm product review checklist published (6/6 evidence pointers); independent sign-off still pending"
+}
