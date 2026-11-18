@@ -1,0 +1,25 @@
+{
+  "gate_g_complete": false,
+  "drill": "tenant_scoped_audit_export",
+  "ran_at": "2026-11-18T19:29:49Z",
+  "scoped_count": 2,
+  "other_count": 1,
+  "unknown_count": 0,
+  "unscoped_count": 3,
+  "scoped_tenants": [
+    "t-a"
+  ],
+  "scoped_actors": [
+    "alice"
+  ],
+  "package_keys": [
+    "count",
+    "events",
+    "export",
+    "gate_g_complete",
+    "reason",
+    "tenant_id"
+  ],
+  "ok": true,
+  "reason": "Tenant-scoped SQLite audit export verified offline; Studio SSO / independent review still open"
+}

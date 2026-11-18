@@ -784,6 +784,16 @@ def audit_export(limit: int = 200, tenant_id: str | None = None):
     return body
 
 
+@app.post("/api/ops/drills/audit-export")
+def ops_audit_export():
+    """Gate G: tenant-scoped audit export contract drill (still incomplete)."""
+    from backend.audit_export_drill import run_audit_export_drill
+    evidence = run_audit_export_drill()
+    _audit("ops_audit_export", ok=bool(evidence.get("ok")),
+           scoped=int(evidence.get("scoped_count") or 0))
+    return {"gate_g_complete": False, "audit_export": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
