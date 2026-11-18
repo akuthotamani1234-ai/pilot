@@ -52,7 +52,7 @@ def progress() -> dict:
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
          "note": "Auth modes + OIDC/hosting contract snapshot; live SSO login still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
-         "note": "DemoStore run7 strong (24/24, 6/6, 0 FA); broader sites/Android open"},
+         "note": "DemoStore run7 strong; classic Partial (19/20, 3/3); third-party/Android open"},
     ]
     active = next((g for g in gates if g["status"] == "active"), None)
     upcoming = [
@@ -89,6 +89,7 @@ def progress() -> dict:
         {"id": "H-paging-loopback", "label": "Loopback paging rehearsal (not live on-call)", "status": "done"},
         {"id": "I-sso-contract", "label": "OIDC/hosting env contract snapshot", "status": "done"},
         {"id": "J-run7", "label": "DemoStore accuracy remeasure run7", "status": "done"},
+        {"id": "J-classic", "label": "Classic shop accuracy run1 (Partial)", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

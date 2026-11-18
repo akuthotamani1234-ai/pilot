@@ -1,0 +1,53 @@
+{
+  "run": "classic_run1",
+  "site": "classic",
+  "mode": "first",
+  "ran_at": "2026-11-18T14:00:00Z",
+  "clean_summary": "pages 13/14 \u00b7 features detected 19/20 \u00b7 tested 20/20 \u00b7 verified 20/20 \u00b7 correct 19/20 \u00b7 false alarms 0 \u00b7 questions 1",
+  "buggy_summary": "pages 13/14 \u00b7 features detected 19/20 \u00b7 tested 20/20 \u00b7 verified 16/20 \u00b7 correct 5/6 \u00b7 false alarms 0 \u00b7 bugs caught 3/3 (false passes: 0) \u00b7 questions 1",
+  "clean": {
+    "run": "127.0.0.1_37515_20261118_134652",
+    "pages_known": 14,
+    "pages_found": 13,
+    "pages_missing": [
+      "/index.php?rt=product/search  (only through the search box)"
+    ],
+    "features_correct": 19,
+    "features_known": 20,
+    "incorrect_rows": [
+      {
+        "id": "cart.checkout",
+        "expect": "blocked",
+        "detected": true,
+        "tested": true,
+        "verified": true,
+        "correct": false,
+        "statuses": [
+          "Passed"
+        ],
+        "cases": [
+          "TC-46B55A8E",
+          "TC-8BF31D2F"
+        ]
+      }
+    ]
+  },
+  "buggy": {
+    "run": "127.0.0.1_45411_20261118_135359",
+    "bugs": {
+      "planted": 3,
+      "caught": [
+        "cart_total",
+        "search_wrong_hit",
+        "sort_price"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [],
+    "features_correct_judged": 5,
+    "features_judged": 6
+  },
+  "gate_j_complete": false,
+  "reason": "Classic shop Partial (19/20 clean, 3/3 bugs, 0 FA; 1 page/feature gap). DemoStore remains the strong Gate J fixture; third-party/Android still open"
+}
