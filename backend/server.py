@@ -617,6 +617,15 @@ def ops_healing_regression():
     return {"gate_e_complete": False, "healing_regression": evidence}
 
 
+@app.post("/api/ops/drills/api-version-contract")
+def ops_api_version_contract():
+    """Gate I: API versioning contract snapshot (SSO still open)."""
+    from backend.api_version_drill import run_api_version_drill
+    evidence = run_api_version_drill()
+    _audit("ops_api_version_contract", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "api_version_contract": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

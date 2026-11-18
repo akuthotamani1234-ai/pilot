@@ -50,7 +50,7 @@ def progress() -> dict:
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Local drills + controlled AdminPortal soak; live hosted DR/on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "Auth modes + OIDC JWT claim helper; live hosted SSO login still open"},
+         "note": "Auth modes + OIDC JWT + API version contract drill; live hosted SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "Four fixtures strong + AdminPortal 0 FA (run4); Android/third-party still open"},
     ]
@@ -118,6 +118,8 @@ def progress() -> dict:
         {"id": "E-healing-regression", "label": "Offline locator-only healing regression suite", "status": "done"},
         {"id": "A-rich-controls", "label": "Surface coverage counts canvas/file-upload/web-component", "status": "done"},
         {"id": "G-audit-export", "label": "Tenant-scoped audit list + /api/audit/export", "status": "done"},
+        {"id": "I-api-version-contract", "label": "API version contract drill (legacy→v1, reject v99)", "status": "done"},
+        {"id": "G-live-drills-refresh3", "label": "Re-verify live Postgres/Redis/MinIO after audit/API work", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
