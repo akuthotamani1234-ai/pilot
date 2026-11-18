@@ -1,0 +1,111 @@
+{
+  "gate_c_complete": false,
+  "drill": "multi_portal_oracle_bind",
+  "ran_at": "2026-11-18T21:52:44Z",
+  "portals": [
+    {
+      "portal": "DemoStore",
+      "truth": "tests/demo_store_truth.json",
+      "features_bound": 3,
+      "rows": [
+        {
+          "id": "login.wrong_password",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "shop.search",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "shop.search_nothing",
+          "accepted": true,
+          "verdict": "pass"
+        }
+      ],
+      "ai_accepted": false,
+      "ai_verdict": "needs_review",
+      "ok": true
+    },
+    {
+      "portal": "ClassicShop",
+      "truth": "tests/classic_shop_truth.json",
+      "features_bound": 3,
+      "rows": [
+        {
+          "id": "login.wrong_password",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "login.new_customer_choice",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "search.finds",
+          "accepted": true,
+          "verdict": "pass"
+        }
+      ],
+      "ai_accepted": false,
+      "ai_verdict": "needs_review",
+      "ok": true
+    },
+    {
+      "portal": "AdminPortal",
+      "truth": "tests/truth/admin_portal.json",
+      "features_bound": 3,
+      "rows": [
+        {
+          "id": "users.sort_name",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "users.sort_score",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "users.sort_joined",
+          "accepted": true,
+          "verdict": "pass"
+        }
+      ],
+      "ai_accepted": false,
+      "ai_verdict": "needs_review",
+      "ok": true
+    },
+    {
+      "portal": "TravelSite",
+      "truth": "tests/truth/travel_site.json",
+      "features_bound": 3,
+      "rows": [
+        {
+          "id": "search.date_range",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "search.same_value",
+          "accepted": true,
+          "verdict": "pass"
+        },
+        {
+          "id": "search.count_total",
+          "accepted": true,
+          "verdict": "pass"
+        }
+      ],
+      "ai_accepted": false,
+      "ai_verdict": "needs_review",
+      "ok": true
+    }
+  ],
+  "passed": 4,
+  "total": 4,
+  "ok": true,
+  "reason": "Multi-portal oracle bind 4/4 fixtures ok; broader live portal oracle paths still open"
+}

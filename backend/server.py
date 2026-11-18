@@ -1067,6 +1067,20 @@ def ops_discovery_score():
     return {"gate_a_complete": False, "discovery_score": evidence}
 
 
+@app.post("/api/ops/drills/multi-portal-oracle")
+def ops_multi_portal_oracle():
+    """Gate C: multi-portal approved-spec oracle bind (live portal paths still open)."""
+    from backend.multi_portal_oracle_drill import run_multi_portal_oracle_drill
+    evidence = run_multi_portal_oracle_drill()
+    _audit(
+        "ops_multi_portal_oracle",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_c_complete": False, "multi_portal_oracle": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
