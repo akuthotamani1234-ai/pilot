@@ -405,6 +405,14 @@ def readiness() -> dict:
                 else "No multi-API Android matrix evidence"
             ),
         },
+        "qx_capabilities_drill": {
+            "ready": _ops_evidence("qx_capabilities_drill.json"),
+            "reason": (
+                "QX-A02/A07/A12–A18 capability drill present; gates stay Partial"
+                if _ops_evidence("qx_capabilities_drill.json")
+                else "No QX capabilities drill evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (

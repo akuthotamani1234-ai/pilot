@@ -793,6 +793,19 @@ def ops_cross_platform_journey():
     }
 
 
+@app.post("/api/ops/drills/qx-capabilities")
+def ops_qx_capabilities():
+    """QX-A02/A07/A12–A18 offline capability bundle (gates stay Partial)."""
+    from backend.qx_capabilities_drill import run_qx_capabilities_drill
+    evidence = run_qx_capabilities_drill()
+    _audit(
+        "ops_qx_capabilities",
+        ok=bool(evidence.get("ok")),
+        passed=sum(1 for v in (evidence.get("checks") or {}).values() if v),
+    )
+    return {"gate_complete": False, "qx_capabilities": evidence}
+
+
 @app.post("/api/ops/drills/locale-portfolio")
 def ops_locale_portfolio():
     """Gate F: DemoStore locale portfolio evidence (still incomplete)."""

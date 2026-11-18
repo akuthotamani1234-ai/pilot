@@ -159,6 +159,7 @@ def progress() -> dict:
         {"id": "D-cross-journey", "label": "Cross-platform DemoStore(+Android) journey drill", "status": "done"},
         {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
         {"id": "J-mutation-score", "label": "DemoStore planted-defect mutation score 6/6", "status": "done"},
+        {"id": "QX-capabilities", "label": "QX-A02/A07/A12–A18 offline capability drill bundle", "status": "done"},
         {"id": "I-loopback-sso", "label": "Loopback OIDC JWKS + RS256 JWT signature drill", "status": "done"},
         {"id": "I-sso-tenant-acl", "label": "Loopback OIDC JWT + SQLite tenant ACL drill", "status": "done"},
         {"id": "I-auth", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
