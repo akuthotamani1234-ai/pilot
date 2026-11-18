@@ -175,6 +175,7 @@ def progress() -> dict:
         {"id": "I-loopback-sso", "label": "Loopback OIDC JWKS + RS256 JWT signature drill", "status": "done"},
         {"id": "I-sso-tenant-acl", "label": "Loopback OIDC JWT + SQLite tenant ACL drill", "status": "done"},
         {"id": "I-auth-code-sso", "label": "Loopback OIDC authorization-code → dashboard oidc", "status": "done"},
+        {"id": "I-studio-callback", "label": "Studio OIDC callback helper (/api/sso/callback)", "status": "done"},
         {"id": "I-auth", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
         {"id": "E-demo-healing-live", "label": "Live DemoStore missing-locator + healing policy drill", "status": "done"},
         {"id": "E-live-failure-matrix", "label": "Live DemoStore provoked failure matrix + healing", "status": "done"},
