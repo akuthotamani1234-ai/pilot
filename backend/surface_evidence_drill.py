@@ -12,8 +12,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ADMIN_EVIDENCE = ROOT / "docs" / "ops-evidence" / "admin_portal_surface_coverage.json"
 DEMO_EVIDENCE = ROOT / "docs" / "ops-evidence" / "demo_store_surface_coverage.json"
+CLASSIC_EVIDENCE = ROOT / "docs" / "ops-evidence" / "classic_shop_surface_coverage.json"
+TRAVEL_EVIDENCE = ROOT / "docs" / "ops-evidence" / "travel_site_surface_coverage.json"
 ADMIN_PATHS = ("/", "/users", "/users/new", "/widgets", "/reports", "/help", "/help/guide")
 DEMO_PATHS = ("/", "/about", "/lab", "/deals", "/signin")
+CLASSIC_PATHS = (
+    "/",
+    "/?rt=product/category&path=10",
+    "/?rt=product/search&keyword=lip",
+    "/?rt=checkout/cart",
+    "/?rt=account/login",
+    "/?rt=content/contact",
+)
+TRAVEL_PATHS = ("/", "/signup", "/search?from=LHR&to=JFK&trip=oneway&depart=2099-01-15&passengers=1")
 
 _SNAP_JS = """() => {
   const iframes = [...document.querySelectorAll('iframe')].map(el => ({
@@ -143,25 +154,55 @@ def run_admin_portal_surface_drill(*, ops_dir: Path | None = None) -> dict:
     return _write_evidence(evidence, evidence_path=ADMIN_EVIDENCE, ops_dir=ops_dir)
 
 
+def _fixture_surface_drill(*, fixture: str, start, paths: tuple[str, ...], evidence_path: Path,
+                           crawl_extra: dict | None = None, ops_dir: Path | None = None,
+                           reason: str = "") -> dict:
+    from .surface_coverage import summarize_surfaces
+
+    site = start()
+    try:
+        pages = _walk_fixture(site.url, paths)
+        crawl = {"mobile_check": True, "found_by": {}}
+        if crawl_extra:
+            crawl.update(crawl_extra)
+        # Prefer scrape seed for first non-home path when callers want API/openapi signal.
+        if pages and not crawl.get("found_by"):
+            crawl["found_by"] = {pages[min(1, len(pages) - 1)]["url"]: "scrape"}
+        surfaces = summarize_surfaces(pages, crawl)
+    finally:
+        try:
+            site.stop()
+        except Exception:
+            pass
+    evidence = {
+        "gate_a_surfaces_complete": False,
+        "drill": evidence_path.stem,
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "fixture": fixture,
+        "pages_walked": [p["slug"] for p in pages],
+        "surfaces": surfaces,
+        "reason": reason or (
+            f"{fixture} surface inventory captured; full Gate A live matrix still open"
+        ),
+    }
+    return _write_evidence(evidence, evidence_path=evidence_path, ops_dir=ops_dir)
+
+
 def run_demo_store_surface_drill(*, ops_dir: Path | None = None) -> dict:
     """Walk DemoStore public pages incl. /lab (iframe + shadow) for Gate A evidence."""
     from tests.demo_store import DemoStore
 
-    from .surface_coverage import summarize_surfaces
-
     store = DemoStore().start()
     try:
         pages = _walk_fixture(store.url, DEMO_PATHS)
+        lab = store.url.rstrip("/") + "/lab"
     finally:
         try:
             store.stop()
         except Exception:
             pass
-    # DemoStore /lab is the Gate A iframe+shadow fixture page.
-    surfaces = summarize_surfaces(
-        pages,
-        {"mobile_check": True, "found_by": {store.url.rstrip("/") + "/lab": "scrape"}},
-    )
+    from .surface_coverage import summarize_surfaces
+    surfaces = summarize_surfaces(pages, {"mobile_check": True, "found_by": {lab: "scrape"}})
     evidence = {
         "gate_a_surfaces_complete": False,
         "drill": "demo_store_surface_coverage",
@@ -175,3 +216,33 @@ def run_demo_store_surface_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     return _write_evidence(evidence, evidence_path=DEMO_EVIDENCE, ops_dir=ops_dir)
+
+
+def run_classic_shop_surface_drill(*, ops_dir: Path | None = None) -> dict:
+    from tests.classic_shop import ClassicShop
+    return _fixture_surface_drill(
+        fixture="ClassicShop",
+        start=lambda: ClassicShop().start(),
+        paths=CLASSIC_PATHS,
+        evidence_path=CLASSIC_EVIDENCE,
+        ops_dir=ops_dir,
+        reason=(
+            "ClassicShop route-template surface inventory captured; "
+            "full Gate A live matrix still open"
+        ),
+    )
+
+
+def run_travel_site_surface_drill(*, ops_dir: Path | None = None) -> dict:
+    from tests.travel_site import TravelSite
+    return _fixture_surface_drill(
+        fixture="TravelSite",
+        start=lambda: TravelSite().start(),
+        paths=TRAVEL_PATHS,
+        evidence_path=TRAVEL_EVIDENCE,
+        ops_dir=ops_dir,
+        reason=(
+            "TravelSite search/signup surface inventory captured; "
+            "full Gate A live matrix still open"
+        ),
+    )
