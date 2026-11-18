@@ -1,0 +1,156 @@
+{
+  "gate_complete": false,
+  "drill": "qx_capabilities_a02_a07_a12_a18",
+  "ran_at": "2026-11-18T20:10:41Z",
+  "checks": {
+    "A02_explore_score": true,
+    "A07_env_controls": true,
+    "A12_agent_eval": true,
+    "A13_incremental": true,
+    "A14_dependency_fault": true,
+    "A15_schema_diff": true,
+    "A16_human_review": true,
+    "A17_quality_trends": true,
+    "A18_plugins": true
+  },
+  "details": {
+    "explore": [
+      "https://shop.example/new",
+      "https://shop.example/known"
+    ],
+    "env": {
+      "ok": true,
+      "control": "fixed_clock",
+      "pay_blocked": true
+    },
+    "evaluation": {
+      "tasks": 4,
+      "accuracy": 0.5,
+      "cost": 0.04,
+      "reliability": 0.75,
+      "unsupported_claims": [
+        "t4"
+      ],
+      "stored": true
+    },
+    "model_change": {
+      "allowed": true,
+      "reason": "evaluation is stored"
+    },
+    "incremental": {
+      "reopen": [
+        "/about",
+        "/lab"
+      ],
+      "smoke": [
+        "/home"
+      ],
+      "reason": "unchanged pages are smoke-checked"
+    },
+    "fault": {
+      "staging": {
+        "injected": true,
+        "service": "payments-api",
+        "reason": "payments-api was made unavailable on staging"
+      },
+      "production": {
+        "injected": false,
+        "reason": "a dependency fault is not used on production"
+      }
+    },
+    "schema": {
+      "added": [
+        "POST /cart/items"
+      ],
+      "removed": [],
+      "broken": [
+        {
+          "operation": "GET /cart",
+          "workflow": "cart",
+          "previous_fields": [
+            "id",
+            "total"
+          ],
+          "current_fields": [
+            "id"
+          ]
+        }
+      ],
+      "trust_broken": true
+    },
+    "human": {
+      "uncertain_no_answer": {
+        "apply": false,
+        "reason": "no answer, so the safe choice stands"
+      },
+      "heal_accepted": {
+        "apply": true,
+        "reason": "a person accepted it"
+      },
+      "sensitive_rejected": {
+        "apply": false,
+        "reason": "a person rejected it"
+      }
+    },
+    "withheld": 1,
+    "trends": {
+      "areas": {
+        "cart": {
+          "failures": 2,
+          "flaky": 0
+        },
+        "login": {
+          "failures": 1,
+          "flaky": 0
+        },
+        "search": {
+          "failures": 0,
+          "flaky": 2
+        },
+        "checkout": {
+          "failures": 1,
+          "flaky": 0
+        }
+      },
+      "next_priority": [
+        "cart",
+        "search",
+        "checkout",
+        "login"
+      ]
+    },
+    "verdict_kept": "Not Ready",
+    "plugins": {
+      "ok": {
+        "accepted": true,
+        "reason": "",
+        "version": "1.0.0",
+        "actions": [
+          "note"
+        ],
+        "assertions": [],
+        "notes": [],
+        "locks": [
+          "authorization",
+          "redact",
+          "pay",
+          "delete",
+          "logout"
+        ]
+      },
+      "blocked": {
+        "accepted": false,
+        "reason": "a plugin cannot turn off pay",
+        "locks": [
+          "authorization",
+          "redact",
+          "pay",
+          "delete",
+          "logout"
+        ]
+      }
+    }
+  },
+  "ok": true,
+  "reason": "QX capabilities A02/A07/A12\u2013A18 offline drill: 9/9 checks passed; gates stay Partial until live/hosted evidence + independent review"
+}

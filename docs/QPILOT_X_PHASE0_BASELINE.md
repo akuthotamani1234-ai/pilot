@@ -42,23 +42,23 @@ Blueprint swarm roles (DOM mapper, API mapper, visual mapper, oracle agent, cove
 | ID | Module evidence | Gate status |
 |---|---|---|
 | A01 Swarm protocol | `backend/swarm_protocol.py`, `backend/swarm.py`, tests | Partial — threaded workers + protocol; not durable distributed queue |
-| A02 Explore scoring | `backend/explore_score.py` | Partial |
+| A02 Explore scoring | `backend/explore_score.py` + `qx_capabilities_drill` | Strong offline; live crawl priority open |
 | A03 Coverage verifier | `backend/coverage_verify.py` | Partial |
 | A04 Oracles | `backend/oracle.py`, `backend/qa_oracles.py` | Partial |
 | A05 Data lifecycle | `backend/data_lifecycle.py`, `tests/test_data_lifecycle.py` | Partial |
 | A06 Identity/sessions | `backend/auth.py`, Android account helpers | Partial |
-| A07 Env virtualization | `backend/env_controls.py` | Partial |
+| A07 Env virtualization | `backend/env_controls.py` + `qx_capabilities_drill` | Strong offline; hosted env open |
 | A08 Deterministic replay | `backend/replay_pack.py`, replay truth tests | Partial — evidence vs execution semantics improved |
 | A09 Mutation scoring | `backend/mutation_score.py` + `mutation_score_drill` | Strong (DemoStore 6/6); third-party open |
 | A10 Cross-platform journeys | `backend/journey_map.py` + `cross_platform_journey_drill` | Partial (web engines + optional Android) |
 | A11 Localization | `backend/locale_check.py` | Partial |
-| A12 Agent evaluation | `backend/agent_eval.py` | Partial |
-| A13 Incremental discovery | `backend/incremental_map.py` | Partial |
-| A14 Dependency faults | `backend/dependency_fault.py` | Partial |
-| A15 Schema evolution | `backend/qa_contracts.py` / assert helpers | Partial / needs deeper wiring audit |
-| A16 Human review | `backend/human_review.py` | Partial |
-| A17 Quality trends | referenced via `backend/capabilities.py` | Partial |
-| A18 Plugin SDK | `backend/plugins.py` | Partial |
+| A12 Agent evaluation | `backend/agent_eval.py` + `qx_capabilities_drill` | Strong offline; live model-gate open |
+| A13 Incremental discovery | `backend/incremental_map.py` + `qx_capabilities_drill` | Strong offline; live incremental crawl open |
+| A14 Dependency faults | `backend/dependency_fault.py` + `qx_capabilities_drill` | Strong offline; staging inject open |
+| A15 Schema evolution | `backend/schema_diff.py` + `qx_capabilities_drill` | Strong offline; live contract open |
+| A16 Human review | `backend/human_review.py` + `qx_capabilities_drill` | Strong offline; Studio UX open |
+| A17 Quality trends | `backend/quality_trends.py` + `qx_capabilities_drill` | Strong offline; live trend feed open |
+| A18 Plugin SDK | `backend/plugins.py` + `qx_capabilities_drill` | Strong offline; plugin marketplace open |
 
 ## 4. Acceptance gates A–J (current)
 
