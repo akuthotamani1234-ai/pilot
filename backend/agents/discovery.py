@@ -2965,11 +2965,15 @@ def discovery_agent(state: QAState) -> QAState:
     (run_dir / "login.json").write_text(json.dumps(login, indent=2), encoding="utf-8")
     (run_dir / "crawl.json").write_text(json.dumps(crawl, indent=2), encoding="utf-8")
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)
+    from ..discovery_graph import write_graph
     reg = registry.build(app_map, crawl)
     registry.save(reg, run_dir)
     save_inventory(run_dir, app_map, reg)
+    provenanced = write_graph(run_dir, app_map, crawl)
     print(f"  [discovery] registry: {len(reg['pages'])} page pattern(s), {len(reg['features'])} feature(s) / "
           f"control(s), {len(reg['edges'])} link(s) between pages")
+    print(f"  [discovery] provenance graph: {provenanced['counts']['nodes']} node(s), "
+          f"{provenanced['counts']['edges']} edge(s) (Gate A not complete)")
     if blocked:
         print(f"  [discovery] the safety rules blocked {len(blocked)} request(s) (private network / outside the scope)")
     log = state.get("log", []) + [
