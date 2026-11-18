@@ -18,9 +18,9 @@ Each capability is **DONE** only when:
 | Gate | Required deliverable | Current status |
 |---|---|---|
 | A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + `surface_coverage.json` (iframe/shadow/API counts); full-surface live completeness not established |
-| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; SQLite durable queue + supervisor added (`swarm_queue`/`swarm_supervisor`). Redis/Postgres + full agent wiring still open. See `docs/QPILOT_X_PHASE3_SWARM.md` |
+| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial — discovery/apply now plan+drain durable SQLite tasks over crawled URLs (`swarm_evidence.json`). Redis/Postgres + full specialist-agent wiring still open |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — durable `qx_lifecycle_state.json` + `created.jsonl` confirm; design-time oracle bind softens AI defects; live portal adapters still open |
-| D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — declarative device matrix (`device_matrix.py`); live emulator evidence still open. See `docs/QPILOT_X_PHASE5_ANDROID_PORTFOLIOS.md` |
+| D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — discovery records desktop+phone viewport evidence into `device_matrix_evidence.json`; live Android emulator/API24+ still open |
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — bounded `run_saved` on analysis + `healing_policy.json` / locator-only guards; full live failure matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — a11y/perf/security + first-run `visual.json` capture on apply_run; broad live CI artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — SQLite `audit_events` persistence + migrations/RBAC/object store; live Postgres/Redis/MinIO isolation still not established |

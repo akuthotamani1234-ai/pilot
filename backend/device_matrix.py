@@ -40,6 +40,47 @@ def _match(profile: dict, evidence: dict) -> bool:
     return False
 
 
+def viewport_evidence_from_app_map(app_map: list[dict] | None = None) -> list[dict]:
+    """Evidence from discovery viewports already exercised (desktop + phone).
+
+    Desktop (1366x900) is the crawl context. Phone (390x844) counts only when a
+    page records ``mobile_only`` / phone layout / phone visual capture.
+    """
+    pages = app_map or []
+    if not pages:
+        return []
+    ok_pages = [p for p in pages if not p.get("error") and (p.get("status") or 0) < 400]
+    if not ok_pages:
+        # Still opened something — treat as failed surface evidence, not missing.
+        outcome = "failed"
+        sample = pages
+    else:
+        outcome = "passed"
+        sample = ok_pages
+    evidence = [{
+        "surface": "web",
+        "viewport": "1366x900",
+        "outcome": outcome,
+        "source": "discovery",
+        "pages": len(sample),
+    }]
+    phone_pages = [
+        p for p in sample
+        if "mobile_only" in p
+        or p.get("layout") is not None
+        or (isinstance(p.get("visual"), dict) and (p["visual"].get("phone") or p["visual"].get("phone_shot")))
+    ]
+    if phone_pages:
+        evidence.append({
+            "surface": "web",
+            "viewport": "390x844",
+            "outcome": outcome,
+            "source": "discovery",
+            "pages": len(phone_pages),
+        })
+    return evidence
+
+
 def evaluate_matrix(evidence: list[dict] | None = None) -> dict:
     """Score required profiles against recorded run evidence.
 
