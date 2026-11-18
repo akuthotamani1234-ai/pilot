@@ -1,0 +1,33 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_perf_portfolio",
+  "ran_at": "2026-11-18T18:44:55Z",
+  "fixture": "DemoStore",
+  "pages_walked": [
+    "/",
+    "/about",
+    "/lab",
+    "/deals",
+    "/signin"
+  ],
+  "timings": {
+    "dom_content_loaded_ms": 10.175356997933704,
+    "load_ms": 13.084735001029912,
+    "largest_contentful_paint_ms": 10.175356997933704,
+    "samples": 5
+  },
+  "portfolio": {
+    "portfolio": "performance",
+    "verdict": "pass",
+    "ok": true,
+    "reason": "",
+    "findings": [],
+    "checked": [
+      "dom_content_loaded_ms",
+      "load_ms",
+      "largest_contentful_paint_ms"
+    ]
+  },
+  "ok": true,
+  "reason": "DemoStore performance portfolio evaluated from controlled load timings; broad live multi-browser CI still open"
+}
