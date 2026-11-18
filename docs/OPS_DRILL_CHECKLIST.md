@@ -36,7 +36,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | G | Postgres/Redis/MinIO + audit export + `sso-tenant-acl` + review checklist | `pg_tenancy_drill.json`, `audit_export_drill.json`, `sso_tenant_acl_drill.json`, `independent_review_checklist.json` |
 | I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract`, `loopback-sso`, `sso-tenant-acl` | `api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json`, `loopback_sso_drill.json`, `sso_tenant_acl_drill.json` |
 
-| QX | `/api/ops/drills/qx-capabilities` | `docs/ops-evidence/qx_capabilities_drill.json` (A02/A07/A12–A18 offline) |
+| QX | `/api/ops/drills/qx-capabilities`, `qx-core-capabilities` | `qx_capabilities_drill.json` (A02/A07/A12–A18), `qx_core_capabilities_drill.json` (A01/A03–A06/A08/A11) |
 | J | `/api/ops/drills/mutation-score` | `docs/ops-evidence/mutation_score_drill.json` |
 
 Studio sidebar Blueprint TODO (`/api/v1/blueprint/progress`) lists done vs open upcoming items for these increments.

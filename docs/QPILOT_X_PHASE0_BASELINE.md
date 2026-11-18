@@ -41,17 +41,17 @@ Blueprint swarm roles (DOM mapper, API mapper, visual mapper, oracle agent, cove
 
 | ID | Module evidence | Gate status |
 |---|---|---|
-| A01 Swarm protocol | `backend/swarm_protocol.py`, `backend/swarm.py`, tests | Partial — threaded workers + protocol; not durable distributed queue |
+| A01 Swarm protocol | `backend/swarm*.py` + Redis durable queue drills + `qx_core_capabilities_drill` | Strong offline/Redis; product-wide review open |
 | A02 Explore scoring | `backend/explore_score.py` + `qx_capabilities_drill` | Strong offline; live crawl priority open |
-| A03 Coverage verifier | `backend/coverage_verify.py` | Partial |
-| A04 Oracles | `backend/oracle.py`, `backend/qa_oracles.py` | Partial |
-| A05 Data lifecycle | `backend/data_lifecycle.py`, `tests/test_data_lifecycle.py` | Partial |
-| A06 Identity/sessions | `backend/auth.py`, Android account helpers | Partial |
+| A03 Coverage verifier | `backend/coverage_verify.py` + `qx_core_capabilities_drill` | Strong offline; live discovery completeness open |
+| A04 Oracles | `backend/oracle.py` + `qx_core_capabilities_drill` | Strong offline; live portal oracles open |
+| A05 Data lifecycle | `backend/data_lifecycle.py` + lifecycle drills + `qx_core_capabilities_drill` | Strong offline/fixture; broader live cleanup open |
+| A06 Identity/sessions | `backend/sessions.py` + `qx_core_capabilities_drill` | Strong offline vault refs; hosted IdP open |
 | A07 Env virtualization | `backend/env_controls.py` + `qx_capabilities_drill` | Strong offline; hosted env open |
-| A08 Deterministic replay | `backend/replay_pack.py`, replay truth tests | Partial — evidence vs execution semantics improved |
+| A08 Deterministic replay | `backend/replay_pack.py` + `qx_core_capabilities_drill` | Strong offline package completeness; production replay suite open |
 | A09 Mutation scoring | `backend/mutation_score.py` + `mutation_score_drill` | Strong (DemoStore 6/6); third-party open |
 | A10 Cross-platform journeys | `backend/journey_map.py` + `cross_platform_journey_drill` | Partial (web engines + optional Android) |
-| A11 Localization | `backend/locale_check.py` | Partial |
+| A11 Localization | `backend/locale_check.py` + locale portfolio + `qx_core_capabilities_drill` | Strong offline; hosted multi-locale CI open |
 | A12 Agent evaluation | `backend/agent_eval.py` + `qx_capabilities_drill` | Strong offline; live model-gate open |
 | A13 Incremental discovery | `backend/incremental_map.py` + `qx_capabilities_drill` | Strong offline; live incremental crawl open |
 | A14 Dependency faults | `backend/dependency_fault.py` + `qx_capabilities_drill` | Strong offline; staging inject open |

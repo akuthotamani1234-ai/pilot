@@ -413,6 +413,14 @@ def readiness() -> dict:
                 else "No QX capabilities drill evidence"
             ),
         },
+        "qx_core_capabilities_drill": {
+            "ready": _ops_evidence("qx_core_capabilities_drill.json"),
+            "reason": (
+                "QX-A01/A03–A06/A08/A11 core capability drill present; gates stay Partial"
+                if _ops_evidence("qx_core_capabilities_drill.json")
+                else "No QX core capabilities drill evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (

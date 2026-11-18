@@ -86,3 +86,6 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
         "multi_api_android_matrix_drill.json"
     )
     assert snap["checks"]["qx_capabilities_drill"]["ready"] is has("qx_capabilities_drill.json")
+    assert snap["checks"]["qx_core_capabilities_drill"]["ready"] is has(
+        "qx_core_capabilities_drill.json"
+    )
