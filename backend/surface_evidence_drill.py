@@ -1,7 +1,7 @@
-"""Gate A: capture surface_coverage evidence from the owned AdminPortal fixture.
+"""Gate A: capture surface_coverage evidence from owned local fixtures.
 
-Walks key pages with Playwright, builds a mini app_map, and writes
-``docs/ops-evidence/admin_portal_surface_coverage.json``. Never marks Gate A complete.
+Walks key pages with Playwright, builds a mini app_map, and writes evidence under
+``docs/ops-evidence/``. Never marks Gate A complete.
 """
 from __future__ import annotations
 
@@ -10,93 +10,123 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EVIDENCE = ROOT / "docs" / "ops-evidence" / "admin_portal_surface_coverage.json"
-PATHS = ("/", "/users", "/users/new", "/widgets", "/reports", "/help", "/help/guide")
+ADMIN_EVIDENCE = ROOT / "docs" / "ops-evidence" / "admin_portal_surface_coverage.json"
+DEMO_EVIDENCE = ROOT / "docs" / "ops-evidence" / "demo_store_surface_coverage.json"
+ADMIN_PATHS = ("/", "/users", "/users/new", "/widgets", "/reports", "/help", "/help/guide")
+DEMO_PATHS = ("/", "/about", "/lab", "/deals", "/signin")
+
+_SNAP_JS = """() => {
+  const iframes = [...document.querySelectorAll('iframe')].map(el => ({
+    name: el.getAttribute('name') || el.getAttribute('title') || '',
+    src: el.getAttribute('src') || '',
+  }));
+  let shadowRoots = 0;
+  const walk = (root) => {
+    root.querySelectorAll('*').forEach(el => {
+      if (el.shadowRoot) { shadowRoots += 1; walk(el.shadowRoot); }
+    });
+  };
+  walk(document);
+  const forms = [...document.querySelectorAll('form, dialog, [role=dialog], .modal')].map(el => ({
+    selector: el.id ? ('#' + el.id) : el.tagName.toLowerCase(),
+    kind: el.matches('dialog, [role=dialog], .modal') ? 'dialog' : 'form',
+  }));
+  const buttons = [...document.querySelectorAll('button,[role=button]')].map(el => ({
+    text: (el.innerText || '').trim().slice(0, 40),
+    kind: /modal|dialog|prompt|alert/i.test(el.id + el.className + (el.innerText||''))
+      ? 'modal' : 'button',
+  }));
+  const links = [...document.querySelectorAll('a')].map(a => ({
+    href: a.getAttribute('href') || '',
+    download: a.hasAttribute('download'),
+  }));
+  const components = [];
+  document.querySelectorAll('canvas').forEach(el => {
+    components.push({kind: 'canvas', selector: el.id ? ('#' + el.id) : 'canvas'});
+  });
+  document.querySelectorAll('input[type=file]').forEach(el => {
+    components.push({kind: 'file_upload', selector: el.id ? ('#' + el.id) : 'input[type=file]'});
+  });
+  document.querySelectorAll('*').forEach(el => {
+    if (el.tagName && el.tagName.includes('-')) {
+      components.push({kind: 'web_component', selector: el.tagName.toLowerCase()});
+    }
+  });
+  return {
+    title: document.title || '',
+    iframes,
+    frames: iframes.map(f => ({status: 'testable', name: f.name || f.src})),
+    shadowRoots,
+    forms,
+    buttons,
+    links,
+    components,
+    lazy: document.querySelector('[loading=lazy], .skeleton, [data-lazy]') ? {hint: true} : null,
+    locale: {language: document.documentElement.lang || navigator.language || ''},
+  };
+}"""
+
+
+def _walk_fixture(base_url: str, paths: tuple[str, ...]) -> list[dict]:
+    from playwright.sync_api import sync_playwright
+
+    pages: list[dict] = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={"width": 1366, "height": 900})
+        for path in paths:
+            page.goto(base_url.rstrip("/") + path, wait_until="domcontentloaded")
+            page.wait_for_timeout(200)
+            snap = page.evaluate(_SNAP_JS)
+            pages.append({
+                "url": base_url.rstrip("/") + path,
+                "slug": path.strip("/") or "home",
+                "title": snap.get("title") or path,
+                "iframes": snap.get("iframes") or [],
+                "frames": snap.get("frames") or [],
+                "shadowRoots": snap.get("shadowRoots") or 0,
+                "forms": snap.get("forms") or [],
+                "buttons": snap.get("buttons") or [],
+                "links": snap.get("links") or [],
+                "components": snap.get("components") or [],
+                "lazy": snap.get("lazy"),
+                "locale": snap.get("locale") or {},
+                "mobile_checked": False,
+            })
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(base_url, wait_until="domcontentloaded")
+        if pages:
+            pages[0]["mobile_checked"] = True
+            pages[0]["viewport"] = "mobile"
+        browser.close()
+    return pages
+
+
+def _write_evidence(evidence: dict, *, evidence_path: Path, ops_dir: Path | None) -> dict:
+    dest = Path(ops_dir) if ops_dir else evidence_path.parent
+    dest.mkdir(parents=True, exist_ok=True)
+    out = (Path(ops_dir) / evidence_path.name) if ops_dir else evidence_path
+    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops" / evidence_path.name
+        art.parent.mkdir(parents=True, exist_ok=True)
+        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    return evidence
 
 
 def run_admin_portal_surface_drill(*, ops_dir: Path | None = None) -> dict:
-    from playwright.sync_api import sync_playwright
-
     from tests.admin_portal import AdminPortal
 
     from .surface_coverage import summarize_surfaces
 
     portal = AdminPortal(0, bugs=False).start()
-    pages: list[dict] = []
     try:
-        with sync_playwright() as pw:
-            browser = pw.chromium.launch()
-            page = browser.new_page(viewport={"width": 1366, "height": 900})
-            for path in PATHS:
-                page.goto(portal.url.rstrip("/") + path, wait_until="domcontentloaded")
-                page.wait_for_timeout(200)
-                snap = page.evaluate(
-                    """() => {
-                      const iframes = [...document.querySelectorAll('iframe')].map(el => ({
-                        name: el.getAttribute('name') || el.getAttribute('title') || '',
-                        src: el.getAttribute('src') || '',
-                      }));
-                      let shadowRoots = 0;
-                      const walk = (root) => {
-                        root.querySelectorAll('*').forEach(el => {
-                          if (el.shadowRoot) { shadowRoots += 1; walk(el.shadowRoot); }
-                        });
-                      };
-                      walk(document);
-                      const forms = [...document.querySelectorAll('form, dialog, [role=dialog], .modal')].map(el => ({
-                        selector: el.id ? ('#' + el.id) : el.tagName.toLowerCase(),
-                        kind: el.matches('dialog, [role=dialog], .modal') ? 'dialog' : 'form',
-                      }));
-                      const buttons = [...document.querySelectorAll('button,[role=button]')].map(el => ({
-                        text: (el.innerText || '').trim().slice(0, 40),
-                        kind: /modal|dialog|prompt|alert/i.test(el.id + el.className + (el.innerText||''))
-                          ? 'modal' : 'button',
-                      }));
-                      const links = [...document.querySelectorAll('a')].map(a => ({
-                        href: a.getAttribute('href') || '',
-                        download: a.hasAttribute('download'),
-                      }));
-                      return {
-                        title: document.title || '',
-                        iframes,
-                        frames: iframes.map(f => ({status: 'testable', name: f.name || f.src})),
-                        shadowRoots,
-                        forms,
-                        buttons,
-                        links,
-                        lazy: document.querySelector('[loading=lazy], .skeleton, [data-lazy]')
-                          ? {hint: true} : null,
-                        locale: {language: document.documentElement.lang || navigator.language || ''},
-                      };
-                    }"""
-                )
-                pages.append({
-                    "url": portal.url.rstrip("/") + path,
-                    "slug": path.strip("/") or "home",
-                    "title": snap.get("title") or path,
-                    "iframes": snap.get("iframes") or [],
-                    "frames": snap.get("frames") or [],
-                    "shadowRoots": snap.get("shadowRoots") or 0,
-                    "forms": snap.get("forms") or [],
-                    "buttons": snap.get("buttons") or [],
-                    "links": snap.get("links") or [],
-                    "lazy": snap.get("lazy"),
-                    "locale": snap.get("locale") or {},
-                    "mobile_checked": False,
-                })
-            # Phone viewport pass on home
-            page.set_viewport_size({"width": 390, "height": 844})
-            page.goto(portal.url, wait_until="domcontentloaded")
-            if pages:
-                pages[0]["mobile_checked"] = True
-                pages[0]["viewport"] = "mobile"
-            browser.close()
+        pages = _walk_fixture(portal.url, ADMIN_PATHS)
     finally:
         try:
             portal.stop()
         except Exception:
             pass
-
     surfaces = summarize_surfaces(pages, {"mobile_check": True, "found_by": {}})
     evidence = {
         "gate_a_surfaces_complete": False,
@@ -106,16 +136,42 @@ def run_admin_portal_surface_drill(*, ops_dir: Path | None = None) -> dict:
         "pages_walked": [p["slug"] for p in pages],
         "surfaces": surfaces,
         "reason": (
-            "AdminPortal surface inventory captured (iframe/shadow/dialog/download when present); "
+            "AdminPortal surface inventory captured (iframe/shadow/dialog/download/rich when present); "
             "full Gate A live matrix still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "admin_portal_surface_coverage.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "admin_portal_surface_coverage.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    return evidence
+    return _write_evidence(evidence, evidence_path=ADMIN_EVIDENCE, ops_dir=ops_dir)
+
+
+def run_demo_store_surface_drill(*, ops_dir: Path | None = None) -> dict:
+    """Walk DemoStore public pages incl. /lab (iframe + shadow) for Gate A evidence."""
+    from tests.demo_store import DemoStore
+
+    from .surface_coverage import summarize_surfaces
+
+    store = DemoStore().start()
+    try:
+        pages = _walk_fixture(store.url, DEMO_PATHS)
+    finally:
+        try:
+            store.stop()
+        except Exception:
+            pass
+    # DemoStore /lab is the Gate A iframe+shadow fixture page.
+    surfaces = summarize_surfaces(
+        pages,
+        {"mobile_check": True, "found_by": {store.url.rstrip("/") + "/lab": "scrape"}},
+    )
+    evidence = {
+        "gate_a_surfaces_complete": False,
+        "drill": "demo_store_surface_coverage",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "fixture": "DemoStore",
+        "pages_walked": [p["slug"] for p in pages],
+        "surfaces": surfaces,
+        "reason": (
+            "DemoStore public surface inventory captured (incl. /lab iframe+shadow when present); "
+            "full Gate A live matrix still open"
+        ),
+    }
+    return _write_evidence(evidence, evidence_path=DEMO_EVIDENCE, ops_dir=ops_dir)
