@@ -12,6 +12,10 @@ def test_capture_writes_a11y_perf_and_security(tmp_path):
             "inputs": [{"name": "q", "label": "Search", "selector": "#q"},
                        {"name": "email", "label": "", "selector": "#email"}],
             "buttons": [{"selector": "#icon", "named": False}],
+            "imageAlts": [
+                {"src": "http://shop.test/hero.png", "alt": "", "missing_alt_attr": False},
+                {"src": "http://shop.test/logo.png", "alt": "Shop", "missing_alt_attr": False},
+            ],
             "brokenImages": ["http://shop.test/missing.png"],
             "response_headers": {
                 "content-security-policy": "default-src 'self'",

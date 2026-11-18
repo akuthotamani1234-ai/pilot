@@ -14,8 +14,18 @@ from urllib.parse import urlparse
 def _a11y_page(app_map: list[dict]) -> dict:
     images, inputs = [], []
     for page in app_map or []:
-        for img in page.get("brokenImages") or []:
-            images.append({"src": str(img), "alt": ""})
+        alts = page.get("imageAlts")
+        if isinstance(alts, list) and alts:
+            for img in alts:
+                if not isinstance(img, dict):
+                    continue
+                alt = img.get("alt")
+                if img.get("missing_alt_attr") and alt is None:
+                    alt = ""
+                images.append({"src": str(img.get("src") or ""), "alt": "" if alt is None else str(alt)})
+        else:
+            for img in page.get("brokenImages") or []:
+                images.append({"src": str(img), "alt": ""})
         # Buttons that wrap an image without an accessible name are treated as unlabeled imagery.
         for button in page.get("buttons") or []:
             if button.get("named") is False and button.get("selector"):

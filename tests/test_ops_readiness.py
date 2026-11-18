@@ -9,3 +9,5 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert "backup_restore_drill" in snap["missing"]
     assert "load_test" in snap["missing"]
     assert "ci_workflow" in snap["checks"]
+    assert snap["checks"]["ops_drill_checklist"]["ready"] is True
+    assert "ops_drill_checklist" in snap["ready"]
