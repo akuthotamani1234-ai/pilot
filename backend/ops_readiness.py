@@ -72,6 +72,22 @@ def readiness() -> dict:
                 else "No recorded backup/restore drill evidence"
             ),
         },
+        "object_store_backup_restore": {
+            "ready": _ops_evidence("minio_backup_restore_drill.json"),
+            "reason": (
+                "Live MinIO object backup/restore evidence present; hosted DR still open"
+                if _ops_evidence("minio_backup_restore_drill.json")
+                else "No MinIO object-store backup/restore evidence"
+            ),
+        },
+        "admin_portal_surfaces": {
+            "ready": _ops_evidence("admin_portal_surface_coverage.json"),
+            "reason": (
+                "AdminPortal surface_coverage inventory present; full Gate A live matrix still open"
+                if _ops_evidence("admin_portal_surface_coverage.json")
+                else "No AdminPortal surface coverage inventory"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (
