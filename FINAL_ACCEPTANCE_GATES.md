@@ -26,7 +26,7 @@ Each capability is **DONE** only when:
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial foundations — RBAC helper, local object store, readiness probe (`docs/QPILOT_X_PHASE6_ENTERPRISE.md`); Postgres/Redis/MinIO live stack still not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Not established |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` versioning helpers; Studio remains HTML/JS (not React) |
-| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Partial — DemoStore runs recorded (run4: 6/6 bugs, 0 false alarms; 1 clean feature gap remains). See `docs/QPILOT_X_PHASE1_BENCHMARK.md` |
+| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run5: 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
 ## Required live test protocol
 
