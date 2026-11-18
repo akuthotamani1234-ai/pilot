@@ -401,7 +401,32 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     (run_dir / "healing_policy.json").write_text(json.dumps(healing, indent=2), encoding="utf-8")
     (run_dir / "device_matrix.json").write_text(json.dumps(matrix, indent=2), encoding="utf-8")
     (run_dir / "device_matrix_evidence.json").write_text(json.dumps(device_rows, indent=2), encoding="utf-8")
+    tenant_index = _index_run_for_tenant(run_dir, state, verdict)
+    if tenant_index is not None:
+        applied["tenancy"] = tenant_index
+        (run_dir / "tenancy_index.json").write_text(json.dumps(tenant_index, indent=2), encoding="utf-8")
     return applied
+
+
+def _index_run_for_tenant(run_dir: Path, state: dict, verdict: str) -> dict | None:
+    """Optional Gate G: index this run under QPILOT_TENANT_ID for principal ACL lists."""
+    import os
+    tenant = (os.getenv("QPILOT_TENANT_ID") or os.getenv("BLOWAI_TENANT_ID") or "").strip()
+    if not tenant:
+        return None
+    try:
+        from .tenancy_store import index_run, upsert_tenant
+        upsert_tenant(tenant, tenant)
+        row = index_run(
+            run_dir.name,
+            tenant,
+            source=str(state.get("source") or state.get("base_url") or "")[:300],
+            verdict=verdict,
+        )
+        return {**row, "gate_g_complete": False, "reason": "indexed for tenant ACL; Studio SSO still open"}
+    except Exception as exc:
+        return {"ok": False, "tenant_id": tenant, "reason": f"tenancy index failed: {exc}",
+                "gate_g_complete": False}
 
 
 def write_applied(state: dict, *, root: Path | None = None) -> dict:

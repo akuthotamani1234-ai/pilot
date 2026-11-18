@@ -102,6 +102,7 @@ def progress() -> dict:
         {"id": "J-admin-row-search", "label": "Row-select learned cases use table search openers", "status": "done"},
         {"id": "J-admin-run4", "label": "AdminPortal accuracy run4 (25/25, 7/7, 0 FA)", "status": "done"},
         {"id": "G-tenant-run-acl", "label": "Principal-scoped /api/tenancy/runs + audited denials", "status": "done"},
+        {"id": "G-tenant-index-env", "label": "Optional QPILOT_TENANT_ID indexes finished runs", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

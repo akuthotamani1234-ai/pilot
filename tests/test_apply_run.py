@@ -100,3 +100,30 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     names = {row["file"]: row["accepted"] for row in applied["plugins"]}
     assert names["note.json"] is True and names["bad.json"] is False
     assert applied["incremental"]["reopen"] == ["https://shop.example/saree"]
+
+
+def test_apply_run_indexes_tenant_when_env_set(tmp_path, monkeypatch):
+    import backend.tenancy_store as ts
+
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t-apply")
+    monkeypatch.setattr(ts, "DEFAULT_DB", tmp_path / "tenancy.sqlite")
+    state = {
+        "run_dir": str(tmp_path / "run-tenant"),
+        "source": "https://shop.example/",
+        "verdict": "Ready",
+        "crawl": {},
+        "app_map": [],
+        "failures": [],
+        "results": [],
+        "test_cases": [],
+        "healing_log": [],
+        "changes": {},
+    }
+    (tmp_path / "run-tenant").mkdir()
+    applied = apply_run(state, root=tmp_path)
+    assert applied["tenancy"]["tenant_id"] == "t-apply"
+    assert applied["tenancy"]["gate_g_complete"] is False
+    assert (tmp_path / "run-tenant" / "tenancy_index.json").is_file()
+    assert [r["run_id"] for r in ts.list_runs_for_tenant("t-apply", db_path=tmp_path / "tenancy.sqlite")] == [
+        "run-tenant"
+    ]
