@@ -805,6 +805,16 @@ def ops_dashboard_auth_matrix():
     return {"gate_i_complete": False, "dashboard_auth_matrix": evidence}
 
 
+@app.post("/api/ops/drills/approvals")
+def ops_approvals_drill():
+    """Gate I: approvals enqueue→decide contract (still incomplete)."""
+    from backend.approvals_drill import run_approvals_drill
+    evidence = run_approvals_drill()
+    _audit("ops_approvals_drill", ok=bool(evidence.get("ok")),
+           pending_after=int(evidence.get("pending_after") or 0))
+    return {"gate_i_complete": False, "approvals": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""

@@ -207,6 +207,14 @@ def readiness() -> dict:
                 else "No dashboard auth matrix drill evidence"
             ),
         },
+        "approvals_drill": {
+            "ready": _ops_evidence("approvals_drill.json"),
+            "reason": (
+                "Approvals enqueue→decide evidence present; live hosted SSO still open"
+                if _ops_evidence("approvals_drill.json")
+                else "No approvals drill evidence"
+            ),
+        },
         "lifecycle_cleanup_drill": {
             "ready": _ops_evidence("lifecycle_cleanup_drill.json"),
             "reason": (
