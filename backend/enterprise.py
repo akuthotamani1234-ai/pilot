@@ -97,6 +97,17 @@ def readiness() -> dict:
             "ready": True,
             "reason": "Durable approvals queue + decide API; Studio auth still open",
         },
+        "dashboard_auth": {
+            "configured": bool(
+                _present("QPILOT_DASHBOARD_TOKEN") or _present("BLOWAI_DASHBOARD_TOKEN")
+            ),
+            "ready": False,
+            "reason": (
+                "Optional bearer token configured; SSO/multi-tenant hosting still open"
+                if (_present("QPILOT_DASHBOARD_TOKEN") or _present("BLOWAI_DASHBOARD_TOKEN"))
+                else "Dashboard token unset; approvals open on localhost (SSO/hosting still open)"
+            ),
+        },
     }
     ready = ["rbac", "api_versioning", "approvals"]
     if components["object_store"]["ready"]:
