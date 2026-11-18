@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:48:04Z",
+  "ran_at": "2026-11-18T23:48:50Z",
   "ok": true,
   "blockers": [
     {
@@ -74,13 +74,15 @@
       "local_partial": [
         "android_appium_product_matrix_drill.json",
         "multi_api_android_matrix_drill.json",
-        "multi_device_ci_contract.json"
+        "multi_device_ci_contract.json",
+        "device_artifact_manifest_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "android_appium_product_matrix_drill.json",
         "multi_api_android_matrix_drill.json",
-        "multi_device_ci_contract.json"
+        "multi_device_ci_contract.json",
+        "device_artifact_manifest_drill.json"
       ],
       "local_partial_missing": []
     },
