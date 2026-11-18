@@ -160,8 +160,12 @@ class DemoStore:
                 if path == "/lab":
                     return self._page(
                         "Component lab",
-                        """<p>Iframe and open shadow-root sample for discovery surface coverage.</p>
+                        """<p>Iframe, open shadow-root, canvas, and lazy-load sample for discovery surface coverage.</p>
 <iframe title="About frame" src="/about" width="420" height="140"></iframe>
+<canvas id="lab-canvas" width="120" height="40" aria-label="Lab canvas"></canvas>
+<img id="lab-lazy" alt="Lazy placeholder" width="1" height="1" loading="lazy"
+     src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+<div class="skeleton" data-lazy="1">Loading preview…</div>
 <div id="host"></div>
 <script>
 customElements.define('open-box', class extends HTMLElement {

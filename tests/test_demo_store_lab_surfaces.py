@@ -20,3 +20,6 @@ def test_demo_store_lab_page_embeds_iframe_and_open_shadow():
     assert "<iframe" in html
     assert "attachShadow({mode: 'open'})" in html or 'attachShadow({mode: "open"})' in html
     assert "open-box" in html
+    assert 'id="lab-canvas"' in html
+    assert 'loading="lazy"' in html
+    assert "data-lazy" in html

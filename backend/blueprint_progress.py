@@ -34,7 +34,7 @@ def progress() -> dict:
     ]
     gates = [
         {"id": "A", "label": "Gate A — Discovery surfaces", "status": "partial",
-         "note": "Graph + surfaces (dialog/download/rich controls) + AdminPortal drill; full live matrix open"},
+         "note": "Surfaces incl. DemoStore /lab canvas+lazy; full live matrix still open"},
         {"id": "B", "label": "Gate B — Durable swarm", "status": "partial",
          "note": "Redis preferred + claim/checkpoint/cancel + lease-expiry retry drills; review still open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "partial",
@@ -44,7 +44,7 @@ def progress() -> dict:
         {"id": "E", "label": "Gate E — Replay + healing", "status": "partial",
          "note": "Expanded offline failure taxonomy + healing regression; live production matrix open"},
         {"id": "F", "label": "Gate F — Portfolios (a11y/perf/…)", "status": "partial",
-         "note": "All six DemoStore portfolio drills landed; broad live multi-browser CI still open"},
+         "note": "Six DemoStore portfolios + Chromium/Firefox/WebKit offline matrix; live CI still open"},
         {"id": "G", "label": "Gate G — Tenancy / audit / store", "status": "active",
          "note": "Postgres/SQLite tenancy + audit export drill; Studio SSO / review still open"},
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
@@ -145,6 +145,8 @@ def progress() -> dict:
         {"id": "F-perf-drill", "label": "DemoStore performance portfolio drill", "status": "done"},
         {"id": "F-visual-drill", "label": "DemoStore first-run visual portfolio drill", "status": "done"},
         {"id": "F-compat-drill", "label": "DemoStore compatibility portfolio drill (desktop+mobile)", "status": "done"},
+        {"id": "A-lab-canvas-lazy", "label": "DemoStore /lab canvas + lazy surface signals", "status": "done"},
+        {"id": "F-compat-engines", "label": "Offline Chromium/Firefox/WebKit compatibility matrix", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
