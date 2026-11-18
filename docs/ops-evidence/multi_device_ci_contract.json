@@ -1,0 +1,35 @@
+{
+  "gate_d_complete": false,
+  "drill": "multi_device_ci_contract",
+  "ran_at": "2026-11-18T21:15:56Z",
+  "ok": true,
+  "kind": "contract_only",
+  "reason": "Offline CI contract for multi-device Appium product-matrix artifacts; broad multi-device CI runners still open",
+  "required_runner": {
+    "os": "ubuntu-latest",
+    "kvm": true,
+    "api_levels": [
+      24,
+      30,
+      34
+    ],
+    "appium": ">=3.0",
+    "driver": "uiautomator2",
+    "env": [
+      "ANDROID_HOME",
+      "APPIUM_HOME",
+      "BLOWAI_ANDROID_E2E=1"
+    ]
+  },
+  "artifact_paths": [
+    "docs/ops-evidence/android_appium_product_matrix_drill.json",
+    "docs/ops-evidence/android_emulator_smoke_drill.json",
+    "docs/ops-evidence/multi_api_android_matrix_drill.json",
+    "docs/ops-evidence/device_matrix_drill.json"
+  ],
+  "drill_api": "POST /api/ops/drills/multi-api-android-matrix",
+  "workflow": ".github/workflows/android-appium.yml",
+  "workflow_exists": true,
+  "related_contract": "docs/ops-evidence/android_appium_ci_contract.json",
+  "note": "API24 is adb smoke only; Appium needs API26+. Full AVD boot matrix on ubuntu+KVM still open"
+}

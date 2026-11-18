@@ -1040,6 +1040,19 @@ def ops_loopback_auth_code_sso():
     return {"gate_i_complete": False, "loopback_auth_code_sso": evidence}
 
 
+@app.post("/api/ops/drills/hosted-runner-contracts")
+def ops_hosted_runner_contracts():
+    """Gates D/F: offline multi-device + multi-browser CI runner contracts."""
+    from backend.hosted_runner_contract_drill import run_hosted_runner_contract_drill
+    evidence = run_hosted_runner_contract_drill()
+    _audit("ops_hosted_runner_contracts", ok=bool(evidence.get("ok")))
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_contracts": evidence,
+    }
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""

@@ -370,6 +370,22 @@ def readiness() -> dict:
                 else "No multi-browser portfolio suite evidence"
             ),
         },
+        "multi_browser_ci_contract": {
+            "ready": _ops_evidence("multi_browser_ci_contract.json"),
+            "reason": (
+                "Multi-browser CI runner contract present; broad hosted matrix still open"
+                if _ops_evidence("multi_browser_ci_contract.json")
+                else "No multi-browser CI contract evidence"
+            ),
+        },
+        "multi_device_ci_contract": {
+            "ready": _ops_evidence("multi_device_ci_contract.json"),
+            "reason": (
+                "Multi-device Appium CI runner contract present; broad hosted runners still open"
+                if _ops_evidence("multi_device_ci_contract.json")
+                else "No multi-device CI contract evidence"
+            ),
+        },
         "loopback_sso_drill": {
             "ready": _ops_evidence("loopback_sso_drill.json"),
             "reason": (

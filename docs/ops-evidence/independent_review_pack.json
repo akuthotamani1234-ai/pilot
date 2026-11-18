@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T21:01:33Z",
+  "ran_at": "2026-11-18T21:15:56Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 62,
+  "artifact_count": 64,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -203,9 +203,19 @@
       "sha256": "5075b96e0087beb90d3254d8bb08b07492816ee66898b33b0cfd12c037960383"
     },
     {
+      "name": "multi_browser_ci_contract.json",
+      "bytes": 1211,
+      "sha256": "10498771981aeaf66ee02d22d559d9c9e9ad1c65f0656f6ed0bc34bed08df02f"
+    },
+    {
       "name": "multi_browser_portfolio_suite_drill.json",
       "bytes": 520,
       "sha256": "bf5ba48e3df87a695875b2b94e4e3571e1a0911bac67ee4cc7b5d90169d4f16a"
+    },
+    {
+      "name": "multi_device_ci_contract.json",
+      "bytes": 1131,
+      "sha256": "682bc186fd1be7e3900ca3f8a4a820e00c46eb0d673066d17eecfe5005692656"
     },
     {
       "name": "multi_region_dr_drill.json",
@@ -319,5 +329,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (62 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (64 artifacts hashed); independent human/reviewer sign-off still pending"
 }
