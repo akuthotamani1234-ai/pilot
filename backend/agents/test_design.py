@@ -1174,29 +1174,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
              "change_cart": settings.environment in ("test", "staging")},
             guest=not prod.get("auth"), test_data=word))
 
-    # 3) short shop cases: search/add/open cart (never checkout). Cap so they cannot crowd out higher-priority journeys.
-    for p in pages:
-        f, cart = features(p), _cart_control(p) or _cart_link(p)
-        if f["add"] and cart and len(out) < limit:
-            word = f["word"]
-            cart_name = (cart.get("text") or "cart").strip()[:30]
-            out.append(_journey(
-                len(out) + 1, "shop",
-                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
-                + (f" → '{word}' is in the cart" if word else ""),
-                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
-                                              f"'{word}' is shown"] if word else [])
-                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
-                   f"Click '{cart_name}' to open the cart"]
-                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
-                + ["Stop here - checkout / buy is never clicked"],
-                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
-                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
-                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
-                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
-                guest=not p.get("auth"), test_data=word))
-
-    # 4) orders: open an order from the list and see its details
+    # 3) orders + tracking BEFORE short Shop-on cases (Phase 1: orders.tracking stayed untested under LARGE).
     for p in pages:
         f = next((x for x in page_features(p) if x["kind"] == "order_link"), None)
         if f and len(out) < limit:
@@ -1216,7 +1194,34 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
                 {"url": p["url"], "href": f["href"], "name": f["name"], "subs": subs}, guest=not p.get("auth")))
             break
 
-    # 3) fill every big form completely, like a person would (it is never sent)
+    # 4) short shop cases: search/add/open cart (never checkout). Leave ~4 slots for forms/nav later.
+    shop_budget = max(0, limit - len(out) - 4)
+    shop_added = 0
+    for p in pages:
+        if shop_added >= shop_budget:
+            break
+        f, cart = features(p), _cart_control(p) or _cart_link(p)
+        if f["add"] and cart and len(out) < limit:
+            word = f["word"]
+            cart_name = (cart.get("text") or "cart").strip()[:30]
+            out.append(_journey(
+                len(out) + 1, "shop",
+                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
+                + (f" → '{word}' is in the cart" if word else ""),
+                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
+                                              f"'{word}' is shown"] if word else [])
+                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
+                   f"Click '{cart_name}' to open the cart"]
+                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
+                + ["Stop here - checkout / buy is never clicked"],
+                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
+                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
+                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
+                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
+                guest=not p.get("auth"), test_data=word))
+            shop_added += 1
+
+    # 5) fill every big form completely, like a person would (it is never sent)
     seen_forms = set()
     for p in pages:
         if p.get("page_type") == "cart":
