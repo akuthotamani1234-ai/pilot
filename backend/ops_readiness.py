@@ -54,6 +54,11 @@ def readiness() -> dict:
             "ready": (ROOT / "DEPLOYMENT.md").is_file() or (ROOT / "STATUS.md").is_file(),
             "reason": "Operator docs exist; dedicated incident runbook drills not established",
         },
+        "ops_drill_checklist": _file_check(
+            "docs/OPS_DRILL_CHECKLIST.md",
+            ready_reason="Checklist documents required Gate H drills (drills themselves still open)",
+            missing_reason="docs/OPS_DRILL_CHECKLIST.md missing",
+        ),
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]

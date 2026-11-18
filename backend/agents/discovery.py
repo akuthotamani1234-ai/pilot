@@ -648,6 +648,12 @@ EXTRACT_JS = r"""
   const images = [...document.querySelectorAll('img')];
   const brokenImages = images.filter(i => i.complete && i.naturalWidth === 0 && i.src)
                              .map(i => i.src).slice(0, 20);
+  // Gate F a11y: visible images with their alt text (empty alt is a finding; missing attribute too)
+  const imageAlts = images.filter(visible).slice(0, 40).map(i => ({
+    src: (i.currentSrc || i.src || '').slice(0, 200),
+    alt: i.hasAttribute('alt') ? (i.getAttribute('alt') || '') : '',
+    missing_alt_attr: !i.hasAttribute('alt'),
+  }));
 
   const headings = [...document.querySelectorAll('h1, h2')].map(h => h.innerText.trim()).filter(Boolean).slice(0, 10);
 
@@ -690,7 +696,7 @@ EXTRACT_JS = r"""
   if (qaLocaleIso) locale.currency = qaLocaleIso[1];
   else if (qaLocaleSym) locale.currency = qaLocaleSym[0];
   return { component_snapshot, links, buttons, inputs, forms, headings, itemNames: [...new Set([...cardNames, ...itemNames])].slice(0, 20), draggables, droppables, hovers, iframes, itemLinks,
-           productNames, imageCount: images.length, brokenImages, unsupported, shadowRoots: roots.length - 1, tables,
+           productNames, imageCount: images.length, brokenImages, imageAlts, unsupported, shadowRoots: roots.length - 1, tables,
            totals, skeleton, locale };
 }
 """
