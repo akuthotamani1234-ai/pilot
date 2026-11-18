@@ -26,14 +26,14 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 |---|---|---|
 | A | Partial | Surface inventories + multi-fixture discovery score (4 demos); full live surface completeness open |
 | B | Partial | Redis preferred DurableQueue + claim/checkpoint/cancel/retry drills; product-wide review open |
-| C | Partial | Lifecycle + AdminPortal/DemoStore cart + oracle bind; broader live portal paths open |
-| D | Partial | API24 smoke + API30 Appium (system+ApiDemos) + Appium workflow; broad multi-device CI open |
-| E | Partial | Offline taxonomy + live DemoStore + multi-app (4 fixture) healing suite; production suite open |
-| F | Partial | Live Chromium/Firefox/WebKit suite + workflow_dispatch job; hosted runner matrix open |
-| G | Partial | Live Postgres/Redis/MinIO + OIDC ACL + review checklist/pack; independent sign-off open |
+| C | Partial | Lifecycle + cart drills + multi-portal oracle bind (4 truths); broader live portal paths open |
+| D | Partial | API24 smoke + API30 Appium + multi-device CI contract; broad multi-device CI execution open |
+| E | Partial | Offline taxonomy + multi-app (4 fixture) healing suite; production suite open |
+| F | Partial | Live Chromium/Firefox/WebKit suite + multi-browser CI contract; hosted runner matrix open |
+| G | Partial | Live Postgres/Redis/MinIO + OIDC ACL + review pack + blockers inventory; independent sign-off open |
 | H | Partial | Local DR + dual-region PG/MinIO/Redis + paging escalation + observability probe; hosted multi-region on-call open |
-| I | Partial | Dashboard + loopback OIDC JWT/ACL + auth-code SSO drill + approvals; hosted IdP Studio SSO open |
-| J | Strong (fixtures) | DemoStore/classic/AdminPortal/travel strong; Android/third-party broader still open |
+| I | Partial | Dashboard + loopback OIDC JWT/ACL + auth-code + Studio `/api/sso/callback`; hosted IdP Studio SSO open |
+| J | Strong (fixtures) | DemoStore 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party broader still open |
 
 ## Issue #22 mapping (suggested checks — apply only with evidence)
 
