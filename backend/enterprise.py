@@ -45,6 +45,7 @@ def readiness() -> dict:
     minio_evidence = ROOT / "docs" / "ops-evidence" / "minio_object_store_drill.json"
     api_version_evidence = ROOT / "docs" / "ops-evidence" / "api_version_contract.json"
     swarm_control_evidence = ROOT / "docs" / "ops-evidence" / "swarm_control_drill.json"
+    swarm_retry_evidence = ROOT / "docs" / "ops-evidence" / "swarm_retry_drill.json"
 
     def _evidence_ok(path: Path) -> bool:
         if not path.is_file():
@@ -63,6 +64,7 @@ def readiness() -> dict:
     minio_live = bool(object_uri) and _evidence_ok(minio_evidence)
     api_version_ready = api_version_evidence.is_file()
     swarm_control_ready = swarm_control_evidence.is_file()
+    swarm_retry_ready = swarm_retry_evidence.is_file()
     components = {
         "postgres": {
             "configured": bool(postgres),
@@ -147,6 +149,15 @@ def readiness() -> dict:
                 "No swarm control drill evidence yet"
             ),
         },
+        "swarm_retry": {
+            "configured": True,
+            "ready": swarm_retry_ready,
+            "reason": (
+                "Swarm lease-expiry→retry_wait drill evidence present; product-wide review still open"
+                if swarm_retry_ready else
+                "No swarm retry drill evidence yet"
+            ),
+        },
         "react_dashboard": {
             "configured": dashboard_configured,
             "ready": dashboard_built,
@@ -197,6 +208,8 @@ def readiness() -> dict:
         ready.append("pg_tenancy")
     if components["swarm_control"]["ready"]:
         ready.append("swarm_control")
+    if components["swarm_retry"]["ready"]:
+        ready.append("swarm_retry")
     missing = [name for name, row in components.items() if not row["ready"]]
     blueprint = blueprint_progress()
     return {
