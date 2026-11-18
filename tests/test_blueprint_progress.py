@@ -6,7 +6,7 @@ from backend.enterprise import readiness
 def test_blueprint_progress_lists_gates_and_stays_incomplete():
     snap = progress()
     assert snap["complete"] is False
-    assert snap["active"]["id"] in {"A", "B", "C", "D", "E", "F", "G", "H", "I"}
+    assert snap["active"]["id"] in set("ABCDEFGHI")
     assert len(snap["gates"]) == 10
     assert {g["id"] for g in snap["gates"]} == set("ABCDEFGHIJ")
     assert all(g["status"] != "done" for g in snap["gates"])  # gates stay open/partial/strong/active

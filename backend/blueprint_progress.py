@@ -35,8 +35,8 @@ def progress() -> dict:
     gates = [
         {"id": "A", "label": "Gate A — Discovery surfaces", "status": "active",
          "note": "Multi-fixture discovery score + surface inventories; full live matrix still open"},
-        {"id": "B", "label": "Gate B — Durable swarm", "status": "partial",
-         "note": "Redis preferred + claim/checkpoint/cancel + lease-expiry retry drills; review still open"},
+        {"id": "B", "label": "Gate B — Durable swarm", "status": "active",
+         "note": "Redis DurableQueue + control/retry + review checklist; product-wide sign-off still open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "active",
          "note": "Multi-portal oracle bind (4 truths) + lifecycle drills; live portal paths open"},
         {"id": "D", "label": "Gate D — Cross-surface matrix", "status": "partial",
@@ -132,6 +132,7 @@ def progress() -> dict:
         {"id": "A-travel-surfaces", "label": "TravelSite surface_coverage inventory", "status": "done"},
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
         {"id": "B-swarm-retry", "label": "Swarm lease-expiry → retry_wait control drill", "status": "done"},
+        {"id": "B-review-checklist", "label": "Product-wide swarm review checklist (unsigned)", "status": "done"},
         {"id": "G-live-drills-refresh4", "label": "Re-verify live Postgres/Redis/MinIO after F/C/B drills", "status": "done"},
         {"id": "G-live-drills-refresh5", "label": "Re-verify live Postgres/Redis/MinIO after Appium matrix", "status": "done"},
         {"id": "G-audit-export-drill", "label": "Tenant-scoped audit export contract drill", "status": "done"},

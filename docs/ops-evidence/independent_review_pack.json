@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T22:42:57Z",
+  "ran_at": "2026-11-18T23:20:19Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 71,
+  "artifact_count": 72,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -314,8 +314,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 3277,
-      "sha256": "6c6dac59dd80efbe677bc16d452ee1b2a24764410f989527554d0e9ba15097ce"
+      "bytes": 3363,
+      "sha256": "11c3324a3a0e40f7ef7b599318ec2ee8b4d1190181561ad9ec3b8162515a65b1"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -353,6 +353,11 @@
       "sha256": "42a8cb18444aa20fcbb01380ef2e1038e847dab64b0e8aee92ee72deb6dca063"
     },
     {
+      "name": "swarm_review_checklist.json",
+      "bytes": 621,
+      "sha256": "5e4ecfa059ac7ac378550f0a24b36ffa04dbaa3f645ef566031112b5c9562ab3"
+    },
+    {
       "name": "travel_site_surface_coverage.json",
       "bytes": 2526,
       "sha256": "e569529b0276c824ced32a906ee1a237124d36282f13d325a71262755d9b523e"
@@ -364,5 +369,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (71 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (72 artifacts hashed); independent human/reviewer sign-off still pending"
 }
