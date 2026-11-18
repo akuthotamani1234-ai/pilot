@@ -26,6 +26,11 @@ def test_summarize_counts_frames_shadow_and_api_seeds():
         "forms": [{"selector": "#modal [role=form]", "kind": "dialog"}],
         "buttons": [{"text": "Open", "kind": "modal"}],
         "links": [{"href": "/export.csv", "download": True}],
+        "components": [
+            {"kind": "canvas", "selector": "canvas#chart"},
+            {"kind": "web_component", "selector": "shop-card"},
+        ],
+        "inputs": [{"type": "file", "name": "avatar"}],
     }]
     crawl = {"found_by": {"http://shop.test/api/cart": "network", "http://shop.test/openapi.json": "scrape"},
              "blocked_requests": [{"url": "http://169.254.169.254/"}]}
@@ -43,7 +48,11 @@ def test_summarize_counts_frames_shadow_and_api_seeds():
     assert out["dialogs"]["form_dialogs"] == 1
     assert out["dialogs"]["modal_buttons"] == 1
     assert out["downloads"]["links"] == 1
+    assert out["rich_controls"]["canvas"] == 1
+    assert out["rich_controls"]["web_component"] == 1
+    assert out["rich_controls"]["file_upload"] == 1
     assert out["pages"] == 1
     assert out["gate_a_surfaces_complete"] is False
     assert "no dialog/modal surfaces recorded" not in out["unknown"]
     assert "no download links recorded" not in out["unknown"]
+    assert "no canvas/file-upload/web-component controls recorded" not in out["unknown"]

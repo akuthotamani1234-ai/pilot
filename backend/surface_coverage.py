@@ -18,6 +18,7 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
     viewports = {"desktop_or_default": 0, "mobile_checked": 0}
     dialogs = {"pages_with_dialogs": 0, "form_dialogs": 0, "modal_buttons": 0}
     downloads = {"pages_with_downloads": 0, "links": 0}
+    rich = {"canvas": 0, "file_upload": 0, "web_component": 0, "pages_with_rich": 0}
     for page in pages:
         page_frames = page.get("frames") if isinstance(page.get("frames"), list) else []
         listed = page.get("iframes") if isinstance(page.get("iframes"), list) else []
@@ -91,6 +92,32 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         if page_downloads:
             downloads["pages_with_downloads"] += 1
 
+        page_rich = 0
+        components = []
+        inv = page.get("component_inventory") if isinstance(page.get("component_inventory"), dict) else {}
+        if isinstance(inv.get("components"), list):
+            components.extend(inv["components"])
+        if isinstance(page.get("components"), list):
+            components.extend(page["components"])
+        for row in components:
+            kind = str((row or {}).get("kind") or "").lower()
+            if kind == "canvas":
+                rich["canvas"] += 1
+                page_rich += 1
+            elif kind in {"file_upload", "file"}:
+                rich["file_upload"] += 1
+                page_rich += 1
+            elif kind in {"web_component", "custom_element"}:
+                rich["web_component"] += 1
+                page_rich += 1
+        for field in page.get("inputs") or []:
+            ftype = str((field or {}).get("type") or (field or {}).get("kind") or "").lower()
+            if ftype in {"file", "file_upload"}:
+                rich["file_upload"] += 1
+                page_rich += 1
+        if page_rich:
+            rich["pages_with_rich"] += 1
+
     # Crawl-level mobile flag when pages did not store per-page mobile rows.
     if crawl.get("mobile_check") and viewports["mobile_checked"] == 0 and pages:
         viewports["mobile_checked"] = len(pages)
@@ -111,6 +138,7 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         "viewports": viewports,
         "dialogs": dialogs,
         "downloads": downloads,
+        "rich_controls": rich,
     }
     unknown = []
     if not pages:
@@ -131,6 +159,8 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         unknown.append("no dialog/modal surfaces recorded")
     if downloads["links"] == 0:
         unknown.append("no download links recorded")
+    if rich["canvas"] == 0 and rich["file_upload"] == 0 and rich["web_component"] == 0:
+        unknown.append("no canvas/file-upload/web-component controls recorded")
     return {
         "gate_a_surfaces_complete": False,
         "pages": len(pages),
@@ -138,10 +168,11 @@ def summarize_surfaces(app_map: list[dict] | None = None, crawl: dict | None = N
         "shadow": shadow,
         "dialogs": dialogs,
         "downloads": downloads,
+        "rich_controls": rich,
         "unknown": unknown,
         "evidence": evidence,
         "note": (
             "Surface counts are run-local. Empty does not prove the site lacks "
-            "iframes/shadow/API/lazy/metadata/dialogs/downloads."
+            "iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."
         ),
     }

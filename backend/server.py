@@ -618,10 +618,27 @@ def ops_healing_regression():
 
 
 @app.get("/api/audit/events")
-def audit_events(limit: int = 50):
+def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
     from backend.audit_store import list_audits
-    return {"events": list_audits(limit=min(200, max(1, int(limit or 50))))}
+    return {
+        "events": list_audits(
+            limit=min(200, max(1, int(limit or 50))),
+            tenant_id=tenant_id,
+        ),
+        "tenant_id": (tenant_id or "").strip() or None,
+        "gate_g_complete": False,
+    }
+
+
+@app.get("/api/audit/export")
+def audit_export(limit: int = 200, tenant_id: str | None = None):
+    """Gate G: export audit events package (SSO still open)."""
+    from backend.audit_store import export_audits
+    body = export_audits(limit=min(500, max(1, int(limit or 200))), tenant_id=tenant_id)
+    _audit("audit_export", count=int(body.get("count") or 0),
+           tenant=(tenant_id or "")[:80] or None)
+    return body
 
 
 @app.get("/api/ops/readiness")
