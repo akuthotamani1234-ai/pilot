@@ -1869,6 +1869,7 @@ def discovery_agent(state: QAState) -> QAState:
     swarm_tasks: list = []  # QX-A01 handoffs for those choices
     swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
     swarm_workers: set[int] = set()  # workers that received a chosen product
+    swarm_state = {"done": False}  # the first large list is opened by the workers themselves
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -2603,8 +2604,24 @@ def discovery_agent(state: QAState) -> QAState:
                         swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
-                        for row in assigned:
-                            print(f"  [discovery] swarm worker {row['worker']}: {row['url']}", flush=True)
+                        if not swarm_state["done"]:
+                            swarm_state["done"] = True
+                            from ..swarm import perform
+
+                            def _tell(worker: int, status: str, address: str) -> None:
+                                print(f"  [discovery] swarm worker {worker}: {status} {address}", flush=True)
+
+                            def _open(address: str) -> None:
+                                from playwright.sync_api import sync_playwright
+                                with sync_playwright() as playwright:
+                                    browser = playwright.chromium.launch(headless=settings.headless)
+                                    page = browser.new_page()
+                                    try:
+                                        page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                                    finally:
+                                        browser.close()
+
+                            perform(assigned, _open, on_status=_tell)
                     swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
                     swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
                 elif n_sample > 0 and len(items) >= 3:

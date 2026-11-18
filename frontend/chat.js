@@ -1376,9 +1376,12 @@
     const text = lines || [];
     const status = text.map((line) => line.match(/\[discovery\] swarm: (.+)$/)).filter(Boolean).pop();
     const chose = text.map((line) => line.match(/\[discovery\] swarm chose (\d+) of (\d+) products \((\d+) workers\)/)).filter(Boolean);
-    const workers = text.map((line) => line.match(/\[discovery\] swarm worker (\d+): (\S+)/)).filter(Boolean);
+    const events = text.map((line) => line.match(/\[discovery\] swarm worker (\d+): (opening|opened|blocked|stopped) (\S+)/)).filter(Boolean);
+    const latest = new Map();
+    events.forEach((match) => latest.set(match[1], match));
+    const workers = [...latest.values()];
     if (!status && !chose.length && !workers.length) return "";
-    const rows = workers.slice(0, 12).map((match) => `<li>Worker ${esc(match[1])}: ${esc(match[2])}</li>`).join("");
+    const rows = workers.slice(0, 12).map((match) => `<li>Worker ${esc(match[1])} is ${esc(match[2])}: ${esc(match[3])}</li>`).join("");
     const choice = chose.length ? `<p>${esc(chose[chose.length - 1][1])} of ${esc(chose[chose.length - 1][2])} products went to ${esc(chose[chose.length - 1][3])} workers.</p>` : "";
     return `<div class="card"><h4>Swarm</h4><p>${esc(status ? status[1] : "Workers are sharing this run.")}</p>${choice}${rows ? `<ul>${rows}</ul>` : ""}</div>`;
   }

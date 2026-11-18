@@ -60,3 +60,33 @@ def assign_workers(urls: list[str], worker_count: int) -> list[dict]:
         return []
     count = max(1, min(int(worker_count or 1), len(urls)))
     return [{"worker": (index % count) + 1, "url": url} for index, url in enumerate(urls)]
+
+
+def perform(assignments: list[dict], open_page, *, on_status=None) -> list[dict]:
+    """Open each worker's product at the same time. A payment address is not opened."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def run(row: dict) -> dict:
+        worker = int(row.get("worker") or 0)
+        url = str(row.get("url") or "")
+        if on_status:
+            on_status(worker, "opening", url)
+        if not url or is_payment_url(url):
+            if on_status:
+                on_status(worker, "blocked", url)
+            return {**row, "status": "blocked"}
+        try:
+            open_page(url)
+        except Exception:
+            if on_status:
+                on_status(worker, "stopped", url)
+            return {**row, "status": "stopped"}
+        if on_status:
+            on_status(worker, "opened", url)
+        return {**row, "status": "opened"}
+
+    if not assignments:
+        return []
+    with ThreadPoolExecutor(max_workers=min(len(assignments), 4)) as pool:
+        done = list(pool.map(run, assignments))
+    return done
