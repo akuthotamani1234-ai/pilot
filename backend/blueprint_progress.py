@@ -132,6 +132,7 @@ def progress() -> dict:
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
         {"id": "B-swarm-retry", "label": "Swarm lease-expiry → retry_wait control drill", "status": "done"},
         {"id": "G-live-drills-refresh4", "label": "Re-verify live Postgres/Redis/MinIO after F/C/B drills", "status": "done"},
+        {"id": "G-live-drills-refresh5", "label": "Re-verify live Postgres/Redis/MinIO after Appium matrix", "status": "done"},
         {"id": "G-audit-export-drill", "label": "Tenant-scoped audit export contract drill", "status": "done"},
         {"id": "I-auth-matrix-drill", "label": "Dashboard auth mode matrix drill (5 modes)", "status": "done"},
         {"id": "I-approvals-drill", "label": "Approvals enqueue→decide contract drill", "status": "done"},
