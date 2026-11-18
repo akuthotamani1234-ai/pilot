@@ -17,7 +17,7 @@ Each capability is **DONE** only when:
 
 | Gate | Required deliverable | Current status |
 |---|---|---|
-| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + `surface_coverage.json` (iframe/shadow/API counts); full-surface live completeness not established |
+| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + discovery-time `surface_coverage.json` (iframe/shadow/API counts); full-surface live completeness not established |
 | B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial — discovery dual-writes SiteSwarm listing into DurableQueue + plan/drain (`swarm_evidence.json` / `swarm_listing_mirror.json`). Redis/Postgres + full specialist-agent wiring still open |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — durable `qx_lifecycle_state.json` + `created.jsonl` confirm; design-time oracle bind softens AI defects; live portal adapters still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — discovery records desktop+phone viewport evidence into `device_matrix_evidence.json`; live Android emulator/API24+ still open |
@@ -25,7 +25,7 @@ Each capability is **DONE** only when:
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — a11y/perf/security + first-run `visual.json` capture on apply_run; broad live CI artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — SQLite `audit_events` persistence + migrations/RBAC/object store; live Postgres/Redis/MinIO isolation still not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local SQLite backup/restore + metrics snapshot + API load probe under `docs/ops-evidence/`; live DR/soak/incident drills still open |
-| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + durable approvals queue/API; auth/hosting still not established |
+| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + approvals queue/API + optional `QPILOT_DASHBOARD_TOKEN`; SSO/hosting still not established |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run6: 19/19 pages, 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
 ## Required live test protocol

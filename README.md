@@ -320,6 +320,8 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   are never sent.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
+- `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`. Gate I still
+  needs SSO/hosting before it can be marked complete.
 
 ## 7. AI cost
 Every AI call is logged with its tokens (`runs/<run>/llm_usage.jsonl`); `cost.json` holds the final breakdown.

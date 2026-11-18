@@ -593,9 +593,22 @@ def ops_load_probe(requests: int = 40):
     return {"gate_h_complete": False, "load_probe": evidence}
 
 
+def _require_dashboard_auth(authorization: str | None = Header(default=None)) -> None:
+    """Optional bearer token when QPILOT_DASHBOARD_TOKEN is set."""
+    from backend.dashboard_auth import authorize
+    verdict = authorize(authorization)
+    if not verdict["ok"]:
+        raise HTTPException(401, verdict["reason"])
+
+
 @app.get("/api/approvals")
-def list_approval_queue(status: str = "pending", limit: int = 50):
+def list_approval_queue(
+    status: str = "pending",
+    limit: int = 50,
+    authorization: str | None = Header(default=None),
+):
     """Gate I: list human-review approvals (pending by default)."""
+    _require_dashboard_auth(authorization)
     from backend.approvals import list_approvals
     return {"approvals": list_approvals(status=status, limit=limit), "gate_i_complete": False}
 
@@ -607,8 +620,9 @@ class CreateApproval(BaseModel):
 
 
 @app.post("/api/approvals")
-def create_approval(req: CreateApproval):
+def create_approval(req: CreateApproval, authorization: str | None = Header(default=None)):
     """Enqueue an uncertain_assertion / heal / sensitive item for a person."""
+    _require_dashboard_auth(authorization)
     from backend.approvals import create
     try:
         row = create(req.kind, req.subject, detail=req.detail or "")
@@ -623,8 +637,13 @@ class DecideApproval(BaseModel):
 
 
 @app.post("/api/approvals/{approval_id}/decide")
-def decide_approval_api(approval_id: str, req: DecideApproval):
+def decide_approval_api(
+    approval_id: str,
+    req: DecideApproval,
+    authorization: str | None = Header(default=None),
+):
     """Record a person's answer via human_review.decide."""
+    _require_dashboard_auth(authorization)
     from backend.approvals import decide_approval
     try:
         row = decide_approval(approval_id, req.answer)

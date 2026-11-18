@@ -50,7 +50,7 @@ def progress() -> dict:
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Local SQLite backup/restore + metrics snapshot; live DR/load still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "Dashboard + approvals queue/API; auth/hosting still open"},
+         "note": "Dashboard + approvals + optional bearer token; SSO/hosting still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "DemoStore strong; broader sites/Android open"},
     ]
@@ -69,13 +69,15 @@ def progress() -> dict:
         {"id": "B-wire", "label": "Durable swarm plan/drain on discovery/apply", "status": "done"},
         {"id": "D-viewport", "label": "Desktop+phone viewport evidence from discovery", "status": "done"},
         {"id": "B-listing", "label": "SiteSwarm listing dual-write into DurableQueue", "status": "active"},
-        {"id": "I-approvals", "label": "Approvals queue + dashboard decide UI", "status": "active"},
+        {"id": "I-approvals", "label": "Approvals queue + dashboard decide UI", "status": "done"},
         {"id": "H-local-drill", "label": "Local backup/restore + metrics snapshot", "status": "done"},
-        {"id": "H-load-probe", "label": "Local API load probe evidence", "status": "active"},
+        {"id": "H-load-probe", "label": "Local API load probe evidence", "status": "done"},
+        {"id": "A-discovery-surfaces", "label": "Write surface_coverage during discovery", "status": "done"},
+        {"id": "I-token", "label": "Optional dashboard bearer token for approvals", "status": "active"},
         {"id": "H-drills", "label": "Live DR / load / incident drills", "status": "open"},
         {"id": "D-android", "label": "Live Android device-matrix proof", "status": "open"},
         {"id": "G-live", "label": "Live Postgres / Redis / MinIO isolation", "status": "open"},
-        {"id": "I-auth", "label": "Dashboard auth + hosted contracts", "status": "open"},
+        {"id": "I-auth", "label": "SSO + hosted multi-tenant contracts", "status": "open"},
     ]
     return {
         "complete": False,

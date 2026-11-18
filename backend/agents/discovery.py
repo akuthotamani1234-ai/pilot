@@ -3007,10 +3007,14 @@ def discovery_agent(state: QAState) -> QAState:
           f"perf={portfolios.get('performance') is not None} "
           f"security={portfolios.get('security_headers') is not None} (Gate F not complete)", flush=True)
     from ..device_matrix import viewport_evidence_from_app_map
+    from ..surface_coverage import summarize_surfaces
     from ..swarm_evidence import record_swarm
     viewport_rows = viewport_evidence_from_app_map(app_map)
     (run_dir / "device_matrix_evidence.json").write_text(
         json.dumps(viewport_rows, indent=2), encoding="utf-8")
+    surfaces = summarize_surfaces(app_map, crawl)
+    (run_dir / "surface_coverage.json").write_text(
+        json.dumps(surfaces, indent=2), encoding="utf-8")
     swarm = record_swarm(
         run_dir,
         [page.get("url") or "" for page in app_map if page.get("url")],
@@ -3020,6 +3024,10 @@ def discovery_agent(state: QAState) -> QAState:
     )
     print(f"  [discovery] device matrix evidence: {len(viewport_rows)} profile row(s) "
           f"(Gate D not complete)", flush=True)
+    print(f"  [discovery] surface coverage: pages={surfaces.get('pages')} "
+          f"frames={((surfaces.get('frames') or {}).get('listed_iframes'))} "
+          f"shadow_roots={((surfaces.get('shadow') or {}).get('open_roots_seen'))} "
+          f"(Gate A not complete)", flush=True)
     print(f"  [discovery] durable swarm: processed={swarm.get('processed')} "
           f"statuses={swarm.get('statuses')} (Gate B not complete)", flush=True)
     if blocked:
