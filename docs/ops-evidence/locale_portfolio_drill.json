@@ -1,0 +1,29 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_locale_portfolio",
+  "ran_at": "2026-11-18T17:34:47Z",
+  "fixture": "DemoStore",
+  "observed": {
+    "language": "en",
+    "currency": "USD",
+    "date_format": "MDY",
+    "tax": "0",
+    "offered": true
+  },
+  "expected": {
+    "language": "en",
+    "currency": "USD",
+    "date_format": "MDY",
+    "tax": "0",
+    "offered": true
+  },
+  "portfolio": {
+    "portfolio": "locale",
+    "verdict": "pass",
+    "ok": true,
+    "reason": "",
+    "findings": []
+  },
+  "ok": true,
+  "reason": "DemoStore locale portfolio evaluated offline; broad live multi-browser CI artifacts still open"
+}

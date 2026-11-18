@@ -656,6 +656,15 @@ def ops_device_matrix():
     return {"gate_d_complete": False, "device_matrix": evidence}
 
 
+@app.post("/api/ops/drills/locale-portfolio")
+def ops_locale_portfolio():
+    """Gate F: DemoStore locale portfolio evidence (still incomplete)."""
+    from backend.locale_portfolio_drill import run_locale_portfolio_drill
+    evidence = run_locale_portfolio_drill()
+    _audit("ops_locale_portfolio", ok=bool(evidence.get("ok")))
+    return {"gate_f_complete": False, "locale_portfolio": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
