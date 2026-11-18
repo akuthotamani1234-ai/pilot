@@ -22,6 +22,7 @@ BLOCKERS = (
             "minio_multi_region_drill.json",
             "redis_multi_region_drill.json",
             "multi_store_dr_drill.json",
+            "failover_rto_drill.json",
             "paging_escalation_drill.json",
         ],
     },
@@ -32,6 +33,7 @@ BLOCKERS = (
         "local_partial": [
             "loopback_sso_drill.json",
             "loopback_auth_code_sso_drill.json",
+            "loopback_pkce_sso_drill.json",
             "studio_oidc_callback_drill.json",
             "sso_tenant_acl_drill.json",
         ],

@@ -31,8 +31,8 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | E | Partial | Offline taxonomy + multi-app healing + 4-app production-like multi-failure matrix; production suite open |
 | F | Partial | Live Chromium/Firefox/WebKit suite + multi-browser CI contract; hosted runner matrix open |
 | G | Partial | Live Postgres/Redis/MinIO + OIDC ACL + review pack + blockers inventory; independent sign-off open |
-| H | Partial | Local DR + dual-region PG/MinIO/Redis + paging escalation + observability probe; hosted multi-region on-call open |
-| I | Partial | Dashboard + loopback OIDC JWT/ACL + auth-code + Studio `/api/sso/callback`; hosted IdP Studio SSO open |
+| H | Partial | Local DR + dual-region PG/MinIO/Redis + failover RTO pack + paging + observability; hosted multi-region on-call open |
+| I | Partial | Dashboard + loopback OIDC JWT/ACL + auth-code + PKCE S256 + Studio `/api/sso/callback`; hosted IdP Studio SSO open |
 | J | Strong (fixtures) | DemoStore 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party broader still open |
 
 ## Issue #22 mapping (suggested checks — apply only with evidence)

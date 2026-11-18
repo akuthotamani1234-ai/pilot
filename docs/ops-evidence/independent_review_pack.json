@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:45:23Z",
+  "ran_at": "2026-11-18T23:46:56Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 74,
+  "artifact_count": 76,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -128,6 +128,11 @@
       "sha256": "9af9153ce542551cc008b241227e7194e9f0eced1772a350422af777eb363c36"
     },
     {
+      "name": "failover_rto_drill.json",
+      "bytes": 1061,
+      "sha256": "1f4175c2dea1bf2077d9d5843def545151c541f202a1ce3be508646bef888f97"
+    },
+    {
       "name": "failure_matrix_drill.json",
       "bytes": 3763,
       "sha256": "18e2b9d7fc304fe5094f70e0f653f4118c7020b95098c4489c0f9e2a9c55966b"
@@ -188,6 +193,11 @@
       "sha256": "af92aa29290da7d4c5197f8c57a1d1ac30fd36ca4cf4e7eac389c176e6b91006"
     },
     {
+      "name": "loopback_pkce_sso_drill.json",
+      "bytes": 736,
+      "sha256": "3f4409c9a82e9a5d66cbf676c0c08303c7605459b48d2e93c17c6ea32666fdb1"
+    },
+    {
       "name": "loopback_sso_drill.json",
       "bytes": 644,
       "sha256": "8f8cfd8b969abc7f3d01feeb0f3cbf296b4d545b99a2b4ed45fbd18e65413a3a"
@@ -200,7 +210,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "28d8287faba14c74ef30e9f608695e9117bae129afaf907e9978050f62e1deed"
+      "sha256": "15ae16f54fecb1e5b62f8ee36c4adf3f62416e6c8827bbae0c276d85a13e5833"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -240,7 +250,7 @@
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "6d8816ede5b48e3cfed63cf5b8997b26997162571e81a25d04fe2dcd7c87e724"
+      "sha256": "c8bdf6772bed93c5359bc8929933ca04281fecb16158057642c9e6aeeb723dd8"
     },
     {
       "name": "multi_store_dr_drill.json",
@@ -320,12 +330,12 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "1a4a60d91723d23cd18da3b31c26f27dcc26899b79192e195de8868c2bb0ff08"
+      "sha256": "0b65b1be99f2c16db73f043d1b10dc83dfcaf0e9a6e28793bb3657318a692c19"
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 3533,
-      "sha256": "a7a0d0862bfb19d1f051f05117a7a5f889d31bd2ba70d511ac5996242161bace"
+      "bytes": 3683,
+      "sha256": "133a4c244bb0e51582bd634ee35861e5d92328427b505c4c9e8b7b3711b6251f"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -379,5 +389,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (74 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (76 artifacts hashed); independent human/reviewer sign-off still pending"
 }
