@@ -53,4 +53,14 @@ Same command → `phase1_demo_store_run2.json`. Metrics matched run 1 exactly (i
 | clean | 18/18 | **23/24** | **0** | n/a |
 | buggy | 18/18 | 10/10 judged | **0** | **6/6** |
 
-Remaining clean gap: 1 feature still not fully correct (see run4 JSON rows). Gate J evidence is strong; keep that single unknown explicit.
+Remaining clean gap after run4: `orders.tracking` not tested (journey-budget crowding). Fixed by Phase 2 priority reorder; **verified in run5**.
+
+## Run 5 (after orders journey priority — 2026-11-18)
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | 18/18 | **24/24** | **0** | n/a |
+| buggy | 18/18 | 10/10 judged | **0** | **6/6** |
+
+Artifact: `deep_validation/live_runs/phase1_demo_store_run5_orders_tracking.json`.  
+`orders.tracking` now tested + verified (`TC-9C3AE640`). Gate J DemoStore seeded-defect evidence is strong; broader third-party sites and live Android remain out of scope for this fixture.

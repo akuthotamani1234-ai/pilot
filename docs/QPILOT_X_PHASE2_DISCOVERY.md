@@ -5,11 +5,13 @@
 
 ## Measured discovery gap from Phase 1
 
-Run4 clean: **23/24** features correct. Remaining miss:
+Run4 clean: **23/24** features correct. Remaining miss was:
 
 - `orders.tracking` — detected on `/orders/{id}` but **never tested** (no matching cases)
 
 Same root pattern as `cart_total`: default journey budget `LARGE=20` filled with short “Shop on” cases before the orders/tracking journey.
+
+**Closed in run5:** after the priority reorder below, DemoStore clean is **24/24** correct with `orders.tracking` verified (`docs/QPILOT_X_PHASE1_BENCHMARK.md`).
 
 ## Changes in this phase
 
@@ -23,8 +25,4 @@ Still open for full discovery gate:
 
 - Live iframe/shadow/responsive matrix evidence beyond existing discovery helpers
 - Persistent graph nodes/edges with provenance store (enterprise path)
-- Re-run DemoStore accuracy to confirm `orders.tracking` now executes
-
-## Next
-
-Re-benchmark DemoStore (optional confirmation), then Phase 3 durable swarm leases/queue.
+- ~~Re-run DemoStore accuracy to confirm `orders.tracking` now executes~~ **done (run5)**

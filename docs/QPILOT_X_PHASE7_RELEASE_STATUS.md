@@ -33,7 +33,7 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | G | Partial foundations | RBAC/local store/readiness only — no live Postgres/Redis/MinIO |
 | H | Not established | Ops/DR/load not done |
 | I | Partial | API v1 helpers; Studio still HTML/JS (not React) |
-| J | Partial→strong | DemoStore evidence strong; `orders.tracking` residual + broader sites open |
+| J | Strong (DemoStore) | Run5: **24/24** clean features, **6/6** bugs, **0** false alarms; broader sites / Android still open |
 
 ## Issue #22 mapping (suggested checks — apply only with evidence)
 
@@ -55,4 +55,4 @@ pytest -m "not slow" --ignore=tests/test_android_device.py
 → 1204 passed, 11 skipped, 62 deselected in 1184.66s
 ```
 
-Branch HEAD at measurement: see PR #23 commits through Phase 6 foundations. Live Android (`BLOWAI_ANDROID_E2E`) and enterprise Postgres/Redis/MinIO were **not** exercised here.
+Later on the same PR: `/api/v1` aliases + apply_run device/portfolio/enterprise wiring (`3bd2d22`); DemoStore **run5** closed the `orders.tracking` residual (24/24 clean, 6/6 bugs). Live Android (`BLOWAI_ANDROID_E2E`) and enterprise Postgres/Redis/MinIO were **not** exercised here.
