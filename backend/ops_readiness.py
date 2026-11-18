@@ -502,6 +502,14 @@ def readiness() -> dict:
                 else "No ClassicShop mutation score evidence"
             ),
         },
+        "fixture_mutation_suite_drill": {
+            "ready": _ops_evidence("fixture_mutation_suite_drill.json"),
+            "reason": (
+                "AdminPortal+TravelSite mutation suite present; broader third-party suites still open"
+                if _ops_evidence("fixture_mutation_suite_drill.json")
+                else "No Admin/Travel mutation suite evidence"
+            ),
+        },
         "cross_platform_journey_drill": {
             "ready": _ops_evidence("cross_platform_journey_drill.json"),
             "reason": (

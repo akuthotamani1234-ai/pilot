@@ -115,6 +115,9 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["classic_mutation_score_drill"]["ready"] is has(
         "classic_mutation_score_drill.json"
     )
+    assert snap["checks"]["fixture_mutation_suite_drill"]["ready"] is has(
+        "fixture_mutation_suite_drill.json"
+    )
     assert snap["checks"]["cross_platform_journey_drill"]["ready"] is has(
         "cross_platform_journey_drill.json"
     )
