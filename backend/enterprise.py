@@ -9,6 +9,7 @@ import os
 
 from .api_versioning import SUPPORTED
 from .object_store import open_object_store
+from .queue_backend import open_durable_queue
 from .rbac import ROLES
 
 
@@ -22,6 +23,7 @@ def readiness() -> dict:
     redis = _present("REDIS_URL") or _present("QPILOT_REDIS_URL")
     object_uri = _present("OBJECT_STORE_URI") or _present("MINIO_URL")
     store = open_object_store(object_uri or None)
+    queue = open_durable_queue(redis or None)
     components = {
         "postgres": {
             "configured": bool(postgres),
@@ -31,9 +33,15 @@ def readiness() -> dict:
         },
         "redis": {
             "configured": bool(redis),
-            "ready": False,
-            "reason": "Redis URL set but queue adapter not established" if redis
-            else "Redis not configured; DurableQueue SQLite remains default",
+            "ready": bool(queue.get("ready")) and queue.get("backend") == "redis",
+            "reason": queue.get("reason") if redis else "Redis not configured; DurableQueue SQLite remains default",
+            "queue_backend": queue.get("backend"),
+        },
+        "durable_queue": {
+            "configured": True,
+            "ready": bool(queue.get("ready")),
+            "backend": queue.get("backend"),
+            "reason": queue.get("reason") or "local SQLite durable queue ready",
         },
         "object_store": {
             "configured": bool(object_uri) or True,
@@ -59,7 +67,11 @@ def readiness() -> dict:
             "reason": "Studio remains HTML/JS under frontend/; React/TS dashboard not established",
         },
     }
-    ready = ["rbac", "api_versioning"] + (["object_store"] if components["object_store"]["ready"] else [])
+    ready = ["rbac", "api_versioning"]
+    if components["object_store"]["ready"]:
+        ready.append("object_store")
+    if components["durable_queue"]["ready"]:
+        ready.append("durable_queue")
     missing = [name for name, row in components.items() if not row["ready"]]
     return {
         "gate_g_complete": False,
