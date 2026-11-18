@@ -26,7 +26,7 @@ Each capability is **DONE** only when:
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — live Postgres/Redis/MinIO + loopback OIDC tenant ACL + independent review checklist + hashed evidence pack; hosted IdP SSO + independent sign-off still open |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local drills + CI rollback + loopback paging/escalation + dual-region PG/MinIO/Redis failover + observability probe + soak + DR + tabletop; hosted multi-region DR/on-call still open |
 | I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + approvals + auth matrix + loopback OIDC JWT + auth-code SSO drill + tenant ACL + API version contract; hosted IdP Studio SSO login still not established |
-| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong controlled fixtures + DemoStore mutation 6/6 + ClassicShop mutation 3/3; broader third-party mutation suites still open; gate not globally COMPLETE |
+| J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong controlled fixtures + DemoStore 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutation scores; broader third-party mutation suites still open; gate not globally COMPLETE |
 
 ## Required live test protocol
 

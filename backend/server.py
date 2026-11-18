@@ -1101,6 +1101,20 @@ def ops_classic_mutation_score():
     return {"gate_j_complete": False, "classic_mutation_score": evidence}
 
 
+@app.post("/api/ops/drills/fixture-mutation-suite")
+def ops_fixture_mutation_suite():
+    """Gate J: AdminPortal + TravelSite mutation scores (still incomplete)."""
+    from backend.fixture_mutation_suite_drill import run_fixture_mutation_suite_drill
+    evidence = run_fixture_mutation_suite_drill()
+    _audit(
+        "ops_fixture_mutation_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_j_complete": False, "fixture_mutation_suite": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
