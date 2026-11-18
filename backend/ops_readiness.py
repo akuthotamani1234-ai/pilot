@@ -199,6 +199,14 @@ def readiness() -> dict:
                 else "No lifecycle cleanup drill evidence"
             ),
         },
+        "swarm_control_drill": {
+            "ready": _ops_evidence("swarm_control_drill.json"),
+            "reason": (
+                "Swarm claim/checkpoint/cancel drill present; product-wide supervisor review still open"
+                if _ops_evidence("swarm_control_drill.json")
+                else "No swarm control drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
