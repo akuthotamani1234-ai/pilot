@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:48:50Z",
+  "ran_at": "2026-11-18T23:49:51Z",
   "ok": true,
   "blockers": [
     {
@@ -109,12 +109,14 @@
       "label": "Independent security/reliability review sign-off",
       "local_partial": [
         "independent_review_checklist.json",
-        "independent_review_pack.json"
+        "independent_review_pack.json",
+        "independent_review_readiness_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "independent_review_checklist.json",
-        "independent_review_pack.json"
+        "independent_review_pack.json",
+        "independent_review_readiness_drill.json"
       ],
       "local_partial_missing": []
     }

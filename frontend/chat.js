@@ -88,9 +88,19 @@
     });
     const upcoming = bp.upcoming || [];
     // Recent done work (implemented) then active/open (where we are going).
-    upcoming.filter((u) => u.status === "done").slice(-3).forEach((u) => {
+    upcoming.filter((u) => u.status === "done").slice(-4).forEach((u) => {
       if (items.some((row) => row.id === u.id)) return;
       items.push({ id: u.id, label: u.label, note: "Landed", status: "done" });
+    });
+    // Hard-open blockers first among remaining so the path ahead is visible.
+    (bp.blockers || []).forEach((b) => {
+      if (items.some((row) => row.id === b.id)) return;
+      items.push({
+        id: b.id,
+        label: b.label || b.id,
+        note: "Blocker · Gate " + (b.gate || "?"),
+        status: "open",
+      });
     });
     upcoming.filter((u) => u.status === "active" || u.status === "open").slice(0, 5).forEach((u) => {
       if (items.some((row) => row.id === u.id)) return;

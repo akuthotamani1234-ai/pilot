@@ -46,7 +46,7 @@ def progress() -> dict:
         {"id": "F", "label": "Gate F — Portfolios (a11y/perf/…)", "status": "partial",
          "note": "Live 3-engine suite + CI contract + artifact manifest; hosted runners still open"},
         {"id": "G", "label": "Gate G — Tenancy / audit / store", "status": "active",
-         "note": "Tenancy + OIDC ACL + review evidence pack; independent sign-off still open"},
+         "note": "Tenancy + OIDC ACL + review pack + readiness score; independent sign-off still open"},
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Multi-store DR + failover RTO pack + paging; hosted multi-region DR/on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
@@ -196,7 +196,9 @@ def progress() -> dict:
         {"id": "F-live-ci", "label": "Broad hosted multi-browser portfolio CI artifacts", "status": "open"},
         {"id": "G-review-checklist", "label": "Independent review checklist documented", "status": "done"},
         {"id": "G-review-pack", "label": "Independent review evidence pack (hashed, unsigned)", "status": "done"},
+        {"id": "G-review-readiness", "label": "Independent review readiness score (unsigned)", "status": "done"},
         {"id": "blockers-inventory", "label": "Remaining hard-open blockers inventory published", "status": "done"},
+        {"id": "sidebar-blockers", "label": "Studio sidebar lists hard-open blockers explicitly", "status": "done"},
         {"id": "G-review", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = [u for u in upcoming if u.get("status") == "open"]

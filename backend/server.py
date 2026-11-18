@@ -1355,6 +1355,22 @@ def ops_device_artifact_manifest():
     return {"gate_d_complete": False, "device_artifact_manifest": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-readiness")
+def ops_independent_review_readiness():
+    """Gate G: review readiness score (unsigned; human sign-off still open)."""
+    from backend.independent_review_readiness_drill import (
+        run_independent_review_readiness_drill,
+    )
+    evidence = run_independent_review_readiness_drill()
+    _audit(
+        "ops_independent_review_readiness",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        score=int(evidence.get("score") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_readiness": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
