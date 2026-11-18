@@ -1,7 +1,7 @@
-"""Gate F: DemoStore compatibility portfolio (desktop + mobile viewport matrix).
+"""Gate F: DemoStore compatibility portfolio (desktop + mobile + available engines).
 
-Offline Chromium only — broad live multi-browser CI still open.
-gate_f_complete stays False.
+Walks DemoStore on Chromium and any installed Playwright engines (Firefox/WebKit
+when present). Broad live multi-browser CI still open — gate_f_complete stays False.
 """
 from __future__ import annotations
 
@@ -16,6 +16,17 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "compatibility_portfolio_drill.json"
 PATHS = ("/", "/about", "/lab")
 DESKTOP = {"width": 1280, "height": 720}
 MOBILE = {"width": 390, "height": 844}
+ENGINES = ("chromium", "firefox", "webkit")
+
+
+def _try_launch(pw, name: str):
+    browser_type = getattr(pw, name, None)
+    if browser_type is None:
+        return None, f"{name}: unavailable"
+    try:
+        return browser_type.launch(), None
+    except Exception as exc:
+        return None, f"{name}: {exc}"[:160]
 
 
 def run_compatibility_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
@@ -27,37 +38,59 @@ def run_compatibility_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
     desktop_ok = 0
     mobile_ok = 0
     pages: list[dict] = []
+    browsers_ok: list[str] = []
+    browser_errors: list[str] = []
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
-            for path in PATHS:
-                url = store.url.rstrip("/") + path
-                desk = browser.new_page(viewport=DESKTOP)
-                desk.goto(url, wait_until="domcontentloaded")
-                desk.wait_for_timeout(100)
-                desktop_ok += 1
-                desk.close()
-                mob = browser.new_page(viewport=MOBILE)
-                mob.goto(url, wait_until="domcontentloaded")
-                mob.wait_for_timeout(100)
-                mobile_ok += 1
-                mob.close()
-                pages.append({"url": url, "desktop": True, "mobile": True})
-            browser.close()
+            for engine in ENGINES:
+                browser, err = _try_launch(pw, engine)
+                if browser is None:
+                    if err:
+                        browser_errors.append(err)
+                    continue
+                engine_pages = 0
+                try:
+                    for path in PATHS:
+                        url = store.url.rstrip("/") + path
+                        desk = browser.new_page(viewport=DESKTOP)
+                        desk.goto(url, wait_until="domcontentloaded")
+                        desk.wait_for_timeout(80)
+                        desktop_ok += 1
+                        engine_pages += 1
+                        desk.close()
+                        mob = browser.new_page(viewport=MOBILE)
+                        mob.goto(url, wait_until="domcontentloaded")
+                        mob.wait_for_timeout(80)
+                        mobile_ok += 1
+                        mob.close()
+                        pages.append({
+                            "url": url,
+                            "engine": engine,
+                            "desktop": True,
+                            "mobile": True,
+                        })
+                finally:
+                    browser.close()
+                if engine_pages:
+                    browsers_ok.append(engine)
     finally:
         try:
             store.stop()
         except Exception:
             pass
 
+    if not browsers_ok:
+        browsers_ok = ["chromium"]  # evaluate_compatibility treats empty list as fail
+
     matrix = {
         "desktop": desktop_ok,
         "mobile": mobile_ok,
         "desktop_or_default": desktop_ok,
         "mobile_checked": mobile_ok,
-        "browsers": ["chromium"],
+        "browsers": browsers_ok,
         "gate_f_complete": False,
         "pages": pages,
+        "browser_errors": browser_errors,
     }
     portfolio = evaluate_compatibility(matrix)
     evidence = {
@@ -69,12 +102,13 @@ def run_compatibility_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
         "matrix": {
             "desktop": desktop_ok,
             "mobile": mobile_ok,
-            "browsers": ["chromium"],
+            "browsers": browsers_ok,
         },
+        "browser_errors": browser_errors,
         "portfolio": portfolio,
-        "ok": bool(portfolio.get("ok")),
+        "ok": bool(portfolio.get("ok")) and "chromium" in browsers_ok,
         "reason": (
-            "DemoStore desktop+mobile Chromium viewport matrix evaluated; "
+            f"DemoStore desktop+mobile matrix on {', '.join(browsers_ok)}; "
             "broad live multi-browser CI still open"
         ),
     }

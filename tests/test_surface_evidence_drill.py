@@ -24,6 +24,9 @@ def test_demo_store_surface_drill_sees_lab_iframe_shadow(tmp_path: Path):
     assert "lab" in evidence["pages_walked"]
     assert evidence["surfaces"]["frames"]["pages_with_frames"] >= 1
     assert evidence["surfaces"]["shadow"]["pages_with_shadow"] >= 1
+    assert evidence["surfaces"]["rich_controls"]["canvas"] >= 1
+    lazy = (evidence["surfaces"].get("evidence") or {}).get("lazy") or {}
+    assert int(lazy.get("pages_with_lazy") or 0) >= 1
     assert (tmp_path / "demo_store_surface_coverage.json").is_file()
 
 
