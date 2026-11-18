@@ -162,6 +162,14 @@ def readiness() -> dict:
                 else "No TravelSite surface coverage inventory"
             ),
         },
+        "discovery_score_drill": {
+            "ready": _ops_evidence("discovery_score_drill.json"),
+            "reason": (
+                "Multi-fixture discovery score present; full Gate A live matrix still open"
+                if _ops_evidence("discovery_score_drill.json")
+                else "No multi-fixture discovery score evidence"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (
