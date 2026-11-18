@@ -13,8 +13,10 @@ def test_record_swarm_plans_and_drains(tmp_path):
     assert out["ran"] is True
     assert out["gate_b_complete"] is False
     assert out["processed"] >= 1
+    assert out["backend"] in {"sqlite", "redis"}
     assert (tmp_path / "swarm_evidence.json").is_file()
-    assert (tmp_path / "swarm_queue.sqlite").is_file()
+    if out["backend"] == "sqlite":
+        assert (tmp_path / "swarm_queue.sqlite").is_file()
     # checkout must not be scheduled as a worker URL
     assert all("/checkout" not in (t.get("url") or "") for t in out["tasks"] if t.get("role") == "worker")
 

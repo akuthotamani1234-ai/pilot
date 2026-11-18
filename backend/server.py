@@ -553,6 +553,16 @@ def enterprise_readiness():
     return snap
 
 
+@app.post("/api/sso/validate-bearer")
+def sso_validate_bearer(authorization: str | None = Header(default=None)):
+    """Gate I: structural OIDC JWT claim check. Never completes Gate I."""
+    from backend.dashboard_sso import validate_authorization_header
+    verdict = validate_authorization_header(authorization)
+    _audit("sso_validate_bearer", ok=bool(verdict.get("ok")),
+           verified=bool(verdict.get("signature_verified")))
+    return verdict
+
+
 @app.get("/api/blueprint/progress")
 def blueprint_progress_api():
     """Studio sidebar todos: phases, gates A–J, and what is next. Never claims complete."""

@@ -18,14 +18,14 @@ Each capability is **DONE** only when:
 | Gate | Required deliverable | Current status |
 |---|---|---|
 | A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + discovery-time `surface_coverage.json` (iframe/shadow/API/lazy/metadata/viewport/dialog/download) + AdminPortal surface inventory drill; full-surface live completeness not established |
-| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial — SQLite + Redis DurableQueue adapters, listing dual-write, coverage/oracle specialists; product-wide Redis default + review still open |
+| B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial — Redis preferred when `REDIS_URL` set (else SQLite), listing dual-write, coverage/oracle specialists; product-wide review still open |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — durable lifecycle + `created.jsonl` + AdminPortal `remote_delete` adapter; broader live portal paths still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — desktop+phone viewport evidence + Android protocol dry-run contract (never verifies matrix); live emulator/API24+ still open |
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — persist-then-`run_saved` + flaky→trends wiring + healing_policy; full live failure matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — a11y/perf/security + first-run `visual.json` capture on apply_run; broad live CI artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — live Postgres/Redis/MinIO drills + adapters when configured; Studio SSO / multi-tenant ACLs + independent review still open |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial — local drills + CI rollback + loopback paging + controlled AdminPortal soak + MinIO object backup/restore under `docs/ops-evidence/`; live hosted DR/on-call still open |
-| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + approvals + auth modes + OIDC/hosting env contract snapshot; live SSO login still not established |
+| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/dashboard/` + approvals + auth modes + OIDC JWT claim helper (`/api/sso/validate-bearer`); live hosted SSO login still not established |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong controlled fixtures: DemoStore 24/24+6/6; classic 20/20+3/3; AdminPortal run4 25/25+7/7 **0 FA**; travel 9/9+6/6. Broader third-party / Android still open; gate not globally COMPLETE |
 
 ## Required live test protocol

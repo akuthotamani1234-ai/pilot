@@ -1,17 +1,17 @@
 """Gate B: run the durable supervisor over crawled URLs for lease evidence.
 
-Also dual-writes SiteSwarm listing handoffs into the durable SQLite queue during
+Also dual-writes SiteSwarm listing handoffs into the durable queue during
 discovery so listing ownership is not only an in-memory protocol list.
 
-This does not re-crawl pages. Redis enterprise queue remains open — local
-SQLite wiring only. gate_b_complete stays False.
+Uses Redis when REDIS_URL is set (product default), else per-run SQLite.
+gate_b_complete stays False until review.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from .swarm_supervisor import drain, enqueue_plan, open_queue, plan_run
+from .swarm_supervisor import drain, enqueue_plan, open_queue, plan_run, queue_backend_name
 
 
 def mirror_listing(run_dir: str | Path, listing_tasks: list[dict], *, run_id: str = "") -> dict:
@@ -21,17 +21,20 @@ def mirror_listing(run_dir: str | Path, listing_tasks: list[dict], *, run_id: st
     rid = (run_id or path.name or "run").strip()
     tasks = [t for t in (listing_tasks or []) if isinstance(t, dict)]
     if not tasks:
-        return {"mirrored": 0, "run_id": rid, "backend": "sqlite"}
+        return {"mirrored": 0, "run_id": rid, "backend": "none"}
     queue = open_queue(path)
+    backend = queue_backend_name(queue)
     try:
         stored = enqueue_plan(queue, rid, tasks)
         note = {
             "mirrored": len(stored),
             "run_id": rid,
-            "backend": "sqlite",
+            "backend": backend,
             "at": "listing",
             "gate_b_complete": False,
-            "reason": "SiteSwarm listing dual-written to durable SQLite; Redis still open",
+            "reason": (
+                f"SiteSwarm listing dual-written to durable {backend}; Gate B review still open"
+            ),
         }
         (path / "swarm_listing_mirror.json").write_text(json.dumps(note, indent=2), encoding="utf-8")
         return note
@@ -56,7 +59,7 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
             "gate_b_complete": False,
             "ran": False,
             "reason": "no crawled URLs to schedule",
-            "backend": "sqlite",
+            "backend": "none",
             "processed": 0,
             "tasks": [],
             "listing_mirrored": 0,
@@ -64,6 +67,7 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
         (path / "swarm_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
         return evidence
     queue = open_queue(path)
+    backend = queue_backend_name(queue)
     try:
         listing_stored = enqueue_plan(queue, rid, listing) if listing else []
         planned = plan_run(rid, clean, worker_count=max(1, int(worker_count)), limit=limit) if clean else []
@@ -119,8 +123,11 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
         evidence = {
             "gate_b_complete": False,
             "ran": True,
-            "reason": "local SQLite durable plan/drain (+ listing dual-write); Redis/Postgres enterprise queue still open",
-            "backend": "sqlite",
+            "reason": (
+                f"durable {backend} plan/drain (+ listing dual-write); "
+                "Gate B product-wide review still open"
+            ),
+            "backend": backend,
             "run_id": rid,
             "urls_planned": len(clean),
             "listing_mirrored": len(listing_stored),

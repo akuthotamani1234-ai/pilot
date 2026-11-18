@@ -96,9 +96,45 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
     return {"processed": processed, "tasks": queue.list_run(run_id)}
 
 
+def queue_backend_name(queue) -> str:
+    """sqlite | redis — for evidence notes (never invents readiness)."""
+    name = getattr(queue, "backend", None)
+    if isinstance(name, str) and name:
+        return name
+    return "redis" if queue.__class__.__name__.startswith("Redis") else "sqlite"
+
+
 def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
-    """Queue file for one run directory (local SQLite via the backend selector)."""
-    opened = open_durable_queue(f"sqlite:{Path(run_dir) / 'swarm_queue.sqlite'}", **kwargs)
+    """Prefer Redis when REDIS_URL is set; else per-run SQLite.
+
+    Product-wide Redis default when configured. Falls back to SQLite if Redis is
+    unready. Gate B still needs review before complete.
+    """
+    import os
+
+    path = Path(run_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    redis_uri = (os.getenv("REDIS_URL") or os.getenv("QPILOT_REDIS_URL") or "").strip()
+    if redis_uri.startswith(("redis://", "rediss://")):
+        try:
+            from .redis_queue import RedisDurableQueue
+
+            lease = int(kwargs.get("lease_seconds") or 90)
+            attempts = int(kwargs.get("max_attempts") or 3)
+            queue = RedisDurableQueue(
+                redis_uri,
+                lease_seconds=lease,
+                max_attempts=attempts,
+                key_prefix=f"qpilot:swarm:{path.name}",
+            )
+            queue.backend = "redis"  # type: ignore[attr-defined]
+            return queue
+        except Exception:
+            pass  # fall through to SQLite
+    opened = open_durable_queue(f"sqlite:{path / 'swarm_queue.sqlite'}", **kwargs)
     if not opened.get("ready") or opened.get("queue") is None:
         raise RuntimeError(opened.get("reason") or "durable queue is not ready")
-    return opened["queue"]
+    queue = opened["queue"]
+    if not getattr(queue, "backend", None):
+        queue.backend = "sqlite"  # type: ignore[attr-defined]
+    return queue

@@ -327,7 +327,9 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
 - `QPILOT_TENANT_ID` (optional): when set, finished runs are indexed into SQLite tenancy for
   `GET /api/tenancy/runs` (principal mode). Cross-tenant denials are audited. Studio SSO still required for Gate G.
 - `QPILOT_OIDC_ISSUER` / `QPILOT_OIDC_CLIENT_ID` / `QPILOT_OIDC_AUDIENCE` / `QPILOT_DASHBOARD_HOST` (optional): declare
-  intended SSO/hosting contracts. Configuration alone never completes Gate I — live IdP login still required.
+  intended SSO/hosting contracts. `POST /api/sso/validate-bearer` checks JWT iss/aud/exp structurally.
+  Configuration alone never completes Gate I — live IdP login still required.
+- `REDIS_URL` (optional): when set, discovery swarm DurableQueue prefers Redis (else per-run SQLite).
 - `POSTGRES_URL` / `REDIS_URL` / `OBJECT_STORE_URI` (optional): live drills via
   `POST /api/ops/drills/postgres-isolation`, `/redis-queue`, `/minio`. Evidence under `docs/ops-evidence/`.
   Gate G stays incomplete without Studio SSO/multi-tenant ACLs and independent review.
