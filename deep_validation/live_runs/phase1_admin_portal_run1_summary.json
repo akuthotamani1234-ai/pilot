@@ -1,0 +1,68 @@
+{
+  "run": "admin_run1",
+  "site": "admin",
+  "mode": "first",
+  "ran_at": "2026-11-18T14:55:00Z",
+  "clean_summary": "pages 8/8 \u00b7 features detected 24/25 \u00b7 tested 23/25 \u00b7 verified 23/25 \u00b7 correct 23/25 \u00b7 false alarms 1 \u00b7 frames found 2/2, tested 2",
+  "buggy_summary": "pages 8/8 \u00b7 features detected 24/25 \u00b7 tested 23/25 \u00b7 verified 17/25 \u00b7 correct 8/8 \u00b7 false alarms 3 \u00b7 bugs caught 7/7 (false passes: 0) \u00b7 frames found 2/2, tested 2 \u00b7 questions 1",
+  "clean": {
+    "run": "127.0.0.1_34153_20261118_144454",
+    "pages_known": 8,
+    "pages_found": 8,
+    "pages_missing": [],
+    "features_correct": 23,
+    "features_known": 25,
+    "incorrect_rows": [
+      {
+        "id": "users.next_page",
+        "expect": "verified",
+        "detected": true,
+        "tested": true,
+        "verified": true,
+        "correct": false,
+        "statuses": [
+          "Failed",
+          "Passed"
+        ],
+        "cases": [
+          "TC-3820FA1C",
+          "TC-A27FD0DD",
+          "TC-3B5DD177",
+          "TC-837BEFD0"
+        ]
+      },
+      {
+        "id": "widgets.shadow_nickname",
+        "expect": "verified",
+        "detected": true,
+        "tested": false,
+        "verified": false,
+        "correct": false,
+        "statuses": [],
+        "cases": []
+      }
+    ]
+  },
+  "buggy": {
+    "run": "127.0.0.1_46811_20261118_144750",
+    "bugs": {
+      "planted": 7,
+      "caught": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [],
+    "features_correct_judged": 8,
+    "features_judged": 8
+  },
+  "gate_j_complete": false,
+  "reason": "AdminPortal first controlled measure (REVIEW=off); DemoStore remains strongest Gate J fixture"
+}
