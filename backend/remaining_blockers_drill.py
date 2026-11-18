@@ -77,6 +77,7 @@ BLOCKERS = (
         "local_partial": [
             "independent_review_checklist.json",
             "independent_review_pack.json",
+            "independent_review_readiness_drill.json",
         ],
     },
 )

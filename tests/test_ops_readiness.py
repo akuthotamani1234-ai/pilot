@@ -130,6 +130,9 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["independent_review_pack"]["ready"] is has(
         "independent_review_pack.json"
     )
+    assert snap["checks"]["independent_review_readiness_drill"]["ready"] is has(
+        "independent_review_readiness_drill.json"
+    )
     assert snap["checks"]["mutation_score_drill"]["ready"] is has("mutation_score_drill.json")
     assert snap["checks"]["classic_mutation_score_drill"]["ready"] is has(
         "classic_mutation_score_drill.json"
