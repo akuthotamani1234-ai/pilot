@@ -1,39 +1,11 @@
 [
   {
     "surface": "android",
-    "device_id": "emulator-5554",
+    "device_id": "emulator-5556",
     "form": "emulator",
-    "api_level": 24,
+    "api_level": 30,
     "outcome": "passed",
     "source": "android_emulator_smoke",
-    "model": "Android SDK built for x86_64"
-  },
-  {
-    "surface": "android",
-    "device_id": "emulator-5556",
-    "form": "emulator",
-    "api_level": 30,
-    "outcome": "passed",
-    "source": "android_appium_product_matrix",
-    "apps_passed": [
-      "com.android.settings",
-      "com.android.contacts",
-      "com.android.chrome"
-    ]
-  },
-  {
-    "surface": "android",
-    "device_id": "emulator-5556",
-    "form": "emulator",
-    "api_level": 30,
-    "outcome": "passed",
-    "source": "android_appium_product_matrix",
-    "apps_passed": [
-      "com.android.settings",
-      "com.android.contacts",
-      "com.android.chrome",
-      "io.appium.android.apis"
-    ],
-    "third_party_apk": true
+    "model": "sdk_gphone_x86_64"
   }
 ]

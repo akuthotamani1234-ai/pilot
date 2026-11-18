@@ -8,4 +8,7 @@ def test_production_healing_matrix_reports_honestly(tmp_path: Path):
     assert evidence["gate_e_complete"] is False
     assert (tmp_path / "production_healing_matrix_drill.json").is_file()
     assert evidence.get("ok") is True
-    assert evidence.get("passed") == evidence.get("total") == 2
+    assert evidence.get("passed") == evidence.get("total") == 4
+    assert {a["app"] for a in evidence.get("apps") or []} >= {
+        "demo_store", "classic_shop", "admin_portal", "travel_site",
+    }
