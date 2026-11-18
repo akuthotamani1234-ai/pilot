@@ -11,6 +11,7 @@ from .agent_eval import evaluate, model_change_allowed
 from .coverage_verify import verify_sources
 from .dependency_fault import inject_fault
 from .device_matrix import evaluate_matrix
+from .discovery_graph import write_graph
 from .enterprise import readiness as enterprise_readiness
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .explore_score import rank_candidates
@@ -18,6 +19,7 @@ from .human_review import decide
 from .journey_map import compare_journey
 from .locale_check import check_locale, keep_sample
 from .mutation_score import score_planted
+from .ops_readiness import readiness as ops_readiness
 from .oracle import bind_assertion, cart_expected, decide_observation
 from .plugins import review_plugin
 from .portfolio_gates import evaluate_portfolios
@@ -328,6 +330,8 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "device_matrix": evaluate_matrix(_device_evidence(state, results)),
         "portfolios": _portfolios(run_dir, locale_file),
         "enterprise": enterprise_readiness(),
+        "ops": ops_readiness(),
+        "discovery_graph": write_graph(run_dir, app_map, crawl),
     }
     applied["trends"]["verdict"] = keep_verdict(verdict, applied["trends"])
     applied["release"] = from_run(state)

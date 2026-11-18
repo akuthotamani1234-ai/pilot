@@ -509,6 +509,16 @@ def home():
 def enterprise_readiness():
     """Gate G/I readiness probe. Never claims complete when backends are only configured."""
     from backend.enterprise import readiness
+    from backend.ops_readiness import readiness as ops_readiness
+    snap = readiness()
+    snap["ops"] = ops_readiness()
+    return snap
+
+
+@app.get("/api/ops/readiness")
+def ops_readiness_api():
+    """Gate H ops probe. Docs alone never mark the gate complete."""
+    from backend.ops_readiness import readiness
     return readiness()
 
 

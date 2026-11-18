@@ -61,6 +61,9 @@ def test_api_v1_aliases_legacy_routes_and_rejects_unsupported_versions(client):
     assert ready.status_code == 200
     body = ready.json()
     assert body["gate_g_complete"] is False and body["gate_i_complete"] is False
+    assert body["ops"]["gate_h_complete"] is False
+    ops = client.get("/api/v1/ops/readiness")
+    assert ops.status_code == 200 and ops.json()["gate_h_complete"] is False
 
 
 def test_every_change_needs_the_header(client):

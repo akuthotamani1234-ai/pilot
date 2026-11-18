@@ -17,15 +17,15 @@ Each capability is **DONE** only when:
 
 | Gate | Required deliverable | Current status |
 |---|---|---|
-| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial; live completeness not established |
+| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — `discovery_graph.json` persists nodes/edges with provenance; full-surface live completeness not established |
 | B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; SQLite durable queue + supervisor added (`swarm_queue`/`swarm_supervisor`). Redis/Postgres + full agent wiring still open. See `docs/QPILOT_X_PHASE3_SWARM.md` |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — provenance bind/decide + remote-confirmed cleanup APIs (`docs/QPILOT_X_PHASE4_CORRECTNESS.md`); full pipeline wiring still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — declarative device matrix (`device_matrix.py`); live emulator evidence still open. See `docs/QPILOT_X_PHASE5_ANDROID_PORTFOLIOS.md` |
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — replay execution truth + locator-only healing guards covered offline; live failure reproduction matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — portfolio evaluators offline (`portfolio_gates.py`); missing evidence stays unknown. Live portfolio artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial foundations — RBAC helper, local object store, readiness probe (`docs/QPILOT_X_PHASE6_ENTERPRISE.md`); Postgres/Redis/MinIO live stack still not established |
-| H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Not established |
-| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` versioning helpers; Studio remains HTML/JS (not React) |
+| H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial foundations — `ops_readiness` probe lists CI/docs vs missing observability/DR/load evidence; gate not complete |
+| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` helpers + Studio blueprint readiness panel; React/TS dashboard still not established |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run5: 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
 ## Required live test protocol

@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .discovery_graph import write_graph
 from .page_status import exploration_status
 from .report_clarity import build as clarity_build
 from .state import QAState
@@ -16,6 +17,7 @@ def discovery_report(state: QAState) -> dict:
     crawl = dict(state.get("crawl") or {})
     if "exploration" not in crawl:
         crawl["exploration"] = exploration_status(crawl)
+    write_graph(run_dir, pages, crawl)
     opened = sum(not p.get("error") and (p.get("status") or 0) < 400 for p in pages)
     complete = not state.get("incomplete") and not state.get("setup_error") and bool(opened)
     note = ("Discovery only. Components were observed, but their functionality was not tested. "

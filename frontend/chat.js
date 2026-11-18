@@ -70,11 +70,32 @@
     return true;
   }
 
+  async function loadBlueprintStatus() {
+    const box = $("blueprintStatus");
+    if (!box) return;
+    try {
+      const r = await fetch("/api/v1/enterprise/readiness");
+      if (!r.ok) throw new Error("readiness unavailable");
+      const d = await r.json();
+      const ready = (d.ready || []).slice(0, 5).map(esc).join(", ") || "none";
+      const missing = (d.missing || []).slice(0, 5).map(esc).join(", ") || "none";
+      const opsMissing = ((d.ops && d.ops.missing) || []).slice(0, 3).map(esc).join(", ") || "n/a";
+      box.innerHTML =
+        "<small><b>Ready</b> " + ready + "</small>" +
+        "<small><b>Open</b> " + missing + "</small>" +
+        "<small><b>Ops gaps</b> " + opsMissing + "</small>" +
+        "<small class=\"muted\">Gates G/H/I not complete</small>";
+    } catch (_err) {
+      box.innerHTML = "<span class=\"muted small\">Blueprint readiness unavailable</span>";
+    }
+  }
+
   // ------------------------------------------------------------ start
   renderTodo({}, false);
   greet();
   loadHistory();
   resumeIfRunning();
+  loadBlueprintStatus();
 
   $("composer").addEventListener("submit", (e) => { e.preventDefault(); onSend(); });
   $("newBtn").addEventListener("click", newTest);
