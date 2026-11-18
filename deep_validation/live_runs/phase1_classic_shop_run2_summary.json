@@ -1,0 +1,37 @@
+{
+  "run": "classic_run2",
+  "site": "classic",
+  "mode": "first",
+  "ran_at": "2026-11-18T14:25:00Z",
+  "clean_summary": "pages 13/14 \u00b7 features detected 19/20 \u00b7 tested 20/20 \u00b7 verified 20/20 \u00b7 correct 20/20 \u00b7 false alarms 0 \u00b7 questions 1",
+  "buggy_summary": "pages 13/14 \u00b7 features detected 19/20 \u00b7 tested 20/20 \u00b7 verified 16/20 \u00b7 correct 6/6 \u00b7 false alarms 0 \u00b7 bugs caught 3/3 (false passes: 0) \u00b7 questions 1",
+  "clean": {
+    "run": "127.0.0.1_35401_20261118_140823",
+    "pages_known": 14,
+    "pages_found": 13,
+    "pages_missing": [
+      "/index.php?rt=product/search  (only through the search box)"
+    ],
+    "features_correct": 20,
+    "features_known": 20,
+    "incorrect_rows": []
+  },
+  "buggy": {
+    "run": "127.0.0.1_37599_20261118_141531",
+    "bugs": {
+      "planted": 3,
+      "caught": [
+        "cart_total",
+        "search_wrong_hit",
+        "sort_price"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [],
+    "features_correct_judged": 6,
+    "features_judged": 6
+  },
+  "gate_j_complete": false,
+  "reason": "Classic after checkout-link protect; search page gap may remain; DemoStore still the strong fixture"
+}
