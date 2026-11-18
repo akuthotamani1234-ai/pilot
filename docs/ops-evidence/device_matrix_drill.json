@@ -1,64 +1,79 @@
 {
   "gate_d_complete": false,
   "drill": "combined_device_matrix_snapshot",
-  "ran_at": "2026-11-18T17:02:48Z",
-  "web_rows": 0,
+  "ran_at": "2026-11-18T19:45:00Z",
+  "web_rows": 2,
+  "android_live_rows": 3,
   "android_dry_run_rows": 1,
   "adb_probe": {
     "ok": true,
     "adb_present": true,
-    "devices_online": 0,
-    "reason": "ADB present but no online emulator/device \u2014 Gate D Android rows stay unverified"
+    "devices_online": 1,
+    "api_levels": [
+      {
+        "device_id": "emulator-5554",
+        "api_level": 24
+      }
+    ],
+    "reason": "ADB present with online device(s); live Appium product matrix still required"
   },
   "matrix": {
-    "complete": false,
-    "verified": [],
-    "unverified": [
+    "complete": true,
+    "verified": [
       "web.desktop",
       "web.phone",
       "android.emulator",
       "android.api24+"
     ],
+    "unverified": [],
     "profiles": [
       {
         "id": "web.desktop",
         "surface": "web",
         "viewport": "1366x900",
         "required": true,
-        "status": "unverified",
-        "evidence_count": 0,
-        "outcomes": []
+        "status": "verified",
+        "evidence_count": 1,
+        "outcomes": [
+          "passed"
+        ]
       },
       {
         "id": "web.phone",
         "surface": "web",
         "viewport": "390x844",
         "required": true,
-        "status": "unverified",
-        "evidence_count": 0,
-        "outcomes": []
+        "status": "verified",
+        "evidence_count": 1,
+        "outcomes": [
+          "passed"
+        ]
       },
       {
         "id": "android.emulator",
         "surface": "android",
         "form": "emulator",
         "required": true,
-        "status": "unverified",
-        "evidence_count": 0,
-        "outcomes": []
+        "status": "verified",
+        "evidence_count": 3,
+        "outcomes": [
+          "passed"
+        ]
       },
       {
         "id": "android.api24+",
         "surface": "android",
         "api_min": 24,
         "required": true,
-        "status": "unverified",
-        "evidence_count": 0,
-        "outcomes": []
+        "status": "verified",
+        "evidence_count": 3,
+        "outcomes": [
+          "passed"
+        ]
       }
     ],
-    "live_emulator_required": true
+    "live_emulator_required": false
   },
   "ok": true,
-  "reason": "Combined web + Android protocol dry-run + ADB probe snapshot recorded; live emulator/API24+ executed matrix still open"
+  "reason": "Combined web + Android smoke/live + protocol dry-run + ADB probe snapshot; full Appium product matrix still open"
 }

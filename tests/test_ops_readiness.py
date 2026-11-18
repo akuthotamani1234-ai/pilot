@@ -56,3 +56,6 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["incident_tabletop_drill"]["ready"] is (
         has("incident_tabletop_drill.json") or has("incident_tabletop_stub.json")
     )
+    assert snap["checks"]["android_emulator_smoke_drill"]["ready"] is has(
+        "android_emulator_smoke_drill.json"
+    )

@@ -1,0 +1,11 @@
+[
+  {
+    "surface": "android",
+    "device_id": "emulator-5554",
+    "form": "emulator",
+    "api_level": 24,
+    "outcome": "passed",
+    "source": "android_emulator_smoke",
+    "model": "Android SDK built for x86_64"
+  }
+]

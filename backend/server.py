@@ -694,8 +694,20 @@ def ops_device_matrix():
     from backend.device_matrix_drill import run_device_matrix_drill
     evidence = run_device_matrix_drill()
     _audit("ops_device_matrix", android_dry=int(evidence.get("android_dry_run_rows") or 0),
+           android_live=int(evidence.get("android_live_rows") or 0),
            online=int((evidence.get("adb_probe") or {}).get("devices_online") or 0))
     return {"gate_d_complete": False, "device_matrix": evidence}
+
+
+@app.post("/api/ops/drills/android-emulator-smoke")
+def ops_android_emulator_smoke():
+    """Gate D: live emulator adb smoke when a device is online (still incomplete)."""
+    from backend.android_emulator_smoke_drill import run_android_emulator_smoke_drill
+    evidence = run_android_emulator_smoke_drill()
+    _audit("ops_android_emulator_smoke", ok=bool(evidence.get("ok")),
+           api=int(evidence.get("api_level") or 0),
+           device=str(evidence.get("device_id") or "")[:40])
+    return {"gate_d_complete": False, "android_emulator_smoke": evidence}
 
 
 @app.post("/api/ops/drills/locale-portfolio")

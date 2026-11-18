@@ -30,7 +30,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | A | `/api/ops/drills/admin-portal-surfaces`, `demo-store-surfaces`, `classic-shop-surfaces`, `travel-site-surfaces` | `docs/ops-evidence/*_surface_coverage.json` |
 | B | `/api/ops/drills/swarm-control`, `swarm-retry` | `docs/ops-evidence/swarm_control_drill.json`, `swarm_retry_drill.json` |
 | C | `/api/ops/drills/lifecycle-cleanup`, `admin-portal-lifecycle`, `oracle-spec`, `demo-store-cart-lifecycle` | `docs/ops-evidence/lifecycle_cleanup_drill.json`, `admin_portal_lifecycle_drill.json`, `oracle_spec_drill.json`, `demo_store_cart_lifecycle_drill.json` |
-| D | `/api/ops/drills/device-matrix` | `docs/ops-evidence/device_matrix_drill.json` |
+| D | `/api/ops/drills/device-matrix`, `android-emulator-smoke`, `android-adb-probe` | `docs/ops-evidence/device_matrix_drill.json`, `android_emulator_smoke_drill.json`, `android_adb_probe.json` |
 | E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
 | F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json` |
 | G | Postgres/Redis/MinIO + `/api/audit/export` + `/api/ops/drills/audit-export` | `docs/ops-evidence/pg_tenancy_drill.json`, `audit_export_drill.json` (+ infra drills) |
