@@ -33,8 +33,12 @@ Same command → `phase1_demo_store_run2.json`. Metrics matched run 1 exactly (i
 
 ## Gate J
 
-**Partial evidence recorded; gate not closed.** Remaining before close: root-cause/fix `cart_total` miss and quantity false alarm `TC-7E74C4E3`, then link issue #22 with commit + artifacts.
+**Partial evidence recorded; gate not closed.**
+
+### Gap fixes in progress
+- **`cart_total` miss (confirmed):** journey budget (`LARGE=20`) let short “Shop on” cases crowd out the `change_cart` shopping journey. Fix: emit product/`change_cart` journey first (`backend/agents/test_design.py`) + `tests/test_journey_budget_cart_total.py`. Re-benchmark required.
+- **Quantity false alarm:** DemoStore accepts qty=2 correctly in isolation; likely shared-session/cart races across workers. Still open.
 
 ## Next
 
-Use these measured gaps to harden discovery/oracles (Phase 2/4) rather than claiming completeness.
+Re-run DemoStore accuracy after the journey-budget fix; then tackle quantity isolation if the false alarm remains.
