@@ -23,9 +23,9 @@ Each capability is **DONE** only when:
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — declarative device matrix (`device_matrix.py`); live emulator evidence still open. See `docs/QPILOT_X_PHASE5_ANDROID_PORTFOLIOS.md` |
 | E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — replay execution truth + locator-only healing guards covered offline; live failure reproduction matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — portfolio evaluators offline (`portfolio_gates.py`); missing evidence stays unknown. Live portfolio artifacts still open |
-| G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Not established |
+| G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial foundations — RBAC helper, local object store, readiness probe (`docs/QPILOT_X_PHASE6_ENTERPRISE.md`); Postgres/Redis/MinIO live stack still not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Not established |
-| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial; existing UI is not React |
+| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` versioning helpers; Studio remains HTML/JS (not React) |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Partial — DemoStore runs recorded (run4: 6/6 bugs, 0 false alarms; 1 clean feature gap remains). See `docs/QPILOT_X_PHASE1_BENCHMARK.md` |
 
 ## Required live test protocol

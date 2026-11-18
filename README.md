@@ -135,6 +135,8 @@ Other settings you may want:
 - `VISION` (default `auto`): the AI looks at screenshots (on with a cloud AI or an Ollama vision model; `on` / `off`).
 - `TEST_RETRIES` (default 0): run failed tests again to spot flaky ones (1 = once).
 - `UI_PORT` (default 8000): the web UI's port.
+- Optional enterprise URLs (`POSTGRES_URL`, `REDIS_URL`, `OBJECT_STORE_URI`): leave empty for local-first mode.
+  A URL alone does not enable Postgres/Redis/MinIO until those adapters are wired and verified.
 
 **`.env` holds your keys. Never share it, copy it to another person or put it in a repository.** `.env.example` is
 the empty template that is shared. Git ignores `.env` (see `.gitignore`).
