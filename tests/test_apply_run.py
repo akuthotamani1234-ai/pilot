@@ -65,6 +65,10 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert applied["portfolios"]["complete"] is False
     assert "locale" in applied["portfolios"]["passed"]
     assert applied["enterprise"]["gate_g_complete"] is False
+    assert applied["ops"]["gate_h_complete"] is False
+    assert applied["discovery_graph"]["gate_a_complete"] is False
+    assert applied["discovery_graph"]["counts"]["nodes"] >= 1
+    assert (tmp_path / "discovery_graph.json").is_file()
     assert applied["sessions"]["roles"]["shopper"]["state"] == "session_expired"
     assert "password" not in json.dumps(applied["sessions"])
     assert applied["environment"]["payment_blocked"] is True
