@@ -72,3 +72,4 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["demo_store_healing_live_drill"]["ready"] is has(
         "demo_store_healing_live_drill.json"
     )
+    assert snap["checks"]["postgres_dr_drill"]["ready"] is has("postgres_dr_drill.json")
