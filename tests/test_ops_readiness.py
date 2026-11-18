@@ -65,3 +65,10 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["android_appium_ci_contract"]["ready"] is has(
         "android_appium_ci_contract.json"
     )
+    assert snap["checks"]["multi_browser_portfolio_suite_drill"]["ready"] is has(
+        "multi_browser_portfolio_suite_drill.json"
+    )
+    assert snap["checks"]["loopback_sso_drill"]["ready"] is has("loopback_sso_drill.json")
+    assert snap["checks"]["demo_store_healing_live_drill"]["ready"] is has(
+        "demo_store_healing_live_drill.json"
+    )

@@ -1,7 +1,7 @@
 {
   "gate_f_complete": false,
   "drill": "demo_store_security_portfolio",
-  "ran_at": "2026-11-18T18:23:00Z",
+  "ran_at": "2026-11-18T20:00:41Z",
   "fixture": "DemoStore",
   "https": false,
   "headers_observed": [
