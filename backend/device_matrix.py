@@ -5,6 +5,9 @@ executed outcome. Missing or planned-only rows stay unverified — never a pass.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 REQUIRED_PROFILES = (
     {"id": "web.desktop", "surface": "web", "viewport": "1366x900", "required": True},
     {"id": "web.phone", "surface": "web", "viewport": "390x844", "required": True},
@@ -38,6 +41,79 @@ def _match(profile: dict, evidence: dict) -> bool:
         except (TypeError, ValueError):
             return False
     return False
+
+
+def android_evidence_from_run(run_dir: str | Path | None = None, *, config: dict | None = None,
+                              results: list[dict] | None = None) -> list[dict]:
+    """Emit Android matrix rows only when this run recorded a real device/config.
+
+    Never invents emulator evidence for web-only runs. ``outcome`` comes from
+    executed results when present; otherwise the environment probe alone is not
+    enough to verify a profile.
+    """
+    cfg = dict(config or {})
+    env = {}
+    if run_dir:
+        path = Path(run_dir) / "android_environment.json"
+        if path.is_file():
+            try:
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    env = loaded
+            except (OSError, ValueError):
+                env = {}
+        if not cfg:
+            for name in ("android_config.json", ".private/android_config.json"):
+                cfg_path = Path(run_dir) / name
+                if cfg_path.is_file():
+                    try:
+                        loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
+                        if isinstance(loaded, dict):
+                            cfg = loaded
+                            break
+                    except (OSError, ValueError):
+                        continue
+    device_id = str(cfg.get("device_id") or cfg.get("udid") or "").strip()
+    if not device_id and isinstance(env.get("devices"), list):
+        # Prefer an emulator that was online during the probe.
+        for device in env["devices"]:
+            if not isinstance(device, dict):
+                continue
+            did = str(device.get("device_id") or "")
+            if did.startswith("emulator-") and str(device.get("status") or "") == "device":
+                device_id = did
+                break
+    if not device_id:
+        return []
+    api_level = cfg.get("api_level") or cfg.get("android_version") or cfg.get("platform_version")
+    if api_level in (None, "") and isinstance(env.get("devices"), list):
+        for device in env["devices"]:
+            if isinstance(device, dict) and str(device.get("device_id") or "") == device_id:
+                api_level = device.get("api_level") or device.get("android_version")
+                break
+    outcomes = []
+    for row in results or []:
+        status = str(row.get("status") or row.get("execution_status") or row.get("outcome") or "").lower()
+        if status in {"passed", "pass"}:
+            outcomes.append("passed")
+        elif status in {"failed", "fail", "error"}:
+            outcomes.append("failed")
+        elif status in {"blocked", "skipped", "inconclusive"}:
+            outcomes.append("blocked")
+    if not outcomes:
+        # Environment/config present but nothing executed — leave unverified.
+        return []
+    outcome = outcomes[0]
+    form = "emulator" if device_id.startswith("emulator-") or str(cfg.get("form") or "") == "emulator" else ""
+    row = {
+        "surface": "android",
+        "device_id": device_id,
+        "form": form,
+        "api_level": api_level,
+        "outcome": outcome,
+        "source": "android_run",
+    }
+    return [row]
 
 
 def viewport_evidence_from_app_map(app_map: list[dict] | None = None) -> list[dict]:

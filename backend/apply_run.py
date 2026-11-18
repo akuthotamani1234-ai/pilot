@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent_eval import evaluate, model_change_allowed
 from .coverage_verify import verify_sources
 from .dependency_fault import inject_fault
-from .device_matrix import evaluate_matrix, viewport_evidence_from_app_map
+from .device_matrix import android_evidence_from_run, evaluate_matrix, viewport_evidence_from_app_map
 from .discovery_graph import write_graph
 from .enterprise import readiness as enterprise_readiness
 from .env_controls import CONTROLS, action_still_blocked, enable_control
@@ -159,8 +159,13 @@ def _device_evidence(state: dict, results: list[dict]) -> list[dict]:
                or "phone" in str(row.get("title") or "").lower() for row in results):
             if not any(e.get("viewport") == "390x844" for e in evidence):
                 evidence.append({"surface": "web", "viewport": "390x844", "outcome": primary})
-    if target in {"mobile", "android"} and primary:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+    config = state.get("config") if isinstance(state.get("config"), dict) else {}
+    evidence.extend(android_evidence_from_run(
+        state.get("run_dir"),
+        config=config,
+        results=results,
+    ))
+    if target in {"mobile", "android"} and primary and not any(e.get("surface") == "android" for e in evidence):
         evidence.append({
             "surface": "android",
             "device_id": str(config.get("device_id") or ""),
