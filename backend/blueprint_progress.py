@@ -93,6 +93,8 @@ def progress() -> dict:
         {"id": "J-classic-checkout-fix", "label": "Protect checkout anchor links for classic Gate J", "status": "done"},
         {"id": "J-classic-run2", "label": "Classic shop accuracy run2 (20/20, 3/3)", "status": "done"},
         {"id": "J-admin-run1", "label": "AdminPortal accuracy run1 (Partial 24/25, 7/7)", "status": "done"},
+        {"id": "J-shadow-textbox", "label": "Textbox cases for open-shadow Nickname inputs", "status": "done"},
+        {"id": "G-live-drills-refresh", "label": "Re-verify live Postgres/Redis/MinIO drills", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

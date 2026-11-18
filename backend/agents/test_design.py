@@ -306,6 +306,24 @@ def control_cases(p: dict) -> list[dict]:
                     "expected": "It shows ticked after the first click and unticked after the second",
                     "selector": i["selector"]})
 
+    # Standalone text boxes (incl. open-shadow web components like AdminPortal Nickname) that are not
+    # covered by form_cases / search features still need a fill+value check.
+    for i in [i for i in inputs
+              if kind_of(i) in ("text", "email", "tel", "url", "") and (i.get("tag") or "input") != "select"][:8]:
+        hint = f"{i.get('name')} {i.get('id')} {i.get('label')} {i.get('placeholder')}"
+        if re.search(r"\b(search|keyword|query|password|passwd)\b", hint, re.I):
+            continue
+        if i.get("readonly"):
+            continue
+        name = _box_name(i)
+        sample = "QA Shadow" if i.get("shadow_path") else "QA Tester"
+        out.append({"id": key("textbox", name), "kind": "textbox", "type": "positive", "priority": "medium",
+                    "title": f"'{name}' accepts typed text", "test_data": sample,
+                    "steps": [f"Open {page}", f"Type '{sample}' into '{name}'"],
+                    "expected": f"The box shows '{sample}'",
+                    "selector": i["selector"], "value": sample,
+                    "shadow": " > ".join(i.get("shadow_path") or [])})
+
     controls = [b for b in p.get("buttons", []) if b.get("selector") and b.get("first_seen", True)
                 and not b.get("disabled") and (not UNSAFE_BUTTON.search(b.get("text") or "") or dialog_safe(b))]
     label = lambda b: (b.get("text") or "control").split("\n")[0].strip()[:40] or "control"  # noqa: E731
