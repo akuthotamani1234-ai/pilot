@@ -1,0 +1,308 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_pack",
+  "ran_at": "2026-11-18T20:20:04Z",
+  "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
+  "checklist_present": true,
+  "signed_off": false,
+  "artifact_count": 59,
+  "artifacts": [
+    {
+      "name": "a11y_portfolio_drill.json",
+      "bytes": 464,
+      "sha256": "c3da5d9b4df100d3555f2824c1dd9082957c50f00c18ab51ecbe707c892ac26e"
+    },
+    {
+      "name": "admin_portal_lifecycle_drill.json",
+      "bytes": 475,
+      "sha256": "1e2c3f6b1315760d6d18b0ec0aef249764489cc046f99372a5e6046fa050f42a"
+    },
+    {
+      "name": "admin_portal_surface_coverage.json",
+      "bytes": 2383,
+      "sha256": "4a7191c3b2584f750eba7f071d87d0b4da35f5c90b7be80e914363db41c7f3eb"
+    },
+    {
+      "name": "android_adb_probe.json",
+      "bytes": 510,
+      "sha256": "18dfff7d2eed6764380f9c1bf07305066a5462b8258bbb00e2d9ef3ad7998cf2"
+    },
+    {
+      "name": "android_appium_ci_contract.json",
+      "bytes": 1186,
+      "sha256": "8b9b0f657b136571b95940ac0fa5c6a5f314b6bc12c20047c57f899a9173de4b"
+    },
+    {
+      "name": "android_appium_product_matrix_drill.json",
+      "bytes": 2724,
+      "sha256": "8cb20ad6a39b85587614ca83f4463ede07dd4ff99d00ed70f8c7c23fe866ff3d"
+    },
+    {
+      "name": "android_emulator_smoke_drill.json",
+      "bytes": 815,
+      "sha256": "b14db5c0ab24cf9b8799474e0136fcf5839cdc016915fca7e2a25850c0dd73d0"
+    },
+    {
+      "name": "android_live_matrix_rows.json",
+      "bytes": 886,
+      "sha256": "bc23edf75a3e0b1033efb6089a3e49863a26ebe03102abe514f28277b5737f24"
+    },
+    {
+      "name": "api_version_contract.json",
+      "bytes": 1037,
+      "sha256": "577c6668ba2046811608bc9b0f101039a1f1615db08d337ba35d136d4111b34a"
+    },
+    {
+      "name": "approvals_drill.json",
+      "bytes": 448,
+      "sha256": "cd65347f95275437fd42b4c26c15b5a06e887c5dfb1f51b4bb8d0d794a0e0a75"
+    },
+    {
+      "name": "audit_export_drill.json",
+      "bytes": 511,
+      "sha256": "023496c356bf326e3f0bc4a154fe53f2e34d095efd8638ec1226a12a9c4eb5d6"
+    },
+    {
+      "name": "backup_restore_drill.json",
+      "bytes": 402,
+      "sha256": "91670d03e429ab68afb4548cfe30107173908699df0a78db23349d35ec10ec6a"
+    },
+    {
+      "name": "ci_rollback_rehearsal.json",
+      "bytes": 421,
+      "sha256": "74b3006a5544c4e8099152d937249e16f5f6badb3773d9e6f85032d485654ce7"
+    },
+    {
+      "name": "classic_shop_surface_coverage.json",
+      "bytes": 2594,
+      "sha256": "5f41260ffc9666c8a83ead584b737cc6c3c476837038dab78145ea7f2f548d33"
+    },
+    {
+      "name": "compatibility_portfolio_drill.json",
+      "bytes": 792,
+      "sha256": "82001eebcdbabbc59b6be834ea0f3e4cee4cdb0b5874d3c38c9e21c6c6c4582e"
+    },
+    {
+      "name": "controlled_soak_drill.json",
+      "bytes": 578,
+      "sha256": "aa953757636dc761ba1b7d61d6576977c4c31f9f5973b341fcf2958b814ad133"
+    },
+    {
+      "name": "cross_platform_journey_drill.json",
+      "bytes": 1593,
+      "sha256": "5ee90c1339a8334288a8f28c3b87dd6bbf5c0edb034948203af3541dddab320f"
+    },
+    {
+      "name": "dashboard_auth_matrix_drill.json",
+      "bytes": 1809,
+      "sha256": "4aba2026836488249b084144457744370c4ce8213e38b01b55a0a02b1d007cff"
+    },
+    {
+      "name": "demo_store_cart_lifecycle_drill.json",
+      "bytes": 524,
+      "sha256": "8564a06ac0f42ff34ee1d5138cdd540b1dce96fddc891dea392e38036a14e40c"
+    },
+    {
+      "name": "demo_store_healing_live_drill.json",
+      "bytes": 982,
+      "sha256": "379853201dc6051c85363931dc728bc77b5173c220c23de223f0206f5ff63b8f"
+    },
+    {
+      "name": "demo_store_surface_coverage.json",
+      "bytes": 2318,
+      "sha256": "245644359f16eead23a7b0f5e62e1bec29eea5ac19eff931cbe548bec9a6ea3a"
+    },
+    {
+      "name": "device_matrix_drill.json",
+      "bytes": 1859,
+      "sha256": "c81449ff915d6f9ef0cae9b0eace955813468a12440d644c519d9a1bccfebd8e"
+    },
+    {
+      "name": "failure_matrix_drill.json",
+      "bytes": 3763,
+      "sha256": "18e2b9d7fc304fe5094f70e0f653f4118c7020b95098c4489c0f9e2a9c55966b"
+    },
+    {
+      "name": "healing_regression_drill.json",
+      "bytes": 1554,
+      "sha256": "1933128db8900bbfe6a1458ff49fdb9af40277ea85b581499f3aa0fd09ced7e0"
+    },
+    {
+      "name": "incident_tabletop_drill.json",
+      "bytes": 1158,
+      "sha256": "92a3b4cbad5fbfec218c36a20243ab4d6b21c99bf8a9aa1d9ee9b032711c5b4c"
+    },
+    {
+      "name": "incident_tabletop_stub.json",
+      "bytes": 458,
+      "sha256": "1ffb360da10395cfa1a72642140e1d92617b03dbd6f54f5cf14735b9697f08d4"
+    },
+    {
+      "name": "independent_review_checklist.json",
+      "bytes": 329,
+      "sha256": "258bf9967941e88b9ed45ddd6f57ef797374e25162d17e249bc02c0f882ddeac"
+    },
+    {
+      "name": "lifecycle_cleanup_drill.json",
+      "bytes": 746,
+      "sha256": "fd694ba3ebd34f9e90e39d296ce23827b40aac20d58e05ca4760f2ccc7fc8868"
+    },
+    {
+      "name": "live_failure_matrix_drill.json",
+      "bytes": 1348,
+      "sha256": "6a0d318f9778ac468b58e14fca4a0c8f46e0d1c5c80808cfae9150c4dd67bd7f"
+    },
+    {
+      "name": "local_load_probe.json",
+      "bytes": 310,
+      "sha256": "532080ae1641e57a708a4d77d76d43e41cc9600b5bd8a22327296af38a5c6d11"
+    },
+    {
+      "name": "local_metrics_snapshot.json",
+      "bytes": 299,
+      "sha256": "cf1422b445e5694c4431712aacf2caca55f3af5c10b42a7f1579acf27fe1265d"
+    },
+    {
+      "name": "locale_portfolio_drill.json",
+      "bytes": 639,
+      "sha256": "52b68f0e643771ea04920eb65eb423a92b2164003ed375f649ef463fd7c87e56"
+    },
+    {
+      "name": "loopback_sso_drill.json",
+      "bytes": 644,
+      "sha256": "8f8cfd8b969abc7f3d01feeb0f3cbf296b4d545b99a2b4ed45fbd18e65413a3a"
+    },
+    {
+      "name": "minio_backup_restore_drill.json",
+      "bytes": 477,
+      "sha256": "69c9f6f919d0bda59c3534afeb0774791dec88939b22b9a0319df06bb75a51b5"
+    },
+    {
+      "name": "minio_object_store_drill.json",
+      "bytes": 442,
+      "sha256": "8446e3ed180c70217a25deeae84a692afa34daac3a4b467de5e0b42dea8fdc43"
+    },
+    {
+      "name": "multi_api_android_matrix_drill.json",
+      "bytes": 1601,
+      "sha256": "5ae9add87539d59ab5f2fe25d46426d37b07f9821ecfb46c7876730a43331ca1"
+    },
+    {
+      "name": "multi_app_healing_suite_drill.json",
+      "bytes": 3020,
+      "sha256": "5075b96e0087beb90d3254d8bb08b07492816ee66898b33b0cfd12c037960383"
+    },
+    {
+      "name": "multi_browser_portfolio_suite_drill.json",
+      "bytes": 520,
+      "sha256": "bf5ba48e3df87a695875b2b94e4e3571e1a0911bac67ee4cc7b5d90169d4f16a"
+    },
+    {
+      "name": "multi_region_dr_drill.json",
+      "bytes": 1078,
+      "sha256": "89b7fd57a2fd7a2d68a4f2c11c4dc693602368d502b7abbb31514f0470bf18bf"
+    },
+    {
+      "name": "mutation_score_drill.json",
+      "bytes": 847,
+      "sha256": "552c6122e67bf90bc1e2dffd8ad72c69ed7b559e52a9e9df5a426f2e3e26b72b"
+    },
+    {
+      "name": "oracle_spec_drill.json",
+      "bytes": 1555,
+      "sha256": "bb9b78b2f415ea3a441ee9ffe31c7eb4a2e204bf29500592478478836bd8949e"
+    },
+    {
+      "name": "paging_escalation_drill.json",
+      "bytes": 463,
+      "sha256": "b625c2abe71975d0bc1452656f0464deef28f5f78270f37eb50e50ac29b0a285"
+    },
+    {
+      "name": "paging_rehearsal.json",
+      "bytes": 296,
+      "sha256": "aa47049875086084072415f61bfa7746b8a03ccf7f272d10a446f8c5a1616494"
+    },
+    {
+      "name": "perf_portfolio_drill.json",
+      "bytes": 772,
+      "sha256": "08f892f1e201347d490b723c2b0c42b16c49b1da80a1594a82ba804baa6d0f92"
+    },
+    {
+      "name": "pg_tenancy_drill.json",
+      "bytes": 673,
+      "sha256": "5025b0ebf26270696e8e837e8298f323cc17303be4803c398d33942aecd17480"
+    },
+    {
+      "name": "postgres_dr_drill.json",
+      "bytes": 676,
+      "sha256": "3470497cc393d0dbda5298a38a5b7d1b8e05ffe8f1a26155fdbc04f44a728e49"
+    },
+    {
+      "name": "postgres_isolation_drill.json",
+      "bytes": 530,
+      "sha256": "ece6ec5da3594446665e7320fe96f5f81aa527f44a045d7467430437de6faca0"
+    },
+    {
+      "name": "qx_capabilities_drill.json",
+      "bytes": 3349,
+      "sha256": "c05b3013b8a7bc11d9ea0eed4bf76174f76861b11439ae992a6643588e594bce"
+    },
+    {
+      "name": "qx_core_capabilities_drill.json",
+      "bytes": 2688,
+      "sha256": "ce14d9f6a7d9d3cd874ae7ddf7a5efe1b3669dcea9039ed07011f4f09097481d"
+    },
+    {
+      "name": "redis_durable_queue_drill.json",
+      "bytes": 558,
+      "sha256": "866fa9056711327d4ac2a77c49a0aa1e288bf1b4672ae10f14d08c367dcb5daa"
+    },
+    {
+      "name": "redis_lease_drill.json",
+      "bytes": 369,
+      "sha256": "e095d3b131093c354d2ac5fbce6a0e7f0edd1b2209016327818f1bfd746814f3"
+    },
+    {
+      "name": "security_portfolio_drill.json",
+      "bytes": 939,
+      "sha256": "fb5d1ba77be404de21ef6cd23a6e07a410460f983f051bb8bd94ac361cd71d0f"
+    },
+    {
+      "name": "sso_contract_drill.json",
+      "bytes": 439,
+      "sha256": "82475c5ffb53f79d1a46c09739cacad96b20b586c8eeac86922add5360712d2a"
+    },
+    {
+      "name": "sso_tenant_acl_drill.json",
+      "bytes": 816,
+      "sha256": "714882a0939fa00369a100a0123b8326e434ae327457ddf3b47ee0ab9b417aad"
+    },
+    {
+      "name": "swarm_control_drill.json",
+      "bytes": 531,
+      "sha256": "72db3329eeed3b37ea8ff81a409e8ee585868f0abb884ef585243885fde7a9b5"
+    },
+    {
+      "name": "swarm_redis_default.json",
+      "bytes": 1228,
+      "sha256": "363ae9e88dd2f969d57898451834a37f70d1beb2c5582e87ad492a0bd8346f31"
+    },
+    {
+      "name": "swarm_retry_drill.json",
+      "bytes": 604,
+      "sha256": "42a8cb18444aa20fcbb01380ef2e1038e847dab64b0e8aee92ee72deb6dca063"
+    },
+    {
+      "name": "travel_site_surface_coverage.json",
+      "bytes": 2526,
+      "sha256": "8aaf6a7f6414e828d9539de6cacdf3f3e1ca85eb853f48db4b5f22ef929b9b45"
+    },
+    {
+      "name": "visual_portfolio_drill.json",
+      "bytes": 476,
+      "sha256": "1109a334a162c44473cd7aaf61358f404351a5038b00438d44b547e78e131ef4"
+    }
+  ],
+  "ok": true,
+  "reason": "Evidence pack ready (59 artifacts hashed); independent human/reviewer sign-off still pending"
+}
