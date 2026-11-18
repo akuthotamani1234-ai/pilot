@@ -289,9 +289,17 @@ def readiness() -> dict:
         "device_matrix_drill": {
             "ready": _ops_evidence("device_matrix_drill.json"),
             "reason": (
-                "Combined device matrix snapshot present; live emulator/API24+ still open"
+                "Combined device matrix snapshot present; full Appium product matrix still open"
                 if _ops_evidence("device_matrix_drill.json")
                 else "No combined device matrix snapshot evidence"
+            ),
+        },
+        "android_emulator_smoke_drill": {
+            "ready": _ops_evidence("android_emulator_smoke_drill.json"),
+            "reason": (
+                "Live API24 emulator smoke evidence present; full Appium product matrix still open"
+                if _ops_evidence("android_emulator_smoke_drill.json")
+                else "No Android emulator smoke drill evidence"
             ),
         },
         "locale_portfolio_drill": {
