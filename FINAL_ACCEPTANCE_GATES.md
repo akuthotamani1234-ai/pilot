@@ -19,9 +19,9 @@ Each capability is **DONE** only when:
 |---|---|---|
 | A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial; live completeness not established |
 | B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; SQLite durable queue + supervisor added (`swarm_queue`/`swarm_supervisor`). Redis/Postgres + full agent wiring still open. See `docs/QPILOT_X_PHASE3_SWARM.md` |
-| C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial |
+| C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — provenance bind/decide + remote-confirmed cleanup APIs (`docs/QPILOT_X_PHASE4_CORRECTNESS.md`); full pipeline wiring still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial; device matrix unverified |
-| E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial |
+| E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — replay execution truth + locator-only healing guards covered offline; live failure reproduction matrix still open |
 | F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Not established |

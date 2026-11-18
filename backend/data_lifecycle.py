@@ -127,6 +127,45 @@ class Lifecycle:
             self._case[owner] = None
         return cleaned
 
+    def cleanup_confirmed(self, worker: int | None = None, *, remote_delete) -> dict:
+        """Delete remote fixtures, then mark cleaned only when the adapter confirms.
+
+        ``remote_delete(record) -> dict`` must return ``{"deleted": True}`` or
+        ``{"deleted": False, "reason": "..."}``. Local status alone is not proof.
+        """
+        targets = []
+        for owner, rows in self._by_worker.items():
+            if worker is not None and owner != int(worker):
+                continue
+            for row in rows:
+                if row["state"] != "cleaned" and row["run_id"] == self.run_id:
+                    targets.append(row)
+        confirmed, failed = [], []
+        for row in targets:
+            result = remote_delete(dict(row)) or {}
+            if result.get("deleted"):
+                row["state"] = "cleaned"
+                row["cleanup_proof"] = result.get("proof") or "remote_deleted"
+                confirmed.append(dict(row))
+            else:
+                failed.append({
+                    "tag": row.get("tag"),
+                    "kind": row.get("kind"),
+                    "reason": result.get("reason") or "remote delete not confirmed",
+                })
+        owners = {int(worker)} if worker is not None else set(self._by_worker)
+        for owner in owners:
+            remaining = [r for r in self._by_worker.get(owner, [])
+                         if r["run_id"] == self.run_id and r["state"] != "cleaned"]
+            if not remaining:
+                self._case[owner] = None
+        return {
+            "confirmed": confirmed,
+            "failed": failed,
+            "complete": not failed,
+            "local_only": False,
+        }
+
 
 def account_tag_for_worker(prepared: list, worker_name: str) -> str:
     """The ready account tag for this pytest worker. gw0 is worker 1. A cleaned record is not used."""
