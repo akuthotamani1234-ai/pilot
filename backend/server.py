@@ -636,6 +636,17 @@ def ops_lifecycle_cleanup():
     return {"gate_c_complete": False, "lifecycle_cleanup": evidence}
 
 
+@app.post("/api/ops/drills/admin-portal-lifecycle")
+def ops_admin_portal_lifecycle():
+    """Gate C: AdminPortal create→remote_delete cleanup confirmation (still incomplete)."""
+    from backend.admin_portal_lifecycle_drill import run_admin_portal_lifecycle_drill
+    evidence = run_admin_portal_lifecycle_drill()
+    _audit("ops_admin_portal_lifecycle", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0),
+           user_id=str(evidence.get("user_id") or ""))
+    return {"gate_c_complete": False, "admin_portal_lifecycle": evidence}
+
+
 @app.post("/api/ops/drills/swarm-control")
 def ops_swarm_control():
     """Gate B: claim/checkpoint/cancel control drill (still incomplete)."""

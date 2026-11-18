@@ -199,6 +199,15 @@ def readiness() -> dict:
                 else "No lifecycle cleanup drill evidence"
             ),
         },
+        "admin_portal_lifecycle_drill": {
+            "ready": _ops_evidence("admin_portal_lifecycle_drill.json"),
+            "reason": (
+                "AdminPortal create→remote_delete cleanup evidence present; "
+                "broader live portal paths still open"
+                if _ops_evidence("admin_portal_lifecycle_drill.json")
+                else "No AdminPortal lifecycle cleanup drill evidence"
+            ),
+        },
         "swarm_control_drill": {
             "ready": _ops_evidence("swarm_control_drill.json"),
             "reason": (
