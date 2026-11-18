@@ -117,10 +117,18 @@ def _worker_privacy(env, provider=None, expected_mode=None):
 async def local_only(request: Request, call_next):
     """Only answer on 127.0.0.1 / localhost, and every change (POST / DELETE) needs the X-Agentic-QA header -
     browsers can't send that header from another website, so other sites can't start, stop or delete tests."""
+    from backend.api_versioning import resolve_path
+    # Canonical clients use /api/v1/...; rewrite to legacy /api/... so handlers stay single-sourced.
+    resolved = resolve_path(request.url.path)
+    if resolved.get("ok") and not resolved.get("legacy") and resolved.get("version") == 1:
+        request.scope["path"] = "/api" + (resolved.get("resource") or "/")
+    elif resolved.get("version") is not None and not resolved.get("ok"):
+        return JSONResponse({"detail": resolved.get("reason") or "unsupported API version"}, status_code=404)
+    path = request.url.path
     mcp_request = request.headers.get("x-qpilot-client", request.headers.get("x-blowai-client")) == "mcp"
     if mcp_request:
-        control = request.url.path in {"/api/mcp/info", "/api/mcp/heartbeat"}
-        if request.url.path.startswith("/api/settings/"):
+        control = path in {"/api/mcp/info", "/api/mcp/heartbeat"}
+        if path.startswith("/api/settings/"):
             return JSONResponse({"detail": "Change privacy settings in the Qpilot UI."}, status_code=403)
         if not control and not load_policy().allow_mcp:
             return JSONResponse({"detail": "MCP data access is disabled. Approve your assistant in Privacy settings."},
@@ -131,9 +139,9 @@ async def local_only(request: Request, call_next):
         return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
     # (a webhook proves itself with its own token instead - /api/hooks/run)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.headers.get("x-agentic-qa") != "1" \
-            and request.url.path != "/api/hooks/run":
+            and path != "/api/hooks/run":
         return JSONResponse({"detail": "forbidden (missing X-Agentic-QA header)"}, status_code=403)
-    if request.url.path == "/api/mobile/runs" and request.method == "POST":
+    if path == "/api/mobile/runs" and request.method == "POST":
         length = request.headers.get("content-length")
         if length is None:
             return JSONResponse({"detail": "Provide Content-Length for a bounded APK upload."}, status_code=411)
@@ -495,6 +503,13 @@ def home():
         1,
     )
     return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
+
+
+@app.get("/api/enterprise/readiness")
+def enterprise_readiness():
+    """Gate G/I readiness probe. Never claims complete when backends are only configured."""
+    from backend.enterprise import readiness
+    return readiness()
 
 
 @app.get("/api/check")

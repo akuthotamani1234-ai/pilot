@@ -10,14 +10,17 @@ from pathlib import Path
 from .agent_eval import evaluate, model_change_allowed
 from .coverage_verify import verify_sources
 from .dependency_fault import inject_fault
+from .device_matrix import evaluate_matrix
+from .enterprise import readiness as enterprise_readiness
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .explore_score import rank_candidates
 from .human_review import decide
 from .journey_map import compare_journey
 from .locale_check import check_locale, keep_sample
 from .mutation_score import score_planted
-from .oracle import cart_expected
+from .oracle import bind_assertion, cart_expected, decide_observation
 from .plugins import review_plugin
+from .portfolio_gates import evaluate_portfolios
 from .quality_trends import cluster_runs, keep_verdict
 from .release_row import from_run
 from .replay_pack import replay
@@ -81,9 +84,88 @@ def _cart_checks(cases: list[dict]) -> list[dict]:
         spec = case.get("spec") if isinstance(case.get("spec"), dict) else {}
         fields = {name: spec.get(name) or case.get(name) for name in
                   ("item", "price", "tax", "discount", "quantity", "fulfillment")}
-        ok, reason = cart_expected(str(case.get("expected_source") or case.get("oracle") or ""), fields)
-        checks.append({"id": case.get("tc_id") or case.get("id") or "", "ok": ok, "reason": reason})
+        source = str(case.get("expected_source") or case.get("oracle") or "")
+        ok, reason = cart_expected(source, fields)
+        statement = str(case.get("expected") or case.get("title") or "cart check")
+        assertion = bind_assertion(
+            source=source or "ai",
+            statement=statement,
+            scope=str(case.get("url") or case.get("page") or "/cart"),
+            requirement_id=str(case.get("tc_id") or case.get("id") or ""),
+        )
+        observed = str(case.get("actual_result") or case.get("execution_status") or "")
+        matched = ok and str(case.get("execution_status") or "").lower() in {"passed", "pass"}
+        decision = decide_observation(assertion, observed=observed, matched=matched)
+        checks.append({
+            "id": case.get("tc_id") or case.get("id") or "",
+            "ok": ok,
+            "reason": reason,
+            "assertion": assertion,
+            "decision": decision,
+        })
     return checks
+
+
+def _outcome(row: dict) -> str:
+    status = str(row.get("status") or row.get("execution_status") or row.get("outcome") or "").lower()
+    if status in {"passed", "pass"}:
+        return "passed"
+    if status in {"failed", "fail", "error"}:
+        return "failed"
+    if status in {"blocked"}:
+        return "blocked"
+    if status in {"skipped", "inconclusive", "flaky"}:
+        return "blocked"
+    return ""
+
+
+def _device_evidence(state: dict, results: list[dict]) -> list[dict]:
+    """Build Gate D evidence rows from this run only — never invent unverified profiles."""
+    evidence = []
+    target = str(state.get("target_type") or "web").lower()
+    outcomes = [_outcome(row) for row in results if _outcome(row)]
+    if not outcomes:
+        return evidence
+    primary = outcomes[0]
+    if target in {"web", ""}:
+        evidence.append({"surface": "web", "viewport": "1366x900", "outcome": primary})
+        if any("mobile" in str(row.get("nodeid") or row.get("file") or "").lower()
+               or "phone" in str(row.get("title") or "").lower() for row in results):
+            evidence.append({"surface": "web", "viewport": "390x844", "outcome": primary})
+    if target in {"mobile", "android"}:
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        evidence.append({
+            "surface": "android",
+            "device_id": str(config.get("device_id") or ""),
+            "form": "emulator" if str(config.get("device_id") or "").startswith("emulator-") else "",
+            "api_level": config.get("api_level") or config.get("android_version"),
+            "outcome": primary,
+        })
+    return evidence
+
+
+def _portfolios(run_dir: Path, locale_payload: dict) -> dict:
+    visual = _read_json(run_dir / "visual.json")
+    timings = _read_json(run_dir / "performance.json")
+    headers = _read_json(run_dir / "security_headers.json")
+    a11y_page = _read_json(run_dir / "a11y_page.json")
+    https = None
+    if isinstance(headers, dict) and "https" in headers:
+        https = bool(headers.get("https"))
+        headers = headers.get("headers") if isinstance(headers.get("headers"), dict) else {
+            k: v for k, v in headers.items() if k != "https"
+        }
+    observed = locale_payload.get("observed") if isinstance(locale_payload.get("observed"), dict) else None
+    expected = locale_payload.get("expected") if isinstance(locale_payload.get("expected"), dict) else None
+    return evaluate_portfolios(
+        a11y_page=a11y_page if isinstance(a11y_page, dict) else None,
+        visual_report=visual if isinstance(visual, dict) else None,
+        timings=timings if isinstance(timings, dict) else None,
+        locale_observed=observed,
+        locale_expected=expected,
+        security_headers=headers if isinstance(headers, dict) else None,
+        https=https,
+    )
 
 
 def _plugins(root: Path) -> list[dict]:
@@ -220,6 +302,9 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     } for row in results])
     stored_change, stored_reason = model_change_allowed(evaluation)
     verdict = str(state.get("verdict") or "")
+    locale = _locale(run_dir, sample, catalog)
+    locale_raw = _read_json(run_dir / "locale.json")
+    locale_file = locale_raw if isinstance(locale_raw, dict) else {}
     applied = {
         "sample_unchanged": True,
         "sample": sample,
@@ -232,7 +317,7 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "replay": _replay_packages(failures, results, environment),
         "mutation": _mutation(run_dir, failures),
         "journeys": _journeys(run_dir),
-        "locale": _locale(run_dir, sample, catalog),
+        "locale": locale,
         "evaluation": {**evaluation, "model_change_allowed": stored_change, "reason": stored_reason},
         "incremental": (state.get("changes") or {}).get("incremental") or {},
         "dependency": fault,
@@ -240,6 +325,9 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         "review": _heals(list(state.get("healing_log") or []), {}),
         "trends": _trends(run_dir, verdict, failures),
         "plugins": _plugins(root or Path(".")),
+        "device_matrix": evaluate_matrix(_device_evidence(state, results)),
+        "portfolios": _portfolios(run_dir, locale_file),
+        "enterprise": enterprise_readiness(),
     }
     applied["trends"]["verdict"] = keep_verdict(verdict, applied["trends"])
     applied["release"] = from_run(state)
