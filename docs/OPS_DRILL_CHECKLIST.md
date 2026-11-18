@@ -7,7 +7,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 
 | Drill | Status | Evidence link |
 |---|---|---|
-| Observability (metrics + traces + alerts) | Partial (local snapshot only) | `docs/ops-evidence/local_metrics_snapshot.json` — central stack still open |
+| Observability (metrics + traces + alerts) | Partial (local snapshot + readiness probe) | `docs/ops-evidence/local_metrics_snapshot.json` + `observability_probe_drill.json` — central stack still open |
 | Backup of run store / object store | Partial (SQLite + MinIO object copy + Postgres dump) | `docs/ops-evidence/backup_restore_drill.json` + `minio_backup_restore_drill.json` + `postgres_dr_drill.json` + `multi_region_dr_drill.json` — hosted multi-region DR still open |
 | Restore from backup into an isolated env | Partial (local folder + MinIO restore-to-key + isolated Postgres DB + dual-region failover) | same artifacts — hosted isolated env still open |
 | Load / soak against a controlled fixture | Partial (local API probe + AdminPortal soak) | `docs/ops-evidence/local_load_probe.json` + `docs/ops-evidence/controlled_soak_drill.json` — hosted/prod-like load still open |
@@ -34,7 +34,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | E | `/api/ops/drills/failure-matrix`, `healing-regression`, `demo-store-healing-live`, `live-failure-matrix`, `multi-app-healing-suite` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json`, `demo_store_healing_live_drill.json`, `live_failure_matrix_drill.json`, `multi_app_healing_suite_drill.json` |
 | F | `/api/ops/drills/…-portfolio`, `multi-browser-portfolio-suite` (+ `multi-browser-portfolios.yml`) | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json`, `multi_browser_portfolio_suite_drill.json` |
 | G | Postgres/Redis/MinIO + audit export + `sso-tenant-acl` + review checklist/pack | `pg_tenancy_drill.json`, `audit_export_drill.json`, `sso_tenant_acl_drill.json`, `independent_review_checklist.json`, `independent_review_pack.json` |
-| H | + `multi-region-dr`, `paging-escalation` | `multi_region_dr_drill.json`, `paging_escalation_drill.json` |
+| H | + `multi-region-dr`, `minio-multi-region`, `paging-escalation`, `observability-probe` | `multi_region_dr_drill.json`, `minio_multi_region_drill.json`, `paging_escalation_drill.json`, `observability_probe_drill.json` |
 | I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix`, `approvals`, `sso-contract`, `loopback-sso`, `sso-tenant-acl` | `api_version_contract.json`, `dashboard_auth_matrix_drill.json`, `approvals_drill.json`, `sso_contract_drill.json`, `loopback_sso_drill.json`, `sso_tenant_acl_drill.json` |
 
 | QX | `/api/ops/drills/qx-capabilities`, `qx-core-capabilities` | `qx_capabilities_drill.json` (A02/A07/A12–A18), `qx_core_capabilities_drill.json` (A01/A03–A06/A08/A11) |

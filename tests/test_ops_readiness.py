@@ -74,6 +74,12 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     )
     assert snap["checks"]["postgres_dr_drill"]["ready"] is has("postgres_dr_drill.json")
     assert snap["checks"]["multi_region_dr_drill"]["ready"] is has("multi_region_dr_drill.json")
+    assert snap["checks"]["minio_multi_region_drill"]["ready"] is has(
+        "minio_multi_region_drill.json"
+    )
+    assert snap["checks"]["observability_probe_drill"]["ready"] is has(
+        "observability_probe_drill.json"
+    )
     assert snap["checks"]["paging_escalation_drill"]["ready"] is has(
         "paging_escalation_drill.json"
     )

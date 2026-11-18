@@ -150,6 +150,8 @@ def progress() -> dict:
         {"id": "F-compat-engines", "label": "Offline Chromium/Firefox/WebKit compatibility matrix", "status": "done"},
         {"id": "H-postgres-dr", "label": "Postgres dump→isolated-DB restore DR drill", "status": "done"},
         {"id": "H-multi-region-dr", "label": "Local dual-region Postgres failover rehearsal", "status": "done"},
+        {"id": "H-minio-multi-region", "label": "Local MinIO dual-bucket failover rehearsal", "status": "done"},
+        {"id": "H-observability-probe", "label": "Local observability probe (readiness inventory)", "status": "done"},
         {"id": "H-paging-escalation", "label": "Loopback primary→secondary paging escalation", "status": "done"},
         {"id": "H-drills", "label": "Live hosted multi-region DR / on-call paging", "status": "open"},
         {"id": "D-emulator-smoke", "label": "Live API24 emulator adb smoke (profiles verified)", "status": "done"},
