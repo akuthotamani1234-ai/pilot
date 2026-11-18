@@ -69,15 +69,21 @@ def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
 
     android_live = _load_rows("android_live_matrix_rows.json")
     android_live += _load_rows("android_emulator_smoke_drill.json")
+    android_live += _load_rows("android_appium_product_matrix_drill.json")
     android_dry = protocol_dry_run_evidence()
     adb = run_adb_probe()
     scored = evaluate_matrix(list(web_rows) + list(android_live) + list(android_dry))
+    appium_rows = [
+        r for r in android_live
+        if isinstance(r, dict) and r.get("source") == "android_appium_product_matrix"
+    ]
     evidence = {
         "gate_d_complete": False,
         "drill": "combined_device_matrix_snapshot",
         "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "web_rows": len(web_rows),
         "android_live_rows": len(android_live),
+        "android_appium_rows": len(appium_rows),
         "android_dry_run_rows": len(android_dry),
         "adb_probe": {
             "ok": adb.get("ok"),
@@ -89,6 +95,9 @@ def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         "matrix": scored,
         "ok": True,
         "reason": (
+            "Combined web + Android Appium/smoke + protocol dry-run + ADB probe snapshot; "
+            "third-party APK / broad CI product matrix still open"
+            if appium_rows else
             "Combined web + Android smoke/live + protocol dry-run + ADB probe snapshot; "
             "full Appium product matrix still open"
             if android_live else

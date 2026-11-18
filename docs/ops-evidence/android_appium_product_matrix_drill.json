@@ -1,0 +1,68 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_appium_product_matrix",
+  "ran_at": "2026-11-18T19:50:51Z",
+  "ok": true,
+  "appium_ready": true,
+  "appium_url": "http://127.0.0.1:4723",
+  "device_id": "emulator-5556",
+  "api_level": 30,
+  "devices_online": 1,
+  "apps": [
+    {
+      "package": "com.android.settings",
+      "activity": ".Settings",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 8.6,
+      "current_package": "com.android.settings",
+      "page_source_len": 81656,
+      "clickables": 12,
+      "interacted": true
+    },
+    {
+      "package": "com.android.contacts",
+      "activity": ".activities.PeopleActivity",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 7.1,
+      "current_package": "com.android.contacts",
+      "page_source_len": 46985,
+      "clickables": 4,
+      "interacted": true
+    },
+    {
+      "package": "com.android.chrome",
+      "activity": "com.google.android.apps.chrome.Main",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 6.2,
+      "current_package": "com.android.chrome",
+      "page_source_len": 40271,
+      "clickables": 2,
+      "interacted": true
+    }
+  ],
+  "apps_passed": 3,
+  "apps_total": 3,
+  "matrix_rows": [
+    {
+      "surface": "android",
+      "device_id": "emulator-5556",
+      "form": "emulator",
+      "api_level": 30,
+      "outcome": "passed",
+      "source": "android_appium_product_matrix",
+      "apps_passed": [
+        "com.android.settings",
+        "com.android.contacts",
+        "com.android.chrome"
+      ]
+    }
+  ],
+  "android_profiles_verified": [
+    "android.emulator",
+    "android.api24+"
+  ],
+  "reason": "Live Appium product matrix on emulator-5556 API 30: 3/3 system apps passed; third-party APK / broad CI product matrix still open"
+}

@@ -1,25 +1,22 @@
 {
   "gate_d_complete": false,
   "drill": "android_adb_probe",
-  "ran_at": "2026-11-18T19:45:00Z",
+  "ran_at": "2026-11-18T19:50:57Z",
   "adb": "/home/ubuntu/Android/Sdk/platform-tools/adb",
   "adb_present": true,
   "appium_reachable": false,
   "devices_listed": 1,
   "devices_online": 1,
   "device_ids": [
-    "emulator-5554"
+    "emulator-5556"
   ],
   "api_levels": [
     {
-      "device_id": "emulator-5554",
-      "api_level": 24
+      "device_id": "emulator-5556",
+      "api_level": 30
     }
   ],
-  "errors": [
-    "Appium server is not running at http://127.0.0.1:4723. Start it with `appium --address 127.0.0.1 --port 4723`, then refresh environment status.",
-    "Appium CLI not found. Install Node.js, then install Appium 2/3 with `npm install -g appium`, and ensure the appium command is on PATH."
-  ],
+  "errors": [],
   "ok": true,
   "reason": "ADB present with online device(s); live Appium product matrix still required"
 }
