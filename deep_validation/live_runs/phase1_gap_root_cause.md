@@ -28,8 +28,11 @@ Cart feature tests use `@pytest.mark.xdist_group("cart")`, but other workers sti
 
 Planted `cart_total` only breaks `#cart-total` via `store._total()`; line-total cells stay correct, so short journeys cannot catch it.
 
-**Fix landed:** reorder so the product/`change_cart` shopping journey is emitted before short Shop-on cases (`backend/agents/test_design.py`), with regression `tests/test_journey_budget_cart_total.py`. Re-run accuracy benchmark to verify `cart_total` is caught.
+**Fix landed & verified (run3):** reorder so the product/`change_cart` shopping journey is emitted before short Shop-on cases (`backend/agents/test_design.py`), with regression `tests/test_journey_budget_cart_total.py`.
+
+Run3 buggy result: **bugs caught 6/6** including `cart_total`. Shopping journey `TC-2EF282F6` failed with signature `should add 141 to the cart total, it went 198 -> 198`.
 
 ## Status
 
-Gaps are **explained and reproducible**, not closed. Gate J stays partial until fixes land and a third accuracy run shows `cart_total` caught and quantity false alarm gone.
+- `cart_total`: **closed** (measured).
+- Quantity false alarm: **still open** (run3 still 1 false alarm). Gate J stays partial until that is fixed or explicitly accepted as a documented unknown.
