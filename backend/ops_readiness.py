@@ -96,6 +96,22 @@ def readiness() -> dict:
                 else "No DemoStore surface coverage inventory"
             ),
         },
+        "classic_shop_surfaces": {
+            "ready": _ops_evidence("classic_shop_surface_coverage.json"),
+            "reason": (
+                "ClassicShop surface_coverage inventory present; full Gate A live matrix still open"
+                if _ops_evidence("classic_shop_surface_coverage.json")
+                else "No ClassicShop surface coverage inventory"
+            ),
+        },
+        "travel_site_surfaces": {
+            "ready": _ops_evidence("travel_site_surface_coverage.json"),
+            "reason": (
+                "TravelSite surface_coverage inventory present; full Gate A live matrix still open"
+                if _ops_evidence("travel_site_surface_coverage.json")
+                else "No TravelSite surface coverage inventory"
+            ),
+        },
         "load_test": {
             "ready": _ops_evidence("local_load_probe.json"),
             "reason": (
