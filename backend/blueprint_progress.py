@@ -130,6 +130,7 @@ def progress() -> dict:
         {"id": "F-locale-drill", "label": "DemoStore locale portfolio drill evidence", "status": "done"},
         {"id": "H-checklist-cross-gate", "label": "Ops checklist lists cross-gate offline drill APIs", "status": "done"},
         {"id": "F-security-drill", "label": "DemoStore passive security portfolio drill", "status": "done"},
+        {"id": "F-a11y-drill", "label": "DemoStore a11y portfolio drill", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
