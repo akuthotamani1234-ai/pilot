@@ -20,12 +20,17 @@ def page():
         browser.close()
 
 
+def _html(page, markup: str) -> None:
+    # Content load can exceed the 800ms action timeout under Windows CI load.
+    page.set_content(markup, wait_until="domcontentloaded", timeout=5000)
+
+
 def _field(name="Work Telephone", selector="input", value="9876543210", **extra):
     return {"name": name, "label": name, "selector": selector, "kind": "type", "value": value, "required": True, **extra}
 
 
 def test_sidebar_search_and_duplicate_labels_are_scoped(page):
-    page.set_content('''<aside><label>Search<input id=sidebar></label></aside>
+    _html(page, '''<aside><label>Search<input id=sidebar></label></aside>
       <form id=other><label>Work Telephone<input></label></form>
       <form id=business aria-label="Emergency Contact"><label>Work Telephone<input required></label></form>''')
     fill_input_check(page, {"form": "#business", "fields": [_field()]})
@@ -35,7 +40,7 @@ def test_sidebar_search_and_duplicate_labels_are_scoped(page):
 
 
 def test_unassociated_distinct_labels_resolve_within_container(page):
-    page.set_content('''<form id=business><div><label>Contact Email:</label><input></div>
+    _html(page, '''<form id=business><div><label>Contact Email:</label><input></div>
       <div><label>Contact Name:</label><input></div></form>''')
     fields = [_field("Contact Email:", value="qa@example.com"), _field("Contact Name:", value="QA Tester")]
     fill_input_check(page, {"form": "#business", "fields": fields})
@@ -48,44 +53,44 @@ def test_unassociated_distinct_labels_resolve_within_container(page):
     '<form id=business><label>Work Telephone<input hidden required></label></form>',
 ])
 def test_ambiguous_missing_and_hidden_required_targets_cannot_pass(page, markup):
-    page.set_content(markup)
+    _html(page, markup)
     field = _field(selector="#missing") if "id=other" in markup else _field()
     with pytest.raises(AssertionError):
         fill_input_check(page, {"form": "#business", "fields": [field]})
 
 
 def test_wrong_retained_value_and_custom_validation_cannot_pass(page):
-    page.set_content('''<form id=business><label>Work Telephone<input onblur="this.value='changed'"></label></form>''')
+    _html(page, '''<form id=business><label>Work Telephone<input onblur="this.value='changed'"></label></form>''')
     with pytest.raises(AssertionError):
         fill_input_check(page, {"form": "#business", "fields": [_field()]})
-    page.set_content('''<form id=business><label>Work Telephone<input onblur="this.setAttribute('aria-invalid','true')"></label></form>''')
+    _html(page, '''<form id=business><label>Work Telephone<input onblur="this.setAttribute('aria-invalid','true')"></label></form>''')
     with pytest.raises(AssertionError, match="application validation"):
         fill_input_check(page, {"form": "#business", "fields": [_field()]})
 
 
 def test_styled_checkbox_uses_its_label_and_verifies_state(page):
-    page.set_content('''<form id=business><input id=consent type=checkbox style="display:none">
+    _html(page, '''<form id=business><input id=consent type=checkbox style="display:none">
       <label for=consent>Contact allowed</label></form>''')
     fill_input_check(page, {"form": "#business", "fields": [_field("Contact allowed", "#consent", kind="checkbox")]})
     assert page.locator("#consent").is_checked()
 
 
 def test_custom_dropdown_verifies_selected_option(page):
-    page.set_content('''<form id=business><div role=combobox aria-label=Country tabindex=0 onclick="document.getElementById('options').hidden=false">Choose</div></form>
+    _html(page, '''<form id=business><div role=combobox aria-label=Country tabindex=0 onclick="document.getElementById('options').hidden=false">Choose</div></form>
       <div id=options hidden><div role=option onclick="document.querySelector('[role=combobox]').textContent='India';document.getElementById('options').hidden=true">India</div></div>''')
     fill_input_check(page, {"form": "#business", "fields": [_field("Country", "[role=combobox]", kind="combobox", shown="India")]})
     assert page.get_by_role("combobox").inner_text() == "India"
 
 
 def test_wrong_opener_cannot_establish_form_reached(page):
-    page.set_content('<button id=wrong>Other</button><form id=business hidden><input></form>')
+    _html(page, '<button id=wrong>Other</button><form id=business hidden><input></form>')
     with pytest.raises(AssertionError):
         open_path(page, [{"selector": "#wrong", "action": "click"}], "#business")
 
 
 def test_login_helper_replays_recorded_modal_opener(page):
     from backend.agents.script_generator import LOGIN_HELPER
-    page.set_content('''<a id=opener href="#" onclick="document.getElementById('login').hidden=false">Log in</a>
+    _html(page, '''<a id=opener href="#" onclick="document.getElementById('login').hidden=false">Log in</a>
       <form id=login hidden><input id=user><input id=password type=password><button type=button id=submit>Log in</button></form>''')
     namespace = {"expect": expect, "open_path": open_path, "re": re, "_settle": lambda p: None}
     exec(LOGIN_HELPER, namespace)
