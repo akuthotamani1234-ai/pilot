@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .locale_check import check_locale
 
-PORTFOLIOS = ("a11y", "visual", "performance", "locale", "security")
+PORTFOLIOS = ("a11y", "visual", "performance", "locale", "security", "compatibility")
 
 # Safe, passive header observations only (no scanning, no auth bypass).
 _SECURITY_HEADERS = ("content-security-policy", "strict-transport-security", "x-content-type-options")
@@ -127,9 +127,39 @@ def evaluate_security(headers: dict | None, *, https: bool | None = None) -> dic
     }
 
 
+def evaluate_compatibility(matrix: dict | None) -> dict:
+    """Compatibility portfolio: desktop + mobile viewport evidence (offline).
+
+    Missing matrix stays unknown. Live multi-browser CI still open — never marks
+    Gate F complete on its own.
+    """
+    if not isinstance(matrix, dict) or not matrix:
+        return _unknown("compatibility", "no compatibility / viewport matrix evidence")
+    desktop = int(matrix.get("desktop") or matrix.get("desktop_or_default") or 0)
+    mobile = int(matrix.get("mobile") or matrix.get("mobile_checked") or 0)
+    browsers = matrix.get("browsers") if isinstance(matrix.get("browsers"), list) else []
+    findings = []
+    if desktop <= 0:
+        findings.append({"kind": "missing_desktop_viewport", "target": "desktop"})
+    if mobile <= 0:
+        findings.append({"kind": "missing_mobile_viewport", "target": "mobile"})
+    # Optional browser list: if present and empty → fail; absent is fine (unknown only on empty matrix).
+    if "browsers" in matrix and not browsers:
+        findings.append({"kind": "empty_browser_list", "target": "browsers"})
+    return {
+        "portfolio": "compatibility",
+        "verdict": "fail" if findings else "pass",
+        "ok": not findings,
+        "reason": f"{len(findings)} compatibility gap(s)" if findings else "",
+        "findings": findings,
+        "evidence": {"desktop": desktop, "mobile": mobile, "browsers": browsers[:20]},
+        "gate_f_complete": False,
+    }
+
+
 def evaluate_portfolios(*, a11y_page=None, visual_report=None, timings=None, budgets=None,
                         locale_observed=None, locale_expected=None, security_headers=None,
-                        https=None) -> dict:
+                        https=None, compatibility_matrix=None) -> dict:
     """Run all Gate F portfolios. Overall complete only when none are unknown."""
     results = [
         evaluate_a11y(a11y_page),
@@ -137,6 +167,7 @@ def evaluate_portfolios(*, a11y_page=None, visual_report=None, timings=None, bud
         evaluate_performance(timings, budgets),
         evaluate_locale(locale_observed, locale_expected),
         evaluate_security(security_headers, https=https),
+        evaluate_compatibility(compatibility_matrix),
     ]
     by_name = {row["portfolio"]: row for row in results}
     unknown = [n for n, row in by_name.items() if row["verdict"] == "unknown"]
