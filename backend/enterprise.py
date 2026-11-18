@@ -6,6 +6,7 @@ local object store keep the product usable offline.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from .api_versioning import SUPPORTED
 from .blueprint_progress import progress as blueprint_progress
@@ -13,6 +14,10 @@ from .migrate import migration_status
 from .object_store import open_object_store
 from .queue_backend import open_durable_queue
 from .rbac import ROLES
+
+ROOT = Path(__file__).resolve().parent.parent
+DASHBOARD_PKG = ROOT / "frontend" / "dashboard" / "package.json"
+DASHBOARD_DIST = ROOT / "frontend" / "dashboard" / "dist" / "index.html"
 
 
 def _present(name: str) -> str:
@@ -27,6 +32,8 @@ def readiness() -> dict:
     store = open_object_store(object_uri or None)
     queue = open_durable_queue(redis or None)
     migrations = migration_status(postgres or None)
+    dashboard_configured = DASHBOARD_PKG.is_file()
+    dashboard_built = DASHBOARD_DIST.is_file()
     components = {
         "postgres": {
             "configured": bool(postgres),
@@ -74,9 +81,16 @@ def readiness() -> dict:
             "reason": "legacy /api maps to v1; /api/v1 is canonical",
         },
         "react_dashboard": {
-            "configured": False,
-            "ready": False,
-            "reason": "Studio remains HTML/JS under frontend/; React/TS dashboard not established",
+            "configured": dashboard_configured,
+            "ready": dashboard_built,
+            "path": "frontend/dashboard",
+            "reason": (
+                "React/TS dashboard built at /dashboard/; Gate I still incomplete without auth/approvals hosting"
+                if dashboard_built else
+                "React/TS dashboard scaffold at frontend/dashboard; run npm run build (Gate I still incomplete)"
+                if dashboard_configured else
+                "React/TS dashboard not established"
+            ),
         },
     }
     ready = ["rbac", "api_versioning"]

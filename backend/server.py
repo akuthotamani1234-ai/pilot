@@ -71,6 +71,30 @@ class RunFiles(StaticFiles):
 app = FastAPI(title="Qpilot")
 app.mount("/runs", RunFiles(directory=RUNS), name="runs")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+DASHBOARD_DIST = STATIC / "dashboard" / "dist"
+
+
+@app.get("/dashboard")
+@app.get("/dashboard/")
+def dashboard_home():
+    """Gate I React/TS dashboard. Serves the Vite build when present."""
+    index = DASHBOARD_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    return HTMLResponse(
+        "<!doctype html><title>Qpilot Enterprise</title>"
+        "<body style='font-family:system-ui;padding:2rem'>"
+        "<h1>Qpilot Enterprise</h1>"
+        "<p>React/TypeScript dashboard source is at <code>frontend/dashboard</code>.</p>"
+        "<p>Build it with <code>npm install && npm run build</code>, then restart the UI.</p>"
+        "<p>Gate I remains incomplete until auth, approvals, and hosting are proven.</p>"
+        "<p><a href='/'>Back to Studio</a></p>",
+        status_code=200,
+    )
+
+
+if (DASHBOARD_DIST / "assets").is_dir():
+    app.mount("/dashboard/assets", StaticFiles(directory=DASHBOARD_DIST / "assets"), name="dashboard-assets")
 
 jobs: dict[int, dict] = {}
 lock = threading.Lock()

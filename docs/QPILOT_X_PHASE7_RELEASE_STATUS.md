@@ -29,10 +29,10 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | C | Partial | Provenance + cleanup APIs; not fully wired every run path |
 | D | Partial | Matrix declared; live emulator matrix missing here |
 | E | Partial | Replay + healing guards offline; live failure matrix open |
-| F | Partial | Portfolio capture from discovery + evaluators; broad live CI artifacts open |
+| F | Partial | Portfolio + visual capture on apply_run; broad live CI artifacts open |
 | G | Partial foundations | SQLite audit persist + RBAC/store; no live Postgres/Redis/MinIO |
-| H | Not established | Ops/DR/load not done |
-| I | Partial | Studio Blueprint TODO sidebar + `/api/v1`; React/TS dashboard open |
+| H | Partial foundations | Ops checklist present; drills/load/observability open |
+| I | Partial | React/TS dashboard scaffold at `/dashboard/`; auth/approvals open |
 | J | Strong (DemoStore) | Run5: **24/24** clean features, **6/6** bugs, **0** false alarms; broader sites / Android still open |
 
 ## Issue #22 mapping (suggested checks — apply only with evidence)

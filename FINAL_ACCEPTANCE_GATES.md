@@ -19,13 +19,13 @@ Each capability is **DONE** only when:
 |---|---|---|
 | A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + `surface_coverage.json` (iframe/shadow/API counts); full-surface live completeness not established |
 | B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial; SQLite durable queue + supervisor added (`swarm_queue`/`swarm_supervisor`). Redis/Postgres + full agent wiring still open. See `docs/QPILOT_X_PHASE3_SWARM.md` |
-| C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — provenance bind/decide + remote-confirmed cleanup APIs (`docs/QPILOT_X_PHASE4_CORRECTNESS.md`); full pipeline wiring still open |
+| C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — `apply_run` writes `oracle_decisions.json` + confirmed `lifecycle.json`; live fixture adapters still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — declarative device matrix (`device_matrix.py`); live emulator evidence still open. See `docs/QPILOT_X_PHASE5_ANDROID_PORTFOLIOS.md` |
-| E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — replay execution truth + locator-only healing guards covered offline; live failure reproduction matrix still open |
-| F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — discovery/`apply_run` capture `a11y_page.json` / `performance.json` / `security_headers.json` from app_map; evaluators still Partial without broad live CI artifacts |
+| E | Deterministic failure reproduction, locator-only healing, regression safeguards | Partial — `healing_policy.json` + locator-only `review_repair`; live failure reproduction matrix still open |
+| F | Accessibility, visual, performance, safe security, localization and compatibility gates | Partial — a11y/perf/security + first-run `visual.json` capture on apply_run; broad live CI artifacts still open |
 | G | Multi-tenant auth/RBAC, PostgreSQL, durable queue, object storage, migrations, isolation and audit | Partial — SQLite `audit_events` persistence + migrations/RBAC/object store; live Postgres/Redis/MinIO isolation still not established |
 | H | Hardened deployments, observability, backup/restore drills, load testing, CI/CD and incident operations | Partial foundations — `docs/OPS_DRILL_CHECKLIST.md` + `ops_readiness` (checklist present; observability/DR/load drills still open); gate not complete |
-| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `/api/v1` + Studio sidebar **Blueprint TODO** (`/api/blueprint/progress`); React/TS dashboard still not established |
+| I | React/TypeScript enterprise dashboard, API versioning, approvals, integration contracts | Partial — `frontend/dashboard` React+TS at `/dashboard/` + `/api/v1`; auth/approvals/hosting still not established |
 | J | Repeatable benchmark on a **locally controlled** e-commerce fixture with seeded defects, precision/recall, false positives, flakes, cost and coverage gaps | Strong on DemoStore — run6: 19/19 pages, 24/24 clean features, 6/6 bugs, 0 false alarms (`docs/QPILOT_X_PHASE1_BENCHMARK.md`). Broader sites / Android matrix still open; gate not globally COMPLETE |
 
 ## Required live test protocol

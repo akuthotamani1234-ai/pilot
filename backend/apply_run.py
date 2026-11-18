@@ -15,6 +15,7 @@ from .discovery_graph import write_graph
 from .enterprise import readiness as enterprise_readiness
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .explore_score import rank_candidates
+from .healing_policy import summarize_healing
 from .human_review import decide
 from .journey_map import compare_journey
 from .locale_check import check_locale, keep_sample
@@ -27,9 +28,11 @@ from .portfolio_gates import evaluate_portfolios
 from .quality_trends import cluster_runs, keep_verdict
 from .release_row import from_run
 from .replay_pack import replay
+from .run_rules import lifecycle_for
 from .schema_diff import diff_specs
 from .sessions import RoleBook
 from .surface_coverage import summarize_surfaces
+from .visual_capture import capture_visual
 
 _CART_WORDS = ("cart", "add to cart", "add-to-cart")
 
@@ -80,29 +83,41 @@ def _replay_packages(failures: list[dict], results: list[dict], environment: str
 
 
 def _cart_checks(cases: list[dict]) -> list[dict]:
+    """Bind provenance for cart cases and any case that already declares an expected source."""
     checks = []
+    seen = set()
     for case in cases:
+        case_id = str(case.get("tc_id") or case.get("id") or "")
         text = " ".join(str(case.get(key) or "") for key in ("title", "kind", "feature")).lower()
-        if not any(word in text for word in _CART_WORDS):
-            continue
-        spec = case.get("spec") if isinstance(case.get("spec"), dict) else {}
-        fields = {name: spec.get(name) or case.get(name) for name in
-                  ("item", "price", "tax", "discount", "quantity", "fulfillment")}
         source = str(case.get("expected_source") or case.get("oracle") or "")
-        ok, reason = cart_expected(source, fields)
-        statement = str(case.get("expected") or case.get("title") or "cart check")
+        is_cart = any(word in text for word in _CART_WORDS)
+        if not is_cart and not source and not case.get("expected"):
+            continue
+        if case_id and case_id in seen:
+            continue
+        if case_id:
+            seen.add(case_id)
+        statement = str(case.get("expected") or case.get("title") or ("cart check" if is_cart else "case check"))
         assertion = bind_assertion(
             source=source or "ai",
             statement=statement,
-            scope=str(case.get("url") or case.get("page") or "/cart"),
-            requirement_id=str(case.get("tc_id") or case.get("id") or ""),
+            scope=str(case.get("url") or case.get("page") or ("/cart" if is_cart else "case")),
+            requirement_id=case_id,
+            reviewed=bool(case.get("reviewed")),
         )
+        if is_cart:
+            spec = case.get("spec") if isinstance(case.get("spec"), dict) else {}
+            fields = {name: spec.get(name) or case.get(name) for name in
+                      ("item", "price", "tax", "discount", "quantity", "fulfillment")}
+            ok, reason = cart_expected(source or "ai", fields, reviewed=bool(case.get("reviewed")))
+        else:
+            ok, reason = assertion.get("accepted", False), assertion.get("reason") or ""
         observed = str(case.get("actual_result") or case.get("execution_status") or "")
-        matched = ok and str(case.get("execution_status") or "").lower() in {"passed", "pass"}
+        matched = bool(ok) and str(case.get("execution_status") or "").lower() in {"passed", "pass"}
         decision = decide_observation(assertion, observed=observed, matched=matched)
         checks.append({
-            "id": case.get("tc_id") or case.get("id") or "",
-            "ok": ok,
+            "id": case_id,
+            "ok": bool(ok),
             "reason": reason,
             "assertion": assertion,
             "decision": decision,
@@ -310,13 +325,19 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     locale_raw = _read_json(run_dir / "locale.json")
     locale_file = locale_raw if isinstance(locale_raw, dict) else {}
     capture_portfolios(run_dir, app_map, source_url=str(state.get("url") or ""))
+    capture_visual(run_dir, app_map)
+    oracle = _cart_checks(cases)
+    lifecycle = lifecycle_for(state, finish=True)
+    healing = summarize_healing(list(state.get("healing_log") or []))
     applied = {
         "sample_unchanged": True,
         "sample": sample,
         "explore": {"next": [{"url": row.get("url"), "score": row.get("score")} for row in ranked[:30]]},
         "coverage": verify_sources(graph=visited, dom=visited, routes=list(crawl.get("not_visited") or []),
                                    blocked=[item for item in blocked if item], requirements=requirements),
-        "oracle": _cart_checks(cases),
+        "oracle": oracle,
+        "lifecycle": lifecycle,
+        "healing_policy": healing,
         "sessions": _sessions(str(state.get("run_id") or run_dir.name), state.get("roles") or {}),
         "environment": {"controls": controls, "payment_blocked": pay_blocked, "payment_reason": pay_reason},
         "replay": _replay_packages(failures, results, environment),
@@ -343,6 +364,9 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
         json.dumps(applied["portfolios"], indent=2), encoding="utf-8")
     (run_dir / "surface_coverage.json").write_text(
         json.dumps(applied["surfaces"], indent=2), encoding="utf-8")
+    (run_dir / "oracle_decisions.json").write_text(json.dumps(oracle, indent=2), encoding="utf-8")
+    (run_dir / "lifecycle.json").write_text(json.dumps(lifecycle, indent=2), encoding="utf-8")
+    (run_dir / "healing_policy.json").write_text(json.dumps(healing, indent=2), encoding="utf-8")
     return applied
 
 
