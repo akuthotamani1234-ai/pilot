@@ -81,6 +81,9 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["portfolio_artifact_manifest_drill"]["ready"] is has(
         "portfolio_artifact_manifest_drill.json"
     )
+    assert snap["checks"]["device_artifact_manifest_drill"]["ready"] is has(
+        "device_artifact_manifest_drill.json"
+    )
     assert snap["checks"]["multi_device_ci_contract"]["ready"] is has(
         "multi_device_ci_contract.json"
     )

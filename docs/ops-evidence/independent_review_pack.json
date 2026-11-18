@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:48:04Z",
+  "ran_at": "2026-11-18T23:48:50Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 77,
+  "artifact_count": 78,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -116,6 +116,11 @@
       "name": "demo_store_surface_coverage.json",
       "bytes": 2318,
       "sha256": "111761dd2e9d11e90fdb2980f0e2e7a8257415dddd4c82dcf2a6b83575baca31"
+    },
+    {
+      "name": "device_artifact_manifest_drill.json",
+      "bytes": 2448,
+      "sha256": "8bb6228f98d1b43d02bbff119c85fac19e7b65184cfeb9c085deee6b05b7e6fd"
     },
     {
       "name": "device_matrix_drill.json",
@@ -339,8 +344,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 3783,
-      "sha256": "8ceebdada0822a8dddc7d0635ca59838108628363fda9cd719bbde148c4f9ba0"
+      "bytes": 3877,
+      "sha256": "6eb47f090ed3aa9222e70779529e56c428f3aed093dcaa6f806f0a4be96d67c9"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -394,5 +399,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (77 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (78 artifacts hashed); independent human/reviewer sign-off still pending"
 }

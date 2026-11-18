@@ -446,6 +446,14 @@ def readiness() -> dict:
                 else "No portfolio artifact manifest evidence"
             ),
         },
+        "device_artifact_manifest_drill": {
+            "ready": _ops_evidence("device_artifact_manifest_drill.json"),
+            "reason": (
+                "Device/Appium CI artifact manifest present; broad multi-device runners still open"
+                if _ops_evidence("device_artifact_manifest_drill.json")
+                else "No device artifact manifest evidence"
+            ),
+        },
         "multi_device_ci_contract": {
             "ready": _ops_evidence("multi_device_ci_contract.json"),
             "reason": (

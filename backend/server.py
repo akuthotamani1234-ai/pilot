@@ -1342,6 +1342,19 @@ def ops_portfolio_artifact_manifest():
     return {"gate_f_complete": False, "portfolio_artifact_manifest": evidence}
 
 
+@app.post("/api/ops/drills/device-artifact-manifest")
+def ops_device_artifact_manifest():
+    """Gate D: CI-upload-shaped Appium/device manifest (broad CI runners still open)."""
+    from backend.device_artifact_manifest_drill import run_device_artifact_manifest_drill
+    evidence = run_device_artifact_manifest_drill()
+    _audit(
+        "ops_device_artifact_manifest",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(len(evidence.get("artifacts") or [])),
+    )
+    return {"gate_d_complete": False, "device_artifact_manifest": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
