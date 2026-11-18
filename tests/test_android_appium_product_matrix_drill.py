@@ -13,7 +13,8 @@ def test_android_appium_product_matrix_drill_reports_honestly(tmp_path: Path):
     if evidence.get("ok"):
         assert evidence["api_level"] >= 26
         assert str(evidence.get("device_id") or "").startswith("emulator-")
-        assert int(evidence.get("apps_passed") or 0) >= 2
+        assert int(evidence.get("system_apps_passed") or 0) >= 2
+        assert evidence.get("third_party_apk_passed") is True
         assert "android.emulator" in evidence.get("android_profiles_verified", [])
         assert "android.api24+" in evidence.get("android_profiles_verified", [])
     else:

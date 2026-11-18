@@ -96,7 +96,7 @@ def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         "ok": True,
         "reason": (
             "Combined web + Android Appium/smoke + protocol dry-run + ADB probe snapshot; "
-            "third-party APK / broad CI product matrix still open"
+            "broad multi-device CI product-matrix artifacts still open"
             if appium_rows else
             "Combined web + Android smoke/live + protocol dry-run + ADB probe snapshot; "
             "full Appium product matrix still open"

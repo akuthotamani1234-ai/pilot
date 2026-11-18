@@ -305,8 +305,8 @@ def readiness() -> dict:
         "android_appium_product_matrix_drill": {
             "ready": _ops_evidence("android_appium_product_matrix_drill.json"),
             "reason": (
-                "Live Appium system-app product matrix present; "
-                "third-party APK / broad CI matrix still open"
+                "Live Appium product matrix (system + ApiDemos APK) present; "
+                "broad multi-device CI matrix artifacts still open"
                 if _ops_evidence("android_appium_product_matrix_drill.json")
                 else "No Android Appium product matrix drill evidence"
             ),

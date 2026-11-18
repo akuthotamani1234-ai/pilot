@@ -1,13 +1,14 @@
 """Gate D: live Appium UiAutomator2 product-matrix drill on an online emulator.
 
-Exercises installed system apps (Settings / Contacts / Chrome) via the product
-``create_session`` path. Modern UiAutomator2 requires API 26+; API 24 smoke
-evidence remains separate. Full third-party APK / CI product matrix still open —
-``gate_d_complete`` stays False.
+Exercises system apps (Settings / Contacts / Chrome) plus a third-party sample
+APK (Appium ApiDemos) via the product ``create_session`` path. Modern
+UiAutomator2 requires API 26+; API 24 smoke evidence remains separate. Broad
+CI product-matrix artifacts still open — ``gate_d_complete`` stays False.
 """
 from __future__ import annotations
 
 import json
+import subprocess
 import time
 import urllib.request
 from pathlib import Path
@@ -17,6 +18,12 @@ from .device_matrix import evaluate_matrix
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "android_appium_product_matrix_drill.json"
+APIDEMOS_APK = ROOT / "demo-apps" / "ApiDemos-debug.apk"
+APIDEMOS_URL = (
+    "https://github.com/appium/appium/raw/master/packages/appium/"
+    "sample-code/apps/ApiDemos-debug.apk"
+)
+APIDEMOS_PACKAGE = "io.appium.android.apis"
 
 # Product portfolio: installed launcher apps present on Google APIs AVDs.
 PRODUCT_APPS = (
@@ -26,6 +33,32 @@ PRODUCT_APPS = (
 )
 
 DEFAULT_APPIUM = "http://127.0.0.1:4723"
+
+
+def _ensure_apidemos(adb: str, device_id: str) -> dict:
+    """Download (if needed) and install Appium ApiDemos as a third-party APK."""
+    result = {"package": APIDEMOS_PACKAGE, "installed": False, "apk": str(APIDEMOS_APK)}
+    try:
+        APIDEMOS_APK.parent.mkdir(parents=True, exist_ok=True)
+        if not APIDEMOS_APK.is_file() or APIDEMOS_APK.stat().st_size < 10_000:
+            with urllib.request.urlopen(APIDEMOS_URL, timeout=60) as resp:  # noqa: S310
+                APIDEMOS_APK.write_bytes(resp.read())
+        result["apk_bytes"] = APIDEMOS_APK.stat().st_size
+        proc = subprocess.run(
+            [adb, "-s", device_id, "install", "-r", str(APIDEMOS_APK)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        out = ((proc.stdout or "") + (proc.stderr or "")).lower()
+        result["install_rc"] = proc.returncode
+        result["installed"] = proc.returncode == 0 and "success" in out
+        if not result["installed"]:
+            result["install_error"] = ((proc.stdout or "") + (proc.stderr or ""))[:300]
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        result["install_error"] = str(e)[:300]
+    return result
 
 
 def _appium_ready(url: str) -> bool:
@@ -158,8 +191,6 @@ def run_android_appium_product_matrix_drill(
             api_level = 0
         if api_level < 26:
             # Probe via adb if environment cache is stale.
-            import subprocess
-
             try:
                 adb = str(env.get("adb") or "adb")
                 proc = subprocess.run(
@@ -191,17 +222,37 @@ def run_android_appium_product_matrix_drill(
                 ),
             }
         else:
+            adb = str(env.get("adb") or "adb")
+            third_party = _ensure_apidemos(adb, serial)
             apps = []
             for spec in PRODUCT_APPS:
-                apps.append(
-                    _exercise_app(
-                        device_id=serial,
-                        package=spec["package"],
-                        appium_url=appium_url,
-                        api_level=api_level,
-                    )
+                row = _exercise_app(
+                    device_id=serial,
+                    package=spec["package"],
+                    appium_url=appium_url,
+                    api_level=api_level,
                 )
+                row["kind"] = "system"
+                apps.append(row)
+            apk_row = _exercise_app(
+                device_id=serial,
+                package=APIDEMOS_PACKAGE,
+                appium_url=appium_url,
+                api_level=api_level,
+            )
+            apk_row["kind"] = "third_party_apk"
+            apk_row["install"] = third_party
+            if not third_party.get("installed") and not apk_row.get("ok"):
+                apk_row["ok"] = False
+                apk_row["outcome"] = "blocked"
+                apk_row.setdefault(
+                    "error",
+                    third_party.get("install_error") or "ApiDemos APK not installed",
+                )
+            apps.append(apk_row)
             passed = [a for a in apps if a.get("ok")]
+            system_passed = [a for a in passed if a.get("kind") == "system"]
+            apk_passed = [a for a in passed if a.get("kind") == "third_party_apk"]
             rows = []
             if passed:
                 rows.append(
@@ -213,6 +264,7 @@ def run_android_appium_product_matrix_drill(
                         "outcome": "passed",
                         "source": "android_appium_product_matrix",
                         "apps_passed": [a["package"] for a in passed],
+                        "third_party_apk": bool(apk_passed),
                     }
                 )
             scored = evaluate_matrix(rows)
@@ -220,7 +272,7 @@ def run_android_appium_product_matrix_drill(
                 "gate_d_complete": False,
                 "drill": "android_appium_product_matrix",
                 "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "ok": len(passed) >= 2,
+                "ok": len(system_passed) >= 2 and bool(apk_passed),
                 "appium_ready": True,
                 "appium_url": appium_url,
                 "device_id": serial,
@@ -229,14 +281,18 @@ def run_android_appium_product_matrix_drill(
                 "apps": apps,
                 "apps_passed": len(passed),
                 "apps_total": len(apps),
+                "system_apps_passed": len(system_passed),
+                "third_party_apk_passed": bool(apk_passed),
+                "third_party_install": third_party,
                 "matrix_rows": rows,
                 "android_profiles_verified": [
                     p for p in (scored.get("verified") or []) if p.startswith("android.")
                 ],
                 "reason": (
                     f"Live Appium product matrix on {serial} API {api_level}: "
-                    f"{len(passed)}/{len(apps)} system apps passed; "
-                    "third-party APK / broad CI product matrix still open"
+                    f"{len(system_passed)} system + "
+                    f"{'ApiDemos APK' if apk_passed else 'no third-party APK'}; "
+                    "broad multi-device CI product-matrix artifacts still open"
                 ),
             }
 
