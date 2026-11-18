@@ -1,0 +1,70 @@
+"""Gate G enterprise readiness probe. Reports configured backends without claiming they work.
+
+Postgres / Redis / remote MinIO remain optional. Local SQLite durable queue and
+local object store keep the product usable offline.
+"""
+from __future__ import annotations
+
+import os
+
+from .api_versioning import SUPPORTED
+from .object_store import open_object_store
+from .rbac import ROLES
+
+
+def _present(name: str) -> str:
+    return (os.getenv(name) or os.getenv(name.replace("QPILOT_", "BLOWAI_")) or "").strip()
+
+
+def readiness() -> dict:
+    """Snapshot of enterprise dependencies. Secrets are never returned."""
+    postgres = _present("POSTGRES_URL") or _present("QPILOT_DB_URL") or _present("DATABASE_URL")
+    redis = _present("REDIS_URL") or _present("QPILOT_REDIS_URL")
+    object_uri = _present("OBJECT_STORE_URI") or _present("MINIO_URL")
+    store = open_object_store(object_uri or None)
+    components = {
+        "postgres": {
+            "configured": bool(postgres),
+            "ready": False,
+            "reason": "Postgres URL set but migrations/driver not established" if postgres
+            else "Postgres not configured; local SQLite remains default",
+        },
+        "redis": {
+            "configured": bool(redis),
+            "ready": False,
+            "reason": "Redis URL set but queue adapter not established" if redis
+            else "Redis not configured; DurableQueue SQLite remains default",
+        },
+        "object_store": {
+            "configured": bool(object_uri) or True,
+            "ready": bool(store.get("ready")),
+            "backend": store.get("backend"),
+            "reason": store.get("reason") or ("local object store ready" if store.get("ready") else "not ready"),
+        },
+        "rbac": {
+            "configured": True,
+            "ready": True,
+            "roles": sorted(ROLES),
+            "reason": "deny-by-default helper available; Studio multi-tenant auth not wired",
+        },
+        "api_versioning": {
+            "configured": True,
+            "ready": True,
+            "supported": sorted(SUPPORTED),
+            "reason": "legacy /api maps to v1; /api/v1 is canonical",
+        },
+        "react_dashboard": {
+            "configured": False,
+            "ready": False,
+            "reason": "Studio remains HTML/JS under frontend/; React/TS dashboard not established",
+        },
+    }
+    ready = ["rbac", "api_versioning"] + (["object_store"] if components["object_store"]["ready"] else [])
+    missing = [name for name, row in components.items() if not row["ready"]]
+    return {
+        "gate_g_complete": False,
+        "gate_i_complete": False,
+        "ready": ready,
+        "missing": missing,
+        "components": components,
+    }

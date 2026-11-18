@@ -215,6 +215,11 @@ class Settings:
     baseline_dir: Path = Path(os.getenv("BASELINE_DIR", "baseline"))
     workspace_dir: Path = Path(os.getenv("WORKSPACE_DIR", "workspace"))
 
+    # Optional enterprise backends (empty = local-first SQLite / filesystem). A URL is not readiness.
+    postgres_url: str = os.getenv("POSTGRES_URL", "") or os.getenv("DATABASE_URL", "")
+    redis_url: str = os.getenv("REDIS_URL", "") or os.getenv("QPILOT_REDIS_URL", "")
+    object_store_uri: str = os.getenv("OBJECT_STORE_URI", "") or os.getenv("MINIO_URL", "")
+
 
 DEFAULT_MODELS = {
     "openai": "gpt-4o-mini",
