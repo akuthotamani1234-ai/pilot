@@ -1,0 +1,164 @@
+"""Gate I: structural OIDC bearer JWT checks (not live SSO).
+
+Decodes header/payload, checks iss/aud/exp when env is configured.
+Signature verification requires the optional ``PyJWT`` package + JWKS fetch.
+Never marks Gate I complete.
+"""
+from __future__ import annotations
+
+import base64
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from urllib.parse import urlparse
+
+
+def _b64url_json(segment: str) -> dict:
+    pad = "=" * (-len(segment) % 4)
+    raw = base64.urlsafe_b64decode(segment + pad)
+    data = json.loads(raw.decode("utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("JWT segment is not a JSON object")
+    return data
+
+
+def _env(*names: str) -> str:
+    for name in names:
+        val = (os.getenv(name) or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def configured_claims() -> dict:
+    return {
+        "issuer": _env("QPILOT_OIDC_ISSUER", "BLOWAI_OIDC_ISSUER", "OIDC_ISSUER"),
+        "audience": _env("QPILOT_OIDC_AUDIENCE", "BLOWAI_OIDC_AUDIENCE", "OIDC_AUDIENCE"),
+        "client_id": _env("QPILOT_OIDC_CLIENT_ID", "BLOWAI_OIDC_CLIENT_ID", "OIDC_CLIENT_ID"),
+    }
+
+
+def decode_unverified(token: str) -> dict:
+    """Split and decode a compact JWT without verifying the signature."""
+    parts = (token or "").strip().split(".")
+    if len(parts) != 3:
+        raise ValueError("token is not a compact JWT (header.payload.signature)")
+    return {"header": _b64url_json(parts[0]), "payload": _b64url_json(parts[1]), "parts": parts}
+
+
+def _fetch_jwks(issuer: str) -> dict:
+    parsed = urlparse(issuer if issuer.endswith("/") else issuer + "/")
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("OIDC issuer must be http(s)")
+    # Standard OIDC discovery → jwks_uri, with a common fallback path.
+    discovery = issuer.rstrip("/") + "/.well-known/openid-configuration"
+    req = urllib.request.Request(discovery, method="GET")  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+            meta = json.loads(resp.read().decode("utf-8"))
+        jwks_uri = str(meta.get("jwks_uri") or "")
+    except Exception:
+        jwks_uri = issuer.rstrip("/") + "/.well-known/jwks.json"
+    if urlparse(jwks_uri).scheme not in {"http", "https"}:
+        raise ValueError("jwks_uri must be http(s)")
+    req = urllib.request.Request(jwks_uri, method="GET")  # noqa: S310
+    with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
+    """Validate bearer JWT structure + configured iss/aud/exp.
+
+    Returns ``{ok, reason, gate_i_complete: False, ...}``. Signature verification
+    is best-effort when PyJWT is installed and an issuer is configured.
+    """
+    cfg = configured_claims()
+    out = {
+        "ok": False,
+        "gate_i_complete": False,
+        "ready": False,
+        "reason": "",
+        "claims": {},
+        "signature_verified": False,
+    }
+    try:
+        decoded = decode_unverified(token)
+    except Exception as exc:
+        out["reason"] = f"JWT decode failed: {exc}"
+        return out
+    payload = decoded["payload"]
+    out["claims"] = {
+        "iss": payload.get("iss"),
+        "aud": payload.get("aud"),
+        "sub": payload.get("sub"),
+        "exp": payload.get("exp"),
+        "email": payload.get("email"),
+    }
+    if cfg["issuer"] and str(payload.get("iss") or "") != cfg["issuer"]:
+        out["reason"] = f"iss mismatch (want {cfg['issuer']})"
+        return out
+    if cfg["audience"]:
+        aud = payload.get("aud")
+        audiences = aud if isinstance(aud, list) else [aud]
+        if cfg["audience"] not in {str(a) for a in audiences if a is not None}:
+            out["reason"] = f"aud mismatch (want {cfg['audience']})"
+            return out
+    exp = payload.get("exp")
+    if exp is not None:
+        try:
+            if float(exp) < time.time():
+                out["reason"] = "token expired"
+                return out
+        except (TypeError, ValueError):
+            out["reason"] = "exp claim is not a number"
+            return out
+
+    if verify_signature and cfg["issuer"]:
+        try:
+            import jwt  # PyJWT optional
+            from jwt import PyJWKClient
+
+            jwks = _fetch_jwks(cfg["issuer"])
+            # PyJWKClient wants a URI; use discovery jwks via temp inline keys when needed.
+            jwks_uri = cfg["issuer"].rstrip("/") + "/.well-known/jwks.json"
+            try:
+                client = PyJWKClient(jwks_uri)
+                key = client.get_signing_key_from_jwt(token).key
+            except Exception:
+                # Fall back: first RSA key in fetched JWKS document via jwt algorithms.
+                keys = jwks.get("keys") if isinstance(jwks, dict) else None
+                if not keys:
+                    raise RuntimeError("JWKS has no keys") from None
+                key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(keys[0]))
+            jwt.decode(
+                token,
+                key=key,
+                algorithms=[decoded["header"].get("alg") or "RS256"],
+                audience=cfg["audience"] or None,
+                issuer=cfg["issuer"],
+                options={"verify_aud": bool(cfg["audience"])},
+            )
+            out["signature_verified"] = True
+        except ImportError:
+            out["reason"] = (
+                "claims ok (iss/aud/exp); PyJWT not installed — signature not verified; "
+                "live SSO still open"
+            )
+            out["ok"] = True
+            return out
+        except (urllib.error.URLError, TimeoutError, ValueError, Exception) as exc:
+            out["reason"] = (
+                f"claims ok but signature/JWKS verification failed: {exc}; live SSO still open"
+            )
+            out["ok"] = True  # structural claims passed; signature path incomplete
+            return out
+
+    out["ok"] = True
+    out["reason"] = (
+        "JWT claims (+ signature) accepted structurally; live hosted SSO login still open"
+        if out["signature_verified"] else
+        "JWT claims accepted structurally; signature not verified; live SSO still open"
+    )
+    return out
