@@ -1,0 +1,50 @@
+{
+  "gate_i_complete": false,
+  "drill": "api_version_contract",
+  "ran_at": "2026-11-18T15:50:42Z",
+  "supported": [
+    1
+  ],
+  "legacy": {
+    "ok": true,
+    "version": 1,
+    "resource": "/blueprint/progress",
+    "legacy": true,
+    "reason": ""
+  },
+  "v1": {
+    "ok": true,
+    "version": 1,
+    "resource": "/blueprint/progress",
+    "legacy": false,
+    "reason": ""
+  },
+  "unsupported": {
+    "ok": false,
+    "version": 99,
+    "resource": "/blueprint/progress",
+    "legacy": false,
+    "reason": "API v99 is not supported; use v1"
+  },
+  "builder_error": "unsupported API version 99",
+  "checks": [
+    {
+      "id": "legacy_maps_v1",
+      "ok": true
+    },
+    {
+      "id": "v1_canonical",
+      "ok": true
+    },
+    {
+      "id": "unsupported_rejected",
+      "ok": true
+    },
+    {
+      "id": "builder_rejects_unsupported",
+      "ok": true
+    }
+  ],
+  "ok": true,
+  "reason": "API versioning contract verified offline (legacy\u2192v1, unsupported rejected); live hosted SSO / enterprise dashboard still open"
+}
