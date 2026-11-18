@@ -103,6 +103,14 @@ def readiness() -> dict:
                 else "No CI/deploy rollback rehearsal evidence"
             ),
         },
+        "paging_rehearsal": {
+            "ready": _ops_evidence("paging_rehearsal.json"),
+            "reason": (
+                "Loopback paging rehearsal present; live hosted on-call/paging still open"
+                if _ops_evidence("paging_rehearsal.json")
+                else "No paging rehearsal evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]

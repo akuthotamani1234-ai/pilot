@@ -1,0 +1,10 @@
+{
+  "gate_h_complete": false,
+  "drill": "paging_rehearsal",
+  "ran_at": "2026-11-18T13:32:21Z",
+  "ok": true,
+  "sink": "http://127.0.0.1:37777/page",
+  "http_status": 202,
+  "received_count": 1,
+  "reason": "Loopback paging sink accepted synthetic SEV2; live hosted on-call/paging still open"
+}

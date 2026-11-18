@@ -48,9 +48,9 @@ def progress() -> dict:
         {"id": "G", "label": "Gate G — Tenancy / audit / store", "status": "active",
          "note": "Live Postgres/Redis/MinIO drills when configured; Studio SSO/multi-tenant ACLs still open"},
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
-         "note": "Local drills + CI rollback rehearsal; live hosted DR/paging still open"},
-        {"id": "I", "label": "Gate I — React/TS dashboard", "status": "partial",
-         "note": "Approvals auth modes bearer/webhook/principal; SSO/hosting still open"},
+         "note": "Local drills + CI rollback + loopback paging; live hosted DR/on-call still open"},
+        {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
+         "note": "Auth modes + OIDC/hosting contract snapshot; live SSO login still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "DemoStore strong; broader sites/Android open"},
     ]
@@ -86,9 +86,11 @@ def progress() -> dict:
         {"id": "H-ci-rollback", "label": "Offline CI/deploy rollback rehearsal", "status": "done"},
         {"id": "I-auth-modes", "label": "Dashboard auth modes bearer/webhook/principal", "status": "done"},
         {"id": "D-android-dryrun", "label": "Android protocol dry-run evidence contract", "status": "done"},
-        {"id": "H-drills", "label": "Live hosted DR / soak / paging drills", "status": "open"},
+        {"id": "H-paging-loopback", "label": "Loopback paging rehearsal (not live on-call)", "status": "done"},
+        {"id": "I-sso-contract", "label": "OIDC/hosting env contract snapshot", "status": "done"},
+        {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
-        {"id": "I-auth", "label": "SSO + hosted multi-tenant contracts", "status": "open"},
+        {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},
         {"id": "G-review", "label": "Independent security/reliability review", "status": "open"},
     ]
     return {

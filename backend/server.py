@@ -656,6 +656,15 @@ def ops_ci_rollback():
     return {"gate_h_complete": False, "ci_rollback": evidence}
 
 
+@app.post("/api/ops/drills/paging")
+def ops_paging_rehearsal():
+    """Loopback paging rehearsal (Gate H still incomplete — no live on-call)."""
+    from backend.ops_paging_drill import run_paging_rehearsal
+    evidence = run_paging_rehearsal()
+    _audit("ops_paging_rehearsal", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "paging": evidence}
+
+
 def _require_dashboard_auth(
     authorization: str | None = Header(default=None),
     x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
