@@ -162,6 +162,21 @@ def test_workers_stay_for_the_whole_run_then_close():
     assert any(status == "finished" for _worker, status, _url in notes)
 
 
+def test_a_worker_reads_the_page_and_saves_what_it_found():
+    def session():
+        def open_page(url):
+            return {"url": url, "title": "Home", "summary": "4 links, 2 buttons, 1 form"}
+
+        return open_page, lambda: None
+
+    notes = []
+    swarm = SiteSwarm(1, 2, session, on_status=lambda worker, status, url: notes.append((worker, status, url)))
+    swarm.submit(["https://shop.example/"])
+    rows = swarm.finish()
+    assert rows[0]["work"]["summary"] == "4 links, 2 buttons, 1 form"
+    assert (1, "read", "https://shop.example/ | 4 links, 2 buttons, 1 form") in notes
+
+
 def test_swarm_size_wins_over_the_older_pattern_sample():
     assert sample_limit(3, 0) == 3
     assert sample_limit(0, 5) == 5

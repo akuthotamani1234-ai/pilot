@@ -1870,6 +1870,16 @@ def discovery_agent(state: QAState) -> QAState:
     swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
     swarm_workers: set[int] = set()  # workers that received a page
     site_swarm = None  # opened while the crawl runs, closed when the crawl ends
+
+    def _close_swarm() -> None:
+        if site_swarm is None:
+            return
+        rows = site_swarm.finish()
+        work = [row["work"] for row in rows if isinstance(row.get("work"), dict)]
+        if not work:
+            return
+        (run_dir / "swarm_work.json").write_text(json.dumps(work, indent=2), encoding="utf-8")
+        print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -2039,10 +2049,26 @@ def discovery_agent(state: QAState) -> QAState:
                 playwright = sync_playwright().start()
                 worker_browser = playwright.chromium.launch(headless=settings.headless)
 
-                def open_page(address: str) -> None:
+                def open_page(address: str) -> dict:
                     page = worker_browser.new_page()
                     try:
-                        page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                        response = page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                        data = page.evaluate(EXTRACT_JS) or {}
+                        links = len(data.get("links") or [])
+                        buttons = len(data.get("buttons") or [])
+                        forms = len(data.get("forms") or [])
+                        inputs = len(data.get("inputs") or [])
+                        title = (page.title() or "").strip()[:120]
+                        return {
+                            "url": address,
+                            "title": title,
+                            "status": response.status if response is not None else None,
+                            "links": links,
+                            "buttons": buttons,
+                            "forms": forms,
+                            "inputs": inputs,
+                            "summary": f"{links} links, {buttons} buttons, {forms} forms",
+                        }
                     finally:
                         page.close()
 
@@ -2842,11 +2868,11 @@ def discovery_agent(state: QAState) -> QAState:
             if role_map:
                 (run_dir / "roles.json").write_text(json.dumps(role_map, indent=2), encoding="utf-8")
         if site_swarm is not None:
-            site_swarm.finish()
+            _close_swarm()
         browser.close()
 
     if site_swarm is not None:
-        site_swarm.finish()
+        _close_swarm()
 
     # Header/footer buttons appear on every page: mark where each button is seen FIRST,
     # so it is click-tested once, not on every page.

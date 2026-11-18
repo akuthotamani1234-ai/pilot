@@ -209,13 +209,22 @@ class SiteSwarm:
                 if self._on_status:
                     self._on_status(worker, "opening", url)
                 try:
-                    open_page(url)
+                    found = open_page(url)
                 except Exception:
                     if self._on_status:
                         self._on_status(worker, "stopped", url)
                     continue
+                summary = ""
+                if isinstance(found, dict):
+                    summary = str(found.get("summary") or "")
+                    with self._lock:
+                        for row in self.rows:
+                            if row.get("worker") == worker and row.get("url") == url and "work" not in row:
+                                row["work"] = found
+                                break
                 if self._on_status:
-                    self._on_status(worker, "opened", url)
+                    detail = f"{url} | {summary}" if summary else url
+                    self._on_status(worker, "read", detail)
         finally:
             close()
 
