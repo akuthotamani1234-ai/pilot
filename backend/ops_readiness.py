@@ -199,6 +199,14 @@ def readiness() -> dict:
                 else "No audit export drill evidence"
             ),
         },
+        "dashboard_auth_matrix_drill": {
+            "ready": _ops_evidence("dashboard_auth_matrix_drill.json"),
+            "reason": (
+                "Dashboard auth mode matrix evidence present; live hosted IdP SSO still open"
+                if _ops_evidence("dashboard_auth_matrix_drill.json")
+                else "No dashboard auth matrix drill evidence"
+            ),
+        },
         "lifecycle_cleanup_drill": {
             "ready": _ops_evidence("lifecycle_cleanup_drill.json"),
             "reason": (

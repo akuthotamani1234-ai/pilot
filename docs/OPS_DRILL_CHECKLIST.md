@@ -34,7 +34,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
 | F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json` |
 | G | Postgres/Redis/MinIO + `/api/audit/export` + `/api/ops/drills/audit-export` | `docs/ops-evidence/pg_tenancy_drill.json`, `audit_export_drill.json` (+ infra drills) |
-| I | `/api/ops/drills/api-version-contract` | `docs/ops-evidence/api_version_contract.json` |
+| I | `/api/ops/drills/api-version-contract`, `dashboard-auth-matrix` | `docs/ops-evidence/api_version_contract.json`, `dashboard_auth_matrix_drill.json` |
 
 Studio sidebar Blueprint TODO (`/api/v1/blueprint/progress`) lists done vs open upcoming items for these increments.
 

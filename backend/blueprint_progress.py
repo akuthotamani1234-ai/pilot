@@ -50,7 +50,7 @@ def progress() -> dict:
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Local drills + controlled AdminPortal soak; live hosted DR/on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "Auth modes + OIDC JWT + API version contract drill; live hosted SSO still open"},
+         "note": "Auth mode matrix + OIDC JWT + API version drills; live hosted SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "Four fixtures strong + AdminPortal 0 FA (run4); Android/third-party still open"},
     ]
@@ -132,6 +132,7 @@ def progress() -> dict:
         {"id": "B-swarm-retry", "label": "Swarm lease-expiry → retry_wait control drill", "status": "done"},
         {"id": "G-live-drills-refresh4", "label": "Re-verify live Postgres/Redis/MinIO after F/C/B drills", "status": "done"},
         {"id": "G-audit-export-drill", "label": "Tenant-scoped audit export contract drill", "status": "done"},
+        {"id": "I-auth-matrix-drill", "label": "Dashboard auth mode matrix drill (5 modes)", "status": "done"},
         {"id": "D-matrix-snapshot", "label": "Combined device matrix snapshot (web+ADB+dry-run)", "status": "done"},
         {"id": "F-locale-drill", "label": "DemoStore locale portfolio drill evidence", "status": "done"},
         {"id": "H-checklist-cross-gate", "label": "Ops checklist lists cross-gate offline drill APIs", "status": "done"},
