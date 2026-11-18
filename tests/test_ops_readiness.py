@@ -30,3 +30,7 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
         assert "controlled_soak" in snap["ready"]
     else:
         assert "controlled_soak" in snap["missing"]
+    assert snap["checks"]["failure_matrix_drill"]["ready"] is has("failure_matrix_drill.json")
+    assert snap["checks"]["healing_regression_drill"]["ready"] is has("healing_regression_drill.json")
+    assert snap["checks"]["api_version_contract"]["ready"] is has("api_version_contract.json")
+    assert snap["checks"]["pg_tenancy_drill"]["ready"] is has("pg_tenancy_drill.json")

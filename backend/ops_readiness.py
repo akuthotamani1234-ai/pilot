@@ -135,6 +135,38 @@ def readiness() -> dict:
                 else "No paging rehearsal evidence"
             ),
         },
+        "failure_matrix_drill": {
+            "ready": _ops_evidence("failure_matrix_drill.json"),
+            "reason": (
+                "Offline failure taxonomy matrix present; live failure matrix still open"
+                if _ops_evidence("failure_matrix_drill.json")
+                else "No failure taxonomy matrix evidence"
+            ),
+        },
+        "healing_regression_drill": {
+            "ready": _ops_evidence("healing_regression_drill.json"),
+            "reason": (
+                "Offline healing regression suite present; production healing still open"
+                if _ops_evidence("healing_regression_drill.json")
+                else "No healing regression suite evidence"
+            ),
+        },
+        "api_version_contract": {
+            "ready": _ops_evidence("api_version_contract.json"),
+            "reason": (
+                "API version contract drill present; live hosted SSO still open"
+                if _ops_evidence("api_version_contract.json")
+                else "No API version contract evidence"
+            ),
+        },
+        "pg_tenancy_drill": {
+            "ready": _ops_evidence("pg_tenancy_drill.json"),
+            "reason": (
+                "Postgres tenancy helper drill present; Studio SSO ACLs still open"
+                if _ops_evidence("pg_tenancy_drill.json")
+                else "No Postgres tenancy helper evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
