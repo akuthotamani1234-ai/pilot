@@ -57,6 +57,14 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert applied["explore"]["next"][0]["url"].endswith("/saree")
     assert applied["coverage"]["unknown"] == ["https://shop.example/wishlist"]
     assert applied["oracle"][0]["ok"] is False
+    assert applied["oracle"][0]["assertion"]["accepted"] is False
+    assert applied["oracle"][0]["decision"]["verdict"] == "needs_review"
+    assert applied["device_matrix"]["complete"] is False
+    assert "web.desktop" in applied["device_matrix"]["verified"]
+    assert "android.emulator" in applied["device_matrix"]["unverified"]
+    assert applied["portfolios"]["complete"] is False
+    assert "locale" in applied["portfolios"]["passed"]
+    assert applied["enterprise"]["gate_g_complete"] is False
     assert applied["sessions"]["roles"]["shopper"]["state"] == "session_expired"
     assert "password" not in json.dumps(applied["sessions"])
     assert applied["environment"]["payment_blocked"] is True

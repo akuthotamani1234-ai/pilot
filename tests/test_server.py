@@ -50,6 +50,19 @@ def test_only_local_host_names_are_answered():
     assert TestClient(server.app, base_url="http://localhost:8000").get("/api/history").status_code == 200
 
 
+def test_api_v1_aliases_legacy_routes_and_rejects_unsupported_versions(client):
+    legacy = client.get("/api/history")
+    v1 = client.get("/api/v1/history")
+    assert legacy.status_code == 200 and v1.status_code == 200
+    assert v1.json() == legacy.json()
+    bad = client.get("/api/v9/history")
+    assert bad.status_code == 404 and "not supported" in bad.json()["detail"]
+    ready = client.get("/api/v1/enterprise/readiness")
+    assert ready.status_code == 200
+    body = ready.json()
+    assert body["gate_g_complete"] is False and body["gate_i_complete"] is False
+
+
 def test_every_change_needs_the_header(client):
     assert client.post("/api/runs", json={"source": "https://x.test"}).status_code == 403
     assert client.delete("/api/runs/whatever").status_code == 403
