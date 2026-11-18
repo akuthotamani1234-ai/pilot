@@ -86,7 +86,20 @@ def can_read_run(*, role: str, actor_tenant: str, run_tenant: str) -> bool:
 
 
 def get_principal(principal_id: str, *, db_path: str | Path | None = None) -> dict | None:
-    """Lookup one principal row, or None."""
+    """Lookup one principal row, or None.
+
+    When ``POSTGRES_URL`` is set and no explicit ``db_path`` is passed, prefer
+    the live Postgres tenancy tables (Gate G still incomplete).
+    """
+    if db_path is None:
+        try:
+            from .pg_tenancy import get_principal_pg, postgres_configured
+            if postgres_configured():
+                row = get_principal_pg(principal_id)
+                if row is not None:
+                    return row
+        except Exception:
+            pass
     path = Path(db_path) if db_path else DEFAULT_DB
     if not path.is_file():
         return None
@@ -165,6 +178,13 @@ def assert_run_access(
 
 def runs_visible_to_principal(principal_id: str, *, db_path: str | Path | None = None) -> dict:
     """Tenant-scoped run list for a principal (Gate G ACL helper; Studio SSO still open)."""
+    if db_path is None:
+        try:
+            from .pg_tenancy import postgres_configured, runs_visible_to_principal_pg
+            if postgres_configured():
+                return runs_visible_to_principal_pg(principal_id)
+        except Exception:
+            pass
     principal = get_principal(principal_id, db_path=db_path)
     if principal is None:
         return {

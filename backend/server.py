@@ -598,6 +598,15 @@ def ops_android_adb_probe():
     return {"gate_d_complete": False, "adb_probe": evidence}
 
 
+@app.post("/api/ops/drills/failure-matrix")
+def ops_failure_matrix():
+    """Gate E: controlled failure-classification matrix (still incomplete)."""
+    from backend.failure_matrix import run_failure_matrix_drill
+    evidence = run_failure_matrix_drill()
+    _audit("ops_failure_matrix", cases=int(evidence.get("cases") or 0))
+    return {"gate_e_complete": False, "failure_matrix": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

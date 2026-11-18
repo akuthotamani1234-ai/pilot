@@ -1,0 +1,80 @@
+{
+  "gate_e_complete": false,
+  "drill": "controlled_failure_classification_matrix",
+  "ran_at": "2026-11-18T15:45:56Z",
+  "cases": 8,
+  "counts": {
+    "product_defect": 3,
+    "test_defect": 2,
+    "timeout": 1,
+    "flaky": 1,
+    "inconclusive": 1
+  },
+  "rows": [
+    {
+      "id": "assert-product",
+      "category": "product_defect",
+      "confidence": "high",
+      "why": "The website did not behave as expected.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "locator",
+      "category": "test_defect",
+      "confidence": "high",
+      "why": "The automation could not establish a unique, reachable target or grounded value.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "script-bug",
+      "category": "test_defect",
+      "confidence": "high",
+      "why": "The generated script itself has a coding error.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "timeout",
+      "category": "timeout",
+      "confidence": "medium",
+      "why": "The test hit its time limit and was stopped.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "flaky-pass",
+      "category": "flaky",
+      "confidence": "medium",
+      "why": "Failed first, passed on retry - timing or an unstable element.",
+      "flaky": true,
+      "outcome": "failed"
+    },
+    {
+      "id": "session",
+      "category": "product_defect",
+      "confidence": "high",
+      "why": "The website did not behave as expected.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "infra-block",
+      "category": "product_defect",
+      "confidence": "high",
+      "why": "The website did not behave as expected.",
+      "flaky": false,
+      "outcome": "failed"
+    },
+    {
+      "id": "inconclusive",
+      "category": "inconclusive",
+      "confidence": "high",
+      "why": "Inconclusive: nothing was asserted",
+      "flaky": false,
+      "outcome": "inconclusive"
+    }
+  ],
+  "reason": "Controlled offline failure taxonomy matrix recorded; live failure matrix / healing regression suite still open"
+}
