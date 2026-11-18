@@ -1,0 +1,34 @@
+{
+  "fixture_id": "demo_store",
+  "version": 1,
+  "owned": true,
+  "implementation": "tests/demo_store.py",
+  "truth": "tests/demo_store_truth.json",
+  "base_url_pattern": "http://127.0.0.1:<port>/",
+  "identities": [
+    {
+      "role": "buyer",
+      "username_env": "TEST_USERNAME",
+      "password_env": "TEST_PASSWORD",
+      "default_username": "demo@store.test",
+      "secret_in_repo": false,
+      "note": "Password is the public fixture password documented in tests/demo_store.py for local offline use only."
+    }
+  ],
+  "budgets": {
+    "max_pages": 0,
+    "max_depth": 0,
+    "workers": 3,
+    "llm_provider": "none"
+  },
+  "seeded_defects": [
+    "sort_price",
+    "cart_total",
+    "search_wrong_hit",
+    "qty_below_min",
+    "wishlist_error",
+    "dead_button"
+  ],
+  "gate": "J",
+  "phase": 1
+}
