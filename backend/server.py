@@ -671,6 +671,20 @@ def ops_multi_app_healing_suite():
     return {"gate_e_complete": False, "multi_app_healing_suite": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-matrix")
+def ops_production_healing_matrix():
+    """Gate E: production-like multi-failure healing matrix (suite still open)."""
+    from backend.production_healing_matrix_drill import run_production_healing_matrix_drill
+    evidence = run_production_healing_matrix_drill()
+    _audit(
+        "ops_production_healing_matrix",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_matrix": evidence}
+
+
 @app.post("/api/ops/drills/api-version-contract")
 def ops_api_version_contract():
     """Gate I: API versioning contract snapshot (SSO still open)."""
@@ -1274,6 +1288,20 @@ def ops_redis_multi_region():
         "gate_b_complete": False,
         "redis_multi_region": evidence,
     }
+
+
+@app.post("/api/ops/drills/multi-store-dr")
+def ops_multi_store_dr():
+    """Gate H: combined Postgres+MinIO+Redis failover (hosted multi-region still open)."""
+    from backend.multi_store_dr_drill import run_multi_store_dr_drill
+    evidence = run_multi_store_dr_drill()
+    _audit(
+        "ops_multi_store_dr",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_h_complete": False, "multi_store_dr": evidence}
 
 
 @app.post("/api/ops/drills/observability-probe")

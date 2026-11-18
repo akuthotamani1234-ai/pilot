@@ -113,6 +113,14 @@ def readiness() -> dict:
                 else "No Redis multi-region failover evidence"
             ),
         },
+        "multi_store_dr_drill": {
+            "ready": _ops_evidence("multi_store_dr_drill.json"),
+            "reason": (
+                "Combined Postgres+MinIO+Redis failover pack present; hosted multi-region DR still open"
+                if _ops_evidence("multi_store_dr_drill.json")
+                else "No multi-store DR pack evidence"
+            ),
+        },
         "observability_probe_drill": {
             "ready": _ops_evidence("observability_probe_drill.json"),
             "reason": (
@@ -476,6 +484,14 @@ def readiness() -> dict:
                 "Multi-fixture healing suite present; production / third-party healing still open"
                 if _ops_evidence("multi_app_healing_suite_drill.json")
                 else "No multi-app healing suite evidence"
+            ),
+        },
+        "production_healing_matrix_drill": {
+            "ready": _ops_evidence("production_healing_matrix_drill.json"),
+            "reason": (
+                "Production-like healing matrix present; production / third-party suite still open"
+                if _ops_evidence("production_healing_matrix_drill.json")
+                else "No production healing matrix evidence"
             ),
         },
         "independent_review_pack": {

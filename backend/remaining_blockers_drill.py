@@ -21,6 +21,7 @@ BLOCKERS = (
             "multi_region_dr_drill.json",
             "minio_multi_region_drill.json",
             "redis_multi_region_drill.json",
+            "multi_store_dr_drill.json",
             "paging_escalation_drill.json",
         ],
     },
@@ -42,6 +43,7 @@ BLOCKERS = (
         "local_partial": [
             "live_failure_matrix_drill.json",
             "multi_app_healing_suite_drill.json",
+            "production_healing_matrix_drill.json",
             "healing_regression_drill.json",
         ],
     },
