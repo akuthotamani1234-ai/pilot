@@ -20,5 +20,20 @@
       "com.android.contacts",
       "com.android.chrome"
     ]
+  },
+  {
+    "surface": "android",
+    "device_id": "emulator-5556",
+    "form": "emulator",
+    "api_level": 30,
+    "outcome": "passed",
+    "source": "android_appium_product_matrix",
+    "apps_passed": [
+      "com.android.settings",
+      "com.android.contacts",
+      "com.android.chrome",
+      "io.appium.android.apis"
+    ],
+    "third_party_apk": true
   }
 ]

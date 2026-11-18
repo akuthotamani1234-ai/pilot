@@ -1,7 +1,7 @@
 {
   "gate_d_complete": false,
   "drill": "android_adb_probe",
-  "ran_at": "2026-11-18T19:50:57Z",
+  "ran_at": "2026-11-18T19:54:12Z",
   "adb": "/home/ubuntu/Android/Sdk/platform-tools/adb",
   "adb_present": true,
   "appium_reachable": false,
