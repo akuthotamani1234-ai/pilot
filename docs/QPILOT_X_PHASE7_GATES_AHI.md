@@ -14,15 +14,14 @@
 - `gate_h_complete` stays **false**
 
 ## Gate I
-- Studio sidebar **Blueprint TODO** (`frontend/chat.html` / `chat.js`) reads `/api/v1/blueprint/progress` (also nested under enterprise readiness)
-- Shows gates A–J with done/strong/partial/active/open badges plus upcoming work
-- Not a React/TS dashboard — Studio remains HTML/JS
+- Studio sidebar **Blueprint TODO** (`frontend/chat.html` / `chat.js`) reads `/api/v1/blueprint/progress`
+- React/TypeScript dashboard scaffold: `frontend/dashboard` served at `/dashboard/`
+- Auth, approvals UX, and hosted multi-tenant contracts still open — `gate_i_complete` stays false
 
-## Gate F / G increments (this pass)
-- `backend/portfolio_capture.py` writes a11y/perf/security evidence from discovery `app_map`
-- Wired at end of discovery and before portfolio evaluation in `apply_run`
-- `backend/audit_store.py` persists studio `_audit` events into SQLite `audit_events`
-- `/api/audit/events` lists newest rows
+## Gate C / E / F increments
+- `apply_run` writes `oracle_decisions.json`, confirmed `lifecycle.json`, `healing_policy.json`
+- `backend/visual_capture.py` records first-run screenshot evidence when pixel diff has not run
+- Portfolio capture remains wired from discovery + apply_run
 
 ## Tests
 - `tests/test_discovery_graph.py`
@@ -30,4 +29,6 @@
 - `tests/test_blueprint_progress.py`
 - `tests/test_portfolio_capture.py`
 - `tests/test_audit_store.py`
-- extended `tests/test_apply_run.py`, `tests/test_server.py`
+- `tests/test_healing_policy.py`
+- `tests/test_visual_capture.py`
+- extended `tests/test_apply_run.py`, `tests/test_server.py`, `tests/test_enterprise_phase6.py`

@@ -10,7 +10,7 @@ Qpilot is a **local QA product** (primary target: Windows) with:
 
 | Layer | Location | Responsibility |
 | --- | --- | --- |
-| Web UI | `frontend/` | Studio HTML/CSS/JS only — no business verdicts |
+| Web UI | `frontend/` | Studio HTML/CSS/JS; Gate I React/TS dashboard under `frontend/dashboard/` — no business verdicts |
 | HTTP API / jobs | `backend/server.py`, `backend/mcp_*.py` | Start runs, stream progress, serve reports |
 | Pipeline | `backend/graph.py`, `backend/agents/` | LangGraph agents; each agent is `state -> partial state` |
 | Shared domain | `backend/*.py` (non-agent modules) | Safety, metrics, Android/web runtimes, contracts |

@@ -57,4 +57,7 @@ def test_enterprise_readiness_does_not_claim_gate_complete(monkeypatch):
     assert snap["gate_i_complete"] is False
     assert "rbac" in snap["ready"]
     assert "postgres" in snap["missing"]
-    assert "react_dashboard" in snap["missing"]
+    assert snap["components"]["react_dashboard"]["configured"] is True
+    # Built dist makes the component ready; Gate I still stays incomplete either way.
+    if not snap["components"]["react_dashboard"]["ready"]:
+        assert "react_dashboard" in snap["missing"]

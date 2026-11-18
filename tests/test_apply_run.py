@@ -59,6 +59,8 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert applied["oracle"][0]["ok"] is False
     assert applied["oracle"][0]["assertion"]["accepted"] is False
     assert applied["oracle"][0]["decision"]["verdict"] == "needs_review"
+    assert applied["lifecycle"]["cleanup"]["complete"] is True
+    assert applied["healing_policy"]["gate_e_complete"] is False
     assert applied["device_matrix"]["complete"] is False
     assert "web.desktop" in applied["device_matrix"]["verified"]
     assert "android.emulator" in applied["device_matrix"]["unverified"]
@@ -71,6 +73,10 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert (tmp_path / "discovery_graph.json").is_file()
     assert (tmp_path / "portfolio_gates.json").is_file()
     assert (tmp_path / "surface_coverage.json").is_file()
+    assert (tmp_path / "oracle_decisions.json").is_file()
+    assert (tmp_path / "lifecycle.json").is_file()
+    assert (tmp_path / "healing_policy.json").is_file()
+    assert (tmp_path / "visual.json").is_file()
     assert applied["surfaces"]["gate_a_surfaces_complete"] is False
     assert applied["sessions"]["roles"]["shopper"]["state"] == "session_expired"
     assert "password" not in json.dumps(applied["sessions"])
