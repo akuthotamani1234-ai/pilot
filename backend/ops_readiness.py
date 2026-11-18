@@ -470,6 +470,30 @@ def readiness() -> dict:
                 else "No workflow_dispatch contract evidence"
             ),
         },
+        "classic_shop_cart_lifecycle_drill": {
+            "ready": _ops_evidence("classic_shop_cart_lifecycle_drill.json"),
+            "reason": (
+                "ClassicShop cart lifecycle present; broader live portal paths still open"
+                if _ops_evidence("classic_shop_cart_lifecycle_drill.json")
+                else "No ClassicShop cart lifecycle evidence"
+            ),
+        },
+        "redis_swarm_contention_drill": {
+            "ready": _ops_evidence("redis_swarm_contention_drill.json"),
+            "reason": (
+                "Redis swarm contention drill present; product-wide review still open"
+                if _ops_evidence("redis_swarm_contention_drill.json")
+                else "No Redis swarm contention evidence"
+            ),
+        },
+        "apidemos_interaction_drill": {
+            "ready": _ops_evidence("apidemos_interaction_drill.json"),
+            "reason": (
+                "ApiDemos deep interaction present; broad multi-device CI still open"
+                if _ops_evidence("apidemos_interaction_drill.json")
+                else "No ApiDemos interaction evidence"
+            ),
+        },
         "multi_device_ci_contract": {
             "ready": _ops_evidence("multi_device_ci_contract.json"),
             "reason": (

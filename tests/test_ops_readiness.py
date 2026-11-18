@@ -87,6 +87,15 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["workflow_dispatch_contract_drill"]["ready"] is has(
         "workflow_dispatch_contract_drill.json"
     )
+    assert snap["checks"]["classic_shop_cart_lifecycle_drill"]["ready"] is has(
+        "classic_shop_cart_lifecycle_drill.json"
+    )
+    assert snap["checks"]["redis_swarm_contention_drill"]["ready"] is has(
+        "redis_swarm_contention_drill.json"
+    )
+    assert snap["checks"]["apidemos_interaction_drill"]["ready"] is has(
+        "apidemos_interaction_drill.json"
+    )
     assert snap["checks"]["multi_device_ci_contract"]["ready"] is has(
         "multi_device_ci_contract.json"
     )

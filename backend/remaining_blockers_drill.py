@@ -62,6 +62,7 @@ BLOCKERS = (
             "multi_api_android_matrix_drill.json",
             "multi_device_ci_contract.json",
             "device_artifact_manifest_drill.json",
+            "apidemos_interaction_drill.json",
             "workflow_dispatch_contract_drill.json",
         ],
     },

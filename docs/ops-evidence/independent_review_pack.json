@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-18T23:56:23Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 84,
+  "artifact_count": 87,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -53,6 +53,11 @@
       "sha256": "577c6668ba2046811608bc9b0f101039a1f1615db08d337ba35d136d4111b34a"
     },
     {
+      "name": "apidemos_interaction_drill.json",
+      "bytes": 777,
+      "sha256": "69e23109dee0b2195e42e8d36bf66d0eeb9daf15d910da214addda6cc4ade71f"
+    },
+    {
       "name": "approvals_drill.json",
       "bytes": 448,
       "sha256": "cd65347f95275437fd42b4c26c15b5a06e887c5dfb1f51b4bb8d0d794a0e0a75"
@@ -78,6 +83,11 @@
       "sha256": "9106dea8bd8c73502c783bb95e8daf00d630cb9d5bca192d4d10bd8b4eabdf72"
     },
     {
+      "name": "classic_shop_cart_lifecycle_drill.json",
+      "bytes": 484,
+      "sha256": "f8658eb4dc6135d0dcee22c90b907e6552fda3733d9a93b651bfcd04a3f2a80d"
+    },
+    {
       "name": "classic_shop_surface_coverage.json",
       "bytes": 2594,
       "sha256": "838f28f0f3d9e7ab071b53dae2655d3c4658bedadbe8a59ffe4fd574b21df569"
@@ -95,7 +105,7 @@
     {
       "name": "cross_platform_journey_drill.json",
       "bytes": 1429,
-      "sha256": "82cb0b7fc5b8303c0ae100740b670546d422d22c82e1f1b9f25c456c1ad0062b"
+      "sha256": "4532fbd24637b3fac4a0adfd5defac4221454561b96de4619efd3aa3c1d3828a"
     },
     {
       "name": "dashboard_auth_matrix_drill.json",
@@ -244,8 +254,8 @@
     },
     {
       "name": "multi_api_android_matrix_drill.json",
-      "bytes": 1601,
-      "sha256": "64f7f67ceb0f5dd99235f08063730af4fb14474304b181e947e5d7215f9f1dfa"
+      "bytes": 1589,
+      "sha256": "32b778a9b5a815fcd3629ed421fffbcdd29a1e6dc55ce3b2bff4086d431918be"
     },
     {
       "name": "multi_app_healing_suite_drill.json",
@@ -368,9 +378,14 @@
       "sha256": "0b65b1be99f2c16db73f043d1b10dc83dfcaf0e9a6e28793bb3657318a692c19"
     },
     {
+      "name": "redis_swarm_contention_drill.json",
+      "bytes": 574,
+      "sha256": "86b1f6cb874713f312825f1b6492972a1d4e7684fb237d81ca5ad71e33d65832"
+    },
+    {
       "name": "remaining_blockers.json",
-      "bytes": 4535,
-      "sha256": "9d0d3f928abaad17eb085e776eb768f1e41cfb6208962b24b0766704041580f3"
+      "bytes": 4621,
+      "sha256": "6c595fde2ac13463b12409e43e45ae11ca4427304f1295b610b6039519b6aee5"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -429,5 +444,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (84 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (87 artifacts hashed); independent human/reviewer sign-off still pending"
 }
