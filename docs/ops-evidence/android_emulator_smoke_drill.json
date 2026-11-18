@@ -1,28 +1,28 @@
 {
   "gate_d_complete": false,
   "drill": "android_emulator_smoke",
-  "ran_at": "2026-11-18T19:44:59Z",
+  "ran_at": "2026-11-18T23:44:30Z",
   "ok": true,
   "adb": "/home/ubuntu/Android/Sdk/platform-tools/adb",
-  "device_id": "emulator-5554",
-  "api_level": 24,
-  "model": "Android SDK built for x86_64",
+  "device_id": "emulator-5556",
+  "api_level": 30,
+  "model": "sdk_gphone_x86_64",
   "smoke_output": "qpilot-android-smoke",
   "devices_online": 1,
   "matrix_rows": [
     {
       "surface": "android",
-      "device_id": "emulator-5554",
+      "device_id": "emulator-5556",
       "form": "emulator",
-      "api_level": 24,
+      "api_level": 30,
       "outcome": "passed",
       "source": "android_emulator_smoke",
-      "model": "Android SDK built for x86_64"
+      "model": "sdk_gphone_x86_64"
     }
   ],
   "android_profiles_verified": [
     "android.emulator",
     "android.api24+"
   ],
-  "reason": "Live emulator emulator-5554 API 24 smoke passed; full Appium product matrix / web+android Gate D completeness still open"
+  "reason": "Live emulator emulator-5556 API 30 smoke passed; full Appium product matrix / web+android Gate D completeness still open"
 }

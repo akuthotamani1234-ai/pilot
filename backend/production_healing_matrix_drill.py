@@ -1,9 +1,9 @@
 """Gate E: production-like multi-failure healing matrix (controlled fixtures).
 
-Provokes missing-locator, assertion, and role-timeout failures on DemoStore and
-ClassicShop, classifies each, and checks locator-only healing vs assertion
-weaken denial. Production / third-party healing still open —
-``gate_e_complete`` stays False.
+Provokes missing-locator, assertion, role-timeout, and navigation-timeout
+failures on DemoStore, ClassicShop, AdminPortal, and TravelSite; classifies
+each; and checks locator-only healing vs assertion weaken denial. Production /
+third-party healing still open — ``gate_e_complete`` stays False.
 """
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "production_healing_matrix_drill.jso
 APPS = (
     ("demo_store", "tests.demo_store", "DemoStore"),
     ("classic_shop", "tests.classic_shop", "ClassicShop"),
+    ("admin_portal", "tests.admin_portal", "AdminPortal"),
+    ("travel_site", "tests.travel_site", "TravelSite"),
 )
 
 
@@ -54,6 +56,21 @@ def _provoke(page, app_id: str) -> list[dict]:
     except Exception as exc:
         cases.append({
             "id": "role-timeout",
+            "outcome": "failed",
+            "error_type": type(exc).__name__,
+            "error": str(exc)[:240],
+            "flaky": False,
+        })
+    try:
+        page.goto(
+            "http://127.0.0.1:9/qpilot-prod-unreachable",
+            wait_until="domcontentloaded",
+            timeout=700,
+        )
+        cases.append({"id": "nav-timeout", "outcome": "passed"})
+    except Exception as exc:
+        cases.append({
+            "id": "nav-timeout",
             "outcome": "failed",
             "error_type": type(exc).__name__,
             "error": str(exc)[:240],
@@ -116,7 +133,7 @@ def run_production_healing_matrix_drill(*, ops_dir: Path | None = None) -> dict:
                 healing = _heal_checks(app_id)
                 failed = [c for c in classified if c.get("outcome") == "failed"]
                 ok = (
-                    len(failed) >= 3
+                    len(failed) >= 4
                     and healing["locator_repair_allowed"]
                     and healing["weaken_denied"]
                 )
@@ -148,7 +165,7 @@ def run_production_healing_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         "ok": passed == len(APPS),
         "reason": (
             f"Production-like healing matrix {passed}/{len(APPS)} apps "
-            "(missing/assert/role + locator-only heal); production suite still open"
+            "(missing/assert/role/nav + locator-only heal); production suite still open"
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent

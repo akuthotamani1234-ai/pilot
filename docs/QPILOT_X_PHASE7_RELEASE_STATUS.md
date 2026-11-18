@@ -28,7 +28,7 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 | B | Partial | Redis preferred DurableQueue + claim/checkpoint/cancel/retry drills; product-wide review open |
 | C | Partial | Lifecycle + cart drills + multi-portal oracle bind (4 truths); broader live portal paths open |
 | D | Partial | API24 smoke + API30 Appium + multi-device CI contract; broad multi-device CI execution open |
-| E | Partial | Offline taxonomy + multi-app (4 fixture) healing suite; production suite open |
+| E | Partial | Offline taxonomy + multi-app healing + 4-app production-like multi-failure matrix; production suite open |
 | F | Partial | Live Chromium/Firefox/WebKit suite + multi-browser CI contract; hosted runner matrix open |
 | G | Partial | Live Postgres/Redis/MinIO + OIDC ACL + review pack + blockers inventory; independent sign-off open |
 | H | Partial | Local DR + dual-region PG/MinIO/Redis + paging escalation + observability probe; hosted multi-region on-call open |

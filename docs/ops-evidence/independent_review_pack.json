@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:32:27Z",
+  "ran_at": "2026-11-18T23:45:23Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
@@ -35,17 +35,17 @@
     {
       "name": "android_appium_product_matrix_drill.json",
       "bytes": 2724,
-      "sha256": "8cb20ad6a39b85587614ca83f4463ede07dd4ff99d00ed70f8c7c23fe866ff3d"
+      "sha256": "270ae96a866c96747cf8f652369ec1403cb74e3821d5ab8013dbe98e51b3bd04"
     },
     {
       "name": "android_emulator_smoke_drill.json",
-      "bytes": 815,
-      "sha256": "b14db5c0ab24cf9b8799474e0136fcf5839cdc016915fca7e2a25850c0dd73d0"
+      "bytes": 793,
+      "sha256": "d1c3a5cd0b1a3da0d506aefbdc7f20b4baf385f9f2ba6b8954bb4c5a1776943b"
     },
     {
       "name": "android_live_matrix_rows.json",
-      "bytes": 886,
-      "sha256": "bc23edf75a3e0b1033efb6089a3e49863a26ebe03102abe514f28277b5737f24"
+      "bytes": 214,
+      "sha256": "4f53ac35510e7c4518c464db4495b480740c90b8fff4112804e9a59d08d735b8"
     },
     {
       "name": "api_version_contract.json",
@@ -210,7 +210,7 @@
     {
       "name": "multi_api_android_matrix_drill.json",
       "bytes": 1601,
-      "sha256": "5ae9add87539d59ab5f2fe25d46426d37b07f9821ecfb46c7876730a43331ca1"
+      "sha256": "64f7f67ceb0f5dd99235f08063730af4fb14474304b181e947e5d7215f9f1dfa"
     },
     {
       "name": "multi_app_healing_suite_drill.json",
@@ -294,8 +294,8 @@
     },
     {
       "name": "production_healing_matrix_drill.json",
-      "bytes": 3367,
-      "sha256": "78bfa4d6347c75a732ee4fc8298b187401c2ff8e128805eb4cd4834f9bfa8de4"
+      "bytes": 8693,
+      "sha256": "0aeee78710005c3c90f42432eb7ebed9f42cc53ac96b0be83bb84fce186c5373"
     },
     {
       "name": "qx_capabilities_drill.json",
@@ -325,7 +325,7 @@
     {
       "name": "remaining_blockers.json",
       "bytes": 3533,
-      "sha256": "bdededba44a3324fbadec5120168a8e54434c02100f2735afdb77e7f0aabf17c"
+      "sha256": "a7a0d0862bfb19d1f051f05117a7a5f889d31bd2ba70d511ac5996242161bace"
     },
     {
       "name": "security_portfolio_drill.json",

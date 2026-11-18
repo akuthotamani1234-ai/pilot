@@ -1,12 +1,12 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_matrix",
-  "ran_at": "2026-11-18T23:32:27Z",
+  "ran_at": "2026-11-18T23:45:07Z",
   "apps": [
     {
       "app": "demo_store",
       "ok": true,
-      "failed": 3,
+      "failed": 4,
       "cases": [
         {
           "id": "missing-locator",
@@ -37,6 +37,16 @@
           "category": "locator",
           "confidence": "medium",
           "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "nav-timeout",
+          "outcome": "failed",
+          "error_type": "Error",
+          "error": "Page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:9/qpilot-prod-unreachable\nCall log:\n  - navigating to \"http://127.0.0.1:9/qpilot-prod-unreachable\", waiting until \"domcontentloaded\"\n",
+          "flaky": false,
+          "category": "infrastructure",
+          "confidence": "medium",
+          "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic."
         }
       ],
       "healing": {
@@ -47,7 +57,7 @@
     {
       "app": "classic_shop",
       "ok": true,
-      "failed": 3,
+      "failed": 4,
       "cases": [
         {
           "id": "missing-locator",
@@ -78,6 +88,118 @@
           "category": "locator",
           "confidence": "medium",
           "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "nav-timeout",
+          "outcome": "failed",
+          "error_type": "Error",
+          "error": "Page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:9/qpilot-prod-unreachable\nCall log:\n  - navigating to \"http://127.0.0.1:9/qpilot-prod-unreachable\", waiting until \"domcontentloaded\"\n",
+          "flaky": false,
+          "category": "infrastructure",
+          "confidence": "medium",
+          "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic."
+        }
+      ],
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    },
+    {
+      "app": "admin_portal",
+      "ok": true,
+      "failed": 4,
+      "cases": [
+        {
+          "id": "missing-locator",
+          "outcome": "failed",
+          "error_type": "TimeoutError",
+          "error": "Locator.click: Timeout 600ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-prod-missing-admin_portal\")\n",
+          "flaky": false,
+          "category": "locator",
+          "confidence": "medium",
+          "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "assert-text",
+          "outcome": "failed",
+          "error_type": "AssertionError",
+          "error": "AssertionError: marker missing ()",
+          "flaky": false,
+          "category": "product_defect",
+          "confidence": "high",
+          "why": "The website did not behave as expected."
+        },
+        {
+          "id": "role-timeout",
+          "outcome": "failed",
+          "error_type": "TimeoutError",
+          "error": "Locator.click: Timeout 600ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"___NoSuchProdRole___\")\n",
+          "flaky": false,
+          "category": "locator",
+          "confidence": "medium",
+          "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "nav-timeout",
+          "outcome": "failed",
+          "error_type": "Error",
+          "error": "Page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:9/qpilot-prod-unreachable\nCall log:\n  - navigating to \"http://127.0.0.1:9/qpilot-prod-unreachable\", waiting until \"domcontentloaded\"\n",
+          "flaky": false,
+          "category": "infrastructure",
+          "confidence": "medium",
+          "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic."
+        }
+      ],
+      "healing": {
+        "locator_repair_allowed": true,
+        "weaken_denied": true
+      }
+    },
+    {
+      "app": "travel_site",
+      "ok": true,
+      "failed": 4,
+      "cases": [
+        {
+          "id": "missing-locator",
+          "outcome": "failed",
+          "error_type": "TimeoutError",
+          "error": "Locator.click: Timeout 600ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-prod-missing-travel_site\")\n",
+          "flaky": false,
+          "category": "locator",
+          "confidence": "medium",
+          "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "assert-text",
+          "outcome": "failed",
+          "error_type": "AssertionError",
+          "error": "AssertionError: marker missing ()",
+          "flaky": false,
+          "category": "product_defect",
+          "confidence": "high",
+          "why": "The website did not behave as expected."
+        },
+        {
+          "id": "role-timeout",
+          "outcome": "failed",
+          "error_type": "TimeoutError",
+          "error": "Locator.click: Timeout 600ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"___NoSuchProdRole___\")\n",
+          "flaky": false,
+          "category": "locator",
+          "confidence": "medium",
+          "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str"
+        },
+        {
+          "id": "nav-timeout",
+          "outcome": "failed",
+          "error_type": "Error",
+          "error": "Page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:9/qpilot-prod-unreachable\nCall log:\n  - navigating to \"http://127.0.0.1:9/qpilot-prod-unreachable\", waiting until \"domcontentloaded\"\n",
+          "flaky": false,
+          "category": "infrastructure",
+          "confidence": "medium",
+          "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic."
         }
       ],
       "healing": {
@@ -86,8 +208,8 @@
       }
     }
   ],
-  "passed": 2,
-  "total": 2,
+  "passed": 4,
+  "total": 4,
   "ok": true,
-  "reason": "Production-like healing matrix 2/2 apps (missing/assert/role + locator-only heal); production suite still open"
+  "reason": "Production-like healing matrix 4/4 apps (missing/assert/role/nav + locator-only heal); production suite still open"
 }
