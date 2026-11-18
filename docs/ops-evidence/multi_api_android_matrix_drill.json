@@ -1,0 +1,74 @@
+{
+  "gate_d_complete": false,
+  "drill": "multi_api_android_matrix",
+  "ran_at": "2026-11-18T20:08:25Z",
+  "sources": {
+    "api24_smoke": true,
+    "api30_appium": true
+  },
+  "api_levels": [
+    24,
+    30
+  ],
+  "rows": 5,
+  "matrix": {
+    "complete": false,
+    "verified": [
+      "android.emulator",
+      "android.api24+"
+    ],
+    "unverified": [
+      "web.desktop",
+      "web.phone"
+    ],
+    "profiles": [
+      {
+        "id": "web.desktop",
+        "surface": "web",
+        "viewport": "1366x900",
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      },
+      {
+        "id": "web.phone",
+        "surface": "web",
+        "viewport": "390x844",
+        "required": true,
+        "status": "unverified",
+        "evidence_count": 0,
+        "outcomes": []
+      },
+      {
+        "id": "android.emulator",
+        "surface": "android",
+        "form": "emulator",
+        "required": true,
+        "status": "verified",
+        "evidence_count": 5,
+        "outcomes": [
+          "passed"
+        ]
+      },
+      {
+        "id": "android.api24+",
+        "surface": "android",
+        "api_min": 24,
+        "required": true,
+        "status": "verified",
+        "evidence_count": 5,
+        "outcomes": [
+          "passed"
+        ]
+      }
+    ],
+    "live_emulator_required": false
+  },
+  "android_profiles_verified": [
+    "android.emulator",
+    "android.api24+"
+  ],
+  "ok": true,
+  "reason": "Multi-API Android matrix api_levels=[24, 30] (smoke=True, appium=True); broad multi-device CI runners still open"
+}

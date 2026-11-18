@@ -40,7 +40,7 @@ def progress() -> dict:
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "partial",
          "note": "Lifecycle + AdminPortal/DemoStore cart drills + oracle bind; live portal paths open"},
         {"id": "D", "label": "Gate D — Cross-surface matrix", "status": "partial",
-         "note": "API24 smoke + API30 Appium (system + ApiDemos APK) + web viewports; broad CI matrix still open"},
+         "note": "Multi-API Android matrix + cross-platform journeys + Appium; broad CI runners still open"},
         {"id": "E", "label": "Gate E — Replay + healing", "status": "partial",
          "note": "Live DemoStore failure matrix + healing policy; production suite still open"},
         {"id": "F", "label": "Gate F — Portfolios (a11y/perf/…)", "status": "partial",
@@ -52,7 +52,7 @@ def progress() -> dict:
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
          "note": "Loopback OIDC JWT + tenant ACL drill; hosted IdP Studio SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
-         "note": "Four fixtures strong + AdminPortal 0 FA (run4); Android/third-party still open"},
+         "note": "Fixtures strong + mutation score 6/6 DemoStore; broader third-party still open"},
     ]
     active = next((g for g in gates if g["status"] == "active"), None)
     upcoming = [
@@ -155,7 +155,10 @@ def progress() -> dict:
         {"id": "D-appium-apk", "label": "Live Appium third-party ApiDemos APK on API30+", "status": "done"},
         {"id": "D-appium-ci-contract", "label": "Offline Appium CI artifact contract (ubuntu+KVM)", "status": "done"},
         {"id": "D-appium-workflow", "label": "workflow_dispatch Android Appium matrix workflow", "status": "done"},
+        {"id": "D-multi-api-matrix", "label": "Multi-API Android matrix (API24 smoke + API30 Appium)", "status": "done"},
+        {"id": "D-cross-journey", "label": "Cross-platform DemoStore(+Android) journey drill", "status": "done"},
         {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
+        {"id": "J-mutation-score", "label": "DemoStore planted-defect mutation score 6/6", "status": "done"},
         {"id": "I-loopback-sso", "label": "Loopback OIDC JWKS + RS256 JWT signature drill", "status": "done"},
         {"id": "I-sso-tenant-acl", "label": "Loopback OIDC JWT + SQLite tenant ACL drill", "status": "done"},
         {"id": "I-auth", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},

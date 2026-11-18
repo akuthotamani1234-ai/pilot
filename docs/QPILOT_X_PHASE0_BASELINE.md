@@ -49,8 +49,8 @@ Blueprint swarm roles (DOM mapper, API mapper, visual mapper, oracle agent, cove
 | A06 Identity/sessions | `backend/auth.py`, Android account helpers | Partial |
 | A07 Env virtualization | `backend/env_controls.py` | Partial |
 | A08 Deterministic replay | `backend/replay_pack.py`, replay truth tests | Partial — evidence vs execution semantics improved |
-| A09 Mutation scoring | `backend/mutation_score.py` | Partial |
-| A10 Cross-platform journeys | `backend/journey_map.py` | Partial |
+| A09 Mutation scoring | `backend/mutation_score.py` + `mutation_score_drill` | Strong (DemoStore 6/6); third-party open |
+| A10 Cross-platform journeys | `backend/journey_map.py` + `cross_platform_journey_drill` | Partial (web engines + optional Android) |
 | A11 Localization | `backend/locale_check.py` | Partial |
 | A12 Agent evaluation | `backend/agent_eval.py` | Partial |
 | A13 Incremental discovery | `backend/incremental_map.py` | Partial |

@@ -380,6 +380,31 @@ def readiness() -> dict:
                 else "No independent review checklist"
             ),
         },
+        "mutation_score_drill": {
+            "ready": _ops_evidence("mutation_score_drill.json"),
+            "reason": (
+                "DemoStore mutation score evidence present; broader third-party suites still open"
+                if _ops_evidence("mutation_score_drill.json")
+                else "No mutation score drill evidence"
+            ),
+        },
+        "cross_platform_journey_drill": {
+            "ready": _ops_evidence("cross_platform_journey_drill.json"),
+            "reason": (
+                "Cross-platform journey evidence present; broader release-journey matrix still open"
+                if _ops_evidence("cross_platform_journey_drill.json")
+                else "No cross-platform journey drill evidence"
+            ),
+        },
+        "multi_api_android_matrix_drill": {
+            "ready": _ops_evidence("multi_api_android_matrix_drill.json"),
+            "reason": (
+                "Multi-API Android matrix (API24 smoke + API30 Appium) present; "
+                "broad multi-device CI runners still open"
+                if _ops_evidence("multi_api_android_matrix_drill.json")
+                else "No multi-API Android matrix evidence"
+            ),
+        },
         "locale_portfolio_drill": {
             "ready": _ops_evidence("locale_portfolio_drill.json"),
             "reason": (
