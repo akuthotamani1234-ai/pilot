@@ -32,7 +32,7 @@ This checklist documents what must be proven before Gate H can leave **Partial /
 | C | `/api/ops/drills/lifecycle-cleanup` | `docs/ops-evidence/lifecycle_cleanup_drill.json` |
 | D | `/api/ops/drills/device-matrix` | `docs/ops-evidence/device_matrix_drill.json` |
 | E | `/api/ops/drills/failure-matrix`, `healing-regression` | `docs/ops-evidence/failure_matrix_drill.json`, `healing_regression_drill.json` |
-| F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual}_portfolio_drill.json` |
+| F | `/api/ops/drills/locale-portfolio`, `security-portfolio`, `a11y-portfolio`, `perf-portfolio`, `visual-portfolio`, `compatibility-portfolio` | `docs/ops-evidence/{locale,security,a11y,perf,visual,compatibility}_portfolio_drill.json` |
 | G | Postgres/Redis/MinIO + `/api/audit/export` | `docs/ops-evidence/pg_tenancy_drill.json` (+ infra drills) |
 | I | `/api/ops/drills/api-version-contract` | `docs/ops-evidence/api_version_contract.json` |
 
