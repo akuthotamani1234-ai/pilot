@@ -52,7 +52,7 @@ def progress() -> dict:
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
          "note": "Loopback OIDC auth-code + JWT/ACL; hosted IdP Studio SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
-         "note": "Fixtures strong + mutation score 6/6 DemoStore; broader third-party still open"},
+         "note": "Demo 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party still open"},
     ]
     active = next((g for g in gates if g["status"] == "active"), None)
     upcoming = [
