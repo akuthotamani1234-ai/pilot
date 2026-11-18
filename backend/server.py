@@ -1389,6 +1389,40 @@ def ops_hosted_oncall_contract():
     return {"gate_h_complete": False, "hosted_oncall_contract": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-taxonomy")
+def ops_production_healing_taxonomy():
+    """Gate E: production failure taxonomy + heal policy (suite still open)."""
+    from backend.production_healing_taxonomy_drill import (
+        run_production_healing_taxonomy_drill,
+    )
+    evidence = run_production_healing_taxonomy_drill()
+    _audit(
+        "ops_production_healing_taxonomy",
+        ok=bool(evidence.get("ok")),
+        matched=int(evidence.get("matched") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_taxonomy": evidence}
+
+
+@app.post("/api/ops/drills/dual-tenant-oidc-acl")
+def ops_dual_tenant_oidc_acl():
+    """Gate I/G: dual-tenant loopback OIDC ACL (hosted IdP still open)."""
+    from backend.dual_tenant_oidc_acl_drill import run_dual_tenant_oidc_acl_drill
+    evidence = run_dual_tenant_oidc_acl_drill()
+    _audit(
+        "ops_dual_tenant_oidc_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {
+        "gate_i_complete": False,
+        "gate_g_complete": False,
+        "dual_tenant_oidc_acl": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

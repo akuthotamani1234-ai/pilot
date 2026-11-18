@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T23:50:47Z",
+  "ran_at": "2026-11-18T23:52:34Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 81,
+  "artifact_count": 83,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -133,6 +133,11 @@
       "sha256": "9af9153ce542551cc008b241227e7194e9f0eced1772a350422af777eb363c36"
     },
     {
+      "name": "dual_tenant_oidc_acl_drill.json",
+      "bytes": 705,
+      "sha256": "58c966ab03afb0eb95b8cdde47dec3afaebaf429f4cc05704105e4d4dea67f50"
+    },
+    {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
       "sha256": "1f4175c2dea1bf2077d9d5843def545151c541f202a1ce3be508646bef888f97"
@@ -154,8 +159,8 @@
     },
     {
       "name": "hosted_idp_contract_drill.json",
-      "bytes": 1082,
-      "sha256": "59e59aea14ee9aab7d7186c0f144a67438ff8529d8a432ffffbc54582547a2fc"
+      "bytes": 1121,
+      "sha256": "ae61ca734092695472bccd51c714e9433fa5e22184aac1e5216dcdbd027278fc"
     },
     {
       "name": "hosted_oncall_contract_drill.json",
@@ -333,6 +338,11 @@
       "sha256": "0aeee78710005c3c90f42432eb7ebed9f42cc53ac96b0be83bb84fce186c5373"
     },
     {
+      "name": "production_healing_taxonomy_drill.json",
+      "bytes": 1930,
+      "sha256": "9580da411077233e9976c0517ab7bb5f02ac93da8ed93343417fb66d0d8b56a8"
+    },
+    {
       "name": "qx_capabilities_drill.json",
       "bytes": 3349,
       "sha256": "c05b3013b8a7bc11d9ea0eed4bf76174f76861b11439ae992a6643588e594bce"
@@ -359,8 +369,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 4153,
-      "sha256": "67570558dd2c015b1a61be6cdb0e45e9029abcbd3b9dc517bbd9154991a14038"
+      "bytes": 4339,
+      "sha256": "007ff78d621c925add176f8ce2031ee6669de249d28e4ac97be8864b22a8ab83"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -414,5 +424,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (81 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (83 artifacts hashed); independent human/reviewer sign-off still pending"
 }
