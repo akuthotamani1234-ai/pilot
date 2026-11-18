@@ -123,3 +123,27 @@ Artifacts: `deep_validation/live_runs/phase1_classic_shop_run2.json` + `phase1_c
 
 Gaps: `widgets.shadow_nickname` still untested; `users.next_page` truth pattern tightened (no longer matches unrelated `'Next'` steps). Buggy false alarms remain.  
 Artifacts: `deep_validation/live_runs/phase1_admin_portal_run1.json` + `phase1_admin_portal_run1_summary.json`.
+
+## AdminPortal run 2 (open-shadow textbox cases — 2026-11-18)
+
+After adding standalone `textbox` control cases (covers Nickname inside open shadow roots).
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **8/8** | **25/25** | 1 | n/a |
+| buggy | **8/8** | 8/8 judged | 4 | **7/7** |
+
+`widgets.shadow_nickname` now verified (`TC-13A298F9`). Clean/buggy false alarms remain.  
+Artifacts: `deep_validation/live_runs/phase1_admin_portal_run2.json` + `phase1_admin_portal_run2_summary.json`.
+
+## Travel site run 1 (fourth controlled fixture — 2026-11-18)
+
+`accuracy_benchmark --site travel --mode first` with `REVIEW=off`. **Partial**.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **4/4** | **8/9** | **0** | n/a |
+| buggy | **4/4** | 6/6 judged | **0** | **6/6** |
+
+Gap: `results.sort` untested on clean.  
+Artifacts: `deep_validation/live_runs/phase1_travel_site_run1.json` + `phase1_travel_site_run1_summary.json`.
