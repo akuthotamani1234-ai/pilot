@@ -93,12 +93,23 @@ def apply_migrations(uri: str | None = None) -> dict:
         path = _sqlite_path(raw) if raw else ROOT / "runs" / ".qpilot.sqlite"
         return apply_sqlite(path)
     if raw.startswith(("postgres://", "postgresql://")):
+        try:
+            from .postgres_drill import apply_migrations_psql
+            result = apply_migrations_psql(dsn=raw)
+        except Exception as exc:
+            return {
+                "ready": False,
+                "backend": "postgres",
+                "applied": [],
+                "versions": [p.name for p in list_migrations()],
+                "reason": f"Postgres apply failed: {exc}",
+            }
         return {
-            "ready": False,
+            "ready": bool(result.get("ok")),
             "backend": "postgres",
-            "applied": [],
-            "versions": [p.name for p in list_migrations()],
-            "reason": "Postgres URL is set but the live driver/isolation drill is not established",
+            "applied": result.get("applied") or [],
+            "versions": result.get("files") or [p.name for p in list_migrations()],
+            "reason": "" if result.get("ok") else (result.get("reason") or "postgres migration failed"),
         }
     return {"ready": False, "backend": "unknown", "applied": [], "versions": [],
             "reason": "Unsupported database URI; use sqlite: or postgresql://"}
@@ -109,13 +120,25 @@ def migration_status(uri: str | None = None) -> dict:
     files = [p.name for p in list_migrations()]
     raw = (uri if uri is not None else os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL") or "").strip()
     if raw.startswith(("postgres://", "postgresql://")):
+        evidence = ROOT / "docs" / "ops-evidence" / "postgres_isolation_drill.json"
+        live_ok = False
+        if evidence.is_file():
+            try:
+                import json
+                live_ok = bool(json.loads(evidence.read_text(encoding="utf-8")).get("ok"))
+            except (OSError, ValueError):
+                live_ok = False
         return {
             "configured": bool(files),
-            "ready": False,
+            "ready": live_ok,
             "backend": "postgres",
             "versions": files,
-            "applied": [],
-            "reason": "Postgres URL is set but live apply/isolation is not established",
+            "applied": files if live_ok else [],
+            "reason": (
+                "Live Postgres isolation drill evidence present"
+                if live_ok else
+                "Postgres URL set; run isolation drill to establish readiness"
+            ),
         }
     path = _sqlite_path(raw) if raw else ROOT / "runs" / ".qpilot.sqlite"
     applied = applied_versions(path)

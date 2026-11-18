@@ -593,6 +593,24 @@ def ops_load_probe(requests: int = 40):
     return {"gate_h_complete": False, "load_probe": evidence}
 
 
+@app.post("/api/ops/drills/postgres-isolation")
+def ops_postgres_isolation():
+    """Live Postgres tenant isolation drill (Gate G still incomplete)."""
+    from backend.postgres_drill import isolation_drill
+    evidence = isolation_drill()
+    _audit("ops_postgres_isolation", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "postgres_isolation": evidence}
+
+
+@app.post("/api/ops/drills/redis-lease")
+def ops_redis_lease():
+    """Live Redis SETNX lease drill (DurableQueue Redis adapter still open)."""
+    from backend.redis_drill import lease_drill
+    evidence = lease_drill()
+    _audit("ops_redis_lease", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "gate_b_complete": False, "redis_lease": evidence}
+
+
 def _require_dashboard_auth(authorization: str | None = Header(default=None)) -> None:
     """Optional bearer token when QPILOT_DASHBOARD_TOKEN is set."""
     from backend.dashboard_auth import authorize

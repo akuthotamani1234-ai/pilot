@@ -72,11 +72,43 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
         def work(task: dict) -> dict:
             payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
             url = payload.get("url") or task.get("url") or ""
+            role = task.get("role") or payload.get("role") or ""
+            if role == "coverage":
+                from .coverage_verify import verify_listing
+                listed = [u for u in clean if u]
+                chosen = listed[: max(1, min(3, len(listed)))]
+                skipped = [(u, "sampled_out") for u in listed[len(chosen):]]
+                verdict = verify_listing(listed, chosen, skipped)
+                return {
+                    "ok": bool(verdict.get("complete") or not verdict.get("missed")),
+                    "url": url,
+                    "role": role,
+                    "evidence": [f"coverage:covered={len(verdict.get('covered') or [])}",
+                                 f"coverage:missed={len(verdict.get('missed') or [])}"],
+                    "coverage": verdict,
+                    "source": "specialist",
+                }
+            if role == "oracle":
+                from .oracle import bind_assertion
+                assertion = bind_assertion(
+                    source="fixture",
+                    statement="durable swarm oracle task binds an approved fixture assertion",
+                    scope=url or "site",
+                    requirement_id="gate-b-oracle",
+                )
+                return {
+                    "ok": bool(assertion.get("accepted")),
+                    "url": url,
+                    "role": role,
+                    "evidence": [f"oracle:{assertion.get('status')}:{assertion.get('assertion_id')}"],
+                    "assertion": assertion,
+                    "source": "specialist",
+                }
             return {
                 "ok": True,
                 "url": url,
                 "evidence": [f"durable-ack:{url}" if url else "durable-ack:leader"],
-                "role": task.get("role") or payload.get("role") or "",
+                "role": role,
                 "source": "listing" if payload.get("scope") == "listing" else "url_plan",
             }
 

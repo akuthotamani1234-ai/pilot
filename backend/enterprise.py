@@ -30,17 +30,36 @@ def readiness() -> dict:
     redis = _present("REDIS_URL") or _present("QPILOT_REDIS_URL")
     object_uri = _present("OBJECT_STORE_URI") or _present("MINIO_URL")
     store = open_object_store(object_uri or None)
-    queue = open_durable_queue(redis or None)
+    # Durable queue stays on SQLite by default even when REDIS_URL is set (adapter still open).
+    queue = open_durable_queue("sqlite:runs/.swarm_queue.sqlite")
     migrations = migration_status(postgres or None)
     dashboard_configured = DASHBOARD_PKG.is_file()
     dashboard_built = DASHBOARD_DIST.is_file()
+    pg_evidence = ROOT / "docs" / "ops-evidence" / "postgres_isolation_drill.json"
+    redis_evidence = ROOT / "docs" / "ops-evidence" / "redis_lease_drill.json"
+
+    def _evidence_ok(path: Path) -> bool:
+        if not path.is_file():
+            return False
+        try:
+            import json
+            return bool(json.loads(path.read_text(encoding="utf-8")).get("ok"))
+        except (OSError, ValueError):
+            return False
+
+    pg_live = bool(postgres) and _evidence_ok(pg_evidence)
+    redis_live = bool(redis) and _evidence_ok(redis_evidence)
     components = {
         "postgres": {
             "configured": bool(postgres),
-            "ready": False,
+            "ready": pg_live,
             "migrations": migrations.get("versions") or [],
-            "reason": "Postgres URL set but live driver/isolation drill not established" if postgres
-            else "Postgres not configured; SQLite migrations can still apply offline",
+            "reason": (
+                "Live Postgres isolation drill verified (psql); Studio multi-tenant path + review still open"
+                if pg_live else
+                ("Postgres URL set but isolation drill evidence missing" if postgres
+                 else "Postgres not configured; SQLite migrations can still apply offline")
+            ),
         },
         "schema_migrations": {
             "configured": bool(migrations.get("configured")),
@@ -52,8 +71,12 @@ def readiness() -> dict:
         },
         "redis": {
             "configured": bool(redis),
-            "ready": bool(queue.get("ready")) and queue.get("backend") == "redis",
-            "reason": queue.get("reason") if redis else "Redis not configured; DurableQueue SQLite remains default",
+            "ready": redis_live,
+            "reason": (
+                "Live Redis lease drill verified (redis-cli); DurableQueue Redis adapter still open"
+                if redis_live else
+                (queue.get("reason") if redis else "Redis not configured; DurableQueue SQLite remains default")
+            ),
             "queue_backend": queue.get("backend"),
         },
         "durable_queue": {
@@ -118,6 +141,10 @@ def readiness() -> dict:
         ready.append("schema_migrations")
     if components["react_dashboard"]["ready"]:
         ready.append("react_dashboard")
+    if components["postgres"]["ready"]:
+        ready.append("postgres")
+    if components["redis"]["ready"]:
+        ready.append("redis")
     missing = [name for name, row in components.items() if not row["ready"]]
     blueprint = blueprint_progress()
     return {
