@@ -18,7 +18,7 @@ def progress() -> dict:
         {"id": "P0", "label": "Phase 0 — Baseline inventory", "status": "done",
          "note": "Offline inventory + baseline docs"},
         {"id": "P1", "label": "Phase 1 — DemoStore Gate J", "status": "strong",
-         "note": "Run6: 19/19 pages, 24/24 clean, 6/6 bugs, 0 FA"},
+         "note": "Run7: 19/19 pages, 24/24 clean, 6/6 bugs, 0 FA"},
         {"id": "P2", "label": "Phase 2 — Discovery verifier", "status": "done",
          "note": "Truth-page coverage checks"},
         {"id": "P3", "label": "Phase 3 — Durable swarm queue", "status": "done",
@@ -52,7 +52,7 @@ def progress() -> dict:
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
          "note": "Auth modes + OIDC/hosting contract snapshot; live SSO login still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
-         "note": "DemoStore strong; broader sites/Android open"},
+         "note": "DemoStore run7 strong (24/24, 6/6, 0 FA); broader sites/Android open"},
     ]
     active = next((g for g in gates if g["status"] == "active"), None)
     upcoming = [
@@ -88,6 +88,7 @@ def progress() -> dict:
         {"id": "D-android-dryrun", "label": "Android protocol dry-run evidence contract", "status": "done"},
         {"id": "H-paging-loopback", "label": "Loopback paging rehearsal (not live on-call)", "status": "done"},
         {"id": "I-sso-contract", "label": "OIDC/hosting env contract snapshot", "status": "done"},
+        {"id": "J-run7", "label": "DemoStore accuracy remeasure run7", "status": "done"},
         {"id": "H-drills", "label": "Live hosted DR / soak / on-call paging", "status": "open"},
         {"id": "D-android", "label": "Live Android emulator/API24+ matrix proof", "status": "open"},
         {"id": "I-auth", "label": "Live SSO login + hosted multi-tenant ACLs", "status": "open"},

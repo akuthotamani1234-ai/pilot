@@ -75,3 +75,15 @@ DemoStore public `/lab` (same-site iframe + open shadow root); truth pages **19*
 | buggy | **19/19** | 10/10 judged | **0** | **6/6** |
 
 Artifact: `deep_validation/live_runs/phase1_demo_store_run6_lab_surfaces.json`.
+
+## Run 7 (remeasure after Gates H/I/D offline slice — 2026-11-18)
+
+Repeat of controlled DemoStore `accuracy_benchmark --mode first` on this phase branch.
+
+| Mode | Pages | Features correct | False alarms | Bugs |
+|---|---|---|---|---|
+| clean | **19/19** | **24/24** | **0** | n/a |
+| buggy | **19/19** | 10/10 judged | **0** | **6/6** |
+
+Artifacts: `deep_validation/live_runs/phase1_demo_store_run7.json` + `phase1_demo_store_run7_summary.json`.  
+Gate J DemoStore evidence remains **strong**; broader third-party sites and live Android still open.

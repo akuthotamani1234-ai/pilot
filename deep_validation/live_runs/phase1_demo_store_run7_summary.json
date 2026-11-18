@@ -1,0 +1,37 @@
+{
+  "run": "run7",
+  "site": "demo",
+  "mode": "first",
+  "ran_at": "2026-11-18T13:42:00Z",
+  "clean_summary": "pages 19/19 \u00b7 features detected 24/24 \u00b7 tested 22/24 \u00b7 verified 21/24 \u00b7 correct 24/24 \u00b7 false alarms 0 \u00b7 questions 2",
+  "buggy_summary": "pages 19/19 \u00b7 features detected 23/24 \u00b7 tested 22/24 \u00b7 verified 16/24 \u00b7 correct 10/10 \u00b7 false alarms 0 \u00b7 bugs caught 6/6 (false passes: 0) \u00b7 questions 3",
+  "clean": {
+    "run": "127.0.0.1_39247_20261118_133028",
+    "pages_known": 19,
+    "pages_found": 19,
+    "pages_missing": [],
+    "features_correct": 24,
+    "features_known": 24
+  },
+  "buggy": {
+    "run": "127.0.0.1_40271_20261118_133629",
+    "bugs": {
+      "planted": 6,
+      "caught": [
+        "cart_total",
+        "dead_button",
+        "qty_below_min",
+        "search_wrong_hit",
+        "sort_price",
+        "wishlist_error"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [],
+    "features_correct_judged": 10,
+    "features_judged": 10
+  },
+  "gate_j_complete": false,
+  "reason": "DemoStore strong again (24/24 clean, 6/6 bugs, 0 FA); broader sites/Android still open"
+}
