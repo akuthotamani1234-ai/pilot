@@ -626,6 +626,16 @@ def ops_api_version_contract():
     return {"gate_i_complete": False, "api_version_contract": evidence}
 
 
+@app.post("/api/ops/drills/lifecycle-cleanup")
+def ops_lifecycle_cleanup():
+    """Gate C: offline lifecycle + created.jsonl cleanup confirmation (still incomplete)."""
+    from backend.lifecycle_cleanup_drill import run_lifecycle_cleanup_drill
+    evidence = run_lifecycle_cleanup_drill()
+    _audit("ops_lifecycle_cleanup", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0))
+    return {"gate_c_complete": False, "lifecycle_cleanup": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""

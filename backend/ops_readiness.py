@@ -167,6 +167,14 @@ def readiness() -> dict:
                 else "No Postgres tenancy helper evidence"
             ),
         },
+        "lifecycle_cleanup_drill": {
+            "ready": _ops_evidence("lifecycle_cleanup_drill.json"),
+            "reason": (
+                "Offline lifecycle cleanup drill present; live portal cleanup paths still open"
+                if _ops_evidence("lifecycle_cleanup_drill.json")
+                else "No lifecycle cleanup drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]
