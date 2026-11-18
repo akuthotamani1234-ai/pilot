@@ -36,3 +36,6 @@ def test_ops_readiness_lists_gaps_and_stays_incomplete():
     assert snap["checks"]["pg_tenancy_drill"]["ready"] is has("pg_tenancy_drill.json")
     assert snap["checks"]["visual_portfolio_drill"]["ready"] is has("visual_portfolio_drill.json")
     assert snap["checks"]["perf_portfolio_drill"]["ready"] is has("perf_portfolio_drill.json")
+    assert snap["checks"]["compatibility_portfolio_drill"]["ready"] is has(
+        "compatibility_portfolio_drill.json"
+    )

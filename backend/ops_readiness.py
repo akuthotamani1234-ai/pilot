@@ -255,6 +255,15 @@ def readiness() -> dict:
                 else "No visual portfolio drill evidence"
             ),
         },
+        "compatibility_portfolio_drill": {
+            "ready": _ops_evidence("compatibility_portfolio_drill.json"),
+            "reason": (
+                "DemoStore desktop+mobile compatibility portfolio evidence present; "
+                "broad live multi-browser CI still open"
+                if _ops_evidence("compatibility_portfolio_drill.json")
+                else "No compatibility portfolio drill evidence"
+            ),
+        },
     }
     ready = [name for name, row in checks.items() if row.get("ready")]
     missing = [name for name, row in checks.items() if not row.get("ready")]

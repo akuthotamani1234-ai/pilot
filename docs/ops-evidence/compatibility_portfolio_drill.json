@@ -1,0 +1,35 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_compatibility_portfolio",
+  "ran_at": "2026-11-18T19:20:07Z",
+  "fixture": "DemoStore",
+  "pages_walked": [
+    "/",
+    "/about",
+    "/lab"
+  ],
+  "matrix": {
+    "desktop": 3,
+    "mobile": 3,
+    "browsers": [
+      "chromium"
+    ]
+  },
+  "portfolio": {
+    "portfolio": "compatibility",
+    "verdict": "pass",
+    "ok": true,
+    "reason": "",
+    "findings": [],
+    "evidence": {
+      "desktop": 3,
+      "mobile": 3,
+      "browsers": [
+        "chromium"
+      ]
+    },
+    "gate_f_complete": false
+  },
+  "ok": true,
+  "reason": "DemoStore desktop+mobile Chromium viewport matrix evaluated; broad live multi-browser CI still open"
+}

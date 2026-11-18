@@ -706,6 +706,18 @@ def ops_visual_portfolio():
     return {"gate_f_complete": False, "visual_portfolio": evidence}
 
 
+@app.post("/api/ops/drills/compatibility-portfolio")
+def ops_compatibility_portfolio():
+    """Gate F: DemoStore desktop+mobile compatibility portfolio (still incomplete)."""
+    from backend.compatibility_portfolio_drill import run_compatibility_portfolio_drill
+    evidence = run_compatibility_portfolio_drill()
+    _audit("ops_compatibility_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""),
+           desktop=int((evidence.get("matrix") or {}).get("desktop") or 0),
+           mobile=int((evidence.get("matrix") or {}).get("mobile") or 0))
+    return {"gate_f_complete": False, "compatibility_portfolio": evidence}
+
+
 @app.get("/api/audit/events")
 def audit_events(limit: int = 50, tenant_id: str | None = None):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
