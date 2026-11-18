@@ -215,6 +215,28 @@ def readiness() -> dict:
                 else "No approvals drill evidence"
             ),
         },
+        "sso_contract_drill": {
+            "ready": _ops_evidence("sso_contract_drill.json"),
+            "reason": (
+                "OIDC/hosting env contract snapshot present; live hosted IdP SSO still open"
+                if _ops_evidence("sso_contract_drill.json")
+                else "No SSO contract drill evidence"
+            ),
+        },
+        "incident_tabletop_drill": {
+            "ready": (
+                _ops_evidence("incident_tabletop_drill.json")
+                or _ops_evidence("incident_tabletop_stub.json")
+            ),
+            "reason": (
+                "Incident tabletop cross-check present; live hosted on-call still open"
+                if (
+                    _ops_evidence("incident_tabletop_drill.json")
+                    or _ops_evidence("incident_tabletop_stub.json")
+                )
+                else "No incident tabletop drill evidence"
+            ),
+        },
         "lifecycle_cleanup_drill": {
             "ready": _ops_evidence("lifecycle_cleanup_drill.json"),
             "reason": (

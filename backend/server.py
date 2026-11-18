@@ -815,6 +815,26 @@ def ops_approvals_drill():
     return {"gate_i_complete": False, "approvals": evidence}
 
 
+@app.post("/api/ops/drills/sso-contract")
+def ops_sso_contract():
+    """Gate I: OIDC/hosting env contract snapshot (still incomplete — live SSO open)."""
+    from backend.sso_contract_drill import run_sso_contract_drill
+    evidence = run_sso_contract_drill()
+    _audit("ops_sso_contract", ok=bool(evidence.get("ok")),
+           configured=bool(evidence.get("configured")))
+    return {"gate_i_complete": False, "sso_contract": evidence}
+
+
+@app.post("/api/ops/drills/incident-tabletop")
+def ops_incident_tabletop():
+    """Gate H: offline incident tabletop cross-check (still incomplete — hosted on-call open)."""
+    from backend.incident_tabletop_drill import run_incident_tabletop_drill
+    evidence = run_incident_tabletop_drill()
+    _audit("ops_incident_tabletop", ok=bool(evidence.get("ok")),
+           roles=len(evidence.get("roles_exercised") or []))
+    return {"gate_h_complete": False, "incident_tabletop": evidence}
+
+
 @app.get("/api/ops/readiness")
 def ops_readiness_api():
     """Gate H ops probe. Docs alone never mark the gate complete."""
