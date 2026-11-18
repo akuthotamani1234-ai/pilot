@@ -866,7 +866,7 @@
       '<option value="limited">Limit the number of pages</option></select></label>' +
       '<label id="aiPageBudget" hidden>Maximum pages <input id="aiPages" type="number" min="1" max="' + cap + '" value="10"></label>' +
       '<label>Exploration actions per page <input id="aiActions" type="number" min="1" max="100" value="80" data-standard-default="' + standardActions + '"></label></div>' +
-      '<p class="note" id="aiSwarmNote">Standard uses a swarm. The pages of the website are split across workers. Each worker opens its own pages, then closes. Checkout and payment stay blocked.</p>' +
+      '<p class="note" id="aiSwarmNote">Standard uses a swarm. Workers split the pages this run is allowed to open. Each worker opens its own pages for the whole run, then closes. Checkout and payment stay blocked.</p>' +
       '<p class="note" id="aiIntensityNote">Thorough raises this-run budgets: ≥' + thoroughCrawlMin +
       ' min crawl time (max of 60 and your CRAWL_TIME_LIMIT_MIN), 80 actions/page (max 100), ' +
       '≥500 test cases, repeated controls, every URL pattern (PATTERN_SAMPLES=0). Still finite — HARD_PAGE_CAP (' + cap +
