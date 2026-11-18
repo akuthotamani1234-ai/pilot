@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-18T20:20:04Z",
+  "ran_at": "2026-11-18T20:50:17Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 59,
+  "artifact_count": 61,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -89,8 +89,8 @@
     },
     {
       "name": "cross_platform_journey_drill.json",
-      "bytes": 1593,
-      "sha256": "5ee90c1339a8334288a8f28c3b87dd6bbf5c0edb034948203af3541dddab320f"
+      "bytes": 1429,
+      "sha256": "82cb0b7fc5b8303c0ae100740b670546d422d22c82e1f1b9f25c456c1ad0062b"
     },
     {
       "name": "dashboard_auth_matrix_drill.json",
@@ -178,6 +178,11 @@
       "sha256": "69c9f6f919d0bda59c3534afeb0774791dec88939b22b9a0319df06bb75a51b5"
     },
     {
+      "name": "minio_multi_region_drill.json",
+      "bytes": 582,
+      "sha256": "90a6766b9feeedf6d0850477cade911e2e9b9654e3302fb8f8d847540f181711"
+    },
+    {
       "name": "minio_object_store_drill.json",
       "bytes": 442,
       "sha256": "8446e3ed180c70217a25deeae84a692afa34daac3a4b467de5e0b42dea8fdc43"
@@ -206,6 +211,11 @@
       "name": "mutation_score_drill.json",
       "bytes": 847,
       "sha256": "552c6122e67bf90bc1e2dffd8ad72c69ed7b559e52a9e9df5a426f2e3e26b72b"
+    },
+    {
+      "name": "observability_probe_drill.json",
+      "bytes": 806,
+      "sha256": "c9010cdc884f85d8ec1884e1ad940079e9af342b9198366f3dc766b3414c2fbb"
     },
     {
       "name": "oracle_spec_drill.json",
@@ -304,5 +314,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (59 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (61 artifacts hashed); independent human/reviewer sign-off still pending"
 }

@@ -97,6 +97,22 @@ def readiness() -> dict:
                 else "No multi-region DR rehearsal evidence"
             ),
         },
+        "minio_multi_region_drill": {
+            "ready": _ops_evidence("minio_multi_region_drill.json"),
+            "reason": (
+                "Local MinIO dual-bucket failover present; hosted multi-region object DR still open"
+                if _ops_evidence("minio_multi_region_drill.json")
+                else "No MinIO multi-region failover evidence"
+            ),
+        },
+        "observability_probe_drill": {
+            "ready": _ops_evidence("observability_probe_drill.json"),
+            "reason": (
+                "Local observability probe present; central metrics/tracing/alerting still open"
+                if _ops_evidence("observability_probe_drill.json")
+                else "No observability probe evidence"
+            ),
+        },
         "paging_escalation_drill": {
             "ready": _ops_evidence("paging_escalation_drill.json"),
             "reason": (

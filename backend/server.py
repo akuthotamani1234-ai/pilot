@@ -1136,6 +1136,30 @@ def ops_multi_region_dr():
     return {"gate_h_complete": False, "multi_region_dr": evidence}
 
 
+@app.post("/api/ops/drills/minio-multi-region")
+def ops_minio_multi_region():
+    """Gate H: MinIO dual-bucket failover (hosted multi-region object DR still open)."""
+    from backend.minio_multi_region_drill import run_minio_multi_region_drill
+    evidence = run_minio_multi_region_drill()
+    _audit("ops_minio_multi_region", ok=bool(evidence.get("ok")),
+           bytes=int(evidence.get("bytes") or 0))
+    return {"gate_h_complete": False, "minio_multi_region": evidence}
+
+
+@app.post("/api/ops/drills/observability-probe")
+def ops_observability_probe():
+    """Gate H: local observability probe (central metrics stack still open)."""
+    from backend.observability_probe_drill import run_observability_probe_drill
+    evidence = run_observability_probe_drill()
+    _audit(
+        "ops_observability_probe",
+        ok=bool(evidence.get("ok")),
+        checks_ready=int(evidence.get("checks_ready") or 0),
+        checks_total=int(evidence.get("checks_total") or 0),
+    )
+    return {"gate_h_complete": False, "observability_probe": evidence}
+
+
 @app.post("/api/ops/drills/admin-portal-surfaces")
 def ops_admin_portal_surfaces():
     """Gate A surface inventory against AdminPortal (still incomplete)."""
