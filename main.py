@@ -130,6 +130,14 @@ def _ingest_saved_evidence(state: dict, run_dir: Path) -> dict:
                 out["test_cases"] = loaded
         except (OSError, ValueError, TypeError):
             pass
+    # Discovery may have persisted app_map before a budget/stop cut the agent return.
+    if not out.get("app_map") and (run_dir / "app_map.json").exists():
+        try:
+            loaded = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+            if isinstance(loaded, list) and loaded:
+                out["app_map"] = loaded
+        except (OSError, ValueError, TypeError):
+            pass
     out["failures"] = ensure_findings_from_results(
         run_dir, out.get("results") or [], cases=out.get("test_cases"), app_map=out.get("app_map"),
         unhealable=out.get("unhealable"), healing_log=out.get("healing_log"))
