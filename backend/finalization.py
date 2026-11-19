@@ -20,7 +20,7 @@ def path_unless_linked(folder: Path, name: str) -> Path | None:
     """A real file path in this folder. A link, or a name that leaves the folder, is refused."""
     folder = Path(folder)
     path = folder / name
-    if (not name or folder_is_linked(folder) or path.is_symlink()
+    if (not name or folder_is_linked(folder) or folder_is_linked(path)
             or Path(name).is_absolute() or ".." in Path(name).parts):
         return None
     return path
