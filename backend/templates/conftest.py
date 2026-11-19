@@ -1238,7 +1238,11 @@ def _save_login(context) -> None:
         if _output_is_linked(saved):
             return
         tmp = saved.with_name(f"auth.{os.getpid()}.tmp")
+        if _output_is_linked(tmp):
+            return
         context.storage_state(path=str(tmp))
+        if _output_is_linked(tmp) or _output_is_linked(saved):
+            return
         os.replace(tmp, AUTH_STATE)
         _SESSION["loaded"] = Path(AUTH_STATE).stat().st_mtime
     except Exception:

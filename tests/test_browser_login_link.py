@@ -1,6 +1,7 @@
 """A browser window loads this run's saved login. A link is not loaded."""
 import importlib.util
 import json
+import os
 
 from backend.blueprint_progress import progress
 
@@ -83,11 +84,48 @@ def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_p
     assert (videos / "keep.txt").read_text(encoding="utf-8") == secret
 
 
+def test_a_saved_login_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-login-temp"
+    other = tmp_path / "other"
+    other.mkdir()
+    stolen = other / "stolen.json"
+    stolen.write_text(json.dumps({"cookies": [{"name": "session", "value": secret}]}), encoding="utf-8")
+    original = stolen.read_text(encoding="utf-8")
+    real = tmp_path / "auth.json"
+    real.write_text("{}", encoding="utf-8")
+    module = _load(tmp_path, monkeypatch, str(real), {})
+    linked = real.with_name(f"auth.{os.getpid()}.tmp")
+    linked.symlink_to(stolen)
+
+    class _Browser:
+        def storage_state(self, path):
+            from pathlib import Path
+            Path(path).write_text(
+                json.dumps({"cookies": [{"name": "home-own-login", "value": "ours"}]}),
+                encoding="utf-8")
+
+    module._save_login(_Browser())
+    assert linked.is_symlink()
+    assert stolen.read_text(encoding="utf-8") == original
+    assert real.read_text(encoding="utf-8") == "{}"
+    assert secret not in real.read_text(encoding="utf-8")
+
+    linked.unlink()
+    module._save_login(_Browser())
+    saved = real.read_text(encoding="utf-8")
+    assert "home-own-login" in saved
+    assert secret not in saved
+    assert stolen.read_text(encoding="utf-8") == original
+    assert not linked.exists()
+
+
 def test_browser_login_link_stays_on_the_sidebar():
     snap = progress()
     row = next(item for item in snap["upcoming"] if item["id"] == "G-browser-login-link")
     video = next(item for item in snap["upcoming"] if item["id"] == "G-video-dir-link")
+    temp = next(item for item in snap["upcoming"] if item["id"] == "G-login-temp-link")
     assert row["status"] == "done"
     assert video["status"] == "done"
+    assert temp["status"] == "done"
     assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
     assert snap["complete"] is False
