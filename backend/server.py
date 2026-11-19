@@ -1767,6 +1767,36 @@ def ops_oidc_tid_tenant_acl():
     return {"gate_i_complete": False, "oidc_tid_tenant_acl": evidence}
 
 
+@app.post("/api/ops/drills/oidc-email-domain-tenant-acl")
+def ops_oidc_email_domain_tenant_acl():
+    """Gate I: OIDC email domain → tenant ACL (hosted IdP still open)."""
+    from backend.oidc_email_domain_tenant_acl_drill import (
+        run_oidc_email_domain_tenant_acl_drill,
+    )
+    evidence = run_oidc_email_domain_tenant_acl_drill()
+    _audit(
+        "ops_oidc_email_domain_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_email_domain_tenant_acl": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-readiness-pack")
+def ops_hosted_oncall_readiness_pack():
+    """Gate H: on-call contract+readiness+paging pack (hosted paging still open)."""
+    from backend.hosted_oncall_readiness_pack_drill import (
+        run_hosted_oncall_readiness_pack_drill,
+    )
+    evidence = run_hosted_oncall_readiness_pack_drill()
+    _audit(
+        "ops_hosted_oncall_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_readiness_pack": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""
