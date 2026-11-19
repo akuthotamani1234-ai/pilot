@@ -239,14 +239,18 @@ def _coverage_sheet(wb, run_dir: Path):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "coverage.json"
-    if Path(run_dir).is_symlink() or f.is_symlink() or not f.is_file():
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(run_dir)) or f.is_symlink() or not f.is_file():
         return
     data = json.loads(f.read_text(encoding="utf-8-sig"))
     # after the run, each control's own result (registry.json): planned -> executed -> its verdict, how strong its proof
     # is (a state / value checked, or only "no errors" = smoke) and the test cases that decided it
     try:
         reg_path = Path(run_dir) / "registry.json"
-        reg = {} if reg_path.is_symlink() else json.loads(reg_path.read_text(encoding="utf-8-sig"))
+        if reg_path.is_symlink() or folder_is_linked(reg_path.parent):
+            reg = {}
+        else:
+            reg = json.loads(reg_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         reg = {}
     from .registry import STATUS_TEXT

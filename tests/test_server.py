@@ -447,3 +447,43 @@ def test_an_automation_check_does_not_follow_a_link_into_another_folder(tmp_path
     assert (status, how) == ("Automated", "Template")
     assert secret not in f"{status} {how}"
     assert secret in script.read_text(encoding="utf-8")
+
+
+def test_a_coverage_sheet_does_not_follow_a_link_into_another_folder(tmp_path):
+    from openpyxl import Workbook
+
+    from backend.excel import _coverage_sheet
+
+    secret = "tenant-b-only-control"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    coverage = nested / "coverage.json"
+    coverage.write_text(json.dumps({
+        "tested": 1, "total": 1,
+        "pages": [{"url": "https://other.test/", "items": [{
+            "status": "tested", "name": secret, "kind": "button", "reason": secret, "selector": "#secret",
+        }]}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = Workbook()
+    _coverage_sheet(refused, linked / "runs" / "run")
+    assert "Coverage" not in refused.sheetnames
+    assert secret in coverage.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "coverage.json").write_text(json.dumps({
+        "tested": 1, "total": 1,
+        "pages": [{"url": "https://home.test/", "items": [{
+            "status": "tested", "name": "home-own", "kind": "button", "reason": "", "selector": "#home",
+        }]}],
+    }), encoding="utf-8")
+    book = Workbook()
+    _coverage_sheet(book, real)
+    text = " ".join(str(cell.value) for row in book["Coverage"].iter_rows() for cell in row if cell.value)
+    assert "home-own" in text
+    assert secret not in text
+    assert secret in coverage.read_text(encoding="utf-8")
