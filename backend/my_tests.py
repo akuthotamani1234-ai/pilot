@@ -7,6 +7,7 @@
   it in the test cases as 'Not automated' with the reason - it is never silently dropped.
   Where you write them: the chat's start card ('Your own tests'), the review step, or main.py --my-test "...".
 """
+import contextvars
 import hashlib
 import json
 import os
@@ -19,6 +20,23 @@ from .config import settings
 
 MAX_TESTS = 30  # per website
 FILE = "my_tests.json"
+_baseline_tenant: contextvars.ContextVar[str] = contextvars.ContextVar("qpilot_baseline_tenant", default="")
+
+
+def push_baseline_tenant(tenant_id: str):
+    """Use this tenant's baseline until the token is reset. A bad id uses the shared folder."""
+    tenant = (tenant_id or "").strip()
+    if tenant and not re.fullmatch(r"[\w.-]+", tenant):
+        tenant = ""
+    return _baseline_tenant.set(tenant)
+
+
+def pop_baseline_tenant(token) -> None:
+    _baseline_tenant.reset(token)
+
+
+def current_baseline_tenant() -> str:
+    return _baseline_tenant.get()
 
 
 def site_key_of(url: str) -> str:
@@ -35,7 +53,7 @@ def baseline_folder(site_key: str, tenant_id: str | None = None) -> Path:
     """
     key = site_key or "site"
     if tenant_id is None:
-        tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+        tenant = (_baseline_tenant.get() or os.getenv("QPILOT_TENANT_ID") or "").strip()
         if tenant and re.fullmatch(r"[\w.-]+", tenant):
             return settings.baseline_dir / tenant / key
         return settings.baseline_dir / key
