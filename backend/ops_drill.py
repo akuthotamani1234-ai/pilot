@@ -89,22 +89,27 @@ def run_backup_restore_drill(*, ops_dir: Path | None = None) -> dict:
 
 def write_local_metrics_snapshot(*, ops_dir: Path | None = None) -> dict:
     """Write a process-local metrics snapshot (not a real metrics stack)."""
+    from .finalization import folder_is_linked
+
     base = _ops_folder(ops_dir)
-    if base is None:
+    out_name = "local_metrics_snapshot.json"
+    if base is None or folder_is_linked(base / out_name):
         return _linked_drill("local_process_snapshot")
+    approvals = ROOT / "artifacts" / "approvals.sqlite"
+    workflow = ROOT / ".github" / "workflows" / "blow-ai.yml"
     base.mkdir(parents=True, exist_ok=True)
     snap = {
         "gate_h_complete": False,
         "kind": "local_process_snapshot",
         "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "metrics": {
-            "approvals_db_present": (ROOT / "artifacts" / "approvals.sqlite").is_file(),
-            "ops_dir_present": base.is_dir(),
-            "ci_workflow_present": (ROOT / ".github" / "workflows" / "blow-ai.yml").is_file(),
+            "approvals_db_present": (not folder_is_linked(approvals)) and approvals.is_file(),
+            "ops_dir_present": (not folder_is_linked(base)) and base.is_dir(),
+            "ci_workflow_present": (not folder_is_linked(workflow)) and workflow.is_file(),
         },
         "reason": "Local snapshot only; central metrics/tracing/alerting still open",
     }
-    if not _write_ops(base, "local_metrics_snapshot.json", snap):
+    if folder_is_linked(base / out_name) or not _write_ops(base, out_name, snap):
         return _linked_drill("local_process_snapshot")
     return snap
 
