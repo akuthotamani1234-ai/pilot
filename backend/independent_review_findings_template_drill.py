@@ -42,14 +42,36 @@ Signature: ______________________  Date: __________
 """
 
 
+def _linked_template() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "signed_off": False,
+        "drill": "independent_review_findings_template",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_independent_review_findings_template_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_template()
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     md_out = (
         (Path(ops_dir) / "INDEPENDENT_REVIEW_FINDINGS.md")
         if ops_dir else TEMPLATE
     )
-    md_out.write_text(TEMPLATE_BODY, encoding="utf-8")
+    out = (
+        (Path(ops_dir) / "independent_review_findings_template_drill.json")
+        if ops_dir else EVIDENCE
+    )
+    if folder_is_linked(dest) or folder_is_linked(md_out) or folder_is_linked(out):
+        return _linked_template()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, md_out.name, TEMPLATE_BODY):
+        return _linked_template()
+    if folder_is_linked(md_out):
+        return _linked_template()
     evidence = {
         "gate_g_complete": False,
         "drill": "independent_review_findings_template",
@@ -63,13 +85,11 @@ def run_independent_review_findings_template_drill(*, ops_dir: Path | None = Non
             "external sign-off still open"
         ),
     }
-    out = (
-        (Path(ops_dir) / "independent_review_findings_template_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_template()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_findings_template_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
