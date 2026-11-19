@@ -82,6 +82,25 @@ def test_a_redirect_onto_checkout_is_not_clicked():
     assert "form_fills" not in entry
 
 
+def test_a_click_that_lands_on_checkout_is_not_learned():
+    import time
+
+    from backend.observe import Explorer
+
+    explorer = Explorer("", lambda *_args, **_kwargs: None, time.time() + 30)
+
+    def landed(*_args, **_kwargs):
+        return {"effect": "navigates", "to": "https://shop.example/checkout", "message": "", "tone": "",
+                "values": {}, "revealed": [], "added": [], "state": "landed"}
+
+    explorer._try = landed
+    entry = {"buttons": [{"text": "Continue", "selector": "#go", "role": "button"}]}
+    explorer._explore(type("Page", (), {"url": "https://shop.example/cart"})(), "https://shop.example/cart", entry)
+    assert entry.get("behaviour") == []
+    assert explorer.blocked[0]["control"] == "Continue"
+    assert str(explorer.blocked[0]["why"]).startswith("protected")
+
+
 def test_pages_only_an_action_or_scrolling_reveals_are_found(explored):
     out, crawl, store = explored
     paths = {p["url"].replace(store.url, "") or "/" for p in out["app_map"]}

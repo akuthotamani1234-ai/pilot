@@ -73,6 +73,7 @@ def build(app_map: list[dict], crawl: dict) -> dict:
     from .agents.test_design import features as basic_features
     from .auth import login_form
     from .features import page_features
+    from .swarm import stored_control_opens_payment
 
     pages, features, edges, by_url = {}, {}, [], {}
     seen_on = Counter()  # control key -> on how many page patterns (shared header / footer controls: one feature)
@@ -119,6 +120,7 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             continue
         pg["state"] = "inspected"
         slug, auth = p.get("slug"), bool(p.get("auth"))
+        page_url = p.get("final_url") or p.get("url") or ""
         learned = {(b.get("control"), b.get("selector")): b for b in p.get("behaviour", [])}
         by_sel = {b.get("selector"): b for b in p.get("behaviour", [])}
         basic = basic_features(p)
@@ -166,7 +168,8 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             if lf and lf["submit"] == (fm.get("submit") or {}).get("selector"):
                 continue  # (the login form IS the login feature)
             name = ((fm.get("submit") or {}).get("text") or "form").strip()[:40]
-            sends = action_risk(name, (fm.get("submit") or {}).get("selector")) == "protected"
+            sends = (action_risk(name, (fm.get("submit") or {}).get("selector")) == "protected"
+                     or stored_control_opens_payment(page_url, fm))
             pg["features"].append(add(dict({"id": feature_id(pid, "form", fm.get("selector") or name),
                                             "level": "feature", "kind": "form", "name": f"form '{name}'", "page": pid,
                                             "pages": [slug], "auth": auth, "selector": fm.get("selector"),
@@ -183,7 +186,9 @@ def build(app_map: list[dict], crawl: dict) -> dict:
                 or next((b for b in p.get("behaviour", []) if b.get("selector") == x["selector"]), None)
             name = (x.get("accname") or x.get("text") or x.get("label") or "control").split("\n")[0].strip()[:60]
             extra = {}
-            if x in p.get("buttons", []) and action_risk(x.get("text") or name, x["selector"]) == "protected":
+            if x in p.get("buttons", []) and (
+                    action_risk(x.get("text") or name, x["selector"]) == "protected"
+                    or stored_control_opens_payment(page_url, x)):
                 extra = {"status": "blocked", "why": "protected action: never performed without explicit approval in "
                                                      "a test environment"}
             pg["features"].append(add(dict({
@@ -244,7 +249,9 @@ def _step_links(step: dict, slug: str, idx: dict) -> list[tuple[str, str]]:
     out = []
     sid = step.get("id", "")
     if sid == "buttons_click":  # click each button, no checked result: a click proves nothing
-        return [(f, "clicks") for f in idx.get(("controls", slug), [])]
+        feats = idx.get("_features") or {}
+        return [(f, "clicks") for f in idx.get(("controls", slug), [])
+                if (feats.get(f) or {}).get("status") != "blocked"]
     kind = STEP_KIND.get(sid) or {"login_wrong": "login", "login_ok": "login"}.get(step.get("kind")) \
         or ("suggestions" if step.get("kind") == "opens" and step.get("typing") else "") \
         or ("form" if sid.endswith(("_required_validation", "_invalid_email")) else "")
