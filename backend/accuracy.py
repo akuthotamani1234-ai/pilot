@@ -249,6 +249,17 @@ def summary_line(m: dict) -> str:
     return s
 
 
+def write_report(path: Path, payload: dict) -> bool:
+    """Write the accuracy numbers. A linked file or folder is left untouched."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return True
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Accuracy of a finished test run")
     ap.add_argument("run_dir")
@@ -258,10 +269,9 @@ def main() -> None:
     a = ap.parse_args()
     truth = json.loads(Path(a.truth).read_text(encoding="utf-8")) if a.truth else None
     m = measure(a.run_dir, truth, a.bugs)
-    if a.out:
-        Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.out).write_text(json.dumps(m, indent=2), encoding="utf-8")
-    else:
+    if a.out and not write_report(Path(a.out), m):
+        raise ValueError("The accuracy file is a link.")
+    if not a.out:
         print(json.dumps(m, indent=2))
     print(summary_line(m))
 

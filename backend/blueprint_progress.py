@@ -269,6 +269,7 @@ def progress() -> dict:
         {"id": "G-feature-sheet-link", "label": "A feature sheet does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-file-link", "label": "A schedule file is not read through a link into another folder", "status": "done"},
         {"id": "G-merge-read-link", "label": "A merged summary does not follow a link into another folder", "status": "done"},
+        {"id": "G-accuracy-report-link", "label": "An accuracy report does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
