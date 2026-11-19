@@ -68,7 +68,8 @@ def run_psql(sql: str, *, dsn: str | None = None) -> subprocess.CompletedProcess
 def apply_migrations_psql(*, dsn: str | None = None) -> dict:
     """Apply migrations/*.sql through psql."""
     target = (dsn or _dsn()).strip()
-    files = sorted(p for p in MIGRATIONS.glob("*.sql") if p.is_file())
+    from .migrate import list_migrations
+    files = list_migrations()
     applied = []
     for file in files:
         version = file.name
