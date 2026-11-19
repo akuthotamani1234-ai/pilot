@@ -14,6 +14,22 @@ ROOT = Path(__file__).resolve().parent.parent
 RUNS = ROOT / "runs"
 
 
+def prepare_android_run(runs: Path, run_id: str) -> Path:
+    """Create this run's private folder. A link is refused before anything is written."""
+    runs = Path(runs)
+    if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
+        raise ValueError("The Android run is a link.")
+    if runs.is_symlink():
+        raise ValueError("The runs folder is a link.")
+    directory = runs / run_id
+    private = directory / ".private"
+    if any(path.is_symlink() for path in (
+            directory, private, private / "app.apk", private / "android_config.json", directory / "repeat.log")):
+        raise ValueError("The Android run is a link.")
+    private.mkdir(parents=True)
+    return directory
+
+
 def _read_config(path: Path) -> tuple[dict, Path]:
     path = path.resolve()
     try:

@@ -168,3 +168,55 @@ def test_junit_results_keep_pass_skip_and_failure_outcomes(tmp_path):
         ("android_navigation_001", "failed"),
         ("android_navigation_002", "inconclusive"),
     ]
+
+
+def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import datetime as dt
+    from pathlib import Path
+
+    import pytest
+
+    from backend.android_runner import prepare_android_run
+    from backend.qa_benchmark import repeat_android
+
+    secret = b"tenant-b-only-apk"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.apk").write_bytes(secret)
+    (other / "android_config.json").write_bytes(secret)
+    (other / "repeat.log").write_bytes(secret)
+
+    linked_root = tmp_path / "linked-runs"
+    linked_root.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked_root, "android_run")
+    with pytest.raises(ValueError, match="link"):
+        repeat_android(tmp_path / "missing.json", 1, linked_root)
+    assert (other / "app.apk").read_bytes() == secret
+    assert (other / "android_config.json").read_bytes() == secret
+    assert (other / "repeat.log").read_bytes() == secret
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    planted = runs / "repeat_20261119_132600_1"
+    planted.symlink_to(other, target_is_directory=True)
+
+    class _Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 19, 13, 26, 0)
+
+    monkeypatch.setattr(dt, "datetime", _Clock)
+    monkeypatch.setattr("backend.android_runner._read_config", lambda _path: ({"app_mode": "web"}, Path(".")))
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.android_pipeline._run_mobile_process", explode)
+    with pytest.raises(ValueError, match="link"):
+        repeat_android(tmp_path / "config.json", 1, runs)
+    assert (other / "app.apk").read_bytes() == secret
+    assert not (other / ".private").exists()
+
+    created = prepare_android_run(runs, "android_real")
+    assert (created / ".private").is_dir() and not (created / ".private").is_symlink()
