@@ -1440,7 +1440,8 @@ def _context_options(kind: str) -> dict:
         opts["storage_state"] = state
         if kind == "user":
             _SESSION["loaded"] = Path(state).stat().st_mtime
-    if VIDEO_DIR:  # (the video is complete when the window closes at the end of the run)
+    if VIDEO_DIR and not _output_is_linked(Path(VIDEO_DIR)):
+        # the video is complete when the window closes at the end of the run
         opts.update(record_video_dir=VIDEO_DIR, record_video_size={"width": 1366, "height": 900})
     return opts
 

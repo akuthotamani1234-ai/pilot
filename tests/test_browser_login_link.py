@@ -58,9 +58,36 @@ def test_a_browser_login_does_not_follow_a_link_into_another_folder(tmp_path, mo
     assert stolen.read_text(encoding="utf-8").count(secret) == 1
 
 
+def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-video"
+    other = tmp_path / "other"
+    videos = other / "videos"
+    videos.mkdir(parents=True)
+    (videos / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-videos"
+    linked.symlink_to(videos, target_is_directory=True)
+    module = _load(tmp_path, monkeypatch, "", {})
+    module.VIDEO_DIR = str(linked)
+    refused = module._context_options("guest")
+    assert "record_video_dir" not in refused
+    assert secret not in json.dumps(refused)
+    assert (videos / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (videos / "home.webm").exists()
+
+    real = tmp_path / "videos"
+    real.mkdir()
+    module.VIDEO_DIR = str(real)
+    saved = module._context_options("guest")
+    assert saved["record_video_dir"] == str(real)
+    assert secret not in json.dumps(saved)
+    assert (videos / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_browser_login_link_stays_on_the_sidebar():
     snap = progress()
     row = next(item for item in snap["upcoming"] if item["id"] == "G-browser-login-link")
+    video = next(item for item in snap["upcoming"] if item["id"] == "G-video-dir-link")
     assert row["status"] == "done"
+    assert video["status"] == "done"
     assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
     assert snap["complete"] is False
