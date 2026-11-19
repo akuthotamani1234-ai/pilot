@@ -580,18 +580,18 @@ def validate_mobile_config(config: dict) -> dict:
 
 def _managed_web_chromedriver(config: dict) -> str | None:
     """Reuse an installed managed driver only when its major matches device Chrome."""
+    from .finalization import folder_is_linked
     root = Path(__file__).resolve().parent.parent
     candidates = [root / "tools" / "chromedriver" / "chromedriver.exe",
                   root / "runs" / "android_verification_tools" / "chromedriver.exe"]
     adb = _adb_path()
-    if not adb or not any(p.is_file() for p in candidates):
+    owned = [path for path in candidates if not folder_is_linked(path) and path.is_file()]
+    if not adb or not owned:
         return None
     try:
         installed = _run_cli(adb, ["-s", config["device_id"], "shell", "dumpsys", "package", "com.android.chrome"], 10)
         chrome = re.search(r"versionName=(\d+)\.", installed.stdout)
-        for candidate in candidates:
-            if not candidate.is_file():
-                continue
+        for candidate in owned:
             version = _run_cli(str(candidate), ["--version"], 5)
             driver = re.search(r"ChromeDriver (\d+)\.", version.stdout)
             if chrome and driver and chrome[1] == driver[1] and version.returncode == 0:
