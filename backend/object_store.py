@@ -16,12 +16,23 @@ class ObjectStoreError(RuntimeError):
     pass
 
 
+def _root_is_linked(root: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    root = Path(root)
+    if root.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in root.parents)
+
+
 class LocalObjectStore:
     """Filesystem-backed artifact store under a root directory."""
 
     def __init__(self, root: str | Path) -> None:
-        self.root = Path(root).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+        root = Path(root).expanduser()
+        if _root_is_linked(root):
+            raise ObjectStoreError("object store is a link")
+        root.mkdir(parents=True, exist_ok=True)
+        self.root = root
         self.backend = "local"
 
     def put(self, key: str, data: bytes) -> dict:
@@ -163,7 +174,10 @@ def open_object_store(uri: str | None = None, *, default_root: str | Path = "run
             root = raw[5:] or default_root
         elif raw.startswith("local:"):
             root = raw[6:] or default_root
-        store = LocalObjectStore(root)
+        try:
+            store = LocalObjectStore(root)
+        except ObjectStoreError as exc:
+            return {"ready": False, "backend": "local", "store": None, "reason": str(exc)}
         return {"ready": True, "backend": "local", "store": store, "reason": ""}
     if raw.startswith(("s3://", "minio://", "http://", "https://")):
         access, secret = _minio_creds()
@@ -205,5 +219,6 @@ def open_object_store(uri: str | None = None, *, default_root: str | Path = "run
 def reset_local_store(root: str | Path) -> None:
     """Test helper: remove a local store directory."""
     path = Path(root)
-    if path.is_dir():
-        shutil.rmtree(path)
+    if _root_is_linked(path) or not path.is_dir():
+        return
+    shutil.rmtree(path)
