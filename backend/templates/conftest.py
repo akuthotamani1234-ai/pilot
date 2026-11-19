@@ -793,27 +793,29 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
           icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : '', action, clicked].map(s => s.trim().slice(0, 180)); }"""
 
 
-def _risky(names: list) -> bool:
-    def payment(raw: str) -> bool:
-        text = raw or ""
-        path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
-        return bool(re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
-            r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
-            path, re.I))
+def _payment_target(raw: str) -> bool:
+    """True when this address is checkout or payment, including a page the browser already opened."""
+    text = raw or ""
+    path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
+    return bool(re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
+        r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
+        path, re.I))
 
+
+def _risky(names: list) -> bool:
     shown = names[0]
     other = " ".join(names[1:8])
     both = f"{shown} {other}"
     href = names[3] if len(names) > 3 else ""
     # A payment address is blocked even when the label does not say pay.
     # Cart routes (index.php?rt=checkout/cart) and product names stay open.
-    if payment(href):
+    if _payment_target(href):
         return True
     action = names[8] if len(names) > 8 else ""
-    if payment(action):
+    if _payment_target(action):
         return True
     for quoted in re.findall(r"""['"]([^'"]+)['"]""", names[9] if len(names) > 9 else ""):
-        if payment(quoted):
+        if _payment_target(quoted):
             return True
     reference = re.compile(os.environ.get('QA_REFERENCE_NAV_RX') or r'(?!)', re.I)
     if len(names) >= 8 and reference.fullmatch(shown) and names[5] == 'a' and not names[7] and (
@@ -839,6 +841,12 @@ def _refuse_protected(loc) -> None:
     """A click on a protected control is not done - the test step is Blocked instead."""
     if not getattr(Locator, "_qa_guard", False):
         return
+    try:
+        landed = loc.page.url or ""
+    except Exception:
+        landed = ""
+    if _payment_target(landed):
+        pytest.skip("Blocked: this page is checkout or payment - its controls are never clicked")
     try:  # [visible text, aria-label, title, link address] - None = allowed (login button / an approved click)
         names = loc.first.evaluate(CONTROL_TEXT_JS, bool(getattr(Locator, "_qa_strict", False)), timeout=3000)
     except Exception:
