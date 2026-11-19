@@ -86,6 +86,40 @@ def test_saved_reports_rebuild_without_mutating_evidence(tmp_path, folder, total
         assert summary["exploration"]["status"] == "partial"
 
 
+def test_a_rebuilt_report_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = b"tenant-b-only-report"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "summary.json").write_text("{}", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        rebuild(source, linked / "nested" / "out")
+    with pytest.raises(ValueError, match="link"):
+        rebuild(linked / "run", tmp_path / "out")
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "nested").exists()
+    assert not (other / "run").exists()
+
+    def _write_summary(state):
+        folder = Path(state["run_dir"])
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "summary.json").write_text(json.dumps({
+            "metrics": {"single_tests": {"total": 0}, "test_cases": {}, "consistent": True},
+            "findings": [],
+        }), encoding="utf-8")
+
+    monkeypatch.setattr("backend.agents.reporter.reporter_agent", _write_summary)
+    real = tmp_path / "rebuilt"
+    result = rebuild(source, real)
+    assert result["output"] == str(real.resolve())
+    assert secret not in (real / "rebuild_comparison.json").read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_rebuild_refuses_historical_output():
     source = RUNS / "demoblaze.com_20261113_131702"
     with pytest.raises(ValueError):

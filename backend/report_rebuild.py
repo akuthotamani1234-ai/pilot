@@ -9,14 +9,20 @@ METADATA = ("app_map.json", "results.json", "test_cases.json", "crawl.json", "co
             "execution.json", "failures.json", "login.json", "visual.json", "llm_usage.jsonl", "created.jsonl")
 
 
+def _ancestor_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def rebuild(source: Path, destination: Path) -> dict:
     from .agents.change_detection import relative_path_is_linked, run_read_block
     source_path, dest_path = Path(source), Path(destination)
     blocked = run_read_block(source_path)
-    if blocked:
-        raise ValueError(blocked)
-    if dest_path.is_symlink() or (dest_path.parent.exists() and dest_path.parent.is_symlink()):
-        raise ValueError("This run's folder is a link.")
+    if blocked or _ancestor_is_linked(source_path) or _ancestor_is_linked(dest_path):
+        raise ValueError(blocked or "This run's folder is a link.")
     source, destination = source_path.resolve(), dest_path.resolve()
     if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
         raise ValueError("Rebuild output must be separate from historical run artifacts")
