@@ -50,3 +50,9 @@ def authorization_code_grant_error(
     if isinstance(bound, str) and bound and bound != (state or ""):
         return "invalid_grant"
     return ""
+
+
+def login_nonce_claim(entry: dict | None) -> dict:
+    """The authorize ``nonce`` to copy into an ID token, or nothing when none was sent."""
+    nonce = str((entry or {}).get("nonce") or "")
+    return {"nonce": nonce} if nonce else {}

@@ -22,11 +22,14 @@ from pathlib import Path
 
 from .oidc_auth_code_grant import (
     authorization_code_grant_error,
+    login_nonce_claim,
     redirect_uri_registered,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "loopback_pkce_sso_drill.json"
+
+
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -122,6 +125,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 qs = urllib.parse.parse_qs(parsed.query)
                 redirect = (qs.get("redirect_uri") or ["http://127.0.0.1/callback"])[0]
                 state = (qs.get("state") or [""])[0]
+                nonce = (qs.get("nonce") or [""])[0]
                 if not redirect_uri_registered(redirect):
                     self.send_response(400)
                     self.end_headers()
@@ -144,6 +148,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                     "code_challenge": challenge,
                     "redirect_uri": redirect,
                     "state": state,
+                    "nonce": nonce,
                     "issued_at": time.time(),
                 }
                 loc = (
@@ -202,6 +207,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 "email": entry["email"],
                 "exp": now + 600,
                 "iat": now,
+                **login_nonce_claim(entry),
             }
             token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
             body = json.dumps({
@@ -251,7 +257,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
         auth_url = (
             f"{issuer}/authorize?response_type=code&client_id={client_id}"
             f"&redirect_uri={urllib.parse.quote('http://127.0.0.1/studio/callback')}"
-            f"&state=studio-pkce-1&scope=openid%20email"
+            f"&state=studio-pkce-1&nonce=studio-pkce-nonce-1&scope=openid%20email"
             f"&code_challenge={challenge}&code_challenge_method=S256"
         )
         opener = urllib.request.build_opener(_NoRedirect)
@@ -350,6 +356,10 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             "signature_verified": bool(
                 validated.get("signature_verified") or authz.get("signature_verified")
             ),
+        })
+        steps.append({
+            "step": "id_token_nonce",
+            "ok": (validated.get("claims") or {}).get("nonce") == "studio-pkce-nonce-1",
         })
         ok = all(s.get("ok") for s in steps)
         evidence = {

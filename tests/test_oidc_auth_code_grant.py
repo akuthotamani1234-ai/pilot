@@ -59,3 +59,11 @@ def test_a_code_minted_with_state_is_refused_when_the_token_state_differs():
     assert authorization_code_grant_error(bound, **base, state="studio-sso-1") == ""
     assert authorization_code_grant_error(bound, **base, state="other-browser") == "invalid_grant"
     assert authorization_code_grant_error(bound, **base) == "invalid_grant"
+
+
+def test_an_id_token_copies_the_login_nonce_and_omits_it_when_none_was_sent():
+    from backend.oidc_auth_code_grant import login_nonce_claim
+
+    assert login_nonce_claim({"nonce": "studio-nonce-1"}) == {"nonce": "studio-nonce-1"}
+    assert login_nonce_claim({"nonce": ""}) == {}
+    assert login_nonce_claim(None) == {}

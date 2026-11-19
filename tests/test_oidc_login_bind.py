@@ -92,3 +92,69 @@ def test_exchange_binds_a_new_principal_and_leaves_a_stored_role(monkeypatch, tm
     assert stranger["access_token"] == ""
     assert "not a known role" in (stranger.get("reason") or "")
     reset_used_authorization_codes()
+
+
+def test_a_login_nonce_that_does_not_match_the_id_token_is_refused(monkeypatch, tmp_path):
+    db = tmp_path / "tenancy.sqlite"
+    upsert_tenant("t1", "Tenant", db_path=db)
+    monkeypatch.setenv("QPILOT_OIDC_TOKEN_URL", "http://127.0.0.1:9/token")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "oidc")
+    monkeypatch.delenv("QPILOT_OIDC_PKCE_REQUIRED", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_STATE", raising=False)
+    monkeypatch.delenv("QPILOT_OIDC_REDIRECT_ALLOWLIST", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_NONCE", raising=False)
+    seen = {}
+
+    class _Body:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"id_token": "tok", "token_type": "Bearer"}).encode()
+
+    def capture(req, timeout=10):
+        seen["data"] = req.data
+        seen["timeout"] = timeout
+        return _Body()
+
+    monkeypatch.setattr(urllib.request, "urlopen", capture)
+    monkeypatch.setattr(
+        "backend.oidc_jwt.validate_bearer",
+        lambda *_a, **_k: {
+            "ok": True,
+            "signature_verified": True,
+            "claims": {"sub": "nonce-1", "tid": "t1", "email": "n@ex.test", "nonce": "other"},
+        },
+    )
+    reset_used_authorization_codes()
+    refused = exchange_code(
+        code="code-nonce", state="studio-sso-1", nonce="studio-nonce-1", db_path=db,
+    )
+    assert refused["ok"] is False
+    assert refused["gate_i_complete"] is False
+    assert refused["nonce_ok"] is False
+    assert get_principal("nonce-1", db_path=db) is None
+    assert b"state=studio-sso-1" in seen["data"]
+    monkeypatch.setattr(
+        "backend.oidc_jwt.validate_bearer",
+        lambda *_a, **_k: {
+            "ok": True,
+            "signature_verified": True,
+            "claims": {
+                "sub": "nonce-ok", "tid": "t1", "email": "ok@ex.test",
+                "groups": ["qpilot-viewers"], "nonce": "studio-nonce-1",
+            },
+        },
+    )
+    reset_used_authorization_codes()
+    accepted = exchange_code(
+        code="code-nonce-ok", state="studio-sso-1", nonce="studio-nonce-1", db_path=db,
+    )
+    assert accepted["ok"] is True
+    assert accepted["gate_i_complete"] is False
+    assert accepted["nonce_ok"] is True
+    assert accepted["role"] == "viewer"
+    reset_used_authorization_codes()

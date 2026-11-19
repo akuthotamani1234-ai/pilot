@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .oidc_auth_code_grant import (
     authorization_code_grant_error,
+    login_nonce_claim,
     redirect_uri_registered,
 )
 
@@ -119,6 +120,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 qs = urllib.parse.parse_qs(parsed.query)
                 redirect = (qs.get("redirect_uri") or ["http://127.0.0.1/callback"])[0]
                 state = (qs.get("state") or [""])[0]
+                nonce = (qs.get("nonce") or [""])[0]
                 if not redirect_uri_registered(redirect):
                     self.send_response(400)
                     self.end_headers()
@@ -134,6 +136,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                     "client_id": client_id,
                     "redirect_uri": redirect,
                     "state": state,
+                    "nonce": nonce,
                     "issued_at": time.time(),
                 }
                 loc = f"{redirect}?code={urllib.parse.quote(code)}&state={urllib.parse.quote(state)}"
@@ -183,6 +186,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 "email": entry["email"],
                 "exp": now + 600,
                 "iat": now,
+                **login_nonce_claim(entry),
             }
             token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
             body = json.dumps({
@@ -228,7 +232,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
         auth_url = (
             f"{issuer}/authorize?response_type=code&client_id={client_id}"
             f"&redirect_uri={urllib.parse.quote('http://127.0.0.1/studio/callback')}"
-            f"&state=studio-sso-1&scope=openid%20email"
+            f"&state=studio-sso-1&nonce=studio-nonce-1&scope=openid%20email"
         )
         opener = urllib.request.build_opener(_NoRedirect)
         code = ""
@@ -351,6 +355,10 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
             "signature_verified": bool(
                 validated.get("signature_verified") or authz.get("signature_verified")
             ),
+        })
+        steps.append({
+            "step": "id_token_nonce",
+            "ok": (validated.get("claims") or {}).get("nonce") == "studio-nonce-1",
         })
         ok = all(s.get("ok") for s in steps)
         evidence = {
