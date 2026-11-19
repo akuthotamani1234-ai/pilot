@@ -67,6 +67,48 @@ def test_a_cleanup_record_does_not_follow_a_link_into_another_run(tmp_path, monk
     assert secret in (other / "created.jsonl").read_text(encoding="utf-8")
 
 
+def test_a_cleanup_record_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import record_created
+    from backend.agents.reporter import created_records
+    from backend.data_lifecycle import Lifecycle, latest_created, load_lifecycle, save_lifecycle
+
+    secret = b"tenant-b-only-lifecycle"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "qx_lifecycle_state.json").write_text(
+        json.dumps({"run_id": "run-b", "environment": "test", "workers": {}, "cases": {}}),
+        encoding="utf-8")
+    (nested / "created.jsonl").write_bytes(
+        secret + b"\n")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    save_lifecycle(linked / "run", Lifecycle("run-a", "test"))
+    loaded = load_lifecycle(linked / "run", run_id="run-a", environment="test")
+    assert loaded.run_id == "run-a"
+    assert latest_created(linked / "run") == {}
+    assert record_created(linked / "run", "order", "ours", "/orders") is False
+    assert created_records(linked / "run")["records"] == []
+    assert json.loads((nested / "qx_lifecycle_state.json").read_text(encoding="utf-8"))["run_id"] == "run-b"
+    assert (nested / "created.jsonl").read_bytes() == secret + b"\n"
+    assert not (nested / "created.json").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = save_lifecycle(real, Lifecycle("run-real", "test"))
+    assert saved == real / "qx_lifecycle_state.json"
+    assert json.loads(saved.read_text(encoding="utf-8"))["run_id"] == "run-real"
+    assert secret not in saved.read_bytes()
+    assert record_created(real, "account", "ours", "/users") is True
+    summary = created_records(real)
+    assert summary["created"] == 1
+    assert (real / "created.json").is_file() and not (real / "created.json").is_symlink()
+    assert secret not in (real / "created.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_created_jsonl_delete_refuses_uncleared_records(tmp_path):
     with (tmp_path / "created.jsonl").open("w", encoding="utf-8") as fh:
         fh.write(json.dumps({"what": "order", "tag": "qa-run-order", "where": "/orders", "status": "created"}) + "\n")

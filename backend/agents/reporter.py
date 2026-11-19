@@ -804,9 +804,10 @@ def vision_html(state: QAState, cases: list[dict]) -> tuple[str, dict]:
 def created_records(run_dir: Path) -> dict:
     """What a staging run created (runs/<run>/created.jsonl, written by the tests): each tag's last status -> created
     / deleted / left for manual cleanup. Saved as created.json."""
+    from ..finalization import folder_is_linked
     f = run_dir / "created.jsonl"
     latest = {}
-    if run_dir.is_symlink() or f.is_symlink():
+    if folder_is_linked(run_dir) or f.is_symlink():
         return {"created": 0, "deleted": 0, "left": [], "records": []}
     if f.exists():
         for line in f.read_text(encoding="utf-8", errors="replace").splitlines():

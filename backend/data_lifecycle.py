@@ -238,9 +238,10 @@ def from_state(payload: dict) -> Lifecycle:
 
 
 def _run_path_is_linked(run_dir: str | Path, name: str) -> bool:
-    """True when the run folder, or one file in it, is a symlink."""
+    """True when this run, a folder on the way to it, or one file in it, is a link."""
+    from .finalization import folder_is_linked
     root = Path(run_dir)
-    return root.is_symlink() or (root / name).is_symlink()
+    return folder_is_linked(root) or (root / name).is_symlink()
 
 
 def save_lifecycle(run_dir: str | Path, life: Lifecycle) -> Path:
