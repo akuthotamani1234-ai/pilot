@@ -186,21 +186,32 @@ def _payment_block(url: str, final: str) -> dict:
 
 
 def open_guarded(page, address: str, *, timeout: int = 20000):
-    """Open one worker page. A checkout document, including after a redirect, is not loaded."""
-    from .payment_nav import follow_get
+    """Open one worker page. A checkout document, including after a redirect, is not loaded.
+
+    A navigation the browser cancels is tried once more.
+    """
+    from .payment_nav import _CANCELLED, follow_get
+
+    def once():
+        try:
+            current, landed = follow_get(page.request.get, address, timeout=timeout)
+        except Exception:
+            # A route-backed page has no network host. The browser open still runs.
+            current, landed = address, ""
+        if landed:
+            return None, _payment_block(address, landed)
+        response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
+        final = page.url or current
+        if is_payment_url(final):
+            return None, _payment_block(address, final)
+        return response, None
 
     try:
-        current, landed = follow_get(page.request.get, address, timeout=timeout)
-    except Exception:
-        # A route-backed page has no network host. The browser open still runs.
-        current, landed = address, ""
-    if landed:
-        return None, _payment_block(address, landed)
-    response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
-    final = page.url or current
-    if is_payment_url(final):
-        return None, _payment_block(address, final)
-    return response, None
+        return once()
+    except Exception as exc:
+        if not _CANCELLED.search(str(exc)):
+            raise
+        return once()
 
 
 def perform(assignments: list[dict], open_page, *, on_status=None, session=None) -> list[dict]:

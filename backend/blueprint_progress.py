@@ -135,6 +135,7 @@ def progress() -> dict:
         {"id": "A-travel-surfaces", "label": "TravelSite surface_coverage inventory", "status": "done"},
         {"id": "B-swarm-control", "label": "Swarm claim/checkpoint/cancel control drill", "status": "done"},
         {"id": "B-swarm-retry", "label": "Swarm lease-expiry → retry_wait control drill", "status": "done"},
+        {"id": "B-cancelled-load", "label": "A swarm worker retries a cancelled page and still does not open checkout", "status": "done"},
         {"id": "B-review-checklist", "label": "Product-wide swarm review checklist (unsigned)", "status": "done"},
         {"id": "B-redis-contention", "label": "Redis DurableQueue multi-worker lease contention", "status": "done"},
         {"id": "G-live-drills-refresh4", "label": "Re-verify live Postgres/Redis/MinIO after F/C/B drills", "status": "done"},
