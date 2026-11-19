@@ -1,0 +1,36 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_org_tenant_acl",
+  "ran_at": "2026-11-19T03:40:22Z",
+  "org_map": {
+    "acme-corp": "tenant-acme",
+    "globex-inc": "tenant-globex"
+  },
+  "cases": [
+    {
+      "sub": "org-user-a",
+      "claim_key": "org",
+      "org_claim": "acme-corp",
+      "mapped_tenant": "tenant-acme",
+      "expected_tenant": "tenant-acme",
+      "org_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    },
+    {
+      "sub": "org-user-b",
+      "claim_key": "hd",
+      "org_claim": "globex-inc",
+      "mapped_tenant": "tenant-globex",
+      "expected_tenant": "tenant-globex",
+      "org_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    }
+  ],
+  "passed": 2,
+  "ok": true,
+  "reason": "OIDC org/hd\u2192tenant ACL 2/2; live hosted IdP Studio SSO still open"
+}

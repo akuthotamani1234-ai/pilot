@@ -1,12 +1,19 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T03:07:28Z",
+  "ran_at": "2026-11-19T03:40:22Z",
   "signed_off": false,
   "entries": [
     {
+      "name": "INDEPENDENT_REVIEW_ATTESTATION.md",
+      "bytes": 319,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
       "name": "INDEPENDENT_REVIEW_SUMMARY.md",
-      "bytes": 1200,
+      "bytes": 1204,
       "gates": [
         "gate_g"
       ]
@@ -262,6 +269,13 @@
       ]
     },
     {
+      "name": "hosted_ci_artifact_gate_pack_drill.json",
+      "bytes": 445,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
       "name": "hosted_ci_runner_matrix_drill.json",
       "bytes": 1139,
       "gates": [
@@ -312,7 +326,7 @@
     },
     {
       "name": "hosted_oncall_readiness_pack_drill.json",
-      "bytes": 390,
+      "bytes": 392,
       "gates": [
         "gate_h"
       ]
@@ -339,6 +353,13 @@
       ]
     },
     {
+      "name": "independent_review_attestation_drill.json",
+      "bytes": 799,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
       "name": "independent_review_checklist.json",
       "bytes": 329,
       "gates": [
@@ -347,7 +368,7 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 14482,
+      "bytes": 15661,
       "gates": [
         "gate_g"
       ]
@@ -361,7 +382,7 @@
     },
     {
       "name": "independent_review_pack.json",
-      "bytes": 18025,
+      "bytes": 19759,
       "gates": [
         "gate_g"
       ]
@@ -521,6 +542,13 @@
       ]
     },
     {
+      "name": "multi_region_dr_readiness_pack_drill.json",
+      "bytes": 425,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
       "name": "multi_store_dr_drill.json",
       "bytes": 1003,
       "gates": [
@@ -556,6 +584,13 @@
       ]
     },
     {
+      "name": "oidc_org_tenant_acl_drill.json",
+      "bytes": 908,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
       "name": "oidc_tid_tenant_acl_drill.json",
       "bytes": 689,
       "gates": [
@@ -578,7 +613,7 @@
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 309,
+      "bytes": 311,
       "gates": [
         "gate_h"
       ]
@@ -668,6 +703,13 @@
       ]
     },
     {
+      "name": "production_healing_suite_pack_drill.json",
+      "bytes": 459,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "production_healing_taxonomy_drill.json",
       "bytes": 1930,
       "gates": [
@@ -720,7 +762,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 7359,
+      "bytes": 8271,
       "gates": [
         "gate_g"
       ]
@@ -811,20 +853,20 @@
       ]
     }
   ],
-  "entry_count": 114,
+  "entry_count": 120,
   "by_gate": {
-    "gate_g": 10,
+    "gate_g": 12,
     "gate_f": 9,
     "gate_c": 6,
-    "gate_d": 12,
+    "gate_d": 13,
     "untagged": 23,
     "gate_j": 4,
     "gate_b": 6,
-    "gate_i": 15,
-    "gate_e": 11,
-    "gate_h": 20,
+    "gate_i": 16,
+    "gate_e": 12,
+    "gate_h": 21,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 114 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 120 files; signed_off remains False until external review"
 }

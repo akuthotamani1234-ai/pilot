@@ -51,6 +51,7 @@ BLOCKERS = (
             "hosted_idp_contract_drill.json",
             "hosted_idp_readiness_drill.json",
             "hosted_idp_sso_readiness_pack_drill.json",
+            "oidc_org_tenant_acl_drill.json",
         ],
     },
     {
@@ -118,6 +119,7 @@ BLOCKERS = (
             "independent_review_integrity_drill.json",
             "independent_review_evidence_catalog_drill.json",
             "independent_review_attestation_drill.json",
+            "independent_review_signoff_pack_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
         ],

@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T03:30:04Z",
+  "ran_at": "2026-11-19T03:40:22Z",
   "ok": true,
   "blockers": [
     {
@@ -58,7 +58,8 @@
         "studio_sso_principal_bootstrap_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json",
-        "hosted_idp_sso_readiness_pack_drill.json"
+        "hosted_idp_sso_readiness_pack_drill.json",
+        "oidc_org_tenant_acl_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -74,7 +75,8 @@
         "studio_sso_principal_bootstrap_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json",
-        "hosted_idp_sso_readiness_pack_drill.json"
+        "hosted_idp_sso_readiness_pack_drill.json",
+        "oidc_org_tenant_acl_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -186,6 +188,7 @@
         "independent_review_integrity_drill.json",
         "independent_review_evidence_catalog_drill.json",
         "independent_review_attestation_drill.json",
+        "independent_review_signoff_pack_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md"
       ],
@@ -199,6 +202,7 @@
         "independent_review_integrity_drill.json",
         "independent_review_evidence_catalog_drill.json",
         "independent_review_attestation_drill.json",
+        "independent_review_signoff_pack_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md"
       ],
