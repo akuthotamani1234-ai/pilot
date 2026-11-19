@@ -37,7 +37,7 @@ def run_independent_review_readiness_drill(*, ops_dir: Path | None = None) -> di
     pack = run_independent_review_pack_drill(ops_dir=ops_dir)
     blockers = run_remaining_blockers_drill(ops_dir=ops_dir)
     checks = {
-        "checklist_present": CHECKLIST.is_file(),
+        "checklist_present": (not folder_is_linked(CHECKLIST)) and CHECKLIST.is_file(),
         "pack_ok": bool(pack.get("ok")),
         "pack_unsigned": pack.get("signed_off") is False,
         "blockers_inventoried": int(blockers.get("open_count") or 0) >= 1,
