@@ -2973,8 +2973,14 @@ def script_generator_agent(state: QAState) -> QAState:
             old.unlink()
     for old in list(out_dir.glob("test_*.py")) + list(out_dir.glob("steps_*.py")):
         old.unlink()  # a link is removed; the file it pointed at stays
-    shutil.copy(TEMPLATES / "conftest.py", out_dir / "conftest.py")  # fixtures + the runtime sandbox
-    shutil.copy(TEMPLATES / "pytest.ini", out_dir / "pytest.ini")
+    template = TEMPLATES / "conftest.py"
+    ini = TEMPLATES / "pytest.ini"
+    if folder_is_linked(template) or folder_is_linked(ini):
+        note = "The test template is a link, so no scripts were written."
+        return {"scripts": [], "script_sources": {}, "script_errors": [],
+                "log": state.get("log", []) + [note], "test_cases": state.get("test_cases", [])}
+    shutil.copy(template, out_dir / "conftest.py")  # fixtures + the runtime sandbox
+    shutil.copy(ini, out_dir / "pytest.ini")
 
     pages = {p["slug"]: p for p in state["app_map"] if not p.get("error") and (p.get("status") or 0) < 400}
     cases = list(state["test_cases"])
