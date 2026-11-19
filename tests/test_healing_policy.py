@@ -87,6 +87,21 @@ def test_an_assertion_failure_is_not_rewritten_without_a_person():
     assert applied["allowed"] is True
 
 
+def test_an_unnamed_failure_is_not_rewritten_on_its_own():
+    old = 'def test_x(page):\n    page.locator("#a").click()\n    assert page.locator("#ok").is_visible()\n'
+    good = 'def test_x(page):\n    page.locator("#b").click()\n    assert page.locator("#ok").is_visible()\n'
+    for category in ("third_party", "mixed_content", "test_data", "not_a_locator"):
+        blocked = review_repair(old, good, failure_class=category)
+        assert blocked["allowed"] is False
+        assert blocked["escalation"]["level"] == 3
+        assert blocked["escalation"]["auto_apply"] is False
+        assert blocked["escalation"]["gate_e_complete"] is False
+    assert review_repair(old, good, failure_class="test_defect")["allowed"] is True
+    retry = review_repair(old, good, failure_class="transient_timeout")
+    assert retry["allowed"] is True
+    assert retry["escalation"]["level"] == 2
+
+
 def test_summarize_healing_stays_incomplete():
     snap = summarize_healing([{"method": "unique-locator", "status": "kept"},
                               {"proposal": True, "accepted": False}])

@@ -388,6 +388,7 @@ def progress() -> dict:
         {"id": "B-contract-redirect", "label": "A contract does not follow a redirect into checkout", "status": "done"},
         {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
+        {"id": "E-named-classes", "label": "Only a locator repair or a bounded timeout retry applies on its own", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
         {"id": "I-signature-closed", "label": "A token whose signature cannot be checked is refused", "status": "done"},
         {"id": "I-jti-after-ok", "label": "A rejected token does not use up its login id", "status": "done"},
