@@ -31,7 +31,14 @@ class PermissionSession:
         self.stop_path = stop_path
 
     def check_stop(self):
-        if self.stop_path and self.stop_path.exists():
+        from .android_runtime import stop_file_note
+
+        if not self.stop_path:
+            return
+        note = stop_file_note(self.stop_path)
+        if "link" in note:
+            raise AndroidEnvironmentError(note)
+        if note:
             raise InterruptedError('The Android permission test was stopped by the user')
 
     def require(self, permission):
