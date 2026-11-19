@@ -32,7 +32,23 @@ def _isolated_dsn(dsn: str, db_name: str) -> str:
     return urlunparse(parsed._replace(path="/" + db_name))
 
 
+def _linked_pg_dr() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "postgres_dump_restore_isolated",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_postgres_dr_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "postgres_dr_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_pg_dr()
+
     dsn = _dsn()
     if not dsn:
         evidence = {
@@ -44,14 +60,18 @@ def run_postgres_dr_drill(*, ops_dir: Path | None = None) -> dict:
         }
     else:
         dump_dir = ROOT / "artifacts" / "ops" / "postgres_dr"
-        dump_dir.mkdir(parents=True, exist_ok=True)
         dump_path = dump_dir / "qpilot.dump.sql"
+        if folder_is_linked(dump_dir) or folder_is_linked(dump_path):
+            return _linked_pg_dr()
+        dump_dir.mkdir(parents=True, exist_ok=True)
         admin = _admin_dsn(dsn)
         isolated = _isolated_dsn(dsn, ISOLATED_DB)
         steps: list[dict] = []
         ok = False
         reason = ""
         try:
+            if folder_is_linked(dump_dir) or folder_is_linked(dump_path):
+                return _linked_pg_dr()
             dump = subprocess.run(
                 ["pg_dump", "--no-owner", "--no-acl", "-f", str(dump_path), dsn],
                 capture_output=True,
@@ -137,12 +157,15 @@ def run_postgres_dr_drill(*, ops_dir: Path | None = None) -> dict:
             "reason": reason,
         }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_pg_dr()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "postgres_dr_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_pg_dr()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "postgres_dr_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
