@@ -145,6 +145,38 @@ def test_a_designed_case_does_not_follow_a_link_into_another_run(tmp_path, monke
     assert saved and saved[0].get("tc_id") == saved_cases[0].get("tc_id")
 
 
+def test_a_contract_only_design_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.test_design import test_design_agent
+
+    secret = "tenantBOnlyFlow"
+    other = tmp_path / "other"
+    private = other / "run" / ".private"
+    private.mkdir(parents=True)
+    contract = {"test_environment": True, "flows": [{"id": secret, "title": "Other", "approved": True,
+        "steps": [{"action": "assert_screen", "value": "Other"}]}]}
+    (private / "qa_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {"url": "https://shop.example/", "run_dir": str(linked / "run"), "log": [], "contract_only": True}
+    designed = test_design_agent(state)
+    assert designed["test_cases"] == []
+    assert "link" in designed["log"][-1]
+    assert secret in (private / "qa_contract.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "qa_contract.json").write_text(json.dumps({
+        "test_environment": True,
+        "flows": [{"id": "homeOwn", "title": "Home", "approved": True,
+                   "steps": [{"action": "assert_screen", "value": "Home"}]}],
+    }), encoding="utf-8")
+    own = test_design_agent({**state, "run_dir": str(real)})
+    assert [case["id"] for case in own["test_cases"]] == ["contract_homeOwn"]
+    assert secret not in json.dumps(own["test_cases"])
+    assert secret in (private / "qa_contract.json").read_text(encoding="utf-8")
+
+
 def test_a_review_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     from backend import review
 
