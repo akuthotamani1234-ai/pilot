@@ -46,7 +46,11 @@ def check_http(check, approved_origins, secrets):
 
 
 def check_sqlite(check, database_paths):
-    path = Path(database_paths[check.database_ref]).resolve(strict=True)
+    from .migrate import sqlite_path_is_linked
+    raw = Path(database_paths[check.database_ref])
+    if sqlite_path_is_linked(raw):
+        raise ValueError("The database file is a link.")
+    path = raw.resolve(strict=True)
     deadline = time.monotonic() + 3
     with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=2) as connection:
         connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 1024 * 1024)
