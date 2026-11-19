@@ -14,6 +14,8 @@ import re
 from pprint import pformat
 from urllib.parse import urlparse
 
+from .swarm import is_payment_url
+
 FILTER_WORDS = re.compile(r"\b(only|show|just|filter|by)\b", re.I)
 
 
@@ -99,11 +101,12 @@ def item_cases(pages: list[dict], crawl: dict | None) -> list[dict]:
                  "The next page lists other items than the first", p, {"url": p["url"], "next": nxt, "hints": hints},
                  priority="medium")
     for k, (pattern, t) in enumerate(sorted(((crawl or {}).get("item_types") or {}).items()), start=1):
-        if t.get("smoke"):
-            case(f"items_smoke_{k}", "items", f"{len(t['smoke'])} more pages like {pattern} open without errors",
-                 [f"Open each of {len(t['smoke'])} more pages of {pattern}"],
+        smoke = [u for u in (t.get("smoke") or []) if u and not is_payment_url(u)]
+        if smoke:
+            case(f"items_smoke_{k}", "items", f"{len(smoke)} more pages like {pattern} open without errors",
+                 [f"Open each of {len(smoke)} more pages of {pattern}"],
                  "Each opens (status < 400), with no JavaScript error and no broken picture", None,
-                 {"urls": t["smoke"], "pattern": pattern}, priority="low")
+                 {"urls": smoke, "pattern": pattern}, priority="low")
     return out
 
 

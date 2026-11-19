@@ -2842,7 +2842,8 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
             rejected.append({"page": "site", "error": f"test_mobile.py: {err}"})
         else:
             save("test_mobile.py", code, "template")
-    role_c = [c for c in cases if c.get("kind") == "role"]
+    from ..swarm import is_payment_url
+    role_c = [c for c in cases if c.get("kind") == "role" and not is_payment_url(c.get("url") or "")]
     if role_c:
         from ..roles import roles_script
         code = roles_script(role_c, header)

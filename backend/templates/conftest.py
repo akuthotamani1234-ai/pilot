@@ -632,6 +632,12 @@ def _patched_goto(real):
             raise
 
     def _open(self, url, kwargs):
+        # Checkout is recorded by the crawl. A later test must not open it again.
+        # Cart routes stay open. The check lives in this file, so a helper that only
+        # calls page.goto still stops.
+        checker = globals().get("_payment_target")
+        if checker and checker(str(url or "")):
+            pytest.skip("Blocked: checkout or payment is recorded and not opened again")
         kwargs.setdefault("wait_until", "domcontentloaded")
         kwargs.setdefault("timeout", NAV_TIMEOUT_MS)
         if kwargs["wait_until"] != "domcontentloaded" or not kwargs["timeout"]:
