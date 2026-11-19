@@ -14,7 +14,17 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "production_healing_suite_pack_drill.json"
 
 
+def _linked_pack() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_suite_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_production_healing_suite_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .multi_app_healing_suite_drill import run_multi_app_healing_suite_drill
     from .production_healing_flaky_policy_drill import (
         run_production_healing_flaky_policy_drill,
@@ -28,6 +38,11 @@ def run_production_healing_suite_pack_drill(*, ops_dir: Path | None = None) -> d
     from .production_healing_taxonomy_drill import (
         run_production_healing_taxonomy_drill,
     )
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "production_healing_suite_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_pack()
 
     started = time.perf_counter()
     parts = {}
@@ -60,15 +75,15 @@ def run_production_healing_suite_pack_drill(*, ops_dir: Path | None = None) -> d
             "Production healing suite pack incomplete; production suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_pack()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "production_healing_suite_pack_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_pack()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "production_healing_suite_pack_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
