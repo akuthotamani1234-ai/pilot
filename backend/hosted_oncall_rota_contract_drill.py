@@ -23,9 +23,28 @@ LOCAL_PARTIAL = (
 )
 
 
+def _linked_rota() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "hosted_oncall_rota_contract",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_oncall_rota_contract_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_oncall_rota_contract_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_rota()
+
     ops = ROOT / "docs" / "ops-evidence"
-    present = [n for n in LOCAL_PARTIAL if (ops / n).is_file()]
+    present = [
+        n for n in LOCAL_PARTIAL
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
     rota = {
         "tiers": [
             {"name": "primary", "ack_sla_minutes": 5, "resolve_target_minutes": 60},
@@ -55,15 +74,15 @@ def run_hosted_oncall_rota_contract_drill(*, ops_dir: Path | None = None) -> dic
             "live hosted multi-region DR / on-call paging still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_rota()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_oncall_rota_contract_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_rota()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_oncall_rota_contract_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
