@@ -246,8 +246,8 @@ def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = Non
     run_dir = Path(run_dir)
     private_plan = run_dir / ".private" / "repo_fix_plan.json"
     public_plan = run_dir / "repo_fix_plan.json"
-    if (run_dir.is_symlink() or (run_dir / ".private").is_symlink() or private_plan.is_symlink()
-            or public_plan.is_symlink()):
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or folder_is_linked(private_plan) or folder_is_linked(public_plan):
         raise RepoFixError("The reviewed proposal is a link, so it was not published.")
     if private_plan.is_file():
         from .repo_publication import publish
