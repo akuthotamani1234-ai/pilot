@@ -43,6 +43,15 @@ NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)
 HUMAN_RE = re.compile(r"^::human::(\{.*\})$")  # the login needs a person (one-time code / CAPTCHA) - and the outcome
 RUN_NAME = re.compile(r"^[\w.\-]+$")
+# Run reads that carry another tenant's findings. Job ids and the tenancy API are not in this list.
+_SCOPED_RUN = re.compile(
+    r"^/api/(?:report|coverage|pages|components)/([^/]+)"
+    r"|^/api/(?:cases|excel)/([^/]+)"
+    r"|^/api/android/runs/([^/]+)/"
+    r"|^/api/runs/([^/]+)/(?:repo-fix|recheck|review)"
+    r"|^/api/visual/([^/]+)/"
+    r"|^/runs/([^/]+)/"
+)
 IS_WINDOWS = os.name == "nt"
 # the UI only answers to these host names: a web page on another site can't reach it through DNS tricks
 UI_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -161,6 +170,10 @@ async def local_only(request: Request, call_next):
     host = host[:host.index("]") + 1] if host.startswith("[") and "]" in host else host.split(":")[0]
     if host.lower() not in UI_HOSTS:
         return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
+    blocked = _principal_run_block(
+        path, request.headers.get("authorization"), request.headers.get("x-qa-token"))
+    if blocked is not None:
+        return blocked
     # (a webhook proves itself with its own token instead - /api/hooks/run)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.headers.get("x-agentic-qa") != "1" \
             and path != "/api/hooks/run":
@@ -282,6 +295,29 @@ KEY_ENV = {p["id"]: p["key_env"] for p in PROVIDERS}
 
 
 # ------------------------------------------------------------------ helpers
+
+def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None):
+    """When a principal is signed in, a run read stays inside that principal's tenant."""
+    from backend.dashboard_auth import auth_mode, authorize
+    if auth_mode() not in ("principal", "oidc"):
+        return None
+    match = _SCOPED_RUN.search(path or "")
+    if not match:
+        return None
+    run = next(part for part in match.groups() if part)
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    if not verdict.get("ok"):
+        reason = verdict.get("reason") or "unauthorized"
+        return JSONResponse({"detail": reason}, status_code=403 if verdict.get("role") else 401)
+    principal = str(verdict.get("principal_id") or "").strip()
+    if not principal:
+        return JSONResponse({"detail": "principal required"}, status_code=401)
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=principal, run_id=run)
+    if not access.get("allowed"):
+        return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return None
+
 
 def _run_dir(run: str) -> Path:
     """runs/<run>, refusing anything that is not a plain folder name."""
