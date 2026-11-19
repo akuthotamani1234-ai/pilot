@@ -11,6 +11,14 @@ on:
         description: "Android API level AVD (26+ required for modern UiAutomator2)"
         type: string
         default: "30"
+      include_api24_smoke:
+        description: "Also run dedicated API24 smoke evidence checks"
+        type: boolean
+        default: true
+      artifact_prefix:
+        description: "Prefix for uploaded Appium matrix artifacts"
+        type: string
+        default: "qpilot-android-matrix"
 
 permissions:
   contents: read
@@ -51,6 +59,8 @@ jobs:
           echo "Full AVD boot + matrix requires KVM-capable runners;"
           echo "local evidence already lives under docs/ops-evidence/android_appium_product_matrix_drill.json"
           echo "Requested API level: ${{ inputs.api_level }}"
+          echo "include_api24_smoke: ${{ inputs.include_api24_smoke }}"
+          echo "artifact_prefix: ${{ inputs.artifact_prefix }}"
           test -f docs/ops-evidence/android_appium_ci_contract.json
           test -f docs/ops-evidence/android_appium_product_matrix_drill.json
 

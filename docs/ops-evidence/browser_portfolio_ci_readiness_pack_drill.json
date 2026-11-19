@@ -1,10 +1,10 @@
 {
   "gate_f_complete": false,
   "drill": "browser_portfolio_ci_readiness_pack",
-  "ran_at": "2026-11-19T04:16:55Z",
+  "ran_at": "2026-11-19T04:47:21Z",
   "kind": "readiness_score_only",
-  "score": 9,
-  "score_of": 9,
+  "score": 10,
+  "score_of": 10,
   "checks": [
     {
       "artifact": "multi_browser_portfolio_suite_drill.json",
@@ -50,9 +50,14 @@
       "artifact": "hosted_ci_artifact_gate_pack_drill.json",
       "label": "Hosted CI artifact gate pack",
       "ready": true
+    },
+    {
+      "artifact": "hosted_workflow_runner_audit_drill.json",
+      "label": "Hosted workflow runner audit",
+      "ready": true
     }
   ],
   "live_hosted_runners": false,
   "ok": true,
-  "reason": "Browser portfolio CI readiness 9/9; broad hosted multi-browser runners still open"
+  "reason": "Browser portfolio CI readiness 10/10; broad hosted multi-browser runners still open"
 }

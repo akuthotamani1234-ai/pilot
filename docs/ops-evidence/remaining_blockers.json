@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T04:33:56Z",
+  "ran_at": "2026-11-19T04:47:37Z",
   "ok": true,
   "blockers": [
     {
@@ -142,7 +142,8 @@
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
         "hosted_ci_artifact_gate_pack_drill.json",
-        "android_device_ci_readiness_pack_drill.json"
+        "android_device_ci_readiness_pack_drill.json",
+        "hosted_workflow_runner_audit_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -158,7 +159,8 @@
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
         "hosted_ci_artifact_gate_pack_drill.json",
-        "android_device_ci_readiness_pack_drill.json"
+        "android_device_ci_readiness_pack_drill.json",
+        "hosted_workflow_runner_audit_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -176,7 +178,8 @@
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
         "hosted_ci_artifact_gate_pack_drill.json",
-        "browser_portfolio_ci_readiness_pack_drill.json"
+        "browser_portfolio_ci_readiness_pack_drill.json",
+        "hosted_workflow_runner_audit_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -189,7 +192,8 @@
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
         "hosted_ci_artifact_gate_pack_drill.json",
-        "browser_portfolio_ci_readiness_pack_drill.json"
+        "browser_portfolio_ci_readiness_pack_drill.json",
+        "hosted_workflow_runner_audit_drill.json"
       ],
       "local_partial_missing": []
     },

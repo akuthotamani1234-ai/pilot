@@ -2,7 +2,7 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "ci_artifact_upload_rehearsal",
-  "ran_at": "2026-11-19T04:15:08Z",
+  "ran_at": "2026-11-19T04:47:21Z",
   "kind": "local_upload_rehearsal",
   "staging_dir": "artifacts/ops/ci-upload-rehearsal",
   "android": {
@@ -52,7 +52,7 @@
       {
         "name": "multi_browser_portfolio_suite_drill.json",
         "bytes": 520,
-        "sha256": "e1a36a5a8e12b709343471bd5a09fbf2d1f562010c99116a096a93a1d44e6cc7",
+        "sha256": "e4266e26ed39cbeb87af0ac141564e58d1ff01dda49f09572fae7cecd02291a1",
         "ci_upload_path": "docs/ops-evidence/multi_browser_portfolio_suite_drill.json"
       },
       {
@@ -70,7 +70,7 @@
       {
         "name": "compatibility_portfolio_drill.json",
         "bytes": 792,
-        "sha256": "8e6d913034c53b5e4247e668d13dd8e3181a968a24f0744cf1602a283397f044",
+        "sha256": "8e033bc08f71473c501bcd5de0ae636c21e48d413003d0bb0e2ceae865b863e9",
         "ci_upload_path": "docs/ops-evidence/compatibility_portfolio_drill.json"
       }
     ],

@@ -1,7 +1,7 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_replay_pack",
-  "ran_at": "2026-11-19T04:22:06Z",
+  "ran_at": "2026-11-19T04:47:32Z",
   "kind": "fixture_replay_pack",
   "apps": [
     "demo_store",

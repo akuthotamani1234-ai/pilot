@@ -22,6 +22,7 @@ ARTIFACTS = (
     ("workflow_dispatch_contract_drill.json", "workflow_dispatch contracts"),
     ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
     ("hosted_ci_artifact_gate_pack_drill.json", "Hosted CI artifact gate pack"),
+    ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
 )
 
 
