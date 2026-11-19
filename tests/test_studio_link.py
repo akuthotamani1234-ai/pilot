@@ -64,3 +64,40 @@ def test_a_studio_page_does_not_follow_a_link_into_another_folder(tmp_path, monk
     assert Path(dashboard.path).read_text(encoding="utf-8") == "home-own-dashboard"
     assert secret not in Path(lab.path).read_bytes()
     assert (other / "chat.js").read_bytes() == secret
+
+
+def test_a_studio_file_download_does_not_follow_a_link_into_another_folder(tmp_path):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    secret = b"tenant-b-only-static"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.js").write_bytes(secret)
+    before = sorted(path.name for path in other.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    app = FastAPI()
+    app.mount("/static", server.StudioFiles(directory=linked), name="static")
+    client = TestClient(app)
+    refused = client.get("/static/app.js")
+    assert refused.status_code == 404
+    assert secret not in refused.content
+    assert (other / "app.js").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "app.js").symlink_to(other / "app.js")
+    (real / "home.js").write_bytes(b"home-own-asset")
+    app = FastAPI()
+    app.mount("/static", server.StudioFiles(directory=real), name="static")
+    client = TestClient(app)
+    leaf = client.get("/static/app.js")
+    assert leaf.status_code == 404
+    assert secret not in leaf.content
+    own = client.get("/static/home.js")
+    assert own.status_code == 200
+    assert own.content == b"home-own-asset"
+    assert secret not in own.content
+    assert (other / "app.js").read_bytes() == secret

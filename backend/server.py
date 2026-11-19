@@ -90,6 +90,19 @@ def _run_path_is_linked(root: Path, path: Path) -> bool:
     return False
 
 
+class StudioFiles(StaticFiles):
+    """Frontend files. A link, including a linked folder used as the root, is not served."""
+
+    async def get_response(self, path: str, scope):
+        from .finalization import folder_is_linked
+        root = Path(self.directory)
+        if folder_is_linked(root) or ".." in Path(path).parts or path.startswith(("/", "\\")):
+            raise HTTPException(404, "not found")
+        if path and folder_is_linked(root / path):
+            raise HTTPException(404, "not found")
+        return await super().get_response(path, scope)
+
+
 class RunFiles(StaticFiles):
     """runs/ as files for the report pages - except private inputs, APKs, auth and hidden files."""
 
@@ -105,7 +118,7 @@ class RunFiles(StaticFiles):
 
 app = FastAPI(title="Qpilot")
 app.mount("/runs", RunFiles(directory=RUNS), name="runs")
-app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/static", StudioFiles(directory=STATIC), name="static")
 DASHBOARD_DIST = STATIC / "dashboard" / "dist"
 
 
@@ -129,8 +142,15 @@ def dashboard_home():
     )
 
 
-if (DASHBOARD_DIST / "assets").is_dir():
-    app.mount("/dashboard/assets", StaticFiles(directory=DASHBOARD_DIST / "assets"), name="dashboard-assets")
+def _mount_dashboard_assets() -> None:
+    """Serve the built dashboard assets. A linked assets folder is left unmounted."""
+    from .finalization import folder_is_linked
+    assets = DASHBOARD_DIST / "assets"
+    if assets.is_dir() and not folder_is_linked(assets):
+        app.mount("/dashboard/assets", StudioFiles(directory=assets), name="dashboard-assets")
+
+
+_mount_dashboard_assets()
 
 jobs: dict[int, dict] = {}
 lock = threading.Lock()
