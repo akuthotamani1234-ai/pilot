@@ -315,6 +315,28 @@ def test_a_role_check_does_not_open_checkout_again(tmp_path, monkeypatch):
     assert pay not in code
 
 
+def test_a_generated_test_treats_a_checkout_query_as_checkout():
+    import ast
+    import re
+    from pathlib import Path
+
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    code = next(
+        ast.get_source_segment(src, node)
+        for node in ast.parse(src).body
+        if getattr(node, "name", None) == "_payment_target"
+    )
+    ns = {"re": re}
+    exec(code, ns)
+    pay = ns["_payment_target"]
+    assert pay("https://shop.example/index.php?page=checkout")
+    assert pay("https://shop.example/index.php?step=payment")
+    assert pay("https://shop.example/index.php?screen=place-order")
+    assert not pay("https://shop.example/category/shoes?page=2")
+    assert not pay("https://shop.example/index.php?view=checkout/cart")
+    assert not pay("https://shop.example/index.php?page=checkout-guide")
+
+
 def test_a_generated_test_retries_a_cancelled_page_and_still_skips_checkout():
     import ast
     import re

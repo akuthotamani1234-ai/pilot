@@ -896,7 +896,7 @@ def _payment_target(raw: str) -> bool:
         if "=" not in piece:
             continue
         key, value = piece.split("=", 1)
-        if not re.fullmatch(r"rt|route|r|controller|ctrl|action|act|task|cmd|do", key, re.I):
+        if not re.fullmatch(r"rt|route|r|controller|ctrl|action|act|task|cmd|do|page|step|view|screen", key, re.I):
             continue
         bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
         if not bits or not any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
