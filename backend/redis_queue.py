@@ -11,9 +11,9 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from .redis_queue_scripts import (
-    CLAIM_WAITING,
     ENQUEUE_ONCE,
     HOLD_LEASE,
+    POP_CLAIM,
     RECOVER_LEASE,
     SET_TERMINAL,
 )
@@ -224,24 +224,19 @@ class RedisDurableQueue:
                 return None
             run_id = keys[0].rsplit(":", 1)[-1]
         pending = self._pending_key(run_id)
+        prefix = f"{self.prefix}:task:"
         while True:
-            item = self._r.zpopmin(pending, count=1)
-            if not item:
-                return None
-            task_id = item[0][0]
-            row = self._load(task_id)
-            if not row or row["status"] not in {"pending", "retry_wait"}:
-                continue
             now = _now()
-            attempt = int(row["attempt"]) + 1
-            until = now + self.lease_seconds
-            ok = self._lua("claim", CLAIM_WAITING)(
-                keys=[self._task_key(task_id)],
-                args=[str(now), str(attempt), worker_id, str(until)],
+            result = self._lua("pop_claim", POP_CLAIM)(
+                keys=[pending],
+                args=[prefix, str(now), worker_id, str(now + self.lease_seconds)],
             )
-            if int(ok) != 1:
+            got = str(result or "")
+            if not got:
+                return None
+            if got == "0":
                 continue
-            return self._load(task_id) or row
+            return self._load(got)
 
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
         now = _now()

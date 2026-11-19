@@ -84,6 +84,40 @@ def test_redis_concurrent_enqueue_is_one_task():
             queue.close()
 
 
+def test_redis_one_waiting_task_is_leased_once():
+    prefix = f"qpilot:testclaim:{uuid.uuid4().hex}"
+    queues = [_redis_queue(prefix) for _ in range(8)]
+    queues[0].enqueue(
+        run_id="run-claim", role="worker", payload={"url": "/a"}, idempotency_key="only",
+    )
+    barrier = threading.Barrier(8)
+    found: list[str] = []
+
+    def go(queue, worker):
+        barrier.wait()
+        row = queue.claim(worker_id=worker, run_id="run-claim")
+        if row:
+            found.append(row["task_id"])
+
+    threads = [
+        threading.Thread(target=go, args=(queue, f"w{i}")) for i, queue in enumerate(queues)
+    ]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert len(found) == 1
+        leased = queues[0].get(found[0])
+        assert leased["status"] == "leased"
+        assert leased["attempt"] == 1
+        assert queues[0].claim(worker_id="late", run_id="run-claim") is None
+    finally:
+        _wipe(queues[0], prefix)
+        for queue in queues[1:]:
+            queue.close()
+
+
 def test_redis_stale_claim_and_cancel_cannot_overwrite_status():
     prefix = f"qpilot:teststatus:{uuid.uuid4().hex}"
     queue = _redis_queue(prefix)

@@ -52,19 +52,26 @@ end
 return 1
 """
 
-# Lease a popped task only while it is still waiting.
-CLAIM_WAITING = """
-local status = redis.call('HGET', KEYS[1], 'status')
-if status ~= 'pending' and status ~= 'retry_wait' then
-  return 0
+# Pop one waiting task and lease it in the same script.
+# An empty queue returns ''. A stale id returns '0' and is not put back.
+POP_CLAIM = """
+local popped = redis.call('ZPOPMIN', KEYS[1])
+if popped == nil or #popped == 0 then
+  return ''
 end
-redis.call('HSET', KEYS[1],
+local task_id = popped[1]
+local status = redis.call('HGET', ARGV[1] .. task_id, 'status')
+if status ~= 'pending' and status ~= 'retry_wait' then
+  return '0'
+end
+local current = tonumber(redis.call('HGET', ARGV[1] .. task_id, 'attempt')) or 0
+redis.call('HSET', ARGV[1] .. task_id,
   'status', 'leased',
-  'attempt', ARGV[2],
+  'attempt', tostring(current + 1),
   'lease_owner', ARGV[3],
   'lease_until', ARGV[4],
-  'updated_at', ARGV[1])
-return 1
+  'updated_at', ARGV[2])
+return task_id
 """
 
 SET_TERMINAL = """
