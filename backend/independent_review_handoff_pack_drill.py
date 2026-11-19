@@ -14,7 +14,13 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "independent_review_handoff_pack_dri
 
 
 def run_independent_review_handoff_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .independent_review_blocker_freeze_drill import (
+        run_independent_review_blocker_freeze_drill,
+    )
     from .independent_review_request_drill import run_independent_review_request_drill
+    from .independent_review_scope_matrix_drill import (
+        run_independent_review_scope_matrix_drill,
+    )
     from .independent_review_signoff_pack_drill import (
         run_independent_review_signoff_pack_drill,
     )
@@ -26,6 +32,8 @@ def run_independent_review_handoff_pack_drill(*, ops_dir: Path | None = None) ->
         ("request", run_independent_review_request_drill),
         ("signoff_pack", run_independent_review_signoff_pack_drill),
         ("summary", run_independent_review_summary_drill),
+        ("scope_matrix", run_independent_review_scope_matrix_drill),
+        ("blocker_freeze", run_independent_review_blocker_freeze_drill),
     ):
         try:
             parts[key] = fn(ops_dir=ops_dir)
