@@ -306,7 +306,11 @@ def self_healing_agent(state: QAState) -> QAState:
         entry = {"round": rnd, "file": f["file"], "test": f["test"], "nodeid": f["nodeid"],
                  "error": f["error"], "method": None, "change": None, "diff": "", "status": "pending",
                  "backup": None, "from": None, "to": None, "related": [], "rerun": None}
-        if bad and bad in fixed:  # an earlier test already got this selector repaired this round
+        # the broken selector may live in another file than the failing test (e.g. steps_<page>.py)
+        holder = (_file_with(bad, test_dir, f["file"]) if bad else None) or f["file"]
+        if bad and bad in fixed and fixed[bad]["file"] == holder:
+            # The same file was already repaired. A different file keeps its own repair,
+            # so a later failure there cannot undo the first file.
             done = fixed[bad]
             entry.update(file=done["file"], method=done["method"], backup=done["backup"], to=done["to"],
                          change=f"{bad}  ->  {done['to']} (already repaired this round)")
@@ -314,8 +318,6 @@ def self_healing_agent(state: QAState) -> QAState:
             log.append(entry)
             to_rerun.append(f["nodeid"])
             continue
-        # the broken selector may live in another file than the failing test (e.g. steps_<page>.py)
-        holder = (_file_with(bad, test_dir, f["file"]) if bad else None) or f["file"]
         path = test_dir / holder
         if not path.exists():
             unhealable.append(f["nodeid"])
