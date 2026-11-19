@@ -41,7 +41,12 @@ def plan(root: Path, cases: list[dict]) -> dict:
 
 
 def snapshot(root: Path) -> dict:
-    cases = json.loads((root / "test_cases.json").read_text(encoding="utf-8"))
+    root = Path(root)
+    from .finalization import folder_is_linked
+    cases_path = root / "test_cases.json"
+    if folder_is_linked(root) or cases_path.is_symlink():
+        return {"pending": [], "completed": 0, "uncertain": [], "can_resume": False}
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
     result = plan(root, cases)
     return {"pending": [{"id": c["id"], "title": c["title"]} for c in result["pending"]],
             "completed": len(result["completed"]), "uncertain": result["uncertain"],
