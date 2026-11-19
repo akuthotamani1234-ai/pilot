@@ -2,11 +2,11 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "hosted_runner_readiness",
-  "ran_at": "2026-11-19T04:47:21Z",
+  "ran_at": "2026-11-19T05:22:05Z",
   "kind": "readiness_score_only",
   "multi_device": {
-    "score": 10,
-    "score_of": 10,
+    "score": 11,
+    "score_of": 11,
     "checks": [
       {
         "artifact": "android_appium_product_matrix_drill.json",
@@ -57,13 +57,18 @@
         "artifact": "hosted_workflow_runner_audit_drill.json",
         "label": "Hosted workflow runner audit",
         "ready": true
+      },
+      {
+        "artifact": "hosted_ci_artifact_retention_contract_drill.json",
+        "label": "Artifact retention contract",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "multi_browser": {
-    "score": 8,
-    "score_of": 8,
+    "score": 9,
+    "score_of": 9,
     "checks": [
       {
         "artifact": "multi_browser_portfolio_suite_drill.json",
@@ -104,10 +109,15 @@
         "artifact": "hosted_workflow_runner_audit_drill.json",
         "label": "Hosted workflow runner audit",
         "ready": true
+      },
+      {
+        "artifact": "hosted_ci_artifact_retention_contract_drill.json",
+        "label": "Artifact retention contract",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "ok": true,
-  "reason": "Hosted runner readiness device 10/10 + browser 8/8; broad hosted CI runner execution still open"
+  "reason": "Hosted runner readiness device 11/11 + browser 9/9; broad hosted CI runner execution still open"
 }

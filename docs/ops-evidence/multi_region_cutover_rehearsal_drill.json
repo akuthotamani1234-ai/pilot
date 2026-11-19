@@ -1,7 +1,7 @@
 {
   "gate_h_complete": false,
   "drill": "multi_region_cutover_rehearsal",
-  "ran_at": "2026-11-19T04:22:14Z",
+  "ran_at": "2026-11-19T05:22:07Z",
   "kind": "local_cutover_pack",
   "steps_ok": {
     "postgres_dual_region": true,
@@ -12,7 +12,7 @@
   },
   "steps_passed": 5,
   "steps_total": 5,
-  "elapsed_ms": 1562,
+  "elapsed_ms": 1529,
   "ok": true,
-  "reason": "Local multi-region cutover rehearsal 5/5 in 1562ms; hosted multi-region DR / on-call still open"
+  "reason": "Local multi-region cutover rehearsal 5/5 in 1529ms; hosted multi-region DR / on-call still open"
 }

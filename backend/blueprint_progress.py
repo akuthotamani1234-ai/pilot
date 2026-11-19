@@ -239,6 +239,7 @@ def progress() -> dict:
         {"id": "DF-dispatch-payload", "label": "Hosted workflow_dispatch payload rehearsal (not run)", "status": "done"},
         {"id": "DF-ci-artifact-gate-pack", "label": "Hosted CI artifact gate pack (not hosted runners)", "status": "done"},
         {"id": "DF-workflow-runner-audit", "label": "Hosted workflow YAML runner audit (not dispatched)", "status": "done"},
+        {"id": "DF-artifact-retention-contract", "label": "Hosted CI artifact retention contract (not uploaded)", "status": "done"},
         {"id": "D-android-ci-readiness-pack", "label": "Android device CI readiness pack (not hosted runners)", "status": "done"},
         {"id": "F-browser-ci-readiness-pack", "label": "Browser portfolio CI readiness pack (not hosted runners)", "status": "done"},
         {"id": "D-journey-refresh2", "label": "Cross-platform journey refresh (web 3-engine + Android)", "status": "done"},

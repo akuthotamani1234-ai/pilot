@@ -1,13 +1,13 @@
 {
   "gate_h_complete": false,
   "drill": "hosted_oncall_readiness_pack",
-  "ran_at": "2026-11-19T05:00:31Z",
+  "ran_at": "2026-11-19T05:22:08Z",
   "kind": "local_ops_pack",
   "contract_ok": true,
   "readiness_ok": true,
   "paging_pack_ok": true,
   "live_hosted_paging": false,
-  "elapsed_ms": 1007,
+  "elapsed_ms": 1011,
   "ok": true,
-  "reason": "Hosted on-call readiness pack ok in 1007ms; live hosted multi-region DR / on-call paging still open"
+  "reason": "Hosted on-call readiness pack ok in 1011ms; live hosted multi-region DR / on-call paging still open"
 }
