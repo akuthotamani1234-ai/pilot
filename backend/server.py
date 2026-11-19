@@ -4772,8 +4772,25 @@ def validate_qa_contract(payload: dict):
 
 
 @app.post("/api/qa/benchmark")
-def qa_benchmark(manifest: dict):
+def qa_benchmark(
+    manifest: dict,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     from backend.qa_benchmark import save_showcase
+    caller = _signed_in_reader(authorization, x_qa_token, "run.read")
+    if isinstance(caller, JSONResponse):
+        return caller
+    if isinstance(caller, str):
+        from backend.tenancy_store import assert_run_access
+        names: list[str] = []
+        for group in (manifest or {}).get("groups") or []:
+            if isinstance(group, dict):
+                names.extend(str(name) for name in (group.get("runs") or []))
+        for name in names:
+            access = assert_run_access(principal_id=caller, run_id=name, audit=False)
+            if not access.get("allowed"):
+                return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
     run_id = "qa_showcase_" + time.strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
     directory = RUNS / run_id
     try:
@@ -4783,6 +4800,12 @@ def qa_benchmark(manifest: dict):
         if directory.is_dir():
             shutil.rmtree(directory)
         raise HTTPException(400, "Cannot benchmark these runs: " + str(error)[:400]) from error
+    if isinstance(caller, str):
+        from backend.tenancy_store import get_principal, index_run, upsert_tenant
+        tenant = str((get_principal(caller) or {}).get("tenant_id") or "")
+        if re.fullmatch(r"[\w.-]+", tenant):
+            upsert_tenant(tenant, tenant)
+            index_run(run_id, tenant, source="qa-benchmark", verdict=str((result or {}).get("precision") or ""))
     return {"run": run_id, "report": f"/runs/{run_id}/report.html", "measurement": result}
 
 
