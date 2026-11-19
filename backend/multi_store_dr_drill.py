@@ -14,7 +14,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "multi_store_dr_drill.json"
 
 
+def _linked_stores() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "multi_store_dr_failover",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_multi_store_dr_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "multi_store_dr_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_stores()
+
     from .minio_multi_region_drill import run_minio_multi_region_drill
     from .multi_region_dr_drill import run_multi_region_dr_drill
     from .redis_multi_region_drill import run_redis_multi_region_drill
@@ -59,12 +75,15 @@ def run_multi_store_dr_drill(*, ops_dir: Path | None = None) -> dict:
             "(Postgres + MinIO + Redis); hosted multi-region DR / on-call still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_stores()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "multi_store_dr_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_stores()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "multi_store_dr_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
