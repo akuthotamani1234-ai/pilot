@@ -1583,11 +1583,13 @@ def _sitemap_urls(context, start_url: str, limit: int = 50000) -> list[str]:
     """The addresses the website itself lists: robots.txt 'Sitemap:' lines and /sitemap.xml (a sitemap index is
     followed, at most 10 sitemaps). Only read - never anything else of robots.txt. (50,000 = what one sitemap file
     may hold: they are counted, and only a sample of each page type is visited.)"""
+    from ..payment_nav import read_safe
+
     base = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
     todo, done, out = [f"{base}/sitemap.xml"], set(), []
     try:
-        r = context.request.get(f"{base}/robots.txt", timeout=10000)
-        if r.ok:
+        r = read_safe(context.request.get, f"{base}/robots.txt", timeout=10000)
+        if r is not None and r.ok:
             todo = [l.split(":", 1)[1].strip() for l in r.text().splitlines()
                     if l.lower().startswith("sitemap:")] + todo
     except Exception:
@@ -1598,8 +1600,8 @@ def _sitemap_urls(context, start_url: str, limit: int = 50000) -> list[str]:
             continue
         done.add(sm)
         try:
-            r = context.request.get(sm, timeout=15000)
-            if not r.ok:
+            r = read_safe(context.request.get, sm, timeout=15000)
+            if r is None or not r.ok:
                 continue
             body = r.text()
         except Exception:
@@ -2002,8 +2004,11 @@ def discovery_agent(state: QAState) -> QAState:
                 from ..scrape_seed import harvest_openapi_operations, seed_entries
                 start_html = ""
                 try:
-                    r0 = contexts[False].request.get(start_url, timeout=15000)
-                    if getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400:
+                    from ..payment_nav import read_safe
+                    r0 = read_safe(contexts[False].request.get, start_url, timeout=15000)
+                    if r0 is not None and (
+                        getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400
+                    ):
                         start_html = r0.text() if callable(getattr(r0, "text", None)) else (r0.text or "")
                 except Exception:
                     start_html = ""

@@ -7,6 +7,42 @@ from backend.scrape_seed import (
 )
 
 
+def test_a_redirect_into_checkout_is_not_read():
+    from backend.scrape_seed import _get_text
+
+    seen = []
+
+    class Resp:
+        def __init__(self, status, location="", body=""):
+            self.status = status
+            self.ok = status < 400
+            self.headers = {"location": location} if location else {}
+            self._body = body
+
+        def text(self):
+            return self._body
+
+    class Fetcher:
+        def get(self, url, **kwargs):
+            seen.append(url)
+            assert kwargs.get("max_redirects") == 0
+            if str(url).endswith("/home"):
+                return Resp(302, "https://shop.test/checkout")
+            if str(url).endswith("/product"):
+                return Resp(200, body="<a href='/pim'>People</a>")
+            if "checkout/cart" in str(url):
+                return Resp(200, body="cart")
+            if str(url).endswith("/cart"):
+                return Resp(302, "https://shop.test/index.php?rt=checkout/cart")
+            return Resp(404)
+
+    assert _get_text(Fetcher(), "https://shop.test/home") == ""
+    assert seen == ["https://shop.test/home"]
+    assert _get_text(Fetcher(), "https://shop.test/product") == "<a href='/pim'>People</a>"
+    assert _get_text(Fetcher(), "https://shop.test/cart") == "cart"
+    assert "https://shop.test/checkout" not in seen
+
+
 def test_pay_checkout_urls_are_detected():
     assert is_pay_checkout_url("https://shop.test/checkout")
     assert is_pay_checkout_url("https://shop.test/cart/checkout")
