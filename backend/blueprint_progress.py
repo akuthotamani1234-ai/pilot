@@ -384,6 +384,7 @@ def progress() -> dict:
         {"id": "I-pkce-stays", "label": "The PKCE verifier stays on the server and is not taken from the callback URL", "status": "done"},
         {"id": "B-checkpoint-landing", "label": "A retry does not keep a checkout landing behind a safe URL", "status": "done"},
         {"id": "B-explore-redirect", "label": "An action reload does not follow a redirect into checkout", "status": "done"},
+        {"id": "A-click-redirect", "label": "A link that redirects into checkout is not clicked", "status": "done"},
         {"id": "B-test-redirect", "label": "A generated test does not follow a redirect into checkout", "status": "done"},
         {"id": "B-contract-redirect", "label": "A contract does not follow a redirect into checkout", "status": "done"},
         {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},

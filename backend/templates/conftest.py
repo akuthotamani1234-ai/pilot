@@ -894,6 +894,44 @@ def _risky(names: list) -> bool:
     return bool(PROTECTED_RX.search(other))  # no telling text: its label / address decides
 
 
+def _redirects_to_payment(loc, names: list) -> bool:
+    """True when this control's address redirects into checkout. The document is not loaded."""
+    checker = globals().get("_payment_target")
+    page = getattr(loc, "page", None)
+    request = getattr(getattr(page, "request", None), "get", None)
+    if not checker or request is None:
+        return False
+    from urllib.parse import urljoin as _join
+
+    base = getattr(page, "url", "") or ""
+    for raw in ((names[3] if len(names) > 3 else ""), (names[8] if len(names) > 8 else "")):
+        current = (raw or "").strip()
+        if not current or current.startswith("#") or current.lower().startswith("javascript:"):
+            continue
+        if base:
+            current = _join(base, current)
+        if checker(current):
+            return True
+        for _hop in range(5):
+            try:
+                probe = request(current, max_redirects=0, timeout=10000)
+            except Exception:
+                break
+            if getattr(probe, "status", None) not in (301, 302, 303, 307, 308):
+                break
+            headers = getattr(probe, "headers", None) or {}
+            location = headers.get("location") or headers.get("Location") or ""
+            if not location:
+                return True
+            nxt = _join(current, location)
+            if checker(nxt):
+                return True
+            current = nxt
+        else:
+            return True
+    return False
+
+
 def _refuse_protected(loc) -> None:
     """A click on a protected control is not done - the test step is Blocked instead."""
     if not getattr(Locator, "_qa_guard", False):
@@ -913,6 +951,10 @@ def _refuse_protected(loc) -> None:
         pytest.skip(f"Blocked: '{label}' is a protected action (it could pay, order, delete, send or log out) - "
                     "never clicked without ALLOW_ACTIONS naming the class "
                     "(and TEST_PAYMENT=1 for pay, staging only)")
+    # A label can stay ordinary while the address redirects into checkout.
+    # That document is not opened.
+    if names and _redirects_to_payment(loc, names):
+        pytest.skip("Blocked: checkout or payment is recorded and not opened again")
 
 
 def _acts(key_arg, args, kwargs) -> bool:

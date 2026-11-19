@@ -47,7 +47,10 @@ def test_a_website_that_goes_down_mid_run_leaves_tests_not_run_never_failed(tmp_
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
-            if self.path.startswith("/p1"):  # the website goes down right after the first test's page
+            # The open checks redirects before it loads the document. The site
+            # drops once that document has been served, not on the check.
+            dest = (self.headers.get("Sec-Fetch-Dest") or "").lower()
+            if self.path.startswith("/p1") and dest == "document":
                 threading.Thread(target=lambda: (state["srv"].shutdown(), state["srv"].server_close())).start()
 
         def log_message(self, *a):

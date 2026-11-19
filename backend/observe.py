@@ -530,6 +530,15 @@ class Explorer:
             pass
         if control_opens_payment(url, info.get("href") or "", info.get("action") or "", info.get("onclick") or ""):
             return blocked_reason("pay")
+        request = getattr(getattr(page, "request", None), "get", None)
+        if request is not None:
+            from .payment_nav import payment_redirect
+            try:
+                for raw in (info.get("href") or "", info.get("action") or ""):
+                    if payment_redirect(request, raw, base=url):
+                        return blocked_reason("pay")
+            except Exception:
+                return ""
         return ""
 
     def _on_payment_page(self, page) -> bool:

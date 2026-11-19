@@ -177,7 +177,7 @@ def _guard_ns(monkeypatch):
     tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
     want = {
         "PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX",
-        "_payment_target", "_risky", "_refuse_protected",
+        "CONTROL_TEXT_JS", "_payment_target", "_risky", "_redirects_to_payment", "_refuse_protected",
     }
     nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in want)
              or (isinstance(n, ast.FunctionDef) and n.name in want)]
@@ -211,6 +211,44 @@ def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
                 return ["Continue", "", "", "/product/1", "", "button", "", "", "", ""]
 
     guard["_refuse_protected"](OnProduct())
+
+
+def test_a_generated_click_does_not_follow_a_redirect_into_checkout(monkeypatch):
+    guard = _guard_ns(monkeypatch)
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        url = "https://shop.example/product/1"
+
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            if "checkout/cart" in str(url):
+                return Probe(200)
+            if str(url).endswith("/promo"):
+                return Probe(302, "https://shop.example/checkout")
+            if str(url).endswith("/cart"):
+                return Probe(302, "https://shop.example/index.php?rt=checkout/cart")
+            return Probe(200)
+
+    page = Page()
+    page.request = page
+
+    class Loc:
+        def __init__(self, href, label):
+            self.page = page
+            self.first = self
+            self._names = [label, "", "", href, "", "a", "", "", "", ""]
+
+        def evaluate(self, *_args, **_kwargs):
+            return self._names
+
+    with pytest.raises(pytest.skip.Exception, match="not opened"):
+        guard["_refuse_protected"](Loc("/promo", "Continue"))
+    guard["_refuse_protected"](Loc("/cart", "Cart"))
 
 
 def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
