@@ -58,7 +58,22 @@ def _jwk_from_public(public_key, kid: str) -> dict:
     return data
 
 
+def _linked_pkce() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "loopback_pkce_sso",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / "loopback_pkce_sso_drill.json"):
+        return _linked_pkce()
+
     try:
         import jwt
     except ImportError:
@@ -69,7 +84,8 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             "ok": False,
             "reason": "PyJWT not installed — cannot run PKCE SSO drill",
         }
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_pkce()
         return evidence
 
     from .dashboard_auth import authorize
@@ -397,16 +413,25 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             else:
                 os.environ[key] = val
 
-    _write(evidence, ops_dir)
+    if not _write(evidence, ops_dir):
+        return _linked_pkce()
     return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "loopback_pkce_sso_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "loopback_pkce_sso_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if not write_text_unless_linked(dest, name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "loopback_pkce_sso_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
+    return True
