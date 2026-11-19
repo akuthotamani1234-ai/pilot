@@ -324,17 +324,7 @@ def from_run(state: dict) -> dict:
     """Build the release row from a finished run. The listing sample is not changed."""
     run_dir = Path(state.get("run_dir") or ".")
     crawl = state.get("crawl") or {}
-    pages = []
-    for page in state.get("app_map") or []:
-        buttons = page.get("buttons") or []
-        pages.append({
-            "url": page.get("url") or "",
-            "template": page.get("page_type") or "page",
-            "elements": [str(button.get("text") or button.get("selector") or "") for button in buttons[:8]],
-            "actions": [{"name": str(button.get("text") or ""), "safe": not button.get("blocked"), "to": ""}
-                        for button in buttons[:8]],
-            "evidence": [page["screenshot"]] if page.get("screenshot") else [],
-        })
+    pages = [page_record(page) for page in (state.get("app_map") or []) if isinstance(page, dict)]
     cases = []
     for case in state.get("test_cases") or []:
         cases.append({

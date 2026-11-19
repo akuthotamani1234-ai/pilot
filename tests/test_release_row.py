@@ -106,6 +106,27 @@ def test_a_saved_crawl_can_continue_and_a_zero_budget_uses_the_cap(tmp_path):
     assert refused["ok"] is False
 
 
+def test_a_finished_run_does_not_treat_checkout_continue_as_safe_work(tmp_path):
+    (tmp_path / "app_map.json").write_text("[]", encoding="utf-8")
+    state = {
+        "run_dir": str(tmp_path), "url": "https://shop.example",
+        "crawl": {"section": "/", "limit": 5, "time_limit_min": 10, "approved_hosts": ["shop.example"],
+                  "swarm": {"workers": 1}},
+        "app_map": [{
+            "url": "https://shop.example/saree", "page_type": "product",
+            "buttons": [
+                {"text": "Add"},
+                {"text": "Continue", "form_action": "/checkout"},
+            ],
+        }],
+        "test_cases": [], "results": [], "failures": [], "log": ["discovery finished"],
+    }
+    row = from_run(state)
+    actions = {item["action"] for item in row["inventory"]["safe_states"]}
+    assert "Add" in actions
+    assert "Continue" not in actions
+
+
 def test_a_finished_run_builds_the_same_row(tmp_path):
     (tmp_path / "app_map.json").write_text("[]", encoding="utf-8")
     state = {
