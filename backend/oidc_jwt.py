@@ -48,12 +48,14 @@ def reset_seen_jti() -> None:
 
 
 def _jti_already_seen(jti: str) -> bool:
-    if jti in _SEEN_JTI:
-        return True
+    return jti in _SEEN_JTI
+
+
+def _remember_jti(jti: str) -> None:
+    """Record a jti only after the token itself has been accepted."""
     _SEEN_JTI.add(jti)
     if len(_SEEN_JTI) > _SEEN_JTI_MAX:
         _SEEN_JTI.pop()
-    return False
 
 
 def configured_claims() -> dict:
@@ -156,6 +158,7 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
             out["reason"] = "nbf claim is not a number"
             return out
 
+    fresh_jti = ""
     if replay_jti_enabled():
         jti = str(payload.get("jti") or "").strip()
         if not jti:
@@ -164,6 +167,7 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
         if _jti_already_seen(jti):
             out["reason"] = "jti replay rejected"
             return out
+        fresh_jti = jti
 
     if verify_signature and not cfg["issuer"]:
         out["reason"] = (
@@ -210,6 +214,8 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
             )
             return out
 
+    if fresh_jti:
+        _remember_jti(fresh_jti)
     out["ok"] = True
     out["reason"] = (
         "JWT claims (+ signature) accepted structurally; live hosted SSO login still open"
