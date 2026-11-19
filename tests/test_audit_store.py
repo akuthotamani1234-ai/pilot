@@ -82,6 +82,40 @@ def test_a_signed_in_principal_cannot_read_another_tenants_run(monkeypatch, tmp_
     assert stolen.status_code == 403
 
 
+def test_the_run_list_hides_another_tenants_runs(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.audit_store as audit_store
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    for name, url in (("run-a", "https://a.test"), ("run-b", "https://b.test"), ("run-x", "https://x.test")):
+        folder = runs / name
+        folder.mkdir(parents=True)
+        (folder / "summary.json").write_text(
+            f'{{"url": "{url}", "verdict": "Ready"}}', encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(audit_store, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Not Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    assert client.get("/api/history").status_code == 401
+    own = client.get("/api/v1/history", headers={"Authorization": "Bearer view-1"})
+    assert own.status_code == 200
+    assert {row["run"] for row in own.json()} == {"run-a"}
+    assert own.json()[0]["url"] == "https://a.test"
+    other = client.get("/api/history", headers={"Authorization": "Bearer admin-2"})
+    assert {row["run"] for row in other.json()} == {"run-b"}
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)
