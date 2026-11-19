@@ -15,10 +15,26 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "audit_export_drill.json"
 
 
+def _linked_audit() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "drill": "tenant_scoped_audit_export",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_audit_export_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "audit_export_drill.json"
     work = Path(ops_dir) / "audit_export_work" if ops_dir else (
         ROOT / "artifacts" / "ops" / "audit_export_work"
     )
+    if (folder_is_linked(dest) or folder_is_linked(dest / out_name)
+            or folder_is_linked(work) or folder_is_linked(work / "audit.sqlite")):
+        return _linked_audit()
     work.mkdir(parents=True, exist_ok=True)
     db = work / "audit.sqlite"
 
@@ -68,12 +84,16 @@ def run_audit_export_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if (folder_is_linked(dest) or folder_is_linked(dest / out_name)
+            or folder_is_linked(work) or folder_is_linked(work / "audit.sqlite")):
+        return _linked_audit()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "audit_export_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_audit()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "audit_export_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
