@@ -6,7 +6,18 @@ from backend.portfolio_artifact_manifest_drill import (
 )
 
 
-def test_a_device_manifest_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_device_manifest_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import backend.device_artifact_manifest_drill as mod
+
+    calls = {"n": 0}
+    real_sha = mod.hashlib.sha256
+
+    def _sha256(data=b""):
+        calls["n"] += 1
+        return real_sha(data)
+
+    monkeypatch.setattr(mod.hashlib, "sha256", _sha256)
+
     secret = "tenant-b-only-device-manifest"
     other = tmp_path / "other"
     other.mkdir()
@@ -20,14 +31,26 @@ def test_a_device_manifest_does_not_follow_a_link_into_another_folder(tmp_path):
     assert "link" in evidence["reason"]
     assert evidence["ok"] is False
     assert evidence["gate_d_complete"] is False
+    assert calls["n"] == 0
     assert kept.read_bytes() == original
     assert secret not in evidence["reason"]
     assert [path.name for path in other.iterdir()] == ["device_artifact_manifest_drill.json"]
 
-    real = tmp_path / "real"
-    real.mkdir()
-    saved = run_device_artifact_manifest_drill(ops_dir=real)
-    written = (real / "device_artifact_manifest_drill.json").read_text(encoding="utf-8")
+    folder = tmp_path / "real"
+    folder.mkdir()
+    planted = folder / "device_artifact_manifest_drill.json"
+    planted.symlink_to(kept)
+    skipped = run_device_artifact_manifest_drill(ops_dir=folder)
+    assert skipped["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
+    saved = run_device_artifact_manifest_drill(ops_dir=folder)
+    written = (folder / "device_artifact_manifest_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] >= 1
     assert saved["gate_d_complete"] is False
     assert saved["api_levels"] == [24, 30, 34]
     assert secret not in written
