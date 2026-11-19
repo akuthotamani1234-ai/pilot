@@ -67,6 +67,48 @@ def test_an_android_test_run_does_not_follow_a_link_into_another_run(tmp_path, m
     assert json.loads((other / "active_appium_session.json").read_text(encoding="utf-8"))["session_id"] == secret
 
 
+def test_an_android_session_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-session"
+    other = tmp_path / "other"
+    private = other / "runs" / "run" / ".private"
+    private.mkdir(parents=True)
+    session = private / "active_appium_session.json"
+    session.write_text(json.dumps({"session_id": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    calls = []
+
+    class Client:
+        trust_env = True
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def delete(self, url, **kwargs):
+            calls.append(url)
+            return type("Response", (), {"status_code": 200})()
+
+    monkeypatch.setattr(android_pipeline.requests, "Session", Client)
+    assert android_pipeline._cleanup_worker_session(
+        linked / "runs" / "run", {"appium_url": "http://127.0.0.1:4723"}) == ""
+    assert calls == []
+    assert json.loads(session.read_text(encoding="utf-8"))["session_id"] == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / ".private"
+    own.mkdir(parents=True)
+    evidence = own / "active_appium_session.json"
+    evidence.write_text(json.dumps({"session_id": "home-own"}), encoding="utf-8")
+    assert android_pipeline._cleanup_worker_session(real, {"appium_url": "http://127.0.0.1:4723"}) == ""
+    assert calls == ["http://127.0.0.1:4723/session/home-own"]
+    assert not evidence.exists()
+    assert json.loads(session.read_text(encoding="utf-8"))["session_id"] == secret
+
+
 def test_contract_inputs_do_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     from backend.qa_runtime import private_inputs
 
