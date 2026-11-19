@@ -114,11 +114,29 @@ def _assertion_profile(code: str) -> dict[str, int]:
     return prof
 
 
+def _payment_literals(code: str) -> set[str]:
+    """String constants that open checkout or payment."""
+    from ..swarm import control_opens_payment, is_payment_url
+
+    found: set[str] = set()
+    for node in ast.walk(ast.parse(code)):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        text = node.value.strip()
+        if not text:
+            continue
+        if is_payment_url(text) or control_opens_payment("https://shop.test/", text, "", text):
+            found.add(text)
+    return found
+
+
 def _safe_repair(old_code: str, new_code: str, need_tests: bool = True) -> str | None:
     """Returns an error if the repaired code is not acceptable (need_tests=False: a steps_*.py module)."""
     err = validate_script(new_code, need_tests=need_tests)
     if err:
         return err
+    if _payment_literals(new_code) - _payment_literals(old_code):
+        return "the repair points a test at checkout or payment"
     before, after = _assertion_profile(old_code), _assertion_profile(new_code)
     if set(before) - set(after):
         return f"test functions removed: {sorted(set(before) - set(after))}"
