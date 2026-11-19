@@ -27,6 +27,7 @@ DEVICE_CHECKS = (
     ("hosted_ci_artifact_retention_contract_drill.json", "Artifact retention contract"),
     ("hosted_ci_permissions_contract_drill.json", "CI permissions contract"),
     ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
+    ("hosted_ci_concurrency_contract_drill.json", "CI concurrency contract"),
 )
 
 BROWSER_CHECKS = (
@@ -41,6 +42,7 @@ BROWSER_CHECKS = (
     ("hosted_ci_artifact_retention_contract_drill.json", "Artifact retention contract"),
     ("hosted_ci_permissions_contract_drill.json", "CI permissions contract"),
     ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
+    ("hosted_ci_concurrency_contract_drill.json", "CI concurrency contract"),
 )
 
 

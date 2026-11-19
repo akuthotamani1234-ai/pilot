@@ -2,11 +2,11 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "hosted_runner_readiness",
-  "ran_at": "2026-11-19T05:41:01Z",
+  "ran_at": "2026-11-19T05:45:41Z",
   "kind": "readiness_score_only",
   "multi_device": {
-    "score": 13,
-    "score_of": 13,
+    "score": 14,
+    "score_of": 14,
     "checks": [
       {
         "artifact": "android_appium_product_matrix_drill.json",
@@ -72,13 +72,18 @@
         "artifact": "hosted_ci_timeout_budget_drill.json",
         "label": "CI timeout budget contract",
         "ready": true
+      },
+      {
+        "artifact": "hosted_ci_concurrency_contract_drill.json",
+        "label": "CI concurrency contract",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "multi_browser": {
-    "score": 11,
-    "score_of": 11,
+    "score": 12,
+    "score_of": 12,
     "checks": [
       {
         "artifact": "multi_browser_portfolio_suite_drill.json",
@@ -134,10 +139,15 @@
         "artifact": "hosted_ci_timeout_budget_drill.json",
         "label": "CI timeout budget contract",
         "ready": true
+      },
+      {
+        "artifact": "hosted_ci_concurrency_contract_drill.json",
+        "label": "CI concurrency contract",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "ok": true,
-  "reason": "Hosted runner readiness device 13/13 + browser 11/11; broad hosted CI runner execution still open"
+  "reason": "Hosted runner readiness device 14/14 + browser 12/12; broad hosted CI runner execution still open"
 }

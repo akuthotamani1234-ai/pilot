@@ -2411,6 +2411,40 @@ def ops_paging_severity_routing_contract():
     return {"gate_h_complete": False, "paging_severity_routing_contract": evidence}
 
 
+@app.post("/api/ops/drills/hosted-ci-concurrency-contract")
+def ops_hosted_ci_concurrency_contract():
+    """Gates D/F: concurrency contract for manual dispatch workflows."""
+    from backend.hosted_ci_concurrency_contract_drill import (
+        run_hosted_ci_concurrency_contract_drill,
+    )
+    evidence = run_hosted_ci_concurrency_contract_drill()
+    _audit(
+        "ops_hosted_ci_concurrency_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_concurrency_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/independent-review-window-contract")
+def ops_independent_review_window_contract():
+    """Gate G: review window / embargo contract (unsigned)."""
+    from backend.independent_review_window_contract_drill import (
+        run_independent_review_window_contract_drill,
+    )
+    evidence = run_independent_review_window_contract_drill()
+    _audit(
+        "ops_independent_review_window_contract",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_window_contract": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""
