@@ -589,6 +589,9 @@ def _completed_outcomes(results: list[dict]) -> dict[str, dict]:
 
 def _collect_nodeids(test_dir: Path) -> list[str]:
     """Collect pytest nodeids offline (no browser) so a resumed run can skip completed work."""
+    from ..finalization import folder_is_linked
+    if folder_is_linked(test_dir):
+        return []
     try:
         out = subprocess.run(
             [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
