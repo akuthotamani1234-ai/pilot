@@ -60,7 +60,10 @@ def _linked_timeout() -> dict:
 
 def run_hosted_ci_timeout_budget_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    name = "hosted_ci_timeout_budget_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_timeout()
     android = _budget(ANDROID_WF, minimum=30, maximum=120)
     browsers = _budget(BROWSER_WF, minimum=15, maximum=90)
@@ -82,8 +85,6 @@ def run_hosted_ci_timeout_budget_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     text = json.dumps(evidence, indent=2)
-    name = "hosted_ci_timeout_budget_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_timeout()
     dest.mkdir(parents=True, exist_ok=True)
