@@ -36,8 +36,9 @@ def run_path(root, name):
     root_path = Path(root)
     path = root_path / name
     # Resolving a link named like one run still lands inside runs/ and would
-    # read the other run. The folder itself has to be a real directory.
-    if path.is_symlink():
+    # read the other run. A folder on the way to the runs folder is the same.
+    from .finalization import folder_is_linked
+    if folder_is_linked(root_path) or path.is_symlink():
         raise ValueError("Run directory must stay inside runs.")
     try:
         resolved = path.resolve(strict=True)
@@ -62,7 +63,8 @@ def measure(root, value):
         for run in group.runs:
             directory = run_path(root, run)
             results_file = directory / "results.json"
-            if results_file.is_symlink():
+            from .finalization import folder_is_linked
+            if results_file.is_symlink() or folder_is_linked(results_file.parent):
                 raise ValueError("Run directory must stay inside runs.")
             results = json.loads(results_file.read_text(encoding="utf-8"))
             by_id = defaultdict(list)
