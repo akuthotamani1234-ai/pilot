@@ -55,3 +55,40 @@ def test_saved_tests_falls_back_to_baseline(tmp_path, monkeypatch):
     got = saved_tests(site, from_run="missing-run")
     assert got is not None
     assert got["files"][0].name == "test_old.py"
+
+
+def test_saved_tests_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    runs = tmp_path / "runs"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    real = runs / "run-b"
+    tests = real / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_secret.py").write_text("SECRET = 'tenant-b'\n", encoding="utf-8")
+    (tests / "helpers.py").write_text("SECRET = 'helper'\n", encoding="utf-8")
+    (real / "test_cases.json").write_text(json.dumps([{"id": "secret"}]), encoding="utf-8")
+    (real / "summary.json").write_text(json.dumps({"url": "https://b.test/secret"}), encoding="utf-8")
+    (runs / "run-a").symlink_to(real, target_is_directory=True)
+    assert saved_tests("shop.test", from_run="run-a") is None
+    assert saved_tests("shop.test", from_run="..") is None
+
+    own = runs / "run-own"
+    own.mkdir()
+    (own / "generated_tests").symlink_to(tests, target_is_directory=True)
+    (own / "test_cases.json").write_text("[]", encoding="utf-8")
+    assert saved_tests("shop.test", from_run="run-own") is None
+
+    mixed = runs / "run-mix"
+    mixed_tests = mixed / "generated_tests"
+    mixed_tests.mkdir(parents=True)
+    (mixed_tests / "test_ok.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+    (mixed_tests / "test_secret.py").symlink_to(tests / "test_secret.py")
+    (mixed_tests / "helpers.py").symlink_to(tests / "helpers.py")
+    (mixed / "test_cases.json").write_text(json.dumps([{"id": "ok"}]), encoding="utf-8")
+    (mixed / "summary.json").symlink_to(real / "summary.json")
+    got = saved_tests("shop.test", from_run="run-mix")
+    assert got is not None
+    assert {f.name for f in got["files"]} == {"test_ok.py"}
+    assert "SECRET" not in got["files"][0].read_text(encoding="utf-8")
+    assert got["cases"] == [{"id": "ok"}]
+    assert got["meta"]["origin"] == ""
