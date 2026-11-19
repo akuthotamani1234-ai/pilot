@@ -1,6 +1,7 @@
 """Gate E: locator-only healing policy rejects assertion edits."""
 from backend.healing_policy import (
     issue_healing_approval,
+    repair_digest,
     reset_healing_approvals,
     review_repair,
     summarize_healing,
@@ -51,6 +52,21 @@ def test_human_approval_is_single_use_and_locator_only():
     assert first["allowed"] is True
     assert second["allowed"] is False
     assert second["reason"] == "healing approval already used"
+
+
+def test_the_repair_digest_is_not_an_approval_token():
+    old = 'def test_x(page):\n    page.locator("#a").click()\n    assert page.locator("#ok").is_visible()\n'
+    good = 'def test_x(page):\n    page.locator("#b").click()\n    assert page.locator("#ok").is_visible()\n'
+    reset_healing_approvals()
+    digest = repair_digest(old, good, "auth_problem")
+    forged = review_repair(old, good, failure_class="auth_problem", approval_token=digest)
+    assert forged["allowed"] is False
+    assert "human_approval" in forged["reason"]
+    issued = issue_healing_approval(old, good, "auth_problem")
+    assert issued["token"] != digest
+    assert review_repair(
+        old, good, failure_class="auth_problem", approval_token=issued["token"],
+    )["allowed"] is True
 
 
 def test_summarize_healing_stays_incomplete():
