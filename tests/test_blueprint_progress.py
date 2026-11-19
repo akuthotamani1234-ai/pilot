@@ -17,9 +17,19 @@ def test_blueprint_progress_lists_gates_and_stays_incomplete():
     assert snap["roadmap"]["now"]
     assert snap["roadmap"]["next"]
     assert snap["counts"]["blockers_open"] >= 1
-    assert all(row.get("status") == "open" for row in snap["roadmap"]["next"] if row.get("id") in {
-        "H-drills", "I-auth", "E-live-matrix", "D-android", "F-live-ci", "G-review",
-    })
+    hard = {
+        row["id"]: row for row in snap["roadmap"]["next"]
+        if row.get("id") in {
+            "H-drills", "I-auth", "E-live-matrix", "D-android", "F-live-ci", "G-review",
+        }
+    }
+    assert len(hard) == 6
+    assert all(row.get("status") == "open" for row in hard.values())
+    assert all(
+        row.get("local_partial_score_of", 0) >= row.get("local_partial_score", 0) >= 1
+        for row in hard.values()
+    )
+    assert all("Local Partial" in (row.get("note") or "") for row in hard.values())
 
 
 def test_enterprise_readiness_includes_blueprint_todos(monkeypatch):

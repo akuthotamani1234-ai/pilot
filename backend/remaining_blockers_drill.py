@@ -88,6 +88,7 @@ BLOCKERS = (
             "production_healing_fixture_coverage_drill.json",
             "production_healing_rollback_policy_drill.json",
             "production_healing_human_loop_contract_drill.json",
+            "production_healing_budget_contract_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -114,6 +115,7 @@ BLOCKERS = (
             "hosted_ci_permissions_contract_drill.json",
             "hosted_ci_timeout_budget_drill.json",
             "hosted_ci_concurrency_contract_drill.json",
+            "hosted_runner_os_matrix_contract_drill.json",
         ],
     },
     {
@@ -136,6 +138,7 @@ BLOCKERS = (
             "hosted_ci_permissions_contract_drill.json",
             "hosted_ci_timeout_budget_drill.json",
             "hosted_ci_concurrency_contract_drill.json",
+            "hosted_runner_os_matrix_contract_drill.json",
         ],
     },
     {

@@ -252,6 +252,10 @@ def progress() -> dict:
         {"id": "DF-hosted-runner-matrix", "label": "Hosted CI runner matrix honesty snapshot", "status": "done"},
         {"id": "DF-ci-concurrency-contract", "label": "Hosted CI concurrency contract (manual dispatch)", "status": "done"},
         {"id": "E-live-matrix-refresh", "label": "Re-run live DemoStore failure matrix + healing", "status": "done"},
+        {"id": "E-prod-healing-budget", "label": "Production healing suite budget contract", "status": "done"},
+        {"id": "DF-runner-os-matrix", "label": "Hosted runner OS matrix contract (ubuntu)", "status": "done"},
+        {"id": "B-swarm-refresh", "label": "Re-verify Redis swarm contention + control drills", "status": "done"},
+        {"id": "H-failover-refresh2", "label": "Re-measure local multi-store failover RTO", "status": "done"},
         {"id": "DF-ci-upload-rehearsal", "label": "Local CI artifact upload rehearsal (D+F)", "status": "done"},
         {"id": "DF-runner-readiness", "label": "Hosted multi-device/browser runner readiness scores", "status": "done"},
         {"id": "DF-dispatch-payload", "label": "Hosted workflow_dispatch payload rehearsal (not run)", "status": "done"},
@@ -290,9 +294,12 @@ def progress() -> dict:
         {"id": "I-dashboard-sso-helper", "label": "React dashboard SSO code/token helper panel", "status": "done"},
         {"id": "A-surface-top-level", "label": "Promote lazy/metadata/viewport signals to top-level", "status": "done"},
         {"id": "sidebar-roadmap", "label": "Sidebar roadmap sections (landed / now / next)", "status": "done"},
+        {"id": "sidebar-blocker-scores", "label": "Sidebar next-items show local Partial scores", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
-    blockers = [u for u in upcoming if u.get("status") == "open"]
+    blockers = _blocker_rows_with_scores(
+        [u for u in upcoming if u.get("status") == "open"]
+    )
     landed = (
         [{"id": f"phase-{p['id']}", "label": p["label"], "note": p.get("note") or "", "status": p["status"]}
          for p in phases if p["status"] in {"done", "strong"}]
@@ -329,3 +336,35 @@ def progress() -> dict:
             "next": len(next_items),
         },
     }
+
+
+def _blocker_rows_with_scores(rows: list[dict]) -> list[dict]:
+    """Attach local Partial inventory scores to hard-open blockers for the sidebar."""
+    inventory = {}
+    try:
+        from .remaining_blockers_drill import run_remaining_blockers_drill
+
+        evidence = run_remaining_blockers_drill()
+        for row in evidence.get("blockers") or []:
+            inventory[row.get("id")] = row
+    except Exception:
+        inventory = {}
+    enriched = []
+    for row in rows:
+        item = dict(row)
+        inv = inventory.get(item.get("id")) or {}
+        present = list(inv.get("local_partial_present") or [])
+        required = list(inv.get("local_partial") or [])
+        score = len(present)
+        score_of = len(required) if required else score
+        if score_of:
+            item["note"] = (
+                f"Local Partial {score}/{score_of} · Gate {item.get('gate') or '?'} · "
+                "hosted/independent evidence still required"
+            )
+            item["local_partial_score"] = score
+            item["local_partial_score_of"] = score_of
+        elif item.get("gate"):
+            item["note"] = item.get("note") or f"Blocker · Gate {item['gate']}"
+        enriched.append(item)
+    return enriched
