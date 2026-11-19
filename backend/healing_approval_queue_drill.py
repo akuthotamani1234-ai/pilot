@@ -49,19 +49,20 @@ def _linked_drill() -> dict:
 
 
 def run_healing_approval_queue_drill(*, ops_dir: Path | None = None) -> dict:
-    from .approvals import create, decide_approval
     from .finalization import folder_is_linked, write_text_unless_linked
-    from .healing_policy import reset_healing_approvals
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+    out_name = "healing_approval_queue_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     work = Path(ops_dir) if ops_dir else (ROOT / "artifacts" / "ops")
-    if folder_is_linked(work):
-        return _linked_drill()
-    work.mkdir(parents=True, exist_ok=True)
     db = work / "healing_approval_queue.sqlite"
-    if folder_is_linked(db):
+    if folder_is_linked(work) or folder_is_linked(db):
         return _linked_drill()
+    from .approvals import create, decide_approval
+    from .healing_policy import reset_healing_approvals
+
+    work.mkdir(parents=True, exist_ok=True)
     if db.exists():
         db.unlink()
     reset_healing_approvals()
@@ -120,12 +121,10 @@ def run_healing_approval_queue_drill(*, ops_dir: Path | None = None) -> dict:
             "Healing approval queue enforcement incomplete; production suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (Path(ops_dir) / "healing_approval_queue_drill.json") if ops_dir else EVIDENCE
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "healing_approval_queue_drill.json"
