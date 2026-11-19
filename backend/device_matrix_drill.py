@@ -16,11 +16,22 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "device_matrix_drill.json"
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "combined_device_matrix_snapshot",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def _load_rows(name: str) -> list[dict]:
+    from .finalization import folder_is_linked
+
     rows: list[dict] = []
     for root in (ROOT / "artifacts" / "ops", ROOT / "docs" / "ops-evidence"):
         path = root / name
-        if not path.is_file():
+        if folder_is_linked(path) or not path.is_file():
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -37,6 +48,10 @@ def _load_rows(name: str) -> list[dict]:
 
 def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     from .device_matrix import viewport_evidence_from_app_map
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_matrix()
 
     web_rows = _load_rows("device_matrix_evidence.json")
     # Controlled DemoStore walk supplies desktop+phone viewport evidence when missing.
@@ -105,12 +120,17 @@ def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             "live emulator/API24+ executed matrix still open"
         ),
     }
+    text = json.dumps(evidence, indent=2)
+    name = "device_matrix_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "device_matrix_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_matrix()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "device_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
