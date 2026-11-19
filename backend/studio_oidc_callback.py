@@ -6,6 +6,8 @@ returns a Studio session-shaped payload. Hosted IdP Studio SSO still open —
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import secrets
@@ -56,15 +58,26 @@ def reset_sso_logins() -> None:
     _LOGINS.clear()
 
 
+def _code_challenge(verifier: str) -> str:
+    """S256 challenge for a PKCE verifier. The verifier itself is not returned."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 def issue_sso_login() -> dict:
     """Start one Studio login. The callback must send this state back once.
 
-    The nonce stays on the server and is compared with the ID token.
-    Hosted IdP Studio SSO stays open.
+    The nonce and PKCE verifier stay on the server. The browser gets the
+    S256 challenge only. Hosted IdP Studio SSO stays open.
     """
     state = secrets.token_urlsafe(18)
     nonce = secrets.token_urlsafe(18)
-    _LOGINS[state] = {"nonce": nonce, "issued_at": time.time()}
+    verifier = secrets.token_urlsafe(32)
+    _LOGINS[state] = {
+        "nonce": nonce,
+        "issued_at": time.time(),
+        "code_verifier": verifier,
+    }
     while len(_LOGINS) > _LOGIN_MAX:
         _LOGINS.pop(next(iter(_LOGINS)))
     return {
@@ -72,6 +85,8 @@ def issue_sso_login() -> dict:
         "gate_i_complete": False,
         "state": state,
         "nonce": nonce,
+        "code_challenge": _code_challenge(verifier),
+        "code_challenge_method": "S256",
         "reason": "Studio login started; hosted IdP SSO still open",
     }
 
@@ -108,6 +123,7 @@ def consume_sso_login(state: str, *, now: float | None = None) -> dict:
         "gate_i_complete": False,
         "state": got,
         "nonce": str(row.get("nonce") or ""),
+        "code_verifier": str(row.get("code_verifier") or ""),
         "state_ok": True,
         "reason": "SSO login state matched the login Studio started",
     }

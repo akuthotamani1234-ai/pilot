@@ -31,7 +31,7 @@ export function App() {
   const [ssoCode, setSsoCode] = useState("");
   const [ssoState, setSsoState] = useState("");
   const [ssoNonce, setSsoNonce] = useState("");
-  const [ssoVerifier, setSsoVerifier] = useState("");
+  const [ssoChallenge, setSsoChallenge] = useState("");
   const [ssoRedirect, setSsoRedirect] = useState("");
   const [ssoNote, setSsoNote] = useState("");
 
@@ -55,7 +55,8 @@ export function App() {
       }
       setSsoState(started.state);
       setSsoNonce(started.nonce || "");
-      setSsoNote("Login started. Put this state and nonce on the authorize request. Hosted IdP still open.");
+      setSsoChallenge(started.code_challenge || "");
+      setSsoNote("Login started. Put this state, nonce, and code challenge on the authorize request. The verifier stays on the server. Hosted IdP still open.");
     } catch (err) {
       setSsoNote(err instanceof Error ? err.message : "Could not start a login");
     }
@@ -67,7 +68,6 @@ export function App() {
       const result = await exchangeSsoCode({
         code: ssoCode.trim(),
         state: ssoState,
-        codeVerifier: ssoVerifier,
         redirectUri: ssoRedirect,
       });
       if (result.ok && result.access_token && result.principal_bound !== false) {
@@ -245,6 +245,9 @@ export function App() {
         {ssoNonce ? (
           <p className="muted">Nonce for the authorize request: {ssoNonce}</p>
         ) : null}
+        {ssoChallenge ? (
+          <p className="muted">Code challenge (S256) for the authorize request: {ssoChallenge}</p>
+        ) : null}
         <label className="field">
           Authorization code
           <input
@@ -260,15 +263,6 @@ export function App() {
             value={ssoState}
             onChange={(e) => setSsoState(e.target.value)}
             placeholder="state from the authorize redirect"
-            autoComplete="off"
-          />
-        </label>
-        <label className="field">
-          Code verifier
-          <input
-            value={ssoVerifier}
-            onChange={(e) => setSsoVerifier(e.target.value)}
-            placeholder="PKCE code_verifier, when the IdP requires it"
             autoComplete="off"
           />
         </label>
