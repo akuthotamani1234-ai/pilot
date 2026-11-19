@@ -3,6 +3,7 @@ import json
 
 from backend.release_row import (
     from_run,
+    inventory_pages,
     load_saved_crawl,
     open_target,
     page_record,
@@ -72,6 +73,24 @@ def test_the_row_file_stays_in_order_when_a_later_step_is_stored_first(tmp_path)
     record = page_record({"url": "https://shop.example/saree", "page_type": "product",
                           "buttons": [{"text": "Add"}], "screenshot": "saree.png"})
     assert record["template"] == "product" and record["elements"] == ["Add"]
+
+
+def test_a_continue_button_that_opens_checkout_is_not_safe_work():
+    record = page_record({
+        "url": "https://shop.example/saree",
+        "page_type": "product",
+        "buttons": [
+            {"text": "Add"},
+            {"text": "Continue", "form_action": "/checkout"},
+            {"text": "Continue", "onclick": "location='/checkout'"},
+        ],
+        "links": [{"text": "Cart", "href": "/cart"}],
+    })
+    assert [item["safe"] for item in record["actions"] if item["name"] == "Continue"] == [False, False]
+    assert [item["safe"] for item in record["actions"] if item["name"] == "Add"] == [True]
+    assert [item["safe"] for item in record["actions"] if item["name"] == "Cart"] == [True]
+    found = inventory_pages([record], done=[], page_budget=5)
+    assert [item["action"] for item in found["safe_states"]] == ["Add", "Cart"]
 
 
 def test_a_saved_crawl_can_continue_and_a_zero_budget_uses_the_cap(tmp_path):
