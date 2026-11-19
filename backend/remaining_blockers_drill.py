@@ -72,6 +72,7 @@ BLOCKERS = (
             "apidemos_interaction_drill.json",
             "workflow_dispatch_contract_drill.json",
             "hosted_ci_runner_matrix_drill.json",
+            "ci_artifact_upload_rehearsal_drill.json",
         ],
     },
     {
@@ -84,6 +85,7 @@ BLOCKERS = (
             "portfolio_artifact_manifest_drill.json",
             "workflow_dispatch_contract_drill.json",
             "hosted_ci_runner_matrix_drill.json",
+            "ci_artifact_upload_rehearsal_drill.json",
         ],
     },
     {

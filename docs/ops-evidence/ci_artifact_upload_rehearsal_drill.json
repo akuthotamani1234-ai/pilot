@@ -1,0 +1,83 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "ci_artifact_upload_rehearsal",
+  "ran_at": "2026-11-19T00:46:54Z",
+  "kind": "local_upload_rehearsal",
+  "staging_dir": "artifacts/ops/ci-upload-rehearsal",
+  "android": {
+    "artifacts": [
+      {
+        "name": "android_appium_product_matrix_drill.json",
+        "bytes": 2724,
+        "sha256": "83e59bbd23f176a781cf92347c1d15460a3a97493021552d80e0541c8aeb9bb1",
+        "ci_upload_path": "docs/ops-evidence/android_appium_product_matrix_drill.json"
+      },
+      {
+        "name": "android_emulator_smoke_api24_drill.json",
+        "bytes": 899,
+        "sha256": "966060421b89626bfe81d31770f1f75ccef7e4b840becf9dded60d613716e8b0",
+        "ci_upload_path": "docs/ops-evidence/android_emulator_smoke_api24_drill.json"
+      },
+      {
+        "name": "multi_api_android_matrix_drill.json",
+        "bytes": 1601,
+        "sha256": "833b94e2a8e9388fe383cb57164db5421bf615288c2fa2598d60f02c7372ac5b",
+        "ci_upload_path": "docs/ops-evidence/multi_api_android_matrix_drill.json"
+      },
+      {
+        "name": "device_artifact_manifest_drill.json",
+        "bytes": 2753,
+        "sha256": "a73c334d94560a625b849c8bdb96799ce221a33de010408c97eb67753e6e763a",
+        "ci_upload_path": "docs/ops-evidence/device_artifact_manifest_drill.json"
+      },
+      {
+        "name": "android_appium_ci_contract.json",
+        "bytes": 1186,
+        "sha256": "8b9b0f657b136571b95940ac0fa5c6a5f314b6bc12c20047c57f899a9173de4b",
+        "ci_upload_path": "docs/ops-evidence/android_appium_ci_contract.json"
+      },
+      {
+        "name": "multi_device_ci_contract.json",
+        "bytes": 1131,
+        "sha256": "44f4142dac7cf536ea36f9ba62b19a867fc5c090991a304f78d2e57fd9b63071",
+        "ci_upload_path": "docs/ops-evidence/multi_device_ci_contract.json"
+      }
+    ],
+    "missing": [],
+    "ok": true
+  },
+  "browsers": {
+    "artifacts": [
+      {
+        "name": "multi_browser_portfolio_suite_drill.json",
+        "bytes": 520,
+        "sha256": "f540b12b528dc3ddc763d9b8341b1382a0aac81d433be181f065c180906abf04",
+        "ci_upload_path": "docs/ops-evidence/multi_browser_portfolio_suite_drill.json"
+      },
+      {
+        "name": "portfolio_artifact_manifest_drill.json",
+        "bytes": 2706,
+        "sha256": "620e817d6304711fe72bbc2bd54723a222d14f7d4e009e724797223561a69fa6",
+        "ci_upload_path": "docs/ops-evidence/portfolio_artifact_manifest_drill.json"
+      },
+      {
+        "name": "multi_browser_ci_contract.json",
+        "bytes": 1211,
+        "sha256": "e9fcf8f35f310b95a7c6cdf4a7f0427306cef984ede2b5ee1d8772b1f14407e0",
+        "ci_upload_path": "docs/ops-evidence/multi_browser_ci_contract.json"
+      },
+      {
+        "name": "compatibility_portfolio_drill.json",
+        "bytes": 792,
+        "sha256": "84f89843e2a3324457720bf31925e73af4da341711e658e2c0262463b5728d6a",
+        "ci_upload_path": "docs/ops-evidence/compatibility_portfolio_drill.json"
+      }
+    ],
+    "missing": [],
+    "ok": true
+  },
+  "workflow_contracts_ok": true,
+  "ok": true,
+  "reason": "Local CI upload rehearsal staged 6 android + 4 browser artifacts; broad hosted multi-device/browser runners still open"
+}

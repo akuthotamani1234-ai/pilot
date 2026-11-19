@@ -1620,6 +1620,26 @@ def ops_paging_ack():
     return {"gate_h_complete": False, "paging_ack": evidence}
 
 
+@app.post("/api/ops/drills/ci-artifact-upload-rehearsal")
+def ops_ci_artifact_upload_rehearsal():
+    """Gates D/F: local CI artifact staging rehearsal (hosted runners still open)."""
+    from backend.ci_artifact_upload_rehearsal_drill import (
+        run_ci_artifact_upload_rehearsal_drill,
+    )
+    evidence = run_ci_artifact_upload_rehearsal_drill()
+    _audit(
+        "ops_ci_artifact_upload_rehearsal",
+        ok=bool(evidence.get("ok")),
+        android=len((evidence.get("android") or {}).get("artifacts") or []),
+        browsers=len((evidence.get("browsers") or {}).get("artifacts") or []),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ci_artifact_upload_rehearsal": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

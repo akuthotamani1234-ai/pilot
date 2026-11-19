@@ -642,6 +642,14 @@ def readiness() -> dict:
                 else "No hosted CI runner matrix snapshot"
             ),
         },
+        "ci_artifact_upload_rehearsal_drill": {
+            "ready": _ops_evidence("ci_artifact_upload_rehearsal_drill.json"),
+            "reason": (
+                "Local CI artifact upload rehearsal present; hosted runners still open"
+                if _ops_evidence("ci_artifact_upload_rehearsal_drill.json")
+                else "No CI artifact upload rehearsal"
+            ),
+        },
         "hosted_idp_readiness_drill": {
             "ready": _ops_evidence("hosted_idp_readiness_drill.json"),
             "reason": (

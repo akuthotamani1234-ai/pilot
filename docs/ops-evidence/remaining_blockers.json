@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T00:24:24Z",
+  "ran_at": "2026-11-19T00:47:06Z",
   "ok": true,
   "blockers": [
     {
@@ -99,7 +99,8 @@
         "device_artifact_manifest_drill.json",
         "apidemos_interaction_drill.json",
         "workflow_dispatch_contract_drill.json",
-        "hosted_ci_runner_matrix_drill.json"
+        "hosted_ci_runner_matrix_drill.json",
+        "ci_artifact_upload_rehearsal_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -110,7 +111,8 @@
         "device_artifact_manifest_drill.json",
         "apidemos_interaction_drill.json",
         "workflow_dispatch_contract_drill.json",
-        "hosted_ci_runner_matrix_drill.json"
+        "hosted_ci_runner_matrix_drill.json",
+        "ci_artifact_upload_rehearsal_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -123,7 +125,8 @@
         "multi_browser_ci_contract.json",
         "portfolio_artifact_manifest_drill.json",
         "workflow_dispatch_contract_drill.json",
-        "hosted_ci_runner_matrix_drill.json"
+        "hosted_ci_runner_matrix_drill.json",
+        "ci_artifact_upload_rehearsal_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -131,7 +134,8 @@
         "multi_browser_ci_contract.json",
         "portfolio_artifact_manifest_drill.json",
         "workflow_dispatch_contract_drill.json",
-        "hosted_ci_runner_matrix_drill.json"
+        "hosted_ci_runner_matrix_drill.json",
+        "ci_artifact_upload_rehearsal_drill.json"
       ],
       "local_partial_missing": []
     },
