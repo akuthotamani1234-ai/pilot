@@ -46,6 +46,30 @@ end
 return 1
 """
 
+# Requeue only while the task is still leased and the lease is already expired.
+# A worker that claimed it again after this process read the hash keeps the task.
+_RECOVER_LEASE = """
+local status = redis.call('HGET', KEYS[1], 'status')
+if status ~= 'leased' then
+  return 0
+end
+local until_n = tonumber(redis.call('HGET', KEYS[1], 'lease_until'))
+local now = tonumber(ARGV[1])
+if until_n ~= nil and until_n >= now then
+  return 0
+end
+redis.call('HSET', KEYS[1],
+  'status', ARGV[2],
+  'lease_owner', '',
+  'lease_until', '',
+  'error_class', 'lease_expired',
+  'updated_at', ARGV[1])
+if ARGV[2] == 'retry_wait' then
+  redis.call('ZADD', KEYS[2], now, ARGV[3])
+end
+return 1
+"""
+
 
 class RedisDurableQueue:
     """Redis hash + ZSET queue with leases, retries, and idempotency keys."""
@@ -170,11 +194,19 @@ class RedisDurableQueue:
         self._r.zadd(self._pending_key(run_id), {task_id: now})
         return task
 
+    def _recover_script(self):
+        script = getattr(self, "_recover_lease", None)
+        if script is None:
+            script = self._r.register_script(_RECOVER_LEASE)
+            self._recover_lease = script
+        return script
+
     def recover_expired(self) -> list[str]:
         recovered = []
         # Scan known runs via pending keys is expensive; recover from listed run indexes
         # by checking leased tasks referenced in any pending zset members + run sets.
         # Practical path: iterate run sets discovered from pending key pattern.
+        script = self._recover_script()
         for key in self._r.scan_iter(match=f"{self.prefix}:run:*"):
             run_id = key.rsplit(":", 1)[-1]
             for task_id in self._r.smembers(key):
@@ -183,20 +215,14 @@ class RedisDurableQueue:
                     continue
                 if row.get("lease_until") is not None and row["lease_until"] >= _now():
                     continue
+                status = "retry_wait" if row["attempt"] < row["max_attempts"] else "failed"
                 now = _now()
-                if row["attempt"] < row["max_attempts"]:
-                    status = "retry_wait"
-                else:
-                    status = "failed"
-                row["status"] = status
-                row["lease_owner"] = None
-                row["lease_until"] = None
-                row["error_class"] = "lease_expired"
-                row["updated_at"] = now
-                self._dump(row)
-                if status == "retry_wait":
-                    self._r.zadd(self._pending_key(run_id), {task_id: now})
-                recovered.append(task_id)
+                result = script(
+                    keys=[self._task_key(task_id), self._pending_key(run_id)],
+                    args=[str(now), status, task_id],
+                )
+                if int(result) == 1:
+                    recovered.append(task_id)
         return recovered
 
     def claim(self, *, worker_id: str, run_id: str | None = None) -> dict | None:
