@@ -414,13 +414,22 @@ def _read(results_file: Path) -> list[dict]:
 
 
 def _relative(results: list[dict], run_dir: Path) -> None:
+    from ..finalization import folder_is_linked
+    run_dir = Path(run_dir)
     for r in results:  # screenshot / trace paths relative to the run folder, for the HTML report
         for key in ("screenshot", "trace"):
-            if r.get(key):
-                try:
-                    r[key] = str(Path(r[key]).resolve().relative_to(run_dir.resolve())).replace("\\", "/")
-                except ValueError:
-                    pass
+            raw = r.get(key)
+            if not raw:
+                continue
+            path = Path(raw)
+            target = path if path.is_absolute() else run_dir / path
+            if folder_is_linked(run_dir) or folder_is_linked(target):
+                r[key] = ""
+                continue
+            try:
+                r[key] = str(path.resolve().relative_to(run_dir.resolve())).replace("\\", "/")
+            except ValueError:
+                pass
 
 
 REAL_CHECK = ("product_defect", "assertion_failure", "auth_problem", "test_data")  # the script reached a real check
