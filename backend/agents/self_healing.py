@@ -59,7 +59,7 @@ def _script_is_linked(test_dir: Path, name: str) -> bool:
     from ..finalization import folder_is_linked
     if not name or path.is_absolute() or ".." in path.parts or folder_is_linked(test_dir):
         return True
-    return (test_dir / name).is_symlink()
+    return folder_is_linked(test_dir / name)
 
 
 def _file_with(selector: str, test_dir: Path, failed_file: str) -> str | None:

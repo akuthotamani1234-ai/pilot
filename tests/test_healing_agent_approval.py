@@ -182,6 +182,48 @@ def test_a_repair_does_not_follow_a_link_into_another_script(tmp_path, monkeypat
     assert out["rerun_only"] == ["test_flows_ai.py::test_ai_flow_6"]
 
 
+def test_a_script_name_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents import self_healing
+    monkeypatch.setattr(self_healing, "llm_enabled", lambda: False)
+    secret = "tenant-b-only-script-name"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_flows_ai.py").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "linked").symlink_to(other, target_is_directory=True)
+    refused = self_healing_agent({
+        "run_dir": str(run), "app_map": [], "failures": [{
+            "source": "test", "category": "test_defect",
+            "nodeid": "linked/test_flows_ai.py::test_ai_flow_6",
+            "file": "linked/test_flows_ai.py", "test": "test_ai_flow_6", "error": ERR,
+        }],
+    })
+    assert refused["healing_log"][0]["change"] == "the script is a link"
+    assert (other / "test_flows_ai.py").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    own = tmp_path / "own"
+    own_tests = own / "generated_tests"
+    own_tests.mkdir(parents=True)
+    (own_tests / "test_flows_ai.py").write_text(CODE, encoding="utf-8")
+    healed = self_healing_agent({
+        "run_dir": str(own), "app_map": [], "failures": [{
+            "source": "test", "category": "test_defect",
+            "nodeid": "test_flows_ai.py::test_ai_flow_6",
+            "file": "test_flows_ai.py", "test": "test_ai_flow_6", "error": ERR,
+        }],
+    })
+    written = (own_tests / "test_flows_ai.py").read_text(encoding="utf-8")
+    assert "visible=true" in written
+    assert secret not in written
+    assert (other / "test_flows_ai.py").read_text(encoding="utf-8") == secret
+    assert healed["rerun_only"] == ["test_flows_ai.py::test_ai_flow_6"]
+
+
 def test_a_repair_does_not_follow_a_link_into_another_folder(tmp_path):
     secret = b"tenant-b-only-heal"
     other = tmp_path / "other"
