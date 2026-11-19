@@ -192,6 +192,11 @@ def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
     assert risky(["Log out", "", "", "/logout"])  # pay / delete / log out: even a link
     assert risky(["Buy now", "", "", "/product/1"])
     assert risky(["Delete", "", "", "/items"])
+    assert risky(["Continue", "", "", "https://www.paypal.com/cgi-bin/webscr"])
+    assert risky(["Continue", "", "", "/checkout.html"])
+    assert risky(["Continue", "", "", "/cart/checkout%2Ehtml"])
+    assert not risky(["Cart", "", "", "http://shop.example/index.php?rt=checkout/cart"])
+    assert not risky(["Saree", "", "", "/product/buy-saree"])
 
 
 def test_blog_posts_whose_links_say_view_post_open_with_the_name_on_their_card(site):
