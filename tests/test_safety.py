@@ -148,6 +148,34 @@ def test_generated_tests_and_started_apps_get_no_api_keys():
     assert clean_env(env, keep_test_account=True) == {"PATH": "x", "TEST_USERNAME": "u", "TEST_PASSWORD": "p"}
 
 
+def test_a_saved_account_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.secret_store import load_account, save_account
+
+    secret = b"tenant-b-only-account"
+    other = tmp_path / "other"
+    nested = other / "accounts"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "shop.test.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_account("shop.test", {"username": "ours", "password": "Qa@123456x9Z"}, linked / "accounts") is None
+    assert load_account("shop.test", linked / "accounts") is None
+    assert save_account("shop.test", {"username": "ours", "password": "Qa@123456x9Z"}, linked / "fresh") is None
+    assert not (other / "fresh").exists()
+    assert (nested / "shop.test.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    saved = save_account("shop.test", {"username": "ours@example.com", "password": "Qa@123456x9Z"}, real)
+    assert saved is not None and saved.is_file() and not saved.is_symlink()
+    loaded = load_account("shop.test", real)
+    assert loaded["username"] == "ours@example.com"
+    assert loaded["password"] == "Qa@123456x9Z"
+    assert secret not in saved.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_saved_account_does_not_follow_a_link(tmp_path):
     from backend.secret_store import load_account, save_account
     secret = "tenant-b-only-account-file"
