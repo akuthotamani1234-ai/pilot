@@ -25,6 +25,7 @@ BLOCKERS = (
             "failover_rto_drill.json",
             "paging_escalation_drill.json",
             "hosted_oncall_contract_drill.json",
+            "hosted_oncall_readiness_drill.json",
         ],
     },
     {
@@ -39,6 +40,7 @@ BLOCKERS = (
             "sso_tenant_acl_drill.json",
             "dual_tenant_oidc_acl_drill.json",
             "hosted_idp_contract_drill.json",
+            "hosted_idp_readiness_drill.json",
         ],
     },
     {
