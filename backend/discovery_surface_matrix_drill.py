@@ -59,14 +59,16 @@ def _signals_from(payload: dict) -> dict[str, bool]:
     surfaces = payload.get("surfaces") if isinstance(payload.get("surfaces"), dict) else {}
     rich = surfaces.get("rich_controls") if isinstance(surfaces.get("rich_controls"), dict) else {}
     pages = payload.get("pages_walked") or surfaces.get("pages") or []
+    # Prefer top-level keys; fall back to nested evidence blob for older artifacts.
+    nested = surfaces.get("evidence") if isinstance(surfaces.get("evidence"), dict) else {}
     out = {
         "frames": _countish(surfaces.get("frames")),
         "shadow": _countish(surfaces.get("shadow")),
         "dialogs": _countish(surfaces.get("dialogs")),
         "downloads": _countish(surfaces.get("downloads")),
-        "lazy": _truthy(surfaces.get("lazy")),
-        "metadata": _truthy(surfaces.get("metadata")),
-        "viewports": _truthy(surfaces.get("viewports")),
+        "lazy": _countish(surfaces.get("lazy") or nested.get("lazy")),
+        "metadata": _countish(surfaces.get("metadata") or nested.get("metadata")),
+        "viewports": _countish(surfaces.get("viewports") or nested.get("viewports")),
         "canvas": bool(rich.get("canvas")),
         "file_upload": bool(rich.get("file_upload")),
         "web_component": bool(rich.get("web_component")),

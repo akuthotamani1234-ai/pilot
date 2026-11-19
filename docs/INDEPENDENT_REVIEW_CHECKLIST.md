@@ -17,6 +17,7 @@ or issue #22 Phase 7 review boxes can close.
 | Ops | Incident runbook + paging / escalation (hosted on-call still open) | `docs/INCIDENT_RUNBOOK.md`, `paging_rehearsal.json`, `paging_escalation_drill.json` |
 | Evidence pack | SHA-256 inventory of all ops-evidence JSON (unsigned) | `independent_review_pack.json` |
 | Review readiness | Checklist + pack + blockers inventory scored (unsigned) | `independent_review_readiness_drill.json` |
+| Review summary | Human-readable Markdown summary for reviewers (unsigned) | `INDEPENDENT_REVIEW_SUMMARY.md` |
 | Android | Appium product matrix honesty (API26+; API24 smoke separate) | `android_appium_product_matrix_drill.json` |
 | Portfolios | Multi-browser suite does not over-claim Gate F complete | `multi_browser_portfolio_suite_drill.json` |
 

@@ -50,7 +50,7 @@ def progress() -> dict:
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
          "note": "Multi-store DR + failover RTO pack + paging; hosted multi-region DR/on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "Loopback OIDC PKCE + dual-tenant ACL; hosted IdP Studio SSO still open"},
+         "note": "React SSO helper + PKCE/dual-tenant ACL; hosted IdP Studio SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "Demo 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party still open"},
     ]
@@ -209,8 +209,11 @@ def progress() -> dict:
         {"id": "G-review-checklist", "label": "Independent review checklist documented", "status": "done"},
         {"id": "G-review-pack", "label": "Independent review evidence pack (hashed, unsigned)", "status": "done"},
         {"id": "G-review-readiness", "label": "Independent review readiness score (unsigned)", "status": "done"},
+        {"id": "G-review-summary", "label": "Independent review Markdown summary (unsigned)", "status": "done"},
         {"id": "blockers-inventory", "label": "Remaining hard-open blockers inventory published", "status": "done"},
         {"id": "sidebar-blockers", "label": "Studio sidebar lists hard-open blockers explicitly", "status": "done"},
+        {"id": "I-dashboard-sso-helper", "label": "React dashboard SSO code/token helper panel", "status": "done"},
+        {"id": "A-surface-top-level", "label": "Promote lazy/metadata/viewport signals to top-level", "status": "done"},
         {"id": "G-review", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = [u for u in upcoming if u.get("status") == "open"]

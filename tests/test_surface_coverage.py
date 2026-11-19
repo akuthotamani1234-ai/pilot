@@ -44,6 +44,9 @@ def test_summarize_counts_frames_shadow_and_api_seeds():
     assert out["evidence"]["lazy"]["pages_with_lazy"] == 1
     assert out["evidence"]["metadata"]["pages_with_locale"] == 1
     assert out["evidence"]["viewports"]["mobile_checked"] == 1
+    assert out["lazy"]["pages_with_lazy"] == 1
+    assert out["metadata"]["pages_with_locale"] == 1
+    assert out["viewports"]["mobile_checked"] == 1
     assert out["dialogs"]["pages_with_dialogs"] == 1
     assert out["dialogs"]["form_dialogs"] == 1
     assert out["dialogs"]["modal_buttons"] == 1

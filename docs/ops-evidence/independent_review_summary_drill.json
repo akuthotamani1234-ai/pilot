@@ -1,0 +1,12 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_summary",
+  "ran_at": "2026-11-19T00:03:50Z",
+  "signed_off": false,
+  "summary_path": "docs/ops-evidence/INDEPENDENT_REVIEW_SUMMARY.md",
+  "artifact_count": 89,
+  "open_blockers": 6,
+  "readiness_score": 5,
+  "ok": true,
+  "reason": "Independent review summary written (89 artifacts, 6 blockers); human sign-off still pending"
+}

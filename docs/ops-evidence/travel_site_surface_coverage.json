@@ -1,7 +1,7 @@
 {
   "gate_a_surfaces_complete": false,
   "drill": "travel_site_surface_coverage",
-  "ran_at": "2026-11-19T00:00:54Z",
+  "ran_at": "2026-11-19T00:03:50Z",
   "fixture": "TravelSite",
   "pages_walked": [
     "home",
@@ -31,6 +31,24 @@
     "downloads": {
       "pages_with_downloads": 0,
       "links": 0
+    },
+    "lazy": {
+      "pages_with_lazy": 3,
+      "items_seen": 3
+    },
+    "metadata": {
+      "pages_with_locale": 3,
+      "pages_with_skeleton": 0,
+      "title_or_meta": 3
+    },
+    "viewports": {
+      "desktop_or_default": 3,
+      "mobile_checked": 1
+    },
+    "api": {
+      "network_seeded": 0,
+      "openapi_or_scrape": 1,
+      "blocked_requests": 0
     },
     "rich_controls": {
       "canvas": 0,

@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   decideApproval,
+  exchangeSsoCode,
   loadApprovals,
   loadBlueprint,
+  loadDashboardToken,
   loadReadiness,
+  saveDashboardToken,
   type ApprovalRow,
   type BlueprintProgress,
   type EnterpriseReadiness,
@@ -23,10 +26,34 @@ export function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [token, setToken] = useState(() => loadDashboardToken());
+  const [ssoCode, setSsoCode] = useState("");
+  const [ssoNote, setSsoNote] = useState("");
 
   async function refreshApprovals() {
     const rows = await loadApprovals("pending");
     setApprovals(rows);
+  }
+
+  function onSaveToken() {
+    saveDashboardToken(token);
+    setSsoNote(token.trim() ? "Bearer token saved for approvals" : "Token cleared");
+  }
+
+  async function onExchangeCode() {
+    setSsoNote("Exchanging…");
+    try {
+      const result = await exchangeSsoCode(ssoCode.trim());
+      if (result.ok && result.access_token) {
+        saveDashboardToken(result.access_token);
+        setToken(result.access_token);
+        setSsoNote("OIDC code exchanged; token saved (hosted IdP still open)");
+      } else {
+        setSsoNote(result.reason || "SSO exchange failed");
+      }
+    } catch (err) {
+      setSsoNote(err instanceof Error ? err.message : "SSO exchange failed");
+    }
   }
 
   useEffect(() => {
@@ -105,8 +132,62 @@ export function App() {
               </li>
             ))}
           </ol>
+          {(blueprint.blockers || []).length ? (
+            <>
+              <p className="now">
+                Hard-open blockers: {blueprint.counts.blockers_open ?? blueprint.blockers?.length}
+              </p>
+              <ol className="gates">
+                {(blueprint.blockers || []).map((row) => (
+                  <li key={row.id} className="open">
+                    <span className="pill">next</span>
+                    <span>
+                      <strong>{row.label}</strong>
+                      <small>{row.note || "Blocker"}</small>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : null}
         </section>
       ) : null}
+
+      <section className="panel" aria-labelledby="ssoTitle">
+        <div className="panel-head">
+          <h2 id="ssoTitle">Dashboard auth / SSO helper</h2>
+          <p>Gate I — loopback OIDC callback; hosted IdP login still open</p>
+        </div>
+        <label className="field">
+          Bearer token
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste JWT / dashboard bearer"
+            autoComplete="off"
+          />
+        </label>
+        <div className="actions">
+          <button type="button" onClick={onSaveToken}>
+            Save token
+          </button>
+        </div>
+        <label className="field">
+          Authorization code
+          <input
+            value={ssoCode}
+            onChange={(e) => setSsoCode(e.target.value)}
+            placeholder="OIDC code from /authorize redirect"
+            autoComplete="off"
+          />
+        </label>
+        <div className="actions">
+          <button type="button" onClick={onExchangeCode} disabled={!ssoCode.trim()}>
+            Exchange via /api/sso/callback
+          </button>
+        </div>
+        {ssoNote ? <p className="muted">{ssoNote}</p> : null}
+      </section>
 
       <section className="panel" aria-labelledby="approvalsTitle">
         <div className="panel-head">

@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T00:00:54Z",
+  "ran_at": "2026-11-19T00:03:50Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
@@ -19,8 +19,8 @@
     },
     {
       "name": "admin_portal_surface_coverage.json",
-      "bytes": 2383,
-      "sha256": "e5fbfe19b2645c5dd44e239e895a45088d4762bf079c07ef79c119d9a299a65d"
+      "bytes": 2754,
+      "sha256": "aecfdb90e5fa8dbfca00046a9c0031db86e3e60dd638f6493b61288fbe329e5d"
     },
     {
       "name": "android_adb_probe.json",
@@ -89,8 +89,8 @@
     },
     {
       "name": "classic_shop_surface_coverage.json",
-      "bytes": 2392,
-      "sha256": "6896f4e52e32c8ce0bbb34001e845b8279377af0565aaf90e65040694351136f"
+      "bytes": 2763,
+      "sha256": "505710b4784c7f453af84c14650c707d94f97c9cdf63a8f47e78eddf012c416a"
     },
     {
       "name": "compatibility_portfolio_drill.json",
@@ -124,8 +124,8 @@
     },
     {
       "name": "demo_store_surface_coverage.json",
-      "bytes": 2318,
-      "sha256": "744960a256cf05d42ff313ba47bf4c458d16e9da5bb44120bb878bddc1a4a00a"
+      "bytes": 2689,
+      "sha256": "89e7029bc91ad8e7854bd172884816f26ebf4bba7af815f552656311320e35d2"
     },
     {
       "name": "device_artifact_manifest_drill.json",
@@ -144,8 +144,8 @@
     },
     {
       "name": "discovery_surface_matrix_drill.json",
-      "bytes": 2440,
-      "sha256": "f23a955ba6d4848a654416cad7958099ec1d6e3bc2600ec95b97ff055515e3b8"
+      "bytes": 2428,
+      "sha256": "6dbdf5d3262d713c3a86c0992fcc59121009b9350566abdf69ffac2a398dd528"
     },
     {
       "name": "dual_tenant_oidc_acl_drill.json",
@@ -439,8 +439,8 @@
     },
     {
       "name": "travel_site_surface_coverage.json",
-      "bytes": 2324,
-      "sha256": "35e3f9940262403e933288b72a2ac860ffd14a0aad4365c5c27dd7407a085382"
+      "bytes": 2695,
+      "sha256": "32616d7bdfc39c02a7684cc5dfeb73e0d1f333a1e21aeb5bb893aeb68765f14d"
     },
     {
       "name": "visual_portfolio_drill.json",

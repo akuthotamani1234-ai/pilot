@@ -11,6 +11,7 @@ export type BlueprintProgress = {
   active?: GateRow | null;
   gates: GateRow[];
   upcoming: GateRow[];
+  blockers?: GateRow[];
   counts: {
     gates_strong_or_done: number;
     gates_partial: number;
@@ -18,6 +19,7 @@ export type BlueprintProgress = {
     gates_total: number;
     phases_done?: number;
     phases_total?: number;
+    blockers_open?: number;
   };
 };
 
@@ -93,4 +95,34 @@ export async function decideApproval(id: string, answer: string): Promise<Approv
   });
   if (!res.ok) throw new Error("Decide failed");
   return res.json();
+}
+
+/** Exchange an OIDC authorization code via Studio callback helper. */
+export async function exchangeSsoCode(code: string, state = ""): Promise<{
+  ok: boolean;
+  access_token?: string;
+  reason?: string;
+  gate_i_complete?: boolean;
+}> {
+  const qs = new URLSearchParams({ code, state });
+  const res = await fetch(`/api/sso/callback?${qs.toString()}`);
+  const body = await res.json().catch(() => ({}));
+  return body;
+}
+
+export function saveDashboardToken(token: string): void {
+  try {
+    if (token.trim()) localStorage.setItem("qpilot_dashboard_token", token.trim());
+    else localStorage.removeItem("qpilot_dashboard_token");
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDashboardToken(): string {
+  try {
+    return localStorage.getItem("qpilot_dashboard_token") || "";
+  } catch {
+    return "";
+  }
 }
