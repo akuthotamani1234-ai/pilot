@@ -111,13 +111,20 @@ def write_local_metrics_snapshot(*, ops_dir: Path | None = None) -> dict:
 
 def run_local_load_probe(*, requests: int = 40, ops_dir: Path | None = None) -> dict:
     """Hit /api/v1/blueprint/progress via TestClient. Not a production soak."""
+    from .finalization import folder_is_linked
+
+    base = _ops_folder(ops_dir)
+    out_name = "local_load_probe.json"
+    docs = ROOT / "docs" / "ops-evidence"
+    if base is None or folder_is_linked(base / out_name):
+        return _linked_drill("local_api_load_probe")
+    if ops_dir is None and (folder_is_linked(docs) or folder_is_linked(docs / out_name)):
+        return _linked_drill("local_api_load_probe")
+
     from fastapi.testclient import TestClient
 
     from backend.server import app
 
-    base = _ops_folder(ops_dir)
-    if base is None:
-        return _linked_drill("local_api_load_probe")
     base.mkdir(parents=True, exist_ok=True)
     client = TestClient(app)
     headers = {"host": "127.0.0.1"}
@@ -145,10 +152,9 @@ def run_local_load_probe(*, requests: int = 40, ops_dir: Path | None = None) -> 
         "p95_ms": round(lat[max(0, int(len(lat) * 0.95) - 1)], 2) if lat else 0,
         "reason": "Local TestClient probe only; soak against controlled fixture / prod-like load still open",
     }
-    if not _write_ops(base, "local_load_probe.json", evidence):
+    if folder_is_linked(base / out_name) or not _write_ops(base, out_name, evidence):
         return _linked_drill("local_api_load_probe")
-    docs = ROOT / "docs" / "ops-evidence"
-    if ops_dir is None and _ops_folder(docs):
+    if ops_dir is None and _ops_folder(docs) and not folder_is_linked(docs / out_name):
         docs.mkdir(parents=True, exist_ok=True)
         _write_ops(docs, "local_load_probe.json", evidence)
     return evidence

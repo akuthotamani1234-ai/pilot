@@ -3,7 +3,18 @@ from backend.blueprint_progress import progress
 from backend.ops_drill import run_backup_restore_drill, run_local_load_probe, write_local_metrics_snapshot
 
 
-def test_a_backup_drill_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_backup_drill_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    calls = {"n": 0}
+    real_client = TestClient
+
+    def _client(*args, **kwargs):
+        calls["n"] += 1
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr("fastapi.testclient.TestClient", _client)
+
     secret = "tenant-b-only-ops"
     other = tmp_path / "other"
     kept = other / "drill_src" / "keep.txt"
@@ -21,6 +32,7 @@ def test_a_backup_drill_does_not_follow_a_link_into_another_folder(tmp_path):
     assert evidence["ok"] is False
     assert "link" in metrics["reason"]
     assert "link" in probe["reason"]
+    assert calls["n"] == 0
     assert kept.read_bytes() == original
     assert secret not in evidence["reason"]
     assert not (other / "backup_restore_drill.json").exists()
@@ -29,10 +41,25 @@ def test_a_backup_drill_does_not_follow_a_link_into_another_folder(tmp_path):
     assert not (other / "drill_backup").exists()
     assert not (other / "drill_restore").exists()
 
-    real = tmp_path / "real"
-    real.mkdir()
-    saved = run_backup_restore_drill(ops_dir=real)
-    written = (real / "backup_restore_drill.json").read_text(encoding="utf-8")
+    folder = tmp_path / "real"
+    folder.mkdir()
+    planted = folder / "local_load_probe.json"
+    planted.symlink_to(kept)
+    skipped = run_local_load_probe(requests=2, ops_dir=folder)
+    assert skipped["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
+    probed = run_local_load_probe(requests=2, ops_dir=folder)
+    assert probed["ok"] == 2
+    assert calls["n"] == 1
+    assert secret not in (folder / "local_load_probe.json").read_text(encoding="utf-8")
+
+    saved = run_backup_restore_drill(ops_dir=folder)
+    written = (folder / "backup_restore_drill.json").read_text(encoding="utf-8")
     assert saved["ok"] is True
     assert "gate-h-local" in written
     assert secret not in written
