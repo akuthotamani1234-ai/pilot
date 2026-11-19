@@ -347,6 +347,10 @@ def require_device(device_id: str, devices: list[dict]) -> None:
 
 def validate_apk(path: Path) -> Path:
     """Validate an APK from controlled storage, including archive structure and size."""
+    from .finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path):
+        raise AndroidEnvironmentError("The Android package is a link.")
     path = path.resolve()
     if path.suffix.lower() != ".apk":
         raise AndroidEnvironmentError("Upload an Android .apk file (filename must end with .apk).")
