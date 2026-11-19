@@ -26,6 +26,56 @@ def _virtual_clock(monkeypatch):
     monkeypatch.setattr(time, "monotonic", lambda: real() + offset[0])
 
 
+def test_user_like_testing_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-interact"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    called = []
+
+    def session(stop):
+        return SimpleNamespace(
+            device=SimpleNamespace(stop_path=stop, config={}, max_tries=5, deadline=time.monotonic() + 30),
+            used=0, reserve=0, ai_journeys=lambda ask, requirements: called.append(requirements),
+        )
+
+    linked = session(run / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as spent:
+        android_interact.Session.spend(linked)
+    assert secret not in str(spent.value)
+    assert linked.used == 0
+    with pytest.raises(AndroidEnvironmentError, match="link") as journey:
+        android_interact.Session.journeys(linked, ask=lambda: None, requirements="home-own", stopped="")
+    assert secret not in str(journey.value)
+    assert called == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped = session(real / "STOP")
+    with pytest.raises(android_interact.Budget, match="Stop requested"):
+        android_interact.Session.spend(stopped)
+    assert stopped.used == 0
+    assert android_interact.Session.journeys(stopped, ask=lambda: None, requirements="home-own", stopped="") == ""
+    assert called == []
+
+    open_run = session(real / "missing")
+    android_interact.Session.spend(open_run)
+    assert open_run.used == 1
+    assert android_interact.Session.journeys(open_run, ask=lambda: None, requirements="home-own", stopped="") == ""
+    assert called == ["home-own"]
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 # ------------------------------------------------------------------ 1. what is never pressed, in every mode
 
 NEVER = ["Checkout", "Proceed To Checkout", "Place order", "Place Order", "Confirm order", "Buy now", "Pay now",
