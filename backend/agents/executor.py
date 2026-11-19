@@ -191,6 +191,15 @@ def _login_recipe(state: QAState) -> dict:
             "password": form["password"], "submit": form.get("submit") or ""}
 
 
+def _owned_path(path: Path) -> str:
+    """This path when it is a real file or folder. A link is left out."""
+    from ..finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path):
+        return ""
+    return str(path.resolve())
+
+
 def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, state: QAState) -> dict:
     env = clean_env(os.environ.copy(), keep_test_account=True)  # no API keys / tokens for generated code
     for k in ("PYTEST_XDIST_WORKER", "PYTEST_XDIST_WORKER_COUNT", "PYTEST_XDIST_TESTRUNUID", "PYTEST_CURRENT_TEST"):
@@ -199,10 +208,10 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
     hosts = crawl.get("approved_hosts") or [urlparse(state.get("url", "")).hostname or ""]
     hosts = [h for h in dict.fromkeys(list(hosts) + settings.allowed_hosts) if h]
     env.update({
-        "QA_RESULTS_FILE": str(results_file.resolve()),
-        "QA_SCREENSHOT_DIR": str(shot_dir.resolve()),
-        "QA_TRACE_DIR": str((run_dir / "traces").resolve()),
-        "QA_RUN_DIR": str(run_dir.resolve()),
+        "QA_RESULTS_FILE": _owned_path(results_file),
+        "QA_SCREENSHOT_DIR": _owned_path(shot_dir),
+        "QA_TRACE_DIR": _owned_path(run_dir / "traces"),
+        "QA_RUN_DIR": _owned_path(run_dir),
         "QA_BASE_URL": state.get("url", "") if str(state.get("url", "")).startswith("http") else "",
         "QA_ALLOWED_HOSTS": ",".join(hosts),
         "QA_AD_RX": AD_HOSTS.pattern,  # (ads / trackers: stopped silently in the tests too - pages load faster)
@@ -225,7 +234,7 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
         "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
     })
     if settings.record_video:
-        env["QA_VIDEO_DIR"] = str((run_dir / "videos").resolve())
+        env["QA_VIDEO_DIR"] = _owned_path(run_dir / "videos")
     env["QA_ITEM_LISTS"] = json.dumps(_item_lists(state.get("app_map") or []))
     from ..finalization import folder_is_linked
     auth = run_dir / ".private" / "auth.json"  # the crawler logged in with the test account -> tests start logged in
