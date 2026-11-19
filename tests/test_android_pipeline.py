@@ -170,6 +170,53 @@ def test_junit_results_keep_pass_skip_and_failure_outcomes(tmp_path):
     ]
 
 
+def test_android_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-setup"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "app.apk").write_bytes(secret)
+    calls = []
+    monkeypatch.setattr(android_pipeline, "android_environment", lambda _url: calls.append("env") or {
+        "ok": True, "devices": [{"device_id": "emulator-5554", "status": "device"}]})
+    monkeypatch.setattr("backend.llm.llm_enabled", lambda: False)
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.setup_agent(_state(linked / "run"))
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    (planted / ".private").symlink_to(other, target_is_directory=True)
+    planted_state = _state(planted)
+    planted_state["config"].update(app_mode="apk", package_name="", apk_path=str(planted / ".private" / "app.apk"))
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.setup_agent(planted_state)
+    assert calls == []
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "app.apk").read_bytes() == secret
+    assert not (other / "run").exists()
+    assert not (other / "android_environment.json").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    apk = real / ".private" / "app.apk"
+    apk.write_bytes(b"mine")
+    state = _state(real)
+    state["config"].update(app_mode="apk", package_name="", apk_path=str(apk))
+    result = android_pipeline.setup_agent(state)
+    assert result["environment"]["ok"] is True
+    assert apk.read_bytes() == b"mine"
+    saved = (real / "android_environment.json").read_text(encoding="utf-8")
+    assert "emulator-5554" in saved
+    assert secret.decode() not in saved
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import datetime as dt
     from pathlib import Path

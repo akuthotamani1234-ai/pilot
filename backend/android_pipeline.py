@@ -65,11 +65,24 @@ def _save_json(path, data):
     path.write_text(redact_json(data), encoding="utf-8")
 
 
+def _folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def setup_agent(state):
     config = validate_mobile_config(state["config"])
-    if config.get("apk_path"):
+    run_dir = _run_dir(state)
+    private = run_dir / ".private"
+    apk = Path(config["apk_path"]) if config.get("apk_path") else None
+    if _folder_is_linked(run_dir) or private.is_symlink() or (apk is not None and _folder_is_linked(apk)):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    if apk is not None:
         try:
-            Path(config["apk_path"]).resolve().relative_to((_run_dir(state) / ".private").resolve())
+            apk.resolve().relative_to(private.resolve())
         except ValueError as e:
             raise AndroidEnvironmentError("The APK must be inside this run's private folder.") from e
     environment = android_environment(config["appium_url"])
