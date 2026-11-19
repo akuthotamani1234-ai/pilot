@@ -309,6 +309,7 @@ def progress() -> dict:
         {"id": "H-multistore-refresh", "label": "Re-verify Postgres+MinIO+Redis failover 3/3", "status": "done"},
         {"id": "E-healing-suite-refresh3", "label": "Re-verify multi-app healing suite 4/4", "status": "done"},
         {"id": "F-browser-suite-refresh", "label": "Re-verify Chromium/Firefox/WebKit portfolio 6/6", "status": "done"},
+        {"id": "I-sso-callback-redirect", "label": "Callback forwards redirect_uri only when allowlisted", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
