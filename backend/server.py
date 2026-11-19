@@ -2531,6 +2531,19 @@ def ops_independent_review_evidence_retention():
     }
 
 
+@app.post("/api/ops/drills/studio-sso-jti-replay")
+def ops_studio_sso_jti_replay():
+    """Gate I: Studio SSO jti replay rejection (hosted IdP still open)."""
+    from backend.studio_sso_jti_replay_drill import run_studio_sso_jti_replay_drill
+    evidence = run_studio_sso_jti_replay_drill()
+    _audit(
+        "ops_studio_sso_jti_replay",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_jti_replay": evidence}
+
+
 @app.post("/api/ops/drills/studio-sso-nonce-binding")
 def ops_studio_sso_nonce_binding():
     """Gate I: Studio SSO nonce binding (hosted IdP still open)."""
