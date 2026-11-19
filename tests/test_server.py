@@ -523,3 +523,30 @@ def test_a_feature_sheet_does_not_follow_a_link_into_another_folder(tmp_path):
     assert "home-own" in text
     assert secret not in text
     assert secret in registry.read_text(encoding="utf-8")
+
+
+def test_a_schedule_file_is_not_read_through_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-schedule"
+    other = tmp_path / "other"
+    nested = other / "app"
+    nested.mkdir(parents=True)
+    saved = nested / "schedules.json"
+    saved.write_text(json.dumps([{"url": secret, "every": "daily"}]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(server, "SCHEDULES", linked / "app" / "schedules.json")
+    assert server._schedules() == []
+    assert server._save_schedules([{"url": "https://ours.test"}]) is False
+    assert secret in saved.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = real / "schedules.json"
+    own.write_text(json.dumps([{"url": "https://home.test", "every": "daily"}]), encoding="utf-8")
+    monkeypatch.setattr(server, "SCHEDULES", own)
+    assert server._schedules()[0]["url"] == "https://home.test"
+    assert server._save_schedules([{"url": "https://home-own.test"}]) is True
+    assert json.loads(own.read_text(encoding="utf-8"))[0]["url"] == "https://home-own.test"
+    assert secret not in own.read_text(encoding="utf-8")
+    assert secret in saved.read_text(encoding="utf-8")
