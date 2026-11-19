@@ -218,6 +218,37 @@ def test_a_published_report_does_not_follow_a_link_into_another_run(tmp_path, mo
     assert (tmp_path / "own-showcase" / "benchmark.json").is_file()
 
 
+def test_a_merged_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.merge import merge_runs
+
+    secret = b"tenant-b-only-merge"
+    other = tmp_path / "other"
+    nested = other / "runs"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], linked / "runs")
+    assert list(nested.iterdir()) == [nested / "keep.txt"]
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    folder = real / "run_a"
+    folder.mkdir(parents=True)
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["ok"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}, "items": []},
+    }), encoding="utf-8")
+    published = merge_runs([folder], real)
+    assert published.parent == real
+    assert (published / "summary.json").is_file() and not (published / "summary.json").is_symlink()
+    assert secret not in (published / "summary.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.integrations import create_jira_issues, integrations_agent

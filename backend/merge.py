@@ -52,8 +52,9 @@ def merge_runs(run_dirs: list[Path], runs_dir: Path) -> Path:
         runs.append({"run": d.name, "verdict": s.get("verdict"), "section": crawl.get("section") or "/",
                      "pages": s.get("pages"), "limits": c.get("limits_hit") or [], "reason": (s.get("reasons") or [""])[0]})
     verdict = max((r["verdict"] for r in runs if r["verdict"] in WORST), key=WORST.index, default="Insufficient Evidence")
+    from .finalization import folder_is_linked
     runs_dir = Path(runs_dir)
-    if runs_dir.is_symlink():
+    if folder_is_linked(runs_dir):
         raise ValueError("The runs folder is a link.")
     out = runs_dir / f"merged_{datetime.now():%Y%m%d_%H%M%S}"
     if out.is_symlink() or (out / "summary.json").is_symlink() or (out / "report.html").is_symlink():
