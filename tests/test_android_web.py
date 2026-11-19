@@ -21,6 +21,51 @@ def config(**overrides):
     return {"app_mode": "web", "device_id": "emulator-5554", "start_url": "https://example.test/", **overrides}
 
 
+def test_a_bot_check_wait_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.android_web import BotCheckBlocked, BotCheckGate
+
+    secret = "tenant-b-only-bot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    reads = []
+    page = {"title": "Home own", "elements": [], "challenge": {}}
+
+    def read():
+        reads.append("home-own")
+        return page
+
+    gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, run / "STOP", ask_person=False)
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        gate._wait(read, 1)
+    assert secret not in str(stopped.value)
+    assert reads == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped_gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, real / "STOP", ask_person=False)
+    with pytest.raises(BotCheckBlocked, match="Stop requested"):
+        stopped_gate._wait(read, 1)
+    assert reads == []
+
+    open_gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, real / "missing", ask_person=False)
+    found = open_gate._wait(read, 1)
+    assert found["title"] == "Home own"
+    assert reads == ["home-own"]
+    assert secret not in json.dumps(found)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_chrome_capabilities_are_idempotent_and_do_not_launch_a_native_app(monkeypatch):
     monkeypatch.setattr(android, "_managed_web_chromedriver", lambda config: None)
     normalized = android.validate_mobile_config(config())
