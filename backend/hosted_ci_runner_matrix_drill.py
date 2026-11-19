@@ -13,7 +13,24 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "hosted_ci_runner_matrix_drill.json"
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "hosted_ci_runner_matrix",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_ci_runner_matrix_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_matrix()
+
     from .device_artifact_manifest_drill import run_device_artifact_manifest_drill
     from .hosted_runner_contract_drill import run_hosted_runner_contract_drill
     from .portfolio_artifact_manifest_drill import run_portfolio_artifact_manifest_drill
@@ -30,8 +47,9 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             "driver": "uiautomator2",
             "workflow": ".github/workflows/android-appium.yml",
             "workflow_exists": (
-                ROOT / ".github/workflows/android-appium.yml"
-            ).is_file(),
+                not folder_is_linked(ROOT / ".github/workflows/android-appium.yml")
+                and (ROOT / ".github/workflows/android-appium.yml").is_file()
+            ),
             "artifact_manifest_ok": bool(devices.get("ok")),
             "note": "Broad hosted multi-device product-matrix CI still open",
         },
@@ -40,8 +58,9 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             "browsers": ["chromium", "firefox", "webkit"],
             "workflow": ".github/workflows/multi-browser-portfolios.yml",
             "workflow_exists": (
-                ROOT / ".github/workflows/multi-browser-portfolios.yml"
-            ).is_file(),
+                not folder_is_linked(ROOT / ".github/workflows/multi-browser-portfolios.yml")
+                and (ROOT / ".github/workflows/multi-browser-portfolios.yml").is_file()
+            ),
             "artifact_manifest_ok": bool(portfolios.get("ok")),
             "note": "Broad hosted multi-browser portfolio CI still open",
         },
@@ -66,15 +85,15 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             "multi-browser hosted runner execution still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_ci_runner_matrix_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_matrix()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_ci_runner_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
