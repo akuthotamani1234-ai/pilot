@@ -98,6 +98,7 @@ BLOCKERS = (
             "production_healing_human_loop_contract_drill.json",
             "production_healing_budget_contract_drill.json",
             "production_healing_escalation_ladder_drill.json",
+            "production_healing_escalation_enforcement_drill.json",
             "healing_regression_drill.json",
         ],
     },
