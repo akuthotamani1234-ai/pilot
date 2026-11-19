@@ -221,3 +221,63 @@ def test_ai_usage_does_not_follow_a_link_into_another_run(tmp_path):
     saved = (fresh / "llm_usage.jsonl").read_text(encoding="utf-8")
     assert "vision" in saved and secret not in saved
     assert cost.read_usage(fresh)[0]["agent"] == "vision"
+
+
+def test_a_project_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import sys
+
+    from backend.agents import setup_agent as setup
+    from backend.config import settings
+
+    secret = "tenant-b-only-setup"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "setup.log").write_text(secret, encoding="utf-8")
+    project = other / "app"
+    project.mkdir()
+    (project / "keep.txt").write_text(secret, encoding="utf-8")
+    source = "https://github.com/example/app"
+    calls = []
+    original_clone = setup._clone
+    monkeypatch.setattr(setup, "_clone", lambda *args, **kwargs: calls.append(args))
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(linked), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "setup.log").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "setup.log").symlink_to(other / "setup.log")
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(real), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "setup.log").read_text(encoding="utf-8") == secret
+
+    monkeypatch.setattr(setup, "_clone", original_clone)
+    workspace = tmp_path / "workspace"
+    workspace.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "workspace_dir", workspace)
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(fresh), "log": []})
+    assert "link" in refused["setup_error"]
+    assert (project / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (fresh / "setup.log").exists()
+
+    owned = tmp_path / "owned-workspace"
+    owned.mkdir()
+    monkeypatch.setattr(settings, "workspace_dir", owned)
+    (owned / "app").symlink_to(project, target_is_directory=True)
+    with pytest.raises(RuntimeError):
+        setup._clone(source, fresh / "setup.log")
+    assert (project / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (fresh / "setup.log").exists()
+
+    log = fresh / "setup.log"
+    setup._run(f'"{sys.executable}" -c "print(123)"', fresh, log, timeout=30)
+    saved = log.read_text(encoding="utf-8")
+    assert "123" in saved and secret not in saved
+    assert log.is_file() and not log.is_symlink()
