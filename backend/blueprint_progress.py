@@ -428,6 +428,7 @@ def progress() -> dict:
         {"id": "G-oncall-ready-link", "label": "An on-call readiness score does not follow a link into another folder", "status": "done"},
         {"id": "G-cutover-lag-link", "label": "A cutover lag gate does not follow a link into another folder", "status": "done"},
         {"id": "G-repl-lag-link", "label": "A replication lag contract does not follow a link into another folder", "status": "done"},
+        {"id": "G-browser-ci-link", "label": "A browser CI pack does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
