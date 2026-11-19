@@ -16,7 +16,24 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "sso_tenant_acl_drill.json"
 
 
+def _linked_acl() -> dict:
+    return {
+        "gate_i_complete": False,
+        "gate_g_complete": False,
+        "ok": False,
+        "drill": "sso_tenant_acl",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_sso_tenant_acl_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "sso_tenant_acl_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_acl()
+
     try:
         import jwt  # noqa: F401
     except ImportError:
@@ -99,12 +116,15 @@ def run_sso_tenant_acl_drill(*, ops_dir: Path | None = None) -> dict:
                 import gc
                 gc.collect()
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_acl()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "sso_tenant_acl_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_acl()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "sso_tenant_acl_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
