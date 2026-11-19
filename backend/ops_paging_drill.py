@@ -43,9 +43,23 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
+def _linked_page() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "paging_rehearsal",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_paging_rehearsal(*, ops_dir: Path | None = None) -> dict:
     """Spin a loopback sink, POST a SEV2 page, record whether it was accepted."""
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     base = Path(ops_dir) if ops_dir else ROOT / "artifacts" / "ops"
+    name = "paging_rehearsal.json"
+    if folder_is_linked(base) or folder_is_linked(base / name):
+        return _linked_page()
     base.mkdir(parents=True, exist_ok=True)
     port = _free_port()
     server = HTTPServer(("127.0.0.1", port), _Sink)
@@ -89,9 +103,14 @@ def run_paging_rehearsal(*, ops_dir: Path | None = None) -> dict:
             "Paging rehearsal failed to deliver to loopback sink"
         ),
     }
-    out = base / "paging_rehearsal.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(base) or folder_is_linked(base / name):
+        return _linked_page()
+    if not write_text_unless_linked(base, name, text):
+        return _linked_page()
     if ops_dir is None:
-        EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
-        EVIDENCE.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        evidence_dir = EVIDENCE.parent
+        if not folder_is_linked(evidence_dir) and not folder_is_linked(EVIDENCE):
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(evidence_dir, EVIDENCE.name, text)
     return evidence
