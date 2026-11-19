@@ -24,19 +24,45 @@ LOCAL_PARTIAL = (
 )
 
 
+def _label(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def _wf_audit(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    from .finalization import folder_is_linked
+    linked = folder_is_linked(path)
+    text = "" if linked or not path.is_file() else path.read_text(encoding="utf-8")
     return {
-        "path": str(path.relative_to(ROOT)) if path.is_file() else str(path),
-        "present": path.is_file(),
+        "path": _label(path),
+        "present": (not linked) and path.is_file(),
         "actions_cache_mentioned": "actions/cache" in text or "cache:" in text,
         "workflow_dispatch": "workflow_dispatch:" in text,
     }
 
 
+def _linked_cache_key() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "live_hosted_runners": False,
+        "drill": "hosted_ci_cache_key_contract",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_ci_cache_key_contract_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_cache_key()
     ops = ROOT / "docs" / "ops-evidence"
-    present = [n for n in LOCAL_PARTIAL if (ops / n).is_file()]
+    present = [
+        n for n in LOCAL_PARTIAL
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
     contract = {
         "android": {
             "keys": [
@@ -83,15 +109,17 @@ def run_hosted_ci_cache_key_contract_drill(*, ops_dir: Path | None = None) -> di
             "broad hosted multi-device/browser runners still open"
         ),
     }
+    text = json.dumps(evidence, indent=2)
+    name = "hosted_ci_cache_key_contract_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_cache_key()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_ci_cache_key_contract_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_cache_key()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_ci_cache_key_contract_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
