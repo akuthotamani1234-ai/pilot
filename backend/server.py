@@ -296,15 +296,11 @@ KEY_ENV = {p["id"]: p["key_env"] for p in PROVIDERS}
 
 # ------------------------------------------------------------------ helpers
 
-def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None):
-    """When a principal is signed in, a run read stays inside that principal's tenant."""
+def _signed_in_reader(authorization: str | None, x_qa_token: str | None):
+    """None when the studio is open. Otherwise the principal id, or a JSON refusal."""
     from backend.dashboard_auth import auth_mode, authorize
     if auth_mode() not in ("principal", "oidc"):
         return None
-    match = _SCOPED_RUN.search(path or "")
-    if not match:
-        return None
-    run = next(part for part in match.groups() if part)
     verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
     if not verdict.get("ok"):
         reason = verdict.get("reason") or "unauthorized"
@@ -312,8 +308,20 @@ def _principal_run_block(path: str, authorization: str | None, x_qa_token: str |
     principal = str(verdict.get("principal_id") or "").strip()
     if not principal:
         return JSONResponse({"detail": "principal required"}, status_code=401)
+    return principal
+
+
+def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None):
+    """When a principal is signed in, a run read stays inside that principal's tenant."""
+    match = _SCOPED_RUN.search(path or "")
+    if not match:
+        return None
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if reader is None or not isinstance(reader, str):
+        return reader
+    run = next(part for part in match.groups() if part)
     from backend.tenancy_store import assert_run_access
-    access = assert_run_access(principal_id=principal, run_id=run)
+    access = assert_run_access(principal_id=reader, run_id=run)
     if not access.get("allowed"):
         return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
     return None
@@ -3843,9 +3851,20 @@ def _kill(job: dict) -> None:
 
 
 @app.get("/api/history")
-def history():
+def history(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(reader, JSONResponse):
+        return reader
+    folders = sorted((p for p in RUNS.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)
+    if reader:
+        from backend.tenancy_store import assert_run_access
+        folders = [d for d in folders
+                   if assert_run_access(principal_id=reader, run_id=d.name, audit=False).get("allowed")]
     out = []
-    for d in sorted((p for p in RUNS.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
+    for d in folders[:30]:
         s = _read_json(d / "summary.json", None)
         date = time.strftime("%d %b %H:%M", time.localtime(d.stat().st_mtime))
         if s:
