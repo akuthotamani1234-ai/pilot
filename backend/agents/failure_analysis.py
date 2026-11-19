@@ -154,6 +154,13 @@ def classify(r: dict) -> tuple[str, str, str]:
         return "suspect", (f"The AI looked at the screenshots and thinks the website is wrong: {v.get('reason', '')}"
                            f"{seen} A person should confirm it.")[:600], "medium"
     if v.get("verdict") == "website_bug" and cat == "product_defect":
+        # An AI-written check, or an expectation the run itself marks as AI, stays a
+        # question. The model's eyes must not confirm that guess into a defect.
+        from ..oracle_bind import decision_for_result
+        decision = decision_for_result({}, r)
+        if r.get("file") == "test_flows_ai.py" or (decision and decision.get("verdict") == "needs_review"):
+            return "suspect", (f"The AI looked at the screenshots and thinks the website is wrong: {v.get('reason', '')}"
+                               f"{seen} A person should confirm it.")[:600], "medium"
         return cat, f"{why} The AI saw it on the screenshots too: {v.get('reason', '')}{seen}"[:600], "high"
     return cat, why, conf
 
