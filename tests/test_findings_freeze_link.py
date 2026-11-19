@@ -19,6 +19,17 @@ def _freeze():
 def test_a_findings_freeze_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.independent_review_findings_freeze_drill as mod
 
+    calls = {"n": 0}
+
+    def _counted(ops_dir=None):
+        calls["n"] += 1
+        return _freeze()
+
+    monkeypatch.setattr(
+        "backend.independent_review_blocker_freeze_drill.run_independent_review_blocker_freeze_drill",
+        _counted,
+    )
+
     secret = "tenant-b-only-findings-freeze"
     other = tmp_path / "other"
     other.mkdir()
@@ -33,6 +44,7 @@ def test_a_findings_freeze_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert refused["ok"] is False
     assert refused["gate_g_complete"] is False
     assert refused["signed_off"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
@@ -42,14 +54,23 @@ def test_a_findings_freeze_does_not_follow_a_link_into_another_folder(tmp_path, 
     alias = tmp_path / "linked-findings.md"
     alias.symlink_to(notes)
     monkeypatch.setattr(mod, "FINDINGS", alias)
-    monkeypatch.setattr(
-        "backend.independent_review_blocker_freeze_drill.run_independent_review_blocker_freeze_drill",
-        lambda ops_dir=None: _freeze(),
-    )
+    folder = tmp_path / "planted"
+    folder.mkdir()
+    planted = folder / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_independent_review_findings_freeze_drill(ops_dir=folder)
+    assert "link" in skipped_file["reason"]
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+
     real = tmp_path / "real"
     real.mkdir()
     skipped = run_independent_review_findings_freeze_drill(ops_dir=real)
     written = (real / "independent_review_findings_freeze_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] == 1
     assert skipped["findings_present"] is False
     assert skipped["gate_g_complete"] is False
     assert secret not in written
@@ -61,6 +82,7 @@ def test_a_findings_freeze_does_not_follow_a_link_into_another_folder(tmp_path, 
     monkeypatch.setattr(mod, "FINDINGS", own)
     saved = run_independent_review_findings_freeze_drill(ops_dir=real)
     saved_text = (real / "independent_review_findings_freeze_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] == 2
     assert saved["findings_present"] is True
     assert saved["gate_g_complete"] is False
     assert saved["signed_off"] is False

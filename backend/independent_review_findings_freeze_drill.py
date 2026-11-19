@@ -28,12 +28,15 @@ def _linked_freeze() -> dict:
 
 def run_independent_review_findings_freeze_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
+
+    name = "independent_review_findings_freeze_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_freeze()
     from .independent_review_blocker_freeze_drill import (
         run_independent_review_blocker_freeze_drill,
     )
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
-        return _linked_freeze()
     freeze = run_independent_review_blocker_freeze_drill(ops_dir=ops_dir)
     if folder_is_linked(FINDINGS):
         findings_text = ""
@@ -73,8 +76,6 @@ def run_independent_review_findings_freeze_drill(*, ops_dir: Path | None = None)
         ),
     }
     text = json.dumps(evidence, indent=2)
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    name = "independent_review_findings_freeze_drill.json"
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_freeze()
     dest.mkdir(parents=True, exist_ok=True)
