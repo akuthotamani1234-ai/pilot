@@ -349,6 +349,46 @@ def test_opening_a_login_screen_is_navigation_and_does_not_submit_credentials():
     assert runtime.checks == 1
 
 
+def test_a_contract_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = "tenant-b-only-contract"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "qa_contract.json").write_text(secret, encoding="utf-8")
+    (other / "qa_contracts.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "contract_results.json").write_text(json.dumps([{"secret": secret}]), encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    private = run / ".private"
+    private.mkdir()
+    (private / "qa_contract.json").symlink_to(other / "qa_contract.json")
+    (run / "qa_contracts.json").symlink_to(other / "qa_contracts.json")
+    (run / "contract_results.json").symlink_to(other / "contract_results.json")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("launched")
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", explode)
+    monkeypatch.setenv("QA_CONTRACT_JSON", secret)
+    result = qa_web.execute_pipeline_contracts({"run_dir": str(run), "url": "https://shop.example/"})
+    assert result == {"test_cases": [], "results": []}
+    direct = run_contracts(run, "https://shop.example/", secret)
+    assert direct == {"test_cases": [], "results": []}
+    assert (other / "qa_contract.json").read_text(encoding="utf-8") == secret
+    assert json.loads((other / "qa_contracts.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "contract_results.json").read_text(encoding="utf-8"))[0]["secret"] == secret
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / ".private").mkdir()
+    (own / ".private" / "qa_contract.json").write_text("not-json", encoding="utf-8")
+    saved = qa_web.execute_pipeline_contracts({"run_dir": str(own), "url": "https://shop.example/"})
+    assert saved["results"] and saved["results"][0]["error_type"] == "ContractConfigurationError"
+    written = json.loads((own / "contract_results.json").read_text(encoding="utf-8"))
+    assert written[0]["error_type"] == "ContractConfigurationError"
+    assert not (own / "contract_results.json").is_symlink()
+
+
 def test_mobile_contract_runtime_errors_are_infrastructure_not_application_defects():
     from backend.android_reporting import classify_failure
 
