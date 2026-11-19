@@ -303,6 +303,9 @@ def progress() -> dict:
         {"id": "A-surface-top-level", "label": "Promote lazy/metadata/viewport signals to top-level", "status": "done"},
         {"id": "sidebar-roadmap", "label": "Sidebar roadmap sections (landed / now / next)", "status": "done"},
         {"id": "sidebar-blocker-scores", "label": "Sidebar next-items show local Partial scores", "status": "done"},
+        {"id": "H-multistore-refresh", "label": "Re-verify Postgres+MinIO+Redis failover 3/3", "status": "done"},
+        {"id": "E-healing-suite-refresh3", "label": "Re-verify multi-app healing suite 4/4", "status": "done"},
+        {"id": "F-browser-suite-refresh", "label": "Re-verify Chromium/Firefox/WebKit portfolio 6/6", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
