@@ -1,0 +1,47 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_contract",
+  "ran_at": "2026-11-18T23:58:51Z",
+  "kind": "contract_only",
+  "contract": {
+    "required_failure_classes": [
+      "locator",
+      "product_defect",
+      "auth_problem",
+      "infrastructure",
+      "timeout",
+      "flaky"
+    ],
+    "healing_policy": {
+      "locator_only_allowed": true,
+      "assertion_weaken_denied": true,
+      "module": "backend/healing_policy.py"
+    },
+    "local_evidence": [
+      "live_failure_matrix_drill.json",
+      "multi_app_healing_suite_drill.json",
+      "production_healing_matrix_drill.json",
+      "production_healing_taxonomy_drill.json",
+      "healing_regression_drill.json",
+      "demo_store_healing_live_drill.json"
+    ],
+    "production_requirements": [
+      "Authorized third-party or staging target",
+      "Deterministic reproduce of seeded + organic failures",
+      "Before/after regression package with replay",
+      "Human review of heal proposals outside locator-only"
+    ],
+    "note": "Local multi-app + taxonomy drills do not substitute for production suite"
+  },
+  "local_partial_present": [
+    "live_failure_matrix_drill.json",
+    "multi_app_healing_suite_drill.json",
+    "production_healing_matrix_drill.json",
+    "production_healing_taxonomy_drill.json",
+    "healing_regression_drill.json",
+    "demo_store_healing_live_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Production healing contract recorded (6/6 local partials present); production / third-party healing suite still open"
+}

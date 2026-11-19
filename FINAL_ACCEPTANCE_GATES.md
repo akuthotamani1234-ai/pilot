@@ -17,7 +17,7 @@ Each capability is **DONE** only when:
 
 | Gate | Required deliverable | Current status |
 |---|---|---|
-| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + surface inventories + multi-fixture discovery score (4 demos); full-surface live completeness not established |
+| A | Complete authorized web discovery across page templates, states, DOM, iframe/shadow DOM, API, metadata, lazy content, desktop/mobile | Partial — provenance graph + surface inventories + multi-fixture discovery score + surface-signal matrix (4 demos); full-surface live completeness not established |
 | B | Durable multi-agent supervisor, task ownership, leases, retries, cancellation, checkpoints, budgets, provenance | Partial — Redis preferred when `REDIS_URL` set (else SQLite), listing dual-write, coverage/oracle specialists + claim/checkpoint/cancel + lease-expiry→retry_wait + multi-worker contention; product-wide review still open |
 | C | Test oracles tied to approved specifications, strong assertions, fixture lifecycle and cleanup | Partial — durable lifecycle + Demo/Admin/Classic cart drills + DemoStore/Classic/Admin/Travel multi-portal oracle bind; broader live portal paths still open |
 | D | Browser/API/Android cross-surface execution and evidence-backed coverage | Partial — multi-API Android matrix + ApiDemos deep interaction + cross-platform journeys + Appium workflow_dispatch + device artifact manifest; broad multi-device CI runners still open |

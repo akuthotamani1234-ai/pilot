@@ -62,29 +62,31 @@ Blueprint swarm roles (DOM mapper, API mapper, visual mapper, oracle agent, cove
 
 ## 4. Acceptance gates A–J (current)
 
-Copied from `FINAL_ACCEPTANCE_GATES.md` and confirmed against tree:
+Synced with `FINAL_ACCEPTANCE_GATES.md` + Studio `/api/v1/blueprint/progress` (branch
+`cursor/qpilot-x-phase0-baseline-f72b`). Gates stay Partial/open until hosted +
+independent evidence closes the six hard blockers.
 
 | Gate | Status |
 |---|---|
-| A Discovery completeness | Partial; no controlled live benchmark artifacts yet |
-| B Durable swarm | Partial; protocol/workers present |
-| C Oracles + fixture cleanup | Partial |
-| D Web/API/Android surfaces | Partial; device matrix unverified |
-| E Replay + safe healing | Partial |
-| F a11y/visual/perf/security/locale | Partial |
-| G Postgres/Redis/MinIO/RBAC/tenancy | **Not established** |
-| H Ops/observability/DR | **Not established** |
-| I React/TS enterprise dashboard | Partial; Studio is HTML/JS, not React |
-| J Owned demo-store seeded-defect benchmark | **Partial→strong evidence** — run4: 18/18 pages, 6/6 bugs, 0 false alarms; 1 clean feature still imperfect (`docs/QPILOT_X_PHASE1_BENCHMARK.md`) |
+| A Discovery completeness | Partial — multi-fixture surfaces + discovery score + surface matrix; full live completeness open |
+| B Durable swarm | Partial — Redis DurableQueue + contention/control/retry; product-wide review open |
+| C Oracles + fixture cleanup | Partial — multi-portal oracles + Demo/Admin/Classic lifecycles; broader portal paths open |
+| D Web/API/Android surfaces | Partial — API24 smoke + API30 Appium + ApiDemos deep + journey; broad multi-device CI open |
+| E Replay + safe healing | Partial — 4-app healing matrix + taxonomy + contract; production suite open |
+| F a11y/visual/perf/security/locale | Partial — Chromium/Firefox/WebKit suite + artifact manifest; hosted multi-browser CI open |
+| G Postgres/Redis/MinIO/RBAC/tenancy | Partial — live PG/Redis/MinIO + dual-tenant OIDC ACL + review pack (unsigned) |
+| H Ops/observability/DR | Partial — multi-store DR + failover RTO + paging + on-call contract; hosted multi-region open |
+| I React/TS enterprise dashboard | Partial — `/dashboard/` + loopback OIDC PKCE + hosted IdP contract; hosted IdP SSO open |
+| J Owned demo-store seeded-defect benchmark | Strong fixtures — Demo 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party open |
 
-## 5. Explicit gaps blocking later phases
+## 5. Explicit gaps blocking gate completion (hard opens)
 
-1. No owned `fixtures/demo_store` (or equivalent) with seeded defects and ground-truth routes.
-2. No PostgreSQL / Redis / object-store deployment path in-repo for enterprise mode.
-3. No durable leased task queue with crash recovery beyond in-process swarm helpers.
-4. Frontend is Studio HTML/JS (`frontend/`), not the proposed React/TypeScript apps tree.
-5. Live URL→report benchmark and Android device-matrix evidence not recorded for `final`.
-6. Issue #22 Phase 1+ boxes remain unchecked (verification rule: code ≠ done).
+1. Live hosted multi-region DR / on-call paging
+2. Live hosted IdP Studio SSO login + multi-tenant ACLs
+3. Production / third-party failure matrix + healing suite
+4. Broad multi-device CI Appium product-matrix artifacts
+5. Broad hosted multi-browser portfolio CI artifacts
+6. Independent security/reliability review sign-off
 
 ## 6. Next engineering action (Phase 1)
 
