@@ -37,10 +37,10 @@ def write_bytes_unless_linked(path: Path, data: bytes) -> bool:
 
 
 def copy_unless_linked(src: Path, dest: Path) -> bool:
-    """Copy onto a real file. A linked destination is left untouched."""
+    """Copy one real file onto another. A linked source or destination is left untouched."""
     import shutil
-    dest = Path(dest)
-    if dest.is_symlink() or folder_is_linked(dest.parent):
+    src, dest = Path(src), Path(dest)
+    if folder_is_linked(src) or not src.is_file() or dest.is_symlink() or folder_is_linked(dest.parent):
         return False
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
