@@ -8,7 +8,26 @@ from backend.surface_evidence_drill import (
 )
 
 
-def test_a_surface_inventory_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_surface_inventory_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from tests.admin_portal import AdminPortal
+    from tests.classic_shop import ClassicShop
+    from tests.demo_store import DemoStore
+    from tests.travel_site import TravelSite
+
+    calls = {"n": 0}
+
+    def _count(cls):
+        real_start = cls.start
+
+        def start(self, *args, **kwargs):
+            calls["n"] += 1
+            return real_start(self, *args, **kwargs)
+
+        monkeypatch.setattr(cls, "start", start)
+
+    for cls in (AdminPortal, ClassicShop, DemoStore, TravelSite):
+        _count(cls)
+
     secret = "tenant-b-only-surface-inventory"
     other = tmp_path / "other"
     other.mkdir()
@@ -29,13 +48,39 @@ def test_a_surface_inventory_does_not_follow_a_link_into_another_folder(tmp_path
         assert evidence["ok"] is False
         assert evidence["gate_a_surfaces_complete"] is False
         assert secret not in str(evidence)
+    assert calls["n"] == 0
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == ["admin_portal_surface_coverage.json"]
 
-    real = tmp_path / "real"
-    real.mkdir()
-    saved = run_admin_portal_surface_drill(ops_dir=real)
-    written = (real / "admin_portal_surface_coverage.json").read_text(encoding="utf-8")
+    folder = tmp_path / "real"
+    folder.mkdir()
+    names = (
+        "admin_portal_surface_coverage.json",
+        "demo_store_surface_coverage.json",
+        "classic_shop_surface_coverage.json",
+        "travel_site_surface_coverage.json",
+    )
+    planted = [folder / name for name in names]
+    for path in planted:
+        path.symlink_to(kept)
+    skipped = [
+        run_admin_portal_surface_drill(ops_dir=folder),
+        run_demo_store_surface_drill(ops_dir=folder),
+        run_classic_shop_surface_drill(ops_dir=folder),
+        run_travel_site_surface_drill(ops_dir=folder),
+    ]
+    for evidence in skipped:
+        assert evidence["ok"] is False
+        assert secret not in str(evidence)
+    assert calls["n"] == 0
+    assert kept.read_bytes() == original
+    assert all(path.is_symlink() for path in planted)
+    for path in planted:
+        path.unlink()
+
+    saved = run_admin_portal_surface_drill(ops_dir=folder)
+    written = (folder / "admin_portal_surface_coverage.json").read_text(encoding="utf-8")
+    assert calls["n"] == 1
     assert saved["gate_a_surfaces_complete"] is False
     assert "users" in saved["pages_walked"]
     assert secret not in written

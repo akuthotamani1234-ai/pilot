@@ -122,15 +122,16 @@ def _linked_surface(drill: str) -> dict:
     }
 
 
-def _ops_is_linked(ops_dir: Path | None) -> bool:
+def _result_is_linked(ops_dir: Path | None, evidence_path: Path) -> bool:
     from .finalization import folder_is_linked
-    return ops_dir is not None and folder_is_linked(Path(ops_dir))
+    dest = Path(ops_dir) if ops_dir else evidence_path.parent
+    return folder_is_linked(dest) or folder_is_linked(dest / evidence_path.name)
 
 
 def _write_evidence(evidence: dict, *, evidence_path: Path, ops_dir: Path | None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
     drill = str(evidence.get("drill") or "surface_coverage")
-    if _ops_is_linked(ops_dir):
+    if _result_is_linked(ops_dir, evidence_path):
         return _linked_surface(drill)
     dest = Path(ops_dir) if ops_dir else evidence_path.parent
     out = (Path(ops_dir) / evidence_path.name) if ops_dir else evidence_path
@@ -148,7 +149,7 @@ def _write_evidence(evidence: dict, *, evidence_path: Path, ops_dir: Path | None
 
 
 def run_admin_portal_surface_drill(*, ops_dir: Path | None = None) -> dict:
-    if _ops_is_linked(ops_dir):
+    if _result_is_linked(ops_dir, ADMIN_EVIDENCE):
         return _linked_surface("admin_portal_surface_coverage")
     from tests.admin_portal import AdminPortal
 
@@ -181,7 +182,7 @@ def run_admin_portal_surface_drill(*, ops_dir: Path | None = None) -> dict:
 def _fixture_surface_drill(*, fixture: str, start, paths: tuple[str, ...], evidence_path: Path,
                            crawl_extra: dict | None = None, ops_dir: Path | None = None,
                            reason: str = "") -> dict:
-    if _ops_is_linked(ops_dir):
+    if _result_is_linked(ops_dir, evidence_path):
         return _linked_surface(evidence_path.stem)
     from .surface_coverage import summarize_surfaces
 
@@ -216,7 +217,7 @@ def _fixture_surface_drill(*, fixture: str, start, paths: tuple[str, ...], evide
 
 def run_demo_store_surface_drill(*, ops_dir: Path | None = None) -> dict:
     """Walk DemoStore public pages incl. /lab (iframe + shadow) for Gate A evidence."""
-    if _ops_is_linked(ops_dir):
+    if _result_is_linked(ops_dir, DEMO_EVIDENCE):
         return _linked_surface("demo_store_surface_coverage")
     from tests.demo_store import DemoStore
 
