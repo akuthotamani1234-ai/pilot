@@ -440,6 +440,7 @@ def progress() -> dict:
         {"id": "G-dr-rpo-link", "label": "A recovery-point contract does not follow a link into another folder", "status": "done"},
         {"id": "G-review-sla-link", "label": "A review response window does not follow a link into another folder", "status": "done"},
         {"id": "G-dr-cutover-link", "label": "A cutover checklist does not follow a link into another folder", "status": "done"},
+        {"id": "G-ci-retain-link", "label": "A CI artifact retention contract does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
