@@ -371,6 +371,7 @@ def progress() -> dict:
         {"id": "B-role-checkout", "label": "A role check does not open a checkout page again", "status": "done"},
         {"id": "B-smoke-extra", "label": "Extra pages of one kind do not include a checkout page", "status": "done"},
         {"id": "B-goto-checkout", "label": "A generated test that opens a page does not start checkout", "status": "done"},
+        {"id": "B-login-expired", "label": "When the login expires, pages behind it are not left waiting", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

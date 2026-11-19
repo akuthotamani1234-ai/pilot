@@ -104,6 +104,21 @@ def test_a_cut_off_page_is_still_waiting():
     assert [row["auth"] for row in rows if row["url"].endswith("/account")] == [True]
 
 
+def test_an_expired_login_does_not_leave_those_pages_waiting(tmp_path):
+    from backend.agents.discovery import drop_expired_login
+    queue = [
+        ("https://shop.example/orders", 2, True, True),
+        ("https://shop.example/about", 1, True, False),
+    ]
+    skipped: dict = {}
+    drop_expired_login(queue, skipped)
+    save_crawl_progress(tmp_path, [], waiting_rows(queue, []))
+    _pages, pending = load_saved_crawl(tmp_path)
+    urls = [item["url"] if isinstance(item, dict) else item for item in pending]
+    assert urls == ["https://shop.example/about"]
+    assert skipped == {"https://shop.example/orders": "not visited: the login expired"}
+
+
 def test_a_waiting_logged_in_page_stays_logged_in_on_resume(tmp_path):
     save_crawl_progress(tmp_path, [], [
         "https://shop.example/about",
