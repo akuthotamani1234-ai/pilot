@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T01:55:47Z",
+  "ran_at": "2026-11-19T02:33:41Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 100,
+  "artifact_count": 106,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -165,7 +165,7 @@
     {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
-      "sha256": "4a86899c1a1c4eed3622c5c27d74c9e86116d1d4b7470e6bce65304fe5d9aa48"
+      "sha256": "20d63ac63aa71787b31c7c4545e04f77108d4147d9ffda1dc3e0dc0064e940c1"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -194,8 +194,8 @@
     },
     {
       "name": "hosted_idp_readiness_drill.json",
-      "bytes": 1346,
-      "sha256": "9b5a0fb33a761036515016afd01ad46873be98ee10118f5098a5a0057319a070"
+      "bytes": 1474,
+      "sha256": "f978a77ae649b6718a430f21dc9612297c2f9a7900ca4fc48484e69e6a68c06e"
     },
     {
       "name": "hosted_oncall_contract_drill.json",
@@ -204,8 +204,13 @@
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
-      "bytes": 1526,
-      "sha256": "7b79d380598da4c22352179137b61b4049decdc73cc3c86de152c99baf65ec1b"
+      "bytes": 1676,
+      "sha256": "6b0ba8868d97f6b7f9a2cac037f5bb96579b108ad9b1682aee6e3fb563a28d18"
+    },
+    {
+      "name": "hosted_runner_readiness_drill.json",
+      "bytes": 2535,
+      "sha256": "94a623d6a3796f189da47d0dd4ea392dcf474dc8e687b6d5145b3a122dc3b58c"
     },
     {
       "name": "incident_tabletop_drill.json",
@@ -223,19 +228,24 @@
       "sha256": "258bf9967941e88b9ed45ddd6f57ef797374e25162d17e249bc02c0f882ddeac"
     },
     {
+      "name": "independent_review_integrity_drill.json",
+      "bytes": 1668,
+      "sha256": "39c93830bb4a0ab06924108696104a3c64f9cd7327f378b2052f777a343579df"
+    },
+    {
       "name": "independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "de0d107717acae3e755e8394946703872c69a47fbf85121a44a11de93fb85f0b"
+      "sha256": "25274df784d4ac83a29f28b19e3a4d8214ea28b21c173a0b5071a132f334a863"
     },
     {
       "name": "independent_review_request_drill.json",
-      "bytes": 1452,
-      "sha256": "712e82b99debc60b39b3f0b29cdfcbf9eae03da112972548c6103a9fea8676b9"
+      "bytes": 1454,
+      "sha256": "49e6f097fdda2be4ef4c35b4ce2f70c8af3dc7e8418a25ffbba7c283152b20f2"
     },
     {
       "name": "independent_review_summary_drill.json",
-      "bytes": 390,
-      "sha256": "ecf8eabe93b5ae2f3419cc43f8d9f62c652ca1a60773d2d1c6c6eaa5650e4b22"
+      "bytes": 392,
+      "sha256": "4c38c2bafa976890bfdb34ee731f44942401d71e343583570836757603755d8d"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -285,7 +295,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "e23882e1a751ecd5611aa655d8350d92acf9e550ba750834f3faad241ce10683"
+      "sha256": "d4518a711d3a10832504e3ffccb969d303f30e54d4b4e85b30f47059a44e78df"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -323,14 +333,19 @@
       "sha256": "75330fe0e416319822de50062db02f76a17782bc140343621c8c9068a5f8ad30"
     },
     {
+      "name": "multi_region_cutover_rehearsal_drill.json",
+      "bytes": 499,
+      "sha256": "b92a0eb419cd57ba47ce9b87732acbd4ab25f79c8142c8c3a48977745b95027a"
+    },
+    {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "e344cb7eb152324b9cf204c976ac0e3ef70fffae7415781410964eff20cc8ddd"
+      "sha256": "425c6dec14830f11729768977bf701f02a23083cb7be836aaec92e9b110d1c85"
     },
     {
       "name": "multi_store_dr_drill.json",
       "bytes": 1003,
-      "sha256": "38d0ee2d9f6280e912d1f26d6c5901a9b605e5f0ad96beadf32aca968176e610"
+      "sha256": "a61ba88f83965c12fd2f8f39fae157f31ea0ec1d4179d42f88c2dd6c6a239cf0"
     },
     {
       "name": "mutation_score_drill.json",
@@ -348,6 +363,11 @@
       "sha256": "7e28760d3493a66ca88e1d998cd9e7ab552d264379218921e2a89d7c84514099"
     },
     {
+      "name": "oidc_tid_tenant_acl_drill.json",
+      "bytes": 689,
+      "sha256": "30ac439b9f4bc45083655a88627000e1531e22ee4be58af8a67a4bcb6df43cb6"
+    },
+    {
       "name": "oracle_spec_drill.json",
       "bytes": 1555,
       "sha256": "bb9b78b2f415ea3a441ee9ffe31c7eb4a2e204bf29500592478478836bd8949e"
@@ -355,12 +375,17 @@
     {
       "name": "paging_ack_drill.json",
       "bytes": 365,
-      "sha256": "b20c342780e9f0089375a0aff8c0cd241c8fd6c707cd79e7fd3c002f45eca359"
+      "sha256": "9a47f2c1fcc86401981c5d9cf9b0917474c8cded86756ad1cc06ca3b7c37ee21"
+    },
+    {
+      "name": "paging_escalation_ack_pack_drill.json",
+      "bytes": 311,
+      "sha256": "5b1f753b468a23cfcb1f097e3e0126899ee0ad7ee7179b1f0c421994f6e3eec7"
     },
     {
       "name": "paging_escalation_drill.json",
       "bytes": 463,
-      "sha256": "b625c2abe71975d0bc1452656f0464deef28f5f78270f37eb50e50ac29b0a285"
+      "sha256": "3d6a373dd93a318cb2784ff33c2ce18278bdcc412dd3b9b23d40922b428bb863"
     },
     {
       "name": "paging_rehearsal.json",
@@ -405,7 +430,7 @@
     {
       "name": "production_healing_matrix_drill.json",
       "bytes": 8693,
-      "sha256": "760e3d51d3c0ee018cdc1d40fd4f8ffeef2b9ca3f0a00c51459a40779150f61b"
+      "sha256": "4277e4cbbcace62507993be0435569f395d82910ef67ad55eba61dff572e1fa4"
     },
     {
       "name": "production_healing_replay_pack_drill.json",
@@ -440,7 +465,7 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "9fdf3c0049c0e750a3edb0db00d54aea12c75cc6d41e63a44f4323848154dc81"
+      "sha256": "0dbdb9f21bb5b9ff38921142859a302a1674494c75e4cf311a6e3ec1d0b8029a"
     },
     {
       "name": "redis_swarm_contention_drill.json",
@@ -449,8 +474,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 6141,
-      "sha256": "61563cbd9ef370d91fb2b819597b752c6b01d1de645c4917438abf20586e768e"
+      "bytes": 6713,
+      "sha256": "8e0796c98b255ad508f0a8bab855ca6365cb4778a9bbd82f995e5589e2a7d3e9"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -471,6 +496,11 @@
       "name": "studio_oidc_callback_drill.json",
       "bytes": 428,
       "sha256": "1b78845c995980d618302d8d0c7e5cbfb74944beba25ed8f7880e250c0ac9635"
+    },
+    {
+      "name": "studio_sso_principal_bootstrap_drill.json",
+      "bytes": 472,
+      "sha256": "1aa375a344ec0cfc4ecaa530ec978116f8d3b868231cb629b5aa127ccec790a5"
     },
     {
       "name": "swarm_control_drill.json",
@@ -509,5 +539,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (100 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (106 artifacts hashed); independent human/reviewer sign-off still pending"
 }
