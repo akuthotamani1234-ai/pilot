@@ -390,6 +390,7 @@ def progress() -> dict:
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
         {"id": "I-signature-closed", "label": "A token whose signature cannot be checked is refused", "status": "done"},
+        {"id": "I-jti-after-ok", "label": "A rejected token does not use up its login id", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

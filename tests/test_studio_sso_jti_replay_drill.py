@@ -39,6 +39,27 @@ def test_jti_replay_rejects_second_use(monkeypatch):
     assert "jti required" in missing["reason"]
 
 
+def test_a_rejected_signature_does_not_use_up_the_jti(monkeypatch):
+    monkeypatch.setenv("QPILOT_SSO_REPLAY_JTI", "1")
+    monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
+    reset_seen_jti()
+    token = _jwt({
+        "iss": "https://idp.example",
+        "sub": "user-1",
+        "exp": int(time.time()) + 600,
+        "jti": "still-good",
+    })
+    forged = validate_bearer(token, verify_signature=True)
+    again = validate_bearer(token, verify_signature=True)
+    accepted = validate_bearer(token, verify_signature=False)
+    reset_seen_jti()
+    assert forged["ok"] is False
+    assert "signature" in forged["reason"]
+    assert again["ok"] is False
+    assert "replay" not in again["reason"]
+    assert accepted["ok"] is True
+
+
 def test_jti_replay_off_by_default(monkeypatch):
     monkeypatch.delenv("QPILOT_SSO_REPLAY_JTI", raising=False)
     monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
