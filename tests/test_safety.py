@@ -148,6 +148,37 @@ def test_generated_tests_and_started_apps_get_no_api_keys():
     assert clean_env(env, keep_test_account=True) == {"PATH": "x", "TEST_USERNAME": "u", "TEST_PASSWORD": "p"}
 
 
+def test_a_saved_account_does_not_follow_a_link(tmp_path):
+    from backend.secret_store import load_account, save_account
+    secret = "tenant-b-only-account-file"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "shop.test.json"
+    victim.write_text(json.dumps({"secret": secret, "username": "b", "password": secret}), encoding="utf-8")
+    linked = tmp_path / "accounts"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_account("shop.test", {"username": "a", "password": "new-secret"}, linked) is None
+    assert load_account("shop.test", linked) is None
+    assert json.loads(victim.read_text(encoding="utf-8"))["secret"] == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "shop.test.json").symlink_to(victim)
+    assert save_account("shop.test", {"username": "a", "password": "new-secret"}, real) is None
+    assert load_account("shop.test", real) is None
+    assert load_account("../other/shop.test", real) is None
+    assert load_account("..", real) is None
+    assert json.loads(victim.read_text(encoding="utf-8"))["secret"] == secret
+
+    saved = save_account("shop.test", {"username": "agentic.qa.1@example.com", "password": "Qa@123456x9Z"},
+                         tmp_path / "fresh")
+    assert saved is not None and saved.is_file() and not saved.is_symlink()
+    loaded = load_account("shop.test", tmp_path / "fresh")
+    assert loaded["username"] == "agentic.qa.1@example.com"
+    assert loaded["password"] == "Qa@123456x9Z"
+    assert secret not in saved.read_text(encoding="utf-8")
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="DPAPI is Windows-only")
 def test_created_account_password_is_encrypted_on_disk(tmp_path):
     from backend.secret_store import load_account, save_account
