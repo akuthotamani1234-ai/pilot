@@ -360,3 +360,53 @@ def test_browser_controls_are_not_read_through_a_link_into_another_folder(tmp_pa
     assert loaded["service"] == "home-own-api"
     assert secret not in json.dumps(loaded)
     assert secret in (nested / "qx_dependency.json").read_text(encoding="utf-8")
+
+
+def test_a_saved_login_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import ast
+
+    secret = "tenant-b-only-cookie"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run" / ".private"
+    nested.mkdir(parents=True)
+    saved = nested / "auth.json"
+    saved.write_text(json.dumps({"cookies": [{"name": secret, "value": secret}]}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_adopt_saved_login", "_save_login"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    seen = []
+
+    class _Browser:
+        def add_cookies(self, cookies):
+            seen.extend(cookies)
+
+        def storage_state(self, path):
+            raise AssertionError(path)
+
+    ns = {
+        "Path": Path, "json": json, "os": __import__("os"),
+        "AUTH_STATE": str(linked / "runs" / "run" / ".private" / "auth.json"),
+        "_SANDBOX": {"thread": "kept"},
+        "_SESSION": {"loaded": 0},
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    browser = _Browser()
+    assert ns["_adopt_saved_login"](browser) is False
+    assert ns["_save_login"](browser) is None
+    assert seen == []
+    assert secret in saved.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+    assert ns["_SANDBOX"]["thread"] == "kept"
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "auth.json").write_text(json.dumps({
+        "cookies": [{"name": "home-own", "value": "home-own"}],
+    }), encoding="utf-8")
+    ns["AUTH_STATE"] = str(real / "auth.json")
+    assert ns["_adopt_saved_login"](browser) is True
+    assert seen == [{"name": "home-own", "value": "home-own"}]
+    assert secret not in json.dumps(seen)
+    assert secret in saved.read_text(encoding="utf-8")
