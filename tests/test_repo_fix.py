@@ -221,3 +221,63 @@ def test_a_reviewed_proposal_does_not_follow_a_link_into_another_folder(tmp_path
     assert plan["no_code"][0]["title"] == "home-own"
     assert secret not in json.dumps(plan)
     assert secret in (nested / "fixes.json").read_text(encoding="utf-8")
+
+
+def test_a_published_proposal_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import base64
+
+    secret = "tenant-b-only-proposal"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "repo_fix_plan.json").write_text(json.dumps({
+        "repo": "fixture/secret",
+        "files": [{"path": "index.html", "content": secret, "old_hash": "x", "fixes": [secret]}],
+        "applied": [{"title": secret, "why": secret}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    called = []
+    monkeypatch.setattr(repo_fix, "_gh", lambda *args, **kwargs: called.append(args))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.create_pr(linked / "run", "token", "run-home")
+    assert called == []
+    assert secret in (nested / "repo_fix_plan.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    content = "home-own\n"
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "repo_fix_plan.json").write_text(json.dumps({
+        "repo": "fixture/home",
+        "files": [{
+            "path": "index.html", "content": content, "old_hash": repo_fix._text_hash(content),
+            "fixes": ["home-own"],
+        }],
+        "applied": [{"title": "home-own", "why": "home-own"}],
+        "skipped": [],
+    }), encoding="utf-8")
+
+    def fake_gh(method, path, token, **kwargs):
+        called.append((method, path, kwargs))
+        if method == "GET" and path == "/repos/fixture/home":
+            return {"default_branch": "main"}
+        if method == "GET" and path.endswith("/git/ref/heads/main"):
+            return {"object": {"sha": "abc123"}}
+        if method == "POST" and path.endswith("/git/refs"):
+            return {}
+        if method == "GET" and "/contents/" in path:
+            return {"content": base64.b64encode(content.encode()).decode(), "sha": "file"}
+        if method == "PUT":
+            return {}
+        if method == "POST" and path.endswith("/pulls"):
+            return {"html_url": "https://github.com/fixture/home/pull/2"}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(repo_fix, "_gh", fake_gh)
+    result = repo_fix.create_pr(real, "token", "run-home")
+    assert result["pr_url"].endswith("/pull/2")
+    body = next(item[2]["json"]["body"] for item in called if item[0] == "POST" and item[1].endswith("/pulls"))
+    assert "home-own" in body
+    assert secret not in json.dumps([item[2] for item in called])
+    assert secret in (nested / "repo_fix_plan.json").read_text(encoding="utf-8")
