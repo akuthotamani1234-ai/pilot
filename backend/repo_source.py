@@ -12,6 +12,12 @@ import requests
 
 def snapshot(repo_url: str, token: str, run_dir: Path, branch: str = "") -> Path:
     from .repo_fix import RepoFixError, _gh, parse_repo
+    run_dir = Path(run_dir)
+    private = run_dir / ".private"
+    source_dir = private / "repo_source"
+    record = run_dir / "repo_source.json"
+    if run_dir.is_symlink() or private.is_symlink() or source_dir.is_symlink() or record.is_symlink():
+        raise RepoFixError("The source snapshot is a link, so it was not saved.")
     owner, repo = parse_repo(repo_url)
     metadata = _gh("GET", f"/repos/{owner}/{repo}", token)
     base = branch or metadata["default_branch"]
@@ -41,7 +47,9 @@ def snapshot(repo_url: str, token: str, run_dir: Path, branch: str = "") -> Path
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(archive.read(entry))
             modes[dest.relative_to(root.resolve()).as_posix()] = "100755" if mode & 0o111 else "100644"
-    (run_dir / "repo_source.json").write_text(json.dumps({
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(run_dir, "repo_source.json", json.dumps({
         "repo": f"{owner}/{repo}", "base_branch": base, "base_commit": sha,
-        "root": str(root.resolve()), "modes": modes}), encoding="utf-8")
+        "root": str(root.resolve()), "modes": modes})):
+        raise RepoFixError("The source snapshot is a link, so it was not saved.")
     return root
