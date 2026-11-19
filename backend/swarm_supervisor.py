@@ -69,18 +69,23 @@ def enqueue_plan(queue: DurableQueue, run_id: str, tasks: list[dict]) -> list[di
     return stored
 
 
+def _checkpoint_lands_on_payment(saved: dict) -> bool:
+    """True when any resume address is checkout, including a landing after a safe URL."""
+    for key in ("url", "final_url", "page", "href"):
+        if is_payment_url(str(saved.get(key) or "")):
+            return True
+    return False
+
+
 def _keep_checkpoint(queue: DurableQueue, task: dict, worker_id: str, result) -> None:
     """Store a worker's resume point before the attempt is acked or failed.
 
     The next claim of a retried task then carries that checkpoint. A resume
     point on checkout or payment is not stored, so the retry does not continue
-    there.
+    there. A safe requested URL does not keep a landing on checkout.
     """
     saved = result.get("checkpoint") if isinstance(result, dict) else getattr(result, "checkpoint", None)
-    if not isinstance(saved, dict):
-        return
-    landed = str(saved.get("url") or saved.get("final_url") or "")
-    if landed and is_payment_url(landed):
+    if not isinstance(saved, dict) or _checkpoint_lands_on_payment(saved):
         return
     queue.checkpoint(task["task_id"], worker_id, saved)
 
