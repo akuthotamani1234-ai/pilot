@@ -3435,8 +3435,14 @@ def _launch_run(req: RunRequest, caller: str | None):
             _stamp_tenant_env(env, caller or "")
         else:
             _stamp_tenant_env(env, tenant_id=current_baseline_tenant())
-        if req.reuse_tests and req.reuse_from_run:
-            env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
+        reused = Path(req.reuse_from_run).name if req.reuse_tests and req.reuse_from_run else ""
+        tenant = env.get("QPILOT_TENANT_ID") or ""
+        reuse_ok = bool(reused) and re.fullmatch(r"[\w.\-]+", reused) and not reused.startswith(".")
+        if reuse_ok and tenant:
+            from backend.tenancy_store import get_run_tenant
+            reuse_ok = get_run_tenant(reused) == tenant
+        if reuse_ok:
+            env["REUSE_FROM_RUN"] = reused
         elif "REUSE_FROM_RUN" in env:
             env.pop("REUSE_FROM_RUN", None)
         env["QA_CONTRACT_JSON"] = contract_json

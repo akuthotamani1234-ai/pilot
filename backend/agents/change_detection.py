@@ -91,6 +91,11 @@ def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
         root = Path(_settings.runs_dir)
         if not re.fullmatch(r"[\w.\-]+", name) or name.startswith("."):
             return None
+        tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+        if tenant:
+            from ..tenancy_store import get_run_tenant
+            if get_run_tenant(name) != tenant:
+                return None
         run_dir = root / name
         if run_dir.is_symlink() or _reuse_path_is_linked(root, run_dir):
             return None
