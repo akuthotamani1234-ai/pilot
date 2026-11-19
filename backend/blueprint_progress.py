@@ -498,6 +498,7 @@ def progress() -> dict:
         {"id": "G-soak-link", "label": "A controlled soak does not follow a link into another folder", "status": "done"},
         {"id": "G-failure-matrix-link", "label": "A failure matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-heal-regression-link", "label": "A healing regression does not follow a link into another folder", "status": "done"},
+        {"id": "G-adb-probe-link", "label": "An ADB probe does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

@@ -37,7 +37,22 @@ def _enrich_api_levels(adb: str, devices: list[dict]) -> list[dict]:
     return enriched
 
 
+def _linked_probe() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "android_adb_probe",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_adb_probe(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest_dir = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "android_adb_probe.json"
+    if folder_is_linked(dest_dir) or folder_is_linked(dest_dir / out_name):
+        return _linked_probe()
     from .android import android_environment
 
     env = android_environment()
@@ -75,12 +90,15 @@ def run_adb_probe(*, ops_dir: Path | None = None) -> dict:
             "ADB not on PATH — install platform-tools / start an emulator before Gate D can advance"
         ),
     }
-    dest_dir = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest_dir) or folder_is_linked(dest_dir / out_name):
+        return _linked_probe()
     dest_dir.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "android_adb_probe.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest_dir, out_name, text):
+        return _linked_probe()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "android_adb_probe.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
