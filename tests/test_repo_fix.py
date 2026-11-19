@@ -6,6 +6,8 @@ used to list the finding as fully applied and drop the missing subset.
 import json
 from pathlib import Path
 
+import pytest
+
 from backend import repo_fix
 
 REPO_URL = "https://github.com/example/demo-site"
@@ -187,3 +189,35 @@ def test_create_pr_body_does_not_count_partial_as_full_success(tmp_path, monkeyp
     assert "Missing entirely" in body["body"]
     # Partial must not be double-listed under the fully-skipped hand-fix section only as success
     assert body["body"].count("**Partial fix**") == 1
+
+
+def test_a_reviewed_proposal_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-fix"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "fixes.json").write_text(json.dumps([{
+        "title": secret,
+        "code": {"before": "<p>old</p>", "after": "<p>new</p>"},
+    }]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    called = []
+    monkeypatch.setattr(repo_fix, "_local_copy", lambda *args: called.append(args))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.prepare(linked / "run", REPO_URL, token="")
+    assert called == []
+    assert secret in (nested / "fixes.json").read_text(encoding="utf-8")
+    assert not (nested / "repo_fix_plan.json").exists()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "fixes.json").write_text(json.dumps([{"title": "home-own", "why": "home-own"}]), encoding="utf-8")
+    root = tmp_path / "repo"
+    root.mkdir()
+    monkeypatch.setattr(repo_fix, "_local_copy", lambda *_args: root)
+    plan = repo_fix.prepare(real, REPO_URL, token="")
+    assert plan["no_code"][0]["title"] == "home-own"
+    assert secret not in json.dumps(plan)
+    assert secret in (nested / "fixes.json").read_text(encoding="utf-8")

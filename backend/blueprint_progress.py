@@ -280,6 +280,7 @@ def progress() -> dict:
         {"id": "G-schema-read-link", "label": "A broken API workflow does not follow a link into another file", "status": "done"},
         {"id": "G-check-count-link", "label": "A script check count does not follow a link into another file", "status": "done"},
         {"id": "G-contract-design-link", "label": "A contract-only design does not follow a link into another folder", "status": "done"},
+        {"id": "G-proposal-read-link", "label": "A reviewed proposal does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
