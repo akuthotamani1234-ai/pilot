@@ -1702,6 +1702,21 @@ def ops_production_healing_readiness():
     return {"gate_e_complete": False, "production_healing_readiness": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-suite-pack")
+def ops_production_healing_suite_pack():
+    """Gate E: readiness+flaky+replay+taxonomy+multi-app pack (prod suite still open)."""
+    from backend.production_healing_suite_pack_drill import (
+        run_production_healing_suite_pack_drill,
+    )
+    evidence = run_production_healing_suite_pack_drill()
+    _audit(
+        "ops_production_healing_suite_pack",
+        ok=bool(evidence.get("ok")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_suite_pack": evidence}
+
+
 @app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
 def ops_hosted_dispatch_payload_rehearsal():
     """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""

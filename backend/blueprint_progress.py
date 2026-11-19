@@ -213,6 +213,7 @@ def progress() -> dict:
         {"id": "E-prod-healing-replay", "label": "Production healing before/after replay pack (fixtures)", "status": "done"},
         {"id": "E-prod-healing-flaky", "label": "Flaky/auth/infra no-auto-apply healing policy", "status": "done"},
         {"id": "E-prod-healing-readiness", "label": "Production healing readiness score (not third-party)", "status": "done"},
+        {"id": "E-prod-healing-suite-pack", "label": "Production healing suite pack (not third-party)", "status": "done"},
         {"id": "G-review-integrity", "label": "Independent review integrity checksum (unsigned)", "status": "done"},
         {"id": "G-review-evidence-catalog", "label": "Independent review evidence catalog (unsigned)", "status": "done"},
         {"id": "G-review-attestation", "label": "Independent review attestation stub (unsigned)", "status": "done"},
