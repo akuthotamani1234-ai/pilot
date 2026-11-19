@@ -466,6 +466,35 @@ def test_assert_flow_runs_a_kept_flow_through_the_trusted_runtime(tmp_path, monk
         runtime.assert_flow("auto_invented_999")
 
 
+def test_a_kept_flow_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_runtime import load_auto_contract
+
+    secret = "tenant-b-only-flow"
+    other = tmp_path / "other"
+    private = other / ".private"
+    private.mkdir(parents=True)
+    target = private / "auto_contract.json"
+    target.write_text(json.dumps({"flows": [{"id": secret}]}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert load_auto_contract(linked) is None
+    run = tmp_path / "file-link"
+    (run / ".private").mkdir(parents=True)
+    (run / ".private" / "auto_contract.json").symlink_to(target)
+    assert load_auto_contract(run) is None
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "auto_contract.json").write_text(
+        json.dumps({"flows": [{"id": "home-own"}]}), encoding="utf-8")
+    loaded = load_auto_contract(real)
+    assert loaded["flows"][0]["id"] == "home-own"
+    assert secret not in json.dumps(loaded)
+    assert secret in target.read_text(encoding="utf-8")
+
+
 def test_a_failed_rotation_flow_still_restores_portrait(tmp_path):
     from backend.qa_runtime import AndroidContractAdapter, ContractRuntime
 

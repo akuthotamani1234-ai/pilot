@@ -134,6 +134,22 @@ def same_element(original: dict, candidate: dict) -> bool:
     ) or bool(original.get("text") and original["text"] == candidate.get("text") and not original.get("input_capable"))
 
 
+def load_auto_contract(run_dir) -> dict | None:
+    """This run's kept flows. A linked file or folder is not this run's contract."""
+    import json
+
+    from .finalization import folder_is_linked
+
+    path = Path(run_dir) / ".private" / "auto_contract.json"
+    if path.is_symlink() or folder_is_linked(path.parent) or not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
 class MobileRuntime:
     def __init__(self, driver, config: dict, screens: list[dict], case: dict, run_dir: Path):
         self.driver, self.screens, self.case, self.run_dir = driver, screens, case, run_dir
@@ -377,16 +393,13 @@ class MobileRuntime:
 
     def assert_flow(self, flow_id):
         """A replay-verified test-build flow (android_interact.py), run by the same trusted contract runtime."""
-        import json
-
         from .android import PACKAGE_NAME
         from .qa_contracts import parse_contract
         from .qa_runtime import AndroidContractAdapter, ContractRuntime, private_inputs
 
-        path = self.run_dir / ".private" / "auto_contract.json"
-        if not path.is_file():
+        raw = load_auto_contract(self.run_dir)
+        if raw is None:
             raise ValueError("The test-build flows of this run are missing")
-        raw = json.loads(path.read_text(encoding="utf-8"))
         # Older runs may have android_package corrupted by username substring redaction.
         package = self.config.get("package_name")
         current = raw.get("android_package") if isinstance(raw, dict) else None
