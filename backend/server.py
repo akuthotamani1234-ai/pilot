@@ -321,7 +321,7 @@ def _principal_run_block(path: str, authorization: str | None, x_qa_token: str |
     if not run:
         return None
     reader = _signed_in_reader(
-        authorization, x_qa_token, "run.write" if method == "DELETE" else "run.read")
+        authorization, x_qa_token, "run.read" if method in ("GET", "HEAD") else "run.write")
     if reader is None or not isinstance(reader, str):
         return reader
     from backend.tenancy_store import assert_run_access
