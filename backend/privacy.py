@@ -39,7 +39,15 @@ class PrivacyPolicy(BaseModel):
         return self
 
 
+def _policy_is_linked() -> bool:
+    parent = POLICY_PATH.parent
+    temp = POLICY_PATH.with_suffix(".tmp")
+    return parent.is_symlink() or POLICY_PATH.is_symlink() or temp.is_symlink()
+
+
 def load_policy() -> PrivacyPolicy:
+    if _policy_is_linked():
+        return PrivacyPolicy()  # a link is not this studio's policy
     try:
         return PrivacyPolicy.model_validate_json(POLICY_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -47,8 +55,13 @@ def load_policy() -> PrivacyPolicy:
 
 
 def save_policy(policy: PrivacyPolicy) -> None:
-    POLICY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if _policy_is_linked():
+        raise PrivacyError("The privacy policy is a link, so it was not saved.")
+    parent = POLICY_PATH.parent
+    parent.mkdir(parents=True, exist_ok=True)
     temp = POLICY_PATH.with_suffix(".tmp")
+    if _policy_is_linked():
+        raise PrivacyError("The privacy policy is a link, so it was not saved.")
     temp.write_text(policy.model_dump_json(indent=2), encoding="utf-8")
     os.replace(temp, POLICY_PATH)
 
