@@ -455,20 +455,28 @@ class Explorer:
         return risk, ""
 
     # ---------------------------------------------------------------- one action from a fresh page
-    def _fresh(self, page, url: str, lazy: bool) -> None:
+    def _fresh(self, page, url: str, lazy: bool) -> str:
         """The page as a new visitor sees it - not loaded again when it still is (the crawl just opened it, or the
-        last action changed nothing): every reload of a slow website costs seconds."""
+        last action changed nothing): every reload of a slow website costs seconds.
+
+        Returns a block reason when the document is checkout, including after a
+        redirect. That document is not loaded. '' means the page is open.
+        """
         if self._untouched == url and _same_page(page.url, url):
             self._untouched = None  # (once: the action about to happen may change it)
-            return
+            return blocked_reason("pay") if self._on_payment_page(page) else ""
         self._untouched = None
         if self.before_goto:
             self.before_goto()
-        page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        from .swarm import open_guarded
+        _response, blocked = open_guarded(page, url, timeout=settings.page_timeout_ms)
+        if blocked:
+            return blocked_reason("pay")
         self.settle(page)
         close_consent(page)
         if lazy:
             autoscroll(page)
+        return blocked_reason("pay") if self._on_payment_page(page) else ""
 
     def _act(self, page, t: dict) -> None:
         loc = page.locator(t["selector"])
@@ -537,9 +545,9 @@ class Explorer:
         """guard(page, t) -> why not ('' = go on): checked on the fresh page, just before the action."""
         item_sel = (entry.get("itemLinks") or {}).get("selector")
         try:
-            self._fresh(page, url, bool(entry.get("lazy")))
-            if self._on_payment_page(page):
-                return {"blocked": blocked_reason("pay")}
+            blocked = self._fresh(page, url, bool(entry.get("lazy")))
+            if blocked or self._on_payment_page(page):
+                return {"blocked": blocked or blocked_reason("pay")}
             if opener and not page.locator(t["selector"]).first.is_visible():
                 chain, visited, current = [], set(), opener
                 while current:
@@ -966,7 +974,10 @@ class Explorer:
         self._tags += 1
         tag = f"qa-{self.tag_base}-f{self._tags}"
         known = {i.get("selector"): i for i in entry.get("inputs", []) if i.get("selector")}
-        self._fresh(page, url, bool(entry.get("lazy")))
+        blocked = self._fresh(page, url, bool(entry.get("lazy")))
+        if blocked:
+            return {"form": f.get("selector"), "name": ((f.get("submit") or {}).get("text") or "the form").strip()[:60],
+                    "page": url, "tag": tag, "filled": [], "sent": False, "not_sent": blocked}
         from .forms import FormTargetProblem, form_scope, keep_form_field
         from .navigation import open_path, opener_path
         fields = [x for x in fields if keep_form_field(dict(known.get(x.get("selector"), {}), **x))]
