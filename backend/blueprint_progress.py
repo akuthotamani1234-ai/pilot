@@ -344,6 +344,7 @@ def progress() -> dict:
         {"id": "B-claim-atomic", "label": "A Redis claim pops and leases a task in one step", "status": "done"},
         {"id": "B-click-destination", "label": "A Continue control is not clicked when it opens checkout or PayPal", "status": "done"},
         {"id": "B-form-destination", "label": "A checkout form is not filled, even when the button says Continue", "status": "done"},
+        {"id": "B-test-form-destination", "label": "A generated test cannot click Continue on a form that opens checkout", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
