@@ -13,13 +13,28 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "oidc_acl_matrix_pack_drill.json"
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "oidc_acl_matrix_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_oidc_acl_matrix_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .oidc_email_domain_tenant_acl_drill import (
         run_oidc_email_domain_tenant_acl_drill,
     )
     from .oidc_groups_role_acl_drill import run_oidc_groups_role_acl_drill
     from .oidc_org_tenant_acl_drill import run_oidc_org_tenant_acl_drill
     from .oidc_tid_tenant_acl_drill import run_oidc_tid_tenant_acl_drill
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "oidc_acl_matrix_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_matrix()
 
     started = time.perf_counter()
     parts = {}
@@ -52,15 +67,15 @@ def run_oidc_acl_matrix_pack_drill(*, ops_dir: Path | None = None) -> dict:
             "OIDC ACL matrix pack incomplete; hosted IdP still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "oidc_acl_matrix_pack_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_matrix()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "oidc_acl_matrix_pack_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
