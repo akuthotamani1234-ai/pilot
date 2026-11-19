@@ -491,6 +491,7 @@ def progress() -> dict:
         {"id": "G-locale-portfolio-link", "label": "A locale portfolio does not follow a link into another folder", "status": "done"},
         {"id": "G-perf-portfolio-link", "label": "A performance portfolio does not follow a link into another folder", "status": "done"},
         {"id": "G-visual-portfolio-link", "label": "A visual portfolio does not follow a link into another folder", "status": "done"},
+        {"id": "G-redis-lease-link", "label": "A Redis lease does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
