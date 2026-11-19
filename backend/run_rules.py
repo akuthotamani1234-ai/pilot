@@ -45,7 +45,8 @@ ORDER = (
 
 def _read(path: Path):
     path = Path(path)
-    if path.is_symlink() or path.parent.is_symlink():
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -339,7 +340,8 @@ def trends_for(state: dict, verdict: str, failures: list[dict],
     ]
     runs = [{"verdict": verdict, "failures": areas, "flaky": flaky_now}]
     parent = run_dir.parent
-    if parent.is_dir():
+    from .finalization import folder_is_linked
+    if parent.is_dir() and not folder_is_linked(parent):
         from .agents.change_detection import tenant_owns_run
         for path in sorted(parent.glob("*/summary.json")):
             if path.parent == run_dir or path.is_symlink() or path.parent.is_symlink():
