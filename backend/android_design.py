@@ -468,9 +468,10 @@ def validate_mobile_script(code: str, cases: list[dict]) -> str | None:
 
 
 def generate_scripts(state: dict) -> dict:
+    from .finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
-    if run_dir.is_symlink() or test_dir.is_symlink():
+    if folder_is_linked(run_dir) or test_dir.is_symlink():
         note = "The generated tests folder is a link, so no scripts were written."
         return {"scripts": [], "script_errors": [note], "log": state.get("log", []) + [note]}
     test_dir.mkdir(exist_ok=True)

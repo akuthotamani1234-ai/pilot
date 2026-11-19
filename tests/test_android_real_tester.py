@@ -560,6 +560,37 @@ def test_a_device_log_does_not_follow_a_link_into_another_folder(tmp_path, monke
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_an_android_script_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.android_design import generate_scripts
+
+    monkeypatch.setattr("backend.android_design.llm.llm_enabled", lambda: False)
+    secret = b"tenant-b-only-script"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "generated_tests").mkdir()
+    (nested / "generated_tests" / "test_android_generated.py").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    case = {"id": "home", "page": "home", "plan": [["open_screen", ["S1"]], ["assert_visible", ["E1"]]]}
+    refused = generate_scripts({"run_dir": str(linked / "run"), "test_cases": [case], "screens": []})
+    fresh = generate_scripts({"run_dir": str(linked / "fresh"), "test_cases": [case], "screens": []})
+    assert "link" in refused["script_errors"][0]
+    assert "link" in fresh["script_errors"][0]
+    assert not (other / "fresh").exists()
+    assert (nested / "generated_tests" / "test_android_generated.py").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = generate_scripts({"run_dir": str(real), "test_cases": [dict(case)], "screens": []})
+    text = (real / "generated_tests" / "test_android_generated.py").read_bytes()
+    assert b"def test_home" in text and b"assert_visible" in text and secret not in text
+    assert own["script_sources"]["test_android_generated.py"] == "template"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_android_evidence_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import base64
 
