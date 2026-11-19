@@ -222,6 +222,7 @@ def progress() -> dict:
         {"id": "H-dr-comms-contract", "label": "Hosted DR communications / status-page contract", "status": "done"},
         {"id": "H-paging-severity-routing", "label": "Paging severity → rota routing contract", "status": "done"},
         {"id": "H-replication-lag-contract", "label": "Dual-region replication lag contract (not hosted)", "status": "done"},
+        {"id": "H-cutover-lag-gate", "label": "Local cutover blocked when failover exceeds lag budget", "status": "done"},
         {"id": "H-cutover-rehearsal", "label": "Local multi-region cutover rehearsal pack", "status": "done"},
         {"id": "J-mutation-refresh", "label": "Re-verify DemoStore+Classic mutation scores", "status": "done"},
         {"id": "C-oracle-refresh", "label": "Re-verify multi-portal oracle bind 4/4", "status": "done"},

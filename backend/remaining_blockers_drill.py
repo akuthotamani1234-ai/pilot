@@ -38,6 +38,7 @@ BLOCKERS = (
             "hosted_dr_comms_contract_drill.json",
             "paging_severity_routing_contract_drill.json",
             "dual_region_replication_lag_contract_drill.json",
+            "dual_region_cutover_lag_gate_drill.json",
         ],
     },
     {
