@@ -386,6 +386,72 @@ def test_a_page_that_refreshes_into_checkout_is_not_opened():
     assert opened == []
 
 
+def test_a_failed_address_check_does_not_open_checkout():
+    from backend.payment_nav import open_refusing_checkout
+    from backend.swarm import open_guarded
+
+    opened = []
+
+    class Req:
+        def __init__(self, url):
+            self.url = url
+            self.resource_type = "document"
+            self.frame = type("Frame", (), {"parent_frame": None})()
+
+        def is_navigation_request(self):
+            return True
+
+    class Route:
+        def __init__(self, url):
+            self.request = Req(url)
+            self.aborted = ""
+
+        def fetch(self, **_kwargs):
+            return type("Resp", (), {"status": 302, "headers": {"location": "/checkout"}})()
+
+        def abort(self, reason="blockedbyclient"):
+            self.aborted = reason
+
+        def continue_(self):
+            self.aborted = "continue"
+
+        def fulfill(self, **_kwargs):
+            return None
+
+    class Page:
+        url = ""
+
+        class request:
+            @staticmethod
+            def get(*_args, **_kwargs):
+                raise OSError("no host")
+
+        def route(self, _pattern, handler):
+            self.handler = handler
+
+        def unroute(self, *_args, **_kwargs):
+            return None
+
+        def goto(self, url, **_kwargs):
+            opened.append(url)
+            route = Route(url)
+            self.handler(route)
+            if route.aborted:
+                raise RuntimeError("net::ERR_ABORTED")
+            self.url = url
+            return type("Resp", (), {"status": 200})()
+
+    assert open_refusing_checkout(Page(), "https://shop.example/checkout", timeout=1000).endswith("/checkout")
+    assert opened == []
+    _response, blocked = open_guarded(Page(), "https://shop.example/checkout")
+    assert blocked["status"] == "blocked"
+    assert opened == []
+    _response, blocked = open_guarded(Page(), "https://shop.example/product")
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert "checkout" not in opened[-1]
+
+
 def test_a_worker_retries_a_cancelled_page_and_still_skips_checkout():
     from backend.swarm import open_guarded
 

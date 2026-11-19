@@ -196,8 +196,15 @@ def open_guarded(page, address: str, *, timeout: int = 20000):
         try:
             current, landed = follow_get(page.request.get, address, timeout=timeout)
         except Exception:
-            # A route-backed page has no network host. The browser open still runs.
-            current, landed = address, ""
+            # The probe never ran. Do not open checkout, and abort a redirect into it.
+            if is_payment_url(address):
+                return None, _payment_block(address, address)
+            from .payment_nav import navigate_for_crawl
+            _response, blocked_url = navigate_for_crawl(page, address, timeout=timeout)
+            final = blocked_url or str(getattr(page, "url", "") or "")
+            if blocked_url or is_payment_url(final):
+                return None, _payment_block(address, final or address)
+            return _response, None
         if landed:
             return None, _payment_block(address, landed)
         response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
