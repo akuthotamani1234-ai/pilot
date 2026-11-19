@@ -311,12 +311,12 @@ def self_healing_agent(state: QAState) -> QAState:
         if bad and bad in fixed and fixed[bad]["file"] == holder:
             # The same file was already repaired. A different file keeps its own repair,
             # so a later failure there cannot undo the first file.
-            # A test mistake still needs its own approval. It does not inherit an
-            # automatic locator repair of the same selector.
+            # Only a class that may repair itself inherits that change. A test mistake,
+            # or any other class that needs a person, does not.
             done = fixed[bad]
             from ..healing_policy import escalation_for
             later = escalation_for(str(f.get("category") or ""))
-            if not (later["level"] >= 3 and done.get("auto_apply")):
+            if later["auto_apply"]:
                 entry.update(file=done["file"], method=done["method"], backup=done["backup"], to=done["to"],
                              change=f"{bad}  ->  {done['to']} (already repaired this round)")
                 entry["from"] = bad

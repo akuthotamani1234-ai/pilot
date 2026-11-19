@@ -404,6 +404,7 @@ def progress() -> dict:
         {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
         {"id": "E-named-classes", "label": "Only a locator repair or a bounded timeout retry applies on its own", "status": "done"},
+        {"id": "E-no-inherit", "label": "A repair that needs a person is not copied onto the next failure", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
         {"id": "C-mixed-test", "label": "A console check that only reports an insecure font is not an application defect", "status": "done"},
         {"id": "C-cancelled-load", "label": "A generated test retries a cancelled page load and still does not open checkout", "status": "done"},
