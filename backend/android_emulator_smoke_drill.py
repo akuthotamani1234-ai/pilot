@@ -31,7 +31,21 @@ def _adb_shell(adb: str, serial: str, *args: str) -> str:
     return (proc.stdout or "").strip()
 
 
+def _linked_smoke() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "android_emulator_smoke",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_android_emulator_smoke_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_smoke()
+
     env = android_environment()
     adb = str(env.get("adb") or "adb")
     devices = env.get("devices") if isinstance(env.get("devices"), list) else []
@@ -90,10 +104,14 @@ def run_android_emulator_smoke_drill(*, ops_dir: Path | None = None) -> dict:
             ),
         }
 
+    text = json.dumps(evidence, indent=2)
+    name = "android_emulator_smoke_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_smoke()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "android_emulator_smoke_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_smoke()
     # Keep a dedicated API24 smoke artifact so later API30 refreshes do not erase it.
     if evidence.get("ok") and int(evidence.get("api_level") or 0) == 24:
         api24 = {
@@ -101,40 +119,43 @@ def run_android_emulator_smoke_drill(*, ops_dir: Path | None = None) -> dict:
             "drill": "android_emulator_smoke_api24",
             "note": "Dedicated API24 smoke; preserved across higher-API refreshes",
         }
-        api24_out = (
-            (Path(ops_dir) / "android_emulator_smoke_api24_drill.json")
-            if ops_dir else (EVIDENCE.parent / "android_emulator_smoke_api24_drill.json")
-        )
-        api24_out.write_text(json.dumps(api24, indent=2), encoding="utf-8")
+        api24_name = "android_emulator_smoke_api24_drill.json"
+        if not folder_is_linked(dest / api24_name):
+            write_text_unless_linked(dest, api24_name, json.dumps(api24, indent=2))
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "android_emulator_smoke_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
         # Merge into live matrix rows so API24 evidence survives API30 refreshes.
-        rows_path = ROOT / "docs" / "ops-evidence" / "android_live_matrix_rows.json"
-        existing: list = []
-        if rows_path.is_file():
-            try:
-                loaded = json.loads(rows_path.read_text(encoding="utf-8"))
-                if isinstance(loaded, list):
-                    existing = [r for r in loaded if isinstance(r, dict)]
-            except (OSError, ValueError):
-                existing = []
-        fresh = [
-            r for r in (evidence.get("matrix_rows") or [])
-            if isinstance(r, dict)
-        ]
-        merged: list[dict] = []
-        seen: set[tuple] = set()
-        for row in existing + fresh:
-            key = (
-                str(row.get("source") or ""),
-                str(row.get("device_id") or ""),
-                str(row.get("api_level") or ""),
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(row)
-        rows_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+        rows_name = "android_live_matrix_rows.json"
+        rows_dir = ROOT / "docs" / "ops-evidence"
+        rows_path = rows_dir / rows_name
+        if not folder_is_linked(rows_path) and not folder_is_linked(rows_dir):
+            existing: list = []
+            if rows_path.is_file():
+                try:
+                    loaded = json.loads(rows_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, list):
+                        existing = [r for r in loaded if isinstance(r, dict)]
+                except (OSError, ValueError):
+                    existing = []
+            fresh = [
+                r for r in (evidence.get("matrix_rows") or [])
+                if isinstance(r, dict)
+            ]
+            merged: list[dict] = []
+            seen: set[tuple] = set()
+            for row in existing + fresh:
+                key = (
+                    str(row.get("source") or ""),
+                    str(row.get("device_id") or ""),
+                    str(row.get("api_level") or ""),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(row)
+            rows_dir.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(rows_dir, rows_name, json.dumps(merged, indent=2))
     return evidence
