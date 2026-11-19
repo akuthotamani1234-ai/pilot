@@ -41,6 +41,9 @@ def _run_dir(state):
 
 def _save_json(path, data):
     # Keep package_name / app package ids valid; substring username redaction must not break them.
+    path = Path(path)
+    if path.is_symlink() or path.parent.is_symlink():
+        return
     path.write_text(redact_json(data), encoding="utf-8")
 
 
@@ -556,8 +559,10 @@ def discovery_agent(state):
         saved = session.saved_secrets()
         if saved:
             # The account test mode registered itself: the final run logs in with it again. Private file only.
-            (run_dir / ".private").mkdir(exist_ok=True)
-            (run_dir / ".private" / "auto_secrets.json").write_text(json.dumps(saved), encoding="utf-8")
+            from .finalization import private_file
+            secret_path = private_file(run_dir, "auto_secrets.json")
+            if secret_path is not None:
+                secret_path.write_text(json.dumps(saved), encoding="utf-8")
         return {"enabled": True, "flows": session.flows, "tried": session.tried, "findings": session.findings,
                 "coverage": session.coverage, "tries_used": session.used, "stopped": stopped,
                 "state_inventory": session.state_inventory(), "account_setup": getattr(session, "account_setup", {}),
@@ -764,7 +769,9 @@ def discovery_agent(state):
                 initial = inspect_driver(driver, config)
             config["package_name"] = initial["package_name"]
             stored = run_dir / ".private" / "android_config.json"
-            if stored.is_file():
+            if stored.is_symlink() or stored.parent.is_symlink() or run_dir.is_symlink():
+                stored = None
+            if stored is not None and stored.is_file():
                 # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
                 try:
                     saved = json.loads(stored.read_text(encoding="utf-8"))
@@ -890,10 +897,10 @@ def discovery_agent(state):
             # Private copy for the trusted runtime; a public copy the person can reuse as approved flows.
             # Do not redact the private contract: assert_text / accessibility_id values often contain the
             # test username (e.g. "Welcome demo user"); redacting them makes execution look for [REDACTED].
-            (run_dir / ".private").mkdir(exist_ok=True)
-            (run_dir / ".private" / "auto_contract.json").write_text(
-                json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            from .finalization import private_file
+            contract_path = private_file(run_dir, "auto_contract.json")
+            if contract_path is not None:
+                contract_path.write_text(json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8")
             _save_json(run_dir / "auto_flows.json", contract)
         _save_json(run_dir / "android_interaction.json", {**interaction, "kept": len(auto_flows)})
         log.append(f"Test-build mode: kept {len(auto_flows)} replay-verified user-like tests from "

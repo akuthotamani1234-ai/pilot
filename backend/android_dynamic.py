@@ -368,10 +368,10 @@ class ActionRecovery:
         }
         self.events.append(stored)
         if run_dir:
+            from .finalization import write_text_unless_linked
             from .safety import redact_data
 
-            path = Path(run_dir) / "dynamic.json"
-            path.write_text(json.dumps(redact_data({"events": self.events}), indent=2), encoding="utf-8")
+            write_text_unless_linked(Path(run_dir), "dynamic.json", json.dumps(redact_data({"events": self.events}), indent=2))
 
 
 def perform_tap(element, *, click, refind, recovery: ActionRecovery, screen=None, contract=None,
