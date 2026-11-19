@@ -30,6 +30,7 @@ from ..navigation import opener_path
 from ..observe import READING_SUBMIT  # (a search / filter form's button: it only reads)
 from ..page_status import page_testable
 from ..state import QAState
+from ..swarm import is_payment_url, stored_control_opens_payment
 from ..testdata import field_kind, values as fitting_values
 
 SYSTEM = (
@@ -70,6 +71,8 @@ def safe_buttons(p: dict) -> list[dict]:
                            tag=b.get("tag")) in ("pay", "delete", "logout", "password", "write"):
             continue
         if UNSAFE_BUTTON.search(text) or UNSAFE_BUTTON.search(b.get("selector") or ""):
+            continue
+        if stored_control_opens_payment(p.get("final_url") or p.get("url") or "", b):
             continue
         out.append(b)
     return out
@@ -495,7 +498,10 @@ def coverage(p: dict, code: str) -> dict:
     def add(name, kind, el, earlier):
         s = el.get("selector")
         meaning = None
-        if s and s in used:
+        page_url = p.get("final_url") or p.get("url") or ""
+        if stored_control_opens_payment(page_url, el):
+            status, why = "not tested", "not used on purpose: it opens checkout or payment"
+        elif s and s in used:
             status, why, meaning = "tested", "", "scripted"
         elif earlier:
             status, why, meaning = "tested", "same as on an earlier page - tested there", "scripted"
@@ -590,6 +596,8 @@ def rule_based_cases(p: dict) -> list[dict]:
     for f in p.get("forms", []):
         if f.get("submit") and FORM_UNSAFE.search(f["submit"].get("text") or ""):
             continue  # never submit a "Pay" / "Delete" / "Transfer" form, even empty
+        if stored_control_opens_payment(p.get("final_url") or p.get("url") or "", f):
+            continue  # a Continue button can still post the form to checkout
         if settings.environment == "production":
             continue  # production: no form is ever submitted (it could create real records)
         # (also a filter form of an app: OrangeHRM's 'Username / User Role / Status' with its button 'Search' - sent
@@ -1960,8 +1968,11 @@ def learned_cases(pages: list[dict]) -> list[dict]:
             if re.search(r"\bloaded\s*:|\b\d+(?:\.\d+)?\s*%|video player is loading|remaining time", b.get("control") or "", re.I):
                 continue  # progress/timer text is not a stable action or a business oracle
             key = (b.get("control"), b.get("selector"))
+            button = by_sel.get(b.get("selector")) or {}
             if b.get("effect") in ("error", None) or b.get("selector") in covered or key in done \
-                    or b.get("risk") == "protected" or len(out) >= 80:
+                    or b.get("risk") == "protected" or len(out) >= 80 \
+                    or stored_control_opens_payment(p.get("final_url") or p.get("url") or "", button) \
+                    or is_payment_url(str(b.get("to") or "")):
                 continue
             done.add(key)
             if HISTORY_BACK.search((by_sel.get(b["selector"]) or {}).get("html") or ""):

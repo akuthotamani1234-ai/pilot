@@ -55,6 +55,17 @@ def control_opens_payment(page_url: str, href: str = "", form_action: str = "", 
     return False
 
 
+def stored_control_opens_payment(page_url: str, control: dict | None) -> bool:
+    """True when a saved button, link, or form opens checkout or payment."""
+    item = control or {}
+    return control_opens_payment(
+        page_url,
+        str(item.get("href") or ""),
+        str(item.get("form_action") or item.get("action") or ""),
+        str(item.get("onclick") or ""),
+    )
+
+
 def choose_listing(urls: list[str], sample_size: int) -> tuple[list[str], list[tuple[str, str]]]:
     """Pick the first products a shopper sees. Leave the rest of that list.
 

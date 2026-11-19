@@ -776,6 +776,14 @@ class Explorer:
                                   "risk": risk, "effect": "error", "error": ev["error"],
                                   "revealed_by": t.get("revealed_by")})
                 continue
+            from .swarm import is_payment_url
+            if is_payment_url(str(ev.get("to") or "")):
+                why = blocked_reason("pay")
+                self.counts["blocked"] += 1
+                self.blocked.append({"control": t["name"], "page": url, "why": why})
+                if t.get("seen"):
+                    tried.append({"name": t["name"], "status": "blocked", "why": why})
+                continue
             if t.get("seen"):
                 tried.append({"name": t["name"], "status": "learned", "why": ev["effect"]})
             self.counts["no_effect" if ev["effect"] == "nothing" else "learned"] += 1

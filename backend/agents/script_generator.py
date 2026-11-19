@@ -2584,12 +2584,13 @@ def all_links_script(app_map: list[dict]) -> tuple[str, int]:
     """One test per UNIQUE link on the whole website (internal + external), and one per link to a part of a page
     (#projects): that part must exist. Returns (code, number of checks)."""
     from ..config import settings
+    from ..swarm import is_payment_url
     from .test_design import section_links
     links, seen = [], set()
     for p in app_map:
         for l in p.get("links", []):
             href = l["href"].split("#")[0]
-            if href in seen or any(w in href.lower() for w in settings.unsafe_link_words) \
+            if href in seen or is_payment_url(href) or any(w in href.lower() for w in settings.unsafe_link_words) \
                     or (l.get("external") and not settings.check_external_links):
                 continue
             seen.add(href)
