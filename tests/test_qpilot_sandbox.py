@@ -123,3 +123,42 @@ def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypa
     env = _env(owned, owned / "generated_tests", owned / "results.jsonl", owned / "screenshots", {})
     assert Path(env["QA_RUN_DIR"]) == owned.resolve()
     assert secret.decode() not in env["QA_RUN_DIR"]
+
+
+def test_a_saved_login_is_not_passed_to_tests_through_a_link(tmp_path):
+    from backend.agents.executor import _env
+
+    secret = "tenant-b-only-login"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "role.json").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    private = run / ".private"
+    private.mkdir(parents=True)
+    (run / "generated_tests").mkdir()
+    (private / "auth.json").symlink_to(other / "auth.json")
+    (private / "role.json").symlink_to(other / "role.json")
+    state = {"roles": {"roles": {"shopper": {"state": "role.json"}}}}
+    env = _env(run, run / "generated_tests", run / "results.jsonl", run / "screenshots", state)
+    assert env["QA_AUTH_STATE"] == ""
+    assert env["QA_ROLE_STATES"] == "{}"
+    assert secret not in json.dumps(env)
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "role.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_private = real / ".private"
+    real_private.mkdir(parents=True)
+    (real / "generated_tests").mkdir()
+    (real_private / "auth.json").write_text('{"cookies":"home-own"}\n', encoding="utf-8")
+    (real_private / "role.json").write_text('{"cookies":"home-own-role"}\n', encoding="utf-8")
+    real_env = _env(real, real / "generated_tests", real / "results.jsonl", real / "screenshots", state)
+    assert Path(real_env["QA_AUTH_STATE"]) == (real_private / "auth.json").resolve()
+    assert json.loads(real_env["QA_ROLE_STATES"])["shopper"] == str((real_private / "role.json").resolve())
+    assert secret not in json.dumps(real_env)
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
