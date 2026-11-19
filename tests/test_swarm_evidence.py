@@ -45,6 +45,42 @@ def test_listing_dual_write_and_drain(tmp_path):
     assert "oracle" in roles
 
 
+def test_a_swarm_record_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("QPILOT_REDIS_URL", raising=False)
+    secret = b"tenant-b-only-swarm"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    listing = tasks_for_listing(
+        "https://shop.example/catalog",
+        ["https://shop.example/p/1"],
+        [],
+        1,
+    )
+    mirrored = mirror_listing(linked / "run", listing, run_id="linked")
+    recorded = record_swarm(linked / "run", ["https://shop.example/saree"], run_id="linked")
+    missing = record_swarm(linked / "fresh", ["https://shop.example/saree"], run_id="fresh")
+    assert mirrored["mirrored"] == 0
+    assert recorded["ran"] is False and "link" in recorded["reason"]
+    assert missing["ran"] is False and "link" in missing["reason"]
+    assert not (other / "fresh").exists()
+    assert not (nested / "swarm_queue.sqlite").exists()
+    assert not (nested / "swarm_evidence.json").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    saved = record_swarm(real, ["https://shop.example/saree"], run_id="real")
+    assert saved["ran"] is True
+    evidence = real / "swarm_evidence.json"
+    assert evidence.is_file() and not evidence.is_symlink()
+    assert secret not in evidence.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_plan_includes_specialists():
     from backend.swarm_supervisor import plan_run
     planned = plan_run("run-x", ["https://shop.example/", "https://shop.example/p/1"], worker_count=2)
