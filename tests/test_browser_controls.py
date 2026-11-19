@@ -327,3 +327,36 @@ def test_a_generated_test_cannot_read_through_a_link_out_of_its_run(tmp_path, mo
         ns["_audit"]("open", ("../secret.txt", "r"))
     assert secret.read_text(encoding="utf-8") == "tenant-b-only-secret"
     assert not (tmp_path / "outside.txt").exists()
+
+
+def test_browser_controls_are_not_read_through_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-service"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    _write_environment(nested, "staging", fixed_clock=True, network_fault=True)
+    (nested / "qx_dependency.json").write_text(json.dumps({
+        "injected": True, "service": secret,
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = load_controls(linked / "runs" / "run")
+    assert refused["fixed_clock"] is False
+    assert refused["network_fault"] is False
+    assert refused["injected"] is False
+    assert refused["service"] == ""
+    assert secret not in json.dumps(refused)
+    assert secret in (nested / "qx_dependency.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _write_environment(real, "staging", fixed_clock=True)
+    (real / "qx_dependency.json").write_text(json.dumps({
+        "injected": True, "service": "home-own-api",
+    }), encoding="utf-8")
+    loaded = load_controls(real)
+    assert loaded["fixed_clock"] is True
+    assert loaded["service"] == "home-own-api"
+    assert secret not in json.dumps(loaded)
+    assert secret in (nested / "qx_dependency.json").read_text(encoding="utf-8")
