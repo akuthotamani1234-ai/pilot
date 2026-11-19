@@ -1891,7 +1891,8 @@ def discovery_agent(state: QAState) -> QAState:
     start_url = _normalize(state["url"])
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
-    shots.mkdir(parents=True, exist_ok=True)
+    if not run_dir.is_symlink() and not shots.is_symlink():
+        shots.mkdir(parents=True, exist_ok=True)
     target = read_target(run_dir)
     if target is not None and target.get("ok") is False:
         reason = "; ".join(target.get("problems") or ["the target is not registered"])
@@ -2414,7 +2415,10 @@ def discovery_agent(state: QAState) -> QAState:
                         layout = page.evaluate(LAYOUT_JS)
                         if visual.enabled():  # its look at phone width, for the visual check (backend/visual.py)
                             phone_shot = shots / f"phone_{shot_path.name}"
-                            page.screenshot(path=str(phone_shot))
+                            from ..finalization import path_unless_linked
+                            allowed = path_unless_linked(shots, phone_shot.name)
+                            if allowed is not None:
+                                page.screenshot(path=str(allowed))
                             look_phone = dict(page.evaluate(visual.VISUAL_JS),
                                               shot=phone_shot.relative_to(run_dir).as_posix())
                         desk = {x.get("selector") for x in entry.get("buttons", []) + entry.get("inputs", [])}
@@ -2435,12 +2439,17 @@ def discovery_agent(state: QAState) -> QAState:
                 if not inside and app_map and not _same_app(entry, app_map[0], base_host):
                     raise _NotTheApp()
                 try:  # the page's HTML code, so the report can point at the exact line to change
+                    from ..finalization import path_unless_linked, write_text_unless_linked
                     html_dir = run_dir / "html"
-                    html_dir.mkdir(exist_ok=True)
-                    (html_dir / f"{slug}.html").write_text(page.content(), encoding="utf-8")
+                    if path_unless_linked(run_dir, "html") is not None:
+                        html_dir.mkdir(exist_ok=True)
+                        write_text_unless_linked(html_dir, f"{slug}.html", page.content())
                 except Exception:
                     pass
-                page.screenshot(path=str(shot_path), full_page=True)
+                from ..finalization import path_unless_linked
+                allowed_shot = path_unless_linked(shots, shot_path.name)
+                if allowed_shot is not None:
+                    page.screenshot(path=str(allowed_shot), full_page=True)
                 if visual.enabled():  # its look at desktop width: compared with the approved look (backend/visual.py)
                     try:
                         look = dict(page.evaluate(visual.VISUAL_JS), shot=entry["screenshot"])
@@ -2560,7 +2569,12 @@ def discovery_agent(state: QAState) -> QAState:
                 entry["status"] = None
                 entry["error"] = str(e).split("\n")[0][:300]
                 try:
-                    page.screenshot(path=str(shot_path))
+                    from ..finalization import path_unless_linked
+                    allowed_shot = path_unless_linked(shots, shot_path.name)
+                    if allowed_shot is None:
+                        entry["screenshot"] = None
+                    else:
+                        page.screenshot(path=str(allowed_shot))
                 except Exception:
                     entry["screenshot"] = None
 

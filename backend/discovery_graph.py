@@ -79,9 +79,11 @@ def write_graph(run_dir: str | Path, app_map: list[dict], crawl: dict | None = N
     from .surface_coverage import summarize_surfaces
 
     path = Path(run_dir)
-    path.mkdir(parents=True, exist_ok=True)
     graph = build_graph(app_map, crawl)
     graph["surfaces"] = summarize_surfaces(app_map, crawl)
-    (path / "discovery_graph.json").write_text(json.dumps(graph, indent=2), encoding="utf-8")
-    (path / "surface_coverage.json").write_text(json.dumps(graph["surfaces"], indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not path.is_symlink():
+        path.mkdir(parents=True, exist_ok=True)
+        write_text_unless_linked(path, "discovery_graph.json", json.dumps(graph, indent=2))
+        write_text_unless_linked(path, "surface_coverage.json", json.dumps(graph["surfaces"], indent=2))
     return graph

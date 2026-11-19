@@ -105,6 +105,8 @@ def write_locale(run_dir: Path, observed: dict) -> dict:
     """Write runs/<run>/locale.json. Expected stays empty until a person supplies it."""
     payload = locale_payload(observed)
     folder = Path(run_dir)
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / "locale.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not folder.is_symlink():
+        folder.mkdir(parents=True, exist_ok=True)
+        write_text_unless_linked(folder, "locale.json", json.dumps(payload, indent=2))
     return payload
