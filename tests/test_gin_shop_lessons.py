@@ -162,7 +162,7 @@ def test_search_results_that_all_say_view_post_are_judged_on_their_own_pages(sit
         ns["test_search_finds_item"](_blog(site, [4]), [])  # a post that doesn't say 'hairy': still a failure
 
 
-def _guard(monkeypatch):
+def _guard_ns(monkeypatch):
     """The generated tests' click guard (templates/conftest.py: _risky and its patterns), with this run's patterns
     in production - only those parts, so the guard is not installed in this test process."""
     import ast
@@ -186,8 +186,13 @@ def _guard(monkeypatch):
     return ns
 
 
+def _guard(monkeypatch):
+    """The click-risk function the other lesson tests call."""
+    return _guard_ns(monkeypatch)["_risky"]
+
+
 def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
-    guard = _guard(monkeypatch)
+    guard = _guard_ns(monkeypatch)
 
     class OnCheckout:
         class page:
@@ -209,7 +214,7 @@ def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
 
 
 def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
-    risky = _guard(monkeypatch)["_risky"]
+    risky = _guard(monkeypatch)
     assert not risky(["VIEW POST", "", "", "/blog/post?postId=3"])  # (was: Blocked - a protected action)
     assert not risky(["Share", "", "", "https://social.example/share?u=1"])
     assert risky(["POST COMMENT", "", "", ""])  # a button that sends: still blocked
