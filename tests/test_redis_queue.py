@@ -36,11 +36,13 @@ def test_redis_durable_queue_plan_drain(monkeypatch):
         queue.close()
 
 
-@pytest.mark.skipif(shutil.which("redis-cli") is None, reason="redis-cli missing")
 def _redis_queue(prefix: str) -> RedisDurableQueue:
-    return RedisDurableQueue(
-        "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
-    )
+    try:
+        return RedisDurableQueue(
+            "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
+        )
+    except Exception as exc:
+        pytest.skip(f"redis unavailable: {exc}")
 
 
 def _wipe(queue: RedisDurableQueue, prefix: str) -> None:
@@ -135,9 +137,7 @@ def test_redis_stale_claim_and_cancel_cannot_overwrite_status():
 
 def test_redis_recover_ignores_a_stale_expired_snapshot():
     prefix = f"qpilot:testrecover:{uuid.uuid4().hex}"
-    queue = RedisDurableQueue(
-        "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
-    )
+    queue = _redis_queue(prefix)
     original = queue._load
 
     def stale(task_id):
@@ -168,9 +168,7 @@ def test_redis_recover_ignores_a_stale_expired_snapshot():
 
 def test_redis_expired_lease_cannot_complete():
     prefix = f"qpilot:testlease:{uuid.uuid4().hex}"
-    queue = RedisDurableQueue(
-        "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
-    )
+    queue = _redis_queue(prefix)
     try:
         queue.enqueue(
             run_id="run-lease", role="worker", payload={"url": "/a"},
