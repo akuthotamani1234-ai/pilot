@@ -247,3 +247,47 @@ def test_a_screenshot_check_does_not_follow_a_link_into_another_run(tmp_path, mo
     })
     assert seen == 0
     assert json.loads(cache.read_text(encoding="utf-8"))["secret"] == "tenant-b-only-shot"
+
+
+def test_a_screenshot_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import io
+    import json
+    import zipfile
+
+    from backend import vision
+
+    def packed(payload: bytes) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr("0.trace", json.dumps({
+                "type": "screencast-frame", "timestamp": 1, "sha1": "frame.png",
+            }) + "\n" + json.dumps({"type": "before", "method": "click", "startTime": 2}))
+            archive.writestr("resources/frame.png", payload)
+        return buf.getvalue()
+
+    secret = b"tenant-b-only-shot"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "shot.png").write_bytes(secret)
+    trace = nested / "trace.zip"
+    trace.write_bytes(packed(secret))
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "runs" / "run"
+    assert vision._read(run, "shot.png") is None
+    assert vision._trace_in_run(run, "trace.zip") is None
+    assert vision.before_picture(run / "trace.zip") is None
+    assert (nested / "shot.png").read_bytes() == secret
+    assert secret in trace.read_bytes()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "shot.png").write_bytes(b"home-own-shot")
+    (real / "trace.zip").write_bytes(packed(b"home-own-frame"))
+    assert vision._read(real, "shot.png") == b"home-own-shot"
+    assert vision._trace_in_run(real, "trace.zip") == real / "trace.zip"
+    assert vision.before_picture(real / "trace.zip") == b"home-own-frame"
+    assert secret not in (vision._read(real, "shot.png") or b"")
+    assert (nested / "shot.png").read_bytes() == secret

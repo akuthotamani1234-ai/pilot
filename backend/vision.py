@@ -96,7 +96,8 @@ def _read(run_dir: Path, rel: str | None) -> bytes | None:
         return None
     run_dir = Path(run_dir)
     rel_path = Path(rel)
-    if run_dir.is_symlink() or rel_path.is_absolute() or ".." in rel_path.parts:
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or rel_path.is_absolute() or ".." in rel_path.parts:
         return None
     cursor = run_dir
     for part in rel_path.parts:
@@ -219,7 +220,8 @@ def _trace_in_run(run_dir: Path, trace: str | None) -> Path | None:
         return None
     run_dir = Path(run_dir)
     path = Path(trace)
-    if run_dir.is_symlink() or path.is_absolute() or ".." in path.parts:
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or path.is_absolute() or ".." in path.parts:
         return None
     cursor = run_dir
     for part in path.parts:
@@ -233,7 +235,8 @@ def before_picture(trace: Path) -> bytes | None:
     """From a test's Playwright recording (trace.zip): the screen just before its LAST action (the click / typing that
     the failure followed)."""
     trace = Path(trace)
-    if trace.is_symlink():
+    from .finalization import folder_is_linked
+    if trace.is_symlink() or folder_is_linked(trace.parent):
         return None
     try:
         z = zipfile.ZipFile(trace)
