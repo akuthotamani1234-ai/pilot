@@ -17,7 +17,22 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "studio_oidc_callback_drill.json"
 
 
+def _linked_oidc() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "studio_oidc_callback",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_studio_oidc_callback_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / "studio_oidc_callback_drill.json"):
+        return _linked_oidc()
+
     try:
         import jwt  # noqa: F401
     except ImportError:
@@ -28,7 +43,8 @@ def run_studio_oidc_callback_drill(*, ops_dir: Path | None = None) -> dict:
             "ok": False,
             "reason": "PyJWT not installed",
         }
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_oidc()
         return evidence
 
     import secrets
@@ -180,16 +196,25 @@ def run_studio_oidc_callback_drill(*, ops_dir: Path | None = None) -> dict:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = val
-    _write(evidence, ops_dir)
+    if not _write(evidence, ops_dir):
+        return _linked_oidc()
     return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "studio_oidc_callback_drill.json"
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "studio_oidc_callback_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "studio_oidc_callback_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return True
