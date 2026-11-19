@@ -17,13 +17,43 @@ BACKUP_EVIDENCE = OPS_DIR / "backup_restore_drill.json"
 METRICS_EVIDENCE = OPS_DIR / "local_metrics_snapshot.json"
 
 
+def _ops_folder(ops_dir: Path | None) -> Path | None:
+    """This drill's folder. A link is not this install's evidence folder."""
+    from .finalization import folder_is_linked
+    base = Path(ops_dir) if ops_dir is not None else OPS_DIR
+    if folder_is_linked(base):
+        return None
+    return base
+
+
+def _linked_drill(kind: str) -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": kind,
+        "requests": 0,
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def _write_ops(base: Path, name: str, payload: dict) -> bool:
+    from .finalization import write_text_unless_linked
+    return write_text_unless_linked(base, name, json.dumps(payload, indent=2))
+
+
 def run_backup_restore_drill(*, ops_dir: Path | None = None) -> dict:
     """Copy a tiny SQLite DB, restore into an isolated folder, verify rows."""
-    base = Path(ops_dir) if ops_dir else OPS_DIR
+    base = _ops_folder(ops_dir)
+    if base is None:
+        return _linked_drill("backup_restore_local_sqlite")
     base.mkdir(parents=True, exist_ok=True)
     src_dir = base / "drill_src"
     bak_dir = base / "drill_backup"
     restore_dir = base / "drill_restore"
+    evidence_path = base / "backup_restore_drill.json"
+    from .finalization import folder_is_linked
+    if any(folder_is_linked(path) for path in (src_dir, bak_dir, restore_dir, evidence_path)):
+        return _linked_drill("backup_restore_local_sqlite")
     for d in (src_dir, bak_dir, restore_dir):
         if d.exists():
             shutil.rmtree(d)
@@ -52,14 +82,16 @@ def run_backup_restore_drill(*, ops_dir: Path | None = None) -> dict:
         "restored_row": {"id": row[0], "note": row[1]} if row else None,
         "reason": "Local SQLite backup/restore verified offline; live DR/object-store drills still open",
     }
-    out = base / "backup_restore_drill.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not _write_ops(base, "backup_restore_drill.json", evidence):
+        return _linked_drill("backup_restore_local_sqlite")
     return evidence
 
 
 def write_local_metrics_snapshot(*, ops_dir: Path | None = None) -> dict:
     """Write a process-local metrics snapshot (not a real metrics stack)."""
-    base = Path(ops_dir) if ops_dir else OPS_DIR
+    base = _ops_folder(ops_dir)
+    if base is None:
+        return _linked_drill("local_process_snapshot")
     base.mkdir(parents=True, exist_ok=True)
     snap = {
         "gate_h_complete": False,
@@ -72,7 +104,8 @@ def write_local_metrics_snapshot(*, ops_dir: Path | None = None) -> dict:
         },
         "reason": "Local snapshot only; central metrics/tracing/alerting still open",
     }
-    (base / "local_metrics_snapshot.json").write_text(json.dumps(snap, indent=2), encoding="utf-8")
+    if not _write_ops(base, "local_metrics_snapshot.json", snap):
+        return _linked_drill("local_process_snapshot")
     return snap
 
 
@@ -82,7 +115,9 @@ def run_local_load_probe(*, requests: int = 40, ops_dir: Path | None = None) -> 
 
     from backend.server import app
 
-    base = Path(ops_dir) if ops_dir else OPS_DIR
+    base = _ops_folder(ops_dir)
+    if base is None:
+        return _linked_drill("local_api_load_probe")
     base.mkdir(parents=True, exist_ok=True)
     client = TestClient(app)
     headers = {"host": "127.0.0.1"}
@@ -110,9 +145,10 @@ def run_local_load_probe(*, requests: int = 40, ops_dir: Path | None = None) -> 
         "p95_ms": round(lat[max(0, int(len(lat) * 0.95) - 1)], 2) if lat else 0,
         "reason": "Local TestClient probe only; soak against controlled fixture / prod-like load still open",
     }
-    (base / "local_load_probe.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not _write_ops(base, "local_load_probe.json", evidence):
+        return _linked_drill("local_api_load_probe")
     docs = ROOT / "docs" / "ops-evidence"
-    if ops_dir is None:
+    if ops_dir is None and _ops_folder(docs):
         docs.mkdir(parents=True, exist_ok=True)
-        (docs / "local_load_probe.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        _write_ops(docs, "local_load_probe.json", evidence)
     return evidence
