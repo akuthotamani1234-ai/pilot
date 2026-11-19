@@ -108,20 +108,23 @@ def capture_portfolios(run_dir: str | Path, app_map: list[dict], *, source_url: 
                        crawl: dict | None = None) -> dict:
     """Write portfolio evidence files and return paths/payloads."""
     path = Path(run_dir)
+    if path.is_symlink():
+        return {"a11y_page": {}, "performance": None, "security_headers": None, "compatibility": None}
     path.mkdir(parents=True, exist_ok=True)
+    from .finalization import write_text_unless_linked
     a11y = _a11y_page(app_map)
     perf = _performance(app_map)
     security = _security(app_map, source_url)
     compat = _compatibility(app_map, crawl)
-    (path / "a11y_page.json").write_text(json.dumps(a11y, indent=2), encoding="utf-8")
+    write_text_unless_linked(path, "a11y_page.json", json.dumps(a11y, indent=2))
     out = {"a11y_page": a11y, "performance": perf, "security_headers": security,
            "compatibility": compat}
     if perf is not None:
-        (path / "performance.json").write_text(json.dumps(perf, indent=2), encoding="utf-8")
+        write_text_unless_linked(path, "performance.json", json.dumps(perf, indent=2))
     if security is not None:
-        (path / "security_headers.json").write_text(json.dumps(security, indent=2), encoding="utf-8")
+        write_text_unless_linked(path, "security_headers.json", json.dumps(security, indent=2))
     if compat is not None:
-        (path / "compatibility.json").write_text(json.dumps(compat, indent=2), encoding="utf-8")
+        write_text_unless_linked(path, "compatibility.json", json.dumps(compat, indent=2))
     return out
 
 

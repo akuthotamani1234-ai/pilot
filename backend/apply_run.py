@@ -39,10 +39,18 @@ _CART_WORDS = ("cart", "add to cart", "add-to-cart")
 
 
 def _read_json(path: Path) -> dict | list | None:
+    path = Path(path)
+    if path.is_symlink() or path.parent.is_symlink():
+        return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def _write_json(run_dir: Path, name: str, value) -> None:
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(run_dir, name, json.dumps(value, indent=2))
 
 
 def _sessions(run_id: str, roles: dict) -> dict:
@@ -213,7 +221,7 @@ def _portfolios(run_dir: Path, locale_payload: dict) -> dict:
 
 def _plugins(root: Path) -> list[dict]:
     folder = root / "plugins"
-    if not folder.is_dir():
+    if folder.is_symlink() or not folder.is_dir():
         return []
     reviewed = []
     for path in sorted(folder.glob("*.json")):
@@ -280,7 +288,7 @@ def _trends(run_dir: Path, verdict: str, failures: list[dict]) -> dict:
     parent = run_dir.parent
     if parent.is_dir():
         for path in sorted(parent.glob("*/summary.json")):
-            if path.parent == run_dir:
+            if path.parent == run_dir or path.is_symlink() or path.parent.is_symlink():
                 continue
             summary = _read_json(path)
             if isinstance(summary, dict) and isinstance(summary.get("qx_areas"), list):
@@ -307,6 +315,12 @@ def _heals(healing_log: list[dict], answers: dict) -> list[dict]:
 def apply_run(state: dict, *, root: Path | None = None) -> dict:
     """Run every blueprint rule against this run and return the decisions."""
     run_dir = Path(state.get("run_dir") or ".")
+    if run_dir.is_symlink():
+        verdict = str(state.get("verdict") or "")
+        return {"sample_unchanged": True, "sample": 0, "replay": [], "oracle": [],
+                "trends": {"verdict": verdict}, "portfolios": {}, "surfaces": {},
+                "lifecycle": {}, "healing_policy": {}, "device_matrix": {},
+                "swarm": {"ran": False, "gate_b_complete": False}}
     environment = str(state.get("environment") or "test")
     crawl = state.get("crawl") or {}
     swarm = crawl.get("swarm") or {}
@@ -400,19 +414,17 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     }
     applied["trends"]["verdict"] = keep_verdict(verdict, applied["trends"])
     applied["release"] = from_run(state)
-    (run_dir / "portfolio_gates.json").write_text(
-        json.dumps(applied["portfolios"], indent=2), encoding="utf-8")
-    (run_dir / "surface_coverage.json").write_text(
-        json.dumps(applied["surfaces"], indent=2), encoding="utf-8")
-    (run_dir / "oracle_decisions.json").write_text(json.dumps(oracle, indent=2), encoding="utf-8")
-    (run_dir / "lifecycle.json").write_text(json.dumps(lifecycle, indent=2), encoding="utf-8")
-    (run_dir / "healing_policy.json").write_text(json.dumps(healing, indent=2), encoding="utf-8")
-    (run_dir / "device_matrix.json").write_text(json.dumps(matrix, indent=2), encoding="utf-8")
-    (run_dir / "device_matrix_evidence.json").write_text(json.dumps(device_rows, indent=2), encoding="utf-8")
+    _write_json(run_dir, "portfolio_gates.json", applied["portfolios"])
+    _write_json(run_dir, "surface_coverage.json", applied["surfaces"])
+    _write_json(run_dir, "oracle_decisions.json", oracle)
+    _write_json(run_dir, "lifecycle.json", lifecycle)
+    _write_json(run_dir, "healing_policy.json", healing)
+    _write_json(run_dir, "device_matrix.json", matrix)
+    _write_json(run_dir, "device_matrix_evidence.json", device_rows)
     tenant_index = _index_run_for_tenant(run_dir, state, verdict)
     if tenant_index is not None:
         applied["tenancy"] = tenant_index
-        (run_dir / "tenancy_index.json").write_text(json.dumps(tenant_index, indent=2), encoding="utf-8")
+        _write_json(run_dir, "tenancy_index.json", tenant_index)
     return applied
 
 
@@ -452,8 +464,11 @@ def _index_run_for_tenant(run_dir: Path, state: dict, verdict: str) -> dict | No
 
 def write_applied(state: dict, *, root: Path | None = None) -> dict:
     """Apply the rules and store them beside the report. The verdict is kept."""
-    applied = apply_run(state, root=root)
     run_dir = Path(state.get("run_dir") or ".")
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "qx_applied.json").write_text(json.dumps(applied, indent=2), encoding="utf-8")
+    applied = apply_run(state, root=root)
+    if run_dir.is_symlink():
+        return applied
+    if not run_dir.exists():
+        run_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(run_dir, "qx_applied.json", applied)
     return applied
