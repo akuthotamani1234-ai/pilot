@@ -59,6 +59,54 @@ def _explorer():
     return Explorer(EXTRACT_JS, lambda page, ms=0: None, time.time() + 120, tag_base="123456")
 
 
+class _Click:
+    def __init__(self, info):
+        self.info = info
+        self.first = self
+        self.clicked = False
+
+    def is_visible(self):
+        return True
+
+    def evaluate(self, _js, timeout=None):
+        return self.info
+
+    def click(self, timeout=0):
+        self.clicked = True
+
+
+class _Page:
+    def __init__(self, info):
+        self.url = "http://shop.test/cart"
+        self.loc = _Click(info)
+        self.context = type("Ctx", (), {"pages": []})()
+
+    def locator(self, _selector):
+        return self.loc
+
+
+def test_continue_is_not_clicked_when_it_opens_checkout():
+    ex = _explorer()
+    page = "http://shop.test/cart"
+    risk, why = ex._eligible({
+        "text": "Continue", "name": "Continue", "selector": "a.cont",
+        "href": "/checkout.html",
+    }, page)
+    assert risk == "protected" and why.startswith("protected: payment")
+    cart_risk, cart_why = ex._eligible({
+        "text": "View cart", "name": "View cart", "selector": "a.cart",
+        "href": "index.php?rt=checkout/cart",
+    }, page)
+    assert cart_why == "" and cart_risk == "safe"
+    fake = _Page({"href": "/checkout.html", "action": "", "onclick": ""})
+    ex._untouched = page
+    result = ex._try(fake, page, {"lazy": False}, {
+        "name": "Continue", "text": "Continue", "selector": "a.cont", "action": "click",
+    }, None, "safe")
+    assert result["blocked"].startswith("protected: payment")
+    assert fake.loc.clicked is False
+
+
 def test_the_menu_sections_are_visited_before_deeper_pages():
     q = _Frontier(("https://hr.test/", 0, True, True))
     q.popleft()
