@@ -54,6 +54,7 @@ class DurableQueue:
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA busy_timeout=2000")
         self._setup()
 
     def _setup(self) -> None:
@@ -107,15 +108,25 @@ class DurableQueue:
             "idempotency_key": key,
             "payload": payload,
         }
-        self._db.execute(
-            """INSERT INTO tasks(
-                 task_id, run_id, role, status, attempt, max_attempts, idempotency_key,
-                 payload_json, updated_at
-               ) VALUES (?,?,?,?,?,?,?,?,?)""",
-            (task_id, run_id, role, "pending", 0, int(max_attempts or self.max_attempts),
-             key, json.dumps(payload), now),
-        )
-        self._db.commit()
+        try:
+            self._db.execute(
+                """INSERT INTO tasks(
+                     task_id, run_id, role, status, attempt, max_attempts, idempotency_key,
+                     payload_json, updated_at
+                   ) VALUES (?,?,?,?,?,?,?,?,?)""",
+                (task_id, run_id, role, "pending", 0, int(max_attempts or self.max_attempts),
+                 key, json.dumps(payload), now),
+            )
+            self._db.commit()
+        except sqlite3.IntegrityError:
+            self._db.rollback()
+            existing = self._db.execute(
+                "SELECT * FROM tasks WHERE run_id=? AND idempotency_key=?",
+                (run_id, key),
+            ).fetchone()
+            if existing:
+                return self._row(existing)
+            raise
         return envelope
 
     def claim(self, *, worker_id: str, run_id: str | None = None) -> dict | None:
