@@ -182,3 +182,32 @@ def test_a_privacy_policy_does_not_follow_a_link(tmp_path, monkeypatch):
     loaded = privacy.load_policy()
     assert loaded.allow_mcp is True and loaded.mode == "local"
     assert secret not in fresh.read_text(encoding="utf-8")
+
+
+def test_a_privacy_policy_does_not_follow_a_link_through_a_parent_folder(tmp_path, monkeypatch):
+    import json
+    secret = "tenant-b-only-policy"
+    other = tmp_path / "other"
+    nested = other / "studio" / ".private"
+    nested.mkdir(parents=True)
+    victim = nested / "privacy.json"
+    victim.write_text(json.dumps({"mode": "cloud", "cloud_consent": True}), encoding="utf-8")
+    (nested / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(privacy, "POLICY_PATH", linked / "studio" / ".private" / "privacy.json")
+    with pytest.raises(privacy.PrivacyError):
+        privacy.save_policy(privacy.PrivacyPolicy())
+    assert privacy.load_policy().mode == "local"
+    assert json.loads(victim.read_text(encoding="utf-8"))["mode"] == "cloud"
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (nested / "privacy.tmp").exists()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "privacy.json"
+    monkeypatch.setattr(privacy, "POLICY_PATH", real)
+    privacy.save_policy(privacy.PrivacyPolicy(allow_mcp=True, local_assistant_confirmed=True))
+    loaded = privacy.load_policy()
+    assert loaded.allow_mcp is True and loaded.mode == "local"
+    assert secret not in real.read_text(encoding="utf-8")
+    assert json.loads(victim.read_text(encoding="utf-8"))["mode"] == "cloud"
