@@ -117,11 +117,13 @@ def review_repair(
     need_tests: bool = True,
     failure_class: str = "",
     approval_token: str = "",
+    consume: bool = True,
 ) -> dict:
     """Whether a proposed script repair is allowed under Gate E rules.
 
     Level 3 applies only with a matching unused approval token, and still
-    cannot change assertions. Level 4 cannot be approved.
+    cannot change assertions. Level 4 cannot be approved. A preview passes
+    ``consume=False`` so the token stays usable for the one write.
     """
     from .agents.self_healing import _safe_repair
 
@@ -150,7 +152,8 @@ def review_repair(
         problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
         if problem:
             return _decision(allowed=False, reason=problem, decision=decision)
-        _note_approval_used(token)
+        if consume:
+            _note_approval_used(token)
         return _decision(allowed=True, reason="", decision=decision)
     problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
     return _decision(
