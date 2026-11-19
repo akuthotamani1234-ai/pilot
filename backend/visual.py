@@ -113,10 +113,10 @@ def capture_file(run_dir: Path, slug: str) -> Path:
 
 def save_capture(run_dir: Path, slug: str, url: str, desktop: dict | None, phone: dict | None) -> str:
     """The crawler's layout of one page (its screenshots are named in it) -> runs/<run>/visual/<slug>.json."""
-    from .finalization import write_text_unless_linked
+    from .finalization import folder_is_linked, write_text_unless_linked
     folder = Path(run_dir)
     visual_dir = folder / "visual"
-    if folder.is_symlink() or visual_dir.is_symlink():
+    if folder_is_linked(folder) or visual_dir.is_symlink():
         return ""
     visual_dir.mkdir(exist_ok=True)
     name = f"{slug}.json"
@@ -259,6 +259,10 @@ def visual_check_agent(state: QAState) -> QAState:
     if not enabled():
         return {"log": log + ["Visual check: off (VISUAL_CHECK=false)."]}
     run_dir, site = Path(state["run_dir"]), state["site_key"]
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        note = "Visual check: this run's folder is a link, so the look was not saved."
+        return {"visual": {}, "log": log + [note]}
     pages = [p for p in state.get("app_map", []) if p.get("visual") and not p.get("error")]
     left_out = max(0, len(pages) - settings.visual_max_pages)
     pages = pages[:settings.visual_max_pages]
