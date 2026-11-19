@@ -116,14 +116,32 @@ def build_healing_regression(cases: list[dict] | None = None) -> dict:
     }
 
 
+def _linked_regression() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "offline_healing_regression_suite",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_healing_regression_drill(*, ops_dir: Path | None = None) -> dict:
-    evidence = build_healing_regression()
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "healing_regression_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_regression()
+    evidence = build_healing_regression()
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_regression()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "healing_regression_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_regression()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "healing_regression_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
