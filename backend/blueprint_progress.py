@@ -399,6 +399,7 @@ def progress() -> dict:
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
         {"id": "E-named-classes", "label": "Only a locator repair or a bounded timeout retry applies on its own", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
+        {"id": "C-mixed-test", "label": "A console check that only reports an insecure font is not an application defect", "status": "done"},
         {"id": "I-signature-closed", "label": "A token whose signature cannot be checked is refused", "status": "done"},
         {"id": "I-dashboard-signed", "label": "Dashboard OIDC accepts a signed token and refuses an unsigned one", "status": "done"},
         {"id": "I-jti-after-ok", "label": "A rejected token does not use up its login id", "status": "done"},

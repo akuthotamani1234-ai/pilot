@@ -33,10 +33,14 @@ def test_one_console_message_on_many_pages_is_one_finding(tmp_path):
     tests = [f for f in found if f["source"] == "test"]
     assert len(crawl) == 1 and len(crawl[0]["pages"]) == 4, crawl  # (was: 4 findings - one per page)
     assert len(tests) == 1 and len(tests[0]["pages"]) == 4 and "Seen on 4 pages" in tests[0]["explanation"], tests
+    assert tests[0]["category"] == "mixed_content"
+    assert tests[0]["category"] != "product_defect"
     assert [f["id"] for f in found] == list(range(len(found)))
     other = dict(results[0], nodeid="test_site.py::test_no_console_errors[x]", test="test_no_console_errors[x]",
                  error="E   AssertionError: JavaScript errors on https://shop.test/x:\nE     JS exception: boom")
-    assert len([f for f in _analyse(tmp_path, results + [other]) if f["source"] == "test"]) == 2  # another error
+    again = [f for f in _analyse(tmp_path, results + [other]) if f["source"] == "test"]
+    assert len(again) == 2  # another error
+    assert next(f for f in again if "boom" in f["error"])["category"] == "product_defect"
 
 
 def test_an_api_address_and_a_busy_server_are_no_broken_pages(tmp_path):
