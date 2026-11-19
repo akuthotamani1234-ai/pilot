@@ -132,10 +132,11 @@ def measure(root, value):
 
 
 def save_showcase(root, manifest, output):
+    from .finalization import folder_is_linked
     output = Path(output)
     benchmark = output / "benchmark.json"
     report = output / "report.html"
-    if output.is_symlink() or benchmark.is_symlink() or report.is_symlink():
+    if folder_is_linked(output) or benchmark.is_symlink() or report.is_symlink():
         raise ValueError("The showcase folder is a link.")
     output.mkdir(parents=True, exist_ok=True)
     result = measure(root, manifest)
