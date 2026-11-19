@@ -871,9 +871,11 @@ def _risky(names: list) -> bool:
     action = names[8] if len(names) > 8 else ""
     if _payment_target(action):
         return True
-    for quoted in re.findall(r"""['"]([^'"]+)['"]""", names[9] if len(names) > 9 else ""):
-        if _payment_target(quoted):
-            return True
+    # A javascript: link or button can hide the checkout address in quotes.
+    for blob in (href, action, names[9] if len(names) > 9 else ""):
+        for quoted in re.findall(r"""['"]([^'"]+)['"]""", blob or ""):
+            if _payment_target(quoted):
+                return True
     reference = re.compile(os.environ.get('QA_REFERENCE_NAV_RX') or r'(?!)', re.I)
     if len(names) >= 8 and reference.fullmatch(shown) and names[5] == 'a' and not names[7] and (
             names[6] == 'menuitem' or bool(href and href != '#')) and not re.search(

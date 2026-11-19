@@ -100,6 +100,10 @@ def test_a_continue_control_that_opens_checkout_is_payment():
     assert not control_opens_payment(page, href="/admin/pay-grades")
     assert not control_opens_payment(page, href="/product/checkout-guide")
     assert not control_opens_payment(page, onclick="location='/cart'")
+    assert control_opens_payment(page, href="javascript:location.href='/checkout'")
+    assert control_opens_payment(page, form_action="javascript:location='/index.php?rt=checkout/confirm'")
+    assert not control_opens_payment(page, href="javascript:location.href='/cart'")
+    assert not control_opens_payment(page, href="javascript:history.back()")
 
 
 def test_zero_sample_keeps_the_whole_list():

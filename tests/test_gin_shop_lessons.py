@@ -213,6 +213,15 @@ def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
     guard["_refuse_protected"](OnProduct())
 
 
+def test_a_javascript_link_that_opens_checkout_is_not_clicked(monkeypatch):
+    risky = _guard(monkeypatch)
+    assert risky(["Continue", "", "", "javascript:location.href='/checkout'", "", "a", "", "", "", ""])
+    assert risky(["Continue", "", "", "#", "", "button", "", "in_form",
+                  "javascript:location='/index.php?rt=checkout/confirm'", ""])
+    assert not risky(["Cart", "", "", "javascript:location.href='/cart'", "", "a", "", "", "", ""])
+    assert not risky(["Back", "", "", "javascript:history.back()", "", "a", "", "", "", ""])
+
+
 def test_a_generated_click_does_not_follow_a_redirect_into_checkout(monkeypatch):
     guard = _guard_ns(monkeypatch)
 
