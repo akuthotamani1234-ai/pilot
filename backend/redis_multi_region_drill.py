@@ -45,7 +45,24 @@ def _cli(url: str, *cmd: str) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True, check=False, timeout=30)
 
 
+def _linked_redis() -> dict:
+    return {
+        "gate_h_complete": False,
+        "gate_b_complete": False,
+        "ok": False,
+        "drill": "redis_dual_db_failover",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_redis_multi_region_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "redis_multi_region_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_redis()
+
     base = _base_url()
     region_a = _db_url(base, 0)
     region_b = _db_url(base, 1)
@@ -104,12 +121,15 @@ def run_redis_multi_region_drill(*, ops_dir: Path | None = None) -> dict:
         "steps": steps,
         "reason": reason,
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_redis()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "redis_multi_region_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_redis()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "redis_multi_region_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
