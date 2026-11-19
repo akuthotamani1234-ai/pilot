@@ -311,13 +311,18 @@ def self_healing_agent(state: QAState) -> QAState:
         if bad and bad in fixed and fixed[bad]["file"] == holder:
             # The same file was already repaired. A different file keeps its own repair,
             # so a later failure there cannot undo the first file.
+            # A test mistake still needs its own approval. It does not inherit an
+            # automatic locator repair of the same selector.
             done = fixed[bad]
-            entry.update(file=done["file"], method=done["method"], backup=done["backup"], to=done["to"],
-                         change=f"{bad}  ->  {done['to']} (already repaired this round)")
-            entry["from"] = bad
-            log.append(entry)
-            to_rerun.append(f["nodeid"])
-            continue
+            from ..healing_policy import escalation_for
+            later = escalation_for(str(f.get("category") or ""))
+            if not (later["level"] >= 3 and done.get("auto_apply")):
+                entry.update(file=done["file"], method=done["method"], backup=done["backup"], to=done["to"],
+                             change=f"{bad}  ->  {done['to']} (already repaired this round)")
+                entry["from"] = bad
+                log.append(entry)
+                to_rerun.append(f["nodeid"])
+                continue
         path = test_dir / holder
         if not path.exists():
             unhealable.append(f["nodeid"])
@@ -407,7 +412,12 @@ def self_healing_agent(state: QAState) -> QAState:
             entry["diff"] = "".join(difflib.unified_diff(
                 before.splitlines(True), after.splitlines(True), "before", "after", n=1))
             if bad and entry["to"]:
-                fixed[bad] = {"file": holder, "method": entry["method"], "to": entry["to"], "backup": entry["backup"]}
+                from ..healing_policy import escalation_for
+                earlier = escalation_for(str(f.get("category") or ""))
+                fixed[bad] = {
+                    "file": holder, "method": entry["method"], "to": entry["to"],
+                    "backup": entry["backup"], "auto_apply": bool(earlier["auto_apply"]),
+                }
             to_rerun.append(f["nodeid"])
             print(f"  [self-healing] candidate {f['file']}::{f['test']} - {entry['change']} (runs again to decide)")
         log.append(entry)
