@@ -462,6 +462,7 @@ def progress() -> dict:
         {"id": "G-swarm-check-link", "label": "A swarm checklist does not follow a link into another folder", "status": "done"},
         {"id": "G-pg-isolation-link", "label": "A Postgres isolation drill does not follow a link into another folder", "status": "done"},
         {"id": "G-region-dr-link", "label": "A multi-region failover does not follow a link into another folder", "status": "done"},
+        {"id": "G-discovery-score-link", "label": "A discovery score does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
