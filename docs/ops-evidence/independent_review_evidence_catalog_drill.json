@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T02:44:51Z",
+  "ran_at": "2026-11-19T03:07:28Z",
   "signed_off": false,
   "entries": [
     {
@@ -290,6 +290,13 @@
       ]
     },
     {
+      "name": "hosted_idp_sso_readiness_pack_drill.json",
+      "bytes": 424,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
       "name": "hosted_oncall_contract_drill.json",
       "bytes": 1156,
       "gates": [
@@ -299,6 +306,13 @@
     {
       "name": "hosted_oncall_readiness_drill.json",
       "bytes": 1676,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "hosted_oncall_readiness_pack_drill.json",
+      "bytes": 390,
       "gates": [
         "gate_h"
       ]
@@ -333,7 +347,7 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 14067,
+      "bytes": 14482,
       "gates": [
         "gate_g"
       ]
@@ -528,6 +542,13 @@
       ]
     },
     {
+      "name": "oidc_email_domain_tenant_acl_drill.json",
+      "bytes": 889,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
       "name": "oidc_groups_role_acl_drill.json",
       "bytes": 979,
       "gates": [
@@ -557,7 +578,7 @@
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 311,
+      "bytes": 309,
       "gates": [
         "gate_h"
       ]
@@ -699,7 +720,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 6829,
+      "bytes": 7359,
       "gates": [
         "gate_g"
       ]
@@ -790,7 +811,7 @@
       ]
     }
   ],
-  "entry_count": 111,
+  "entry_count": 114,
   "by_gate": {
     "gate_g": 10,
     "gate_f": 9,
@@ -799,11 +820,11 @@
     "untagged": 23,
     "gate_j": 4,
     "gate_b": 6,
-    "gate_i": 13,
+    "gate_i": 15,
     "gate_e": 11,
-    "gate_h": 19,
+    "gate_h": 20,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 111 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 114 files; signed_off remains False until external review"
 }

@@ -1754,6 +1754,36 @@ def ops_independent_review_evidence_catalog():
     return {"gate_g_complete": False, "independent_review_evidence_catalog": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-attestation")
+def ops_independent_review_attestation():
+    """Gate G: unsigned attestation stub for external reviewers."""
+    from backend.independent_review_attestation_drill import (
+        run_independent_review_attestation_drill,
+    )
+    evidence = run_independent_review_attestation_drill()
+    _audit(
+        "ops_independent_review_attestation",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_attestation": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-sso-readiness-pack")
+def ops_hosted_idp_sso_readiness_pack():
+    """Gate I: IdP contract+readiness+ACL pack (hosted SSO still open)."""
+    from backend.hosted_idp_sso_readiness_pack_drill import (
+        run_hosted_idp_sso_readiness_pack_drill,
+    )
+    evidence = run_hosted_idp_sso_readiness_pack_drill()
+    _audit(
+        "ops_hosted_idp_sso_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_sso_readiness_pack": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
