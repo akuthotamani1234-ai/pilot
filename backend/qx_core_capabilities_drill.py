@@ -21,7 +21,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "qx_core_capabilities_drill.json"
 
 
+def _linked_qx() -> dict:
+    return {
+        "gate_complete": False,
+        "ok": False,
+        "drill": "qx_core_capabilities_a03_a11",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_qx_core_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "qx_core_capabilities_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_qx()
+
     urls = [
         "https://shop.example/saree-1",
         "https://shop.example/saree-2",
@@ -136,12 +152,15 @@ def run_qx_core_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_qx()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "qx_core_capabilities_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_qx()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "qx_core_capabilities_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
