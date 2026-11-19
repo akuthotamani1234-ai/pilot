@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T02:39:45Z",
+  "ran_at": "2026-11-19T03:07:28Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 107,
+  "artifact_count": 112,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -188,24 +188,39 @@
       "sha256": "bd1bf1ee51e42e6725d22dff88ca43596faea85fbc69b7569221bfb2f3d3128d"
     },
     {
+      "name": "hosted_dispatch_payload_rehearsal_drill.json",
+      "bytes": 1035,
+      "sha256": "ea4550503d9a7ab93187712bfb1b572c3ee1d081598f4da03ff8692004346c3e"
+    },
+    {
       "name": "hosted_idp_contract_drill.json",
       "bytes": 1121,
-      "sha256": "ae61ca734092695472bccd51c714e9433fa5e22184aac1e5216dcdbd027278fc"
+      "sha256": "fe689dc3c664d1bbc0b89173fef380ce44faeba5b0602309795662a26f39a2b6"
     },
     {
       "name": "hosted_idp_readiness_drill.json",
       "bytes": 1474,
-      "sha256": "f978a77ae649b6718a430f21dc9612297c2f9a7900ca4fc48484e69e6a68c06e"
+      "sha256": "3e0ec3f604037ab49f62a1f834689dbb802a296a3a6281841602710a0c7c992d"
+    },
+    {
+      "name": "hosted_idp_sso_readiness_pack_drill.json",
+      "bytes": 424,
+      "sha256": "ee853a18f24985228926b86921bc156a42fabf4a659f4aecf22de278920a8b2e"
     },
     {
       "name": "hosted_oncall_contract_drill.json",
       "bytes": 1156,
-      "sha256": "ef49e2ae8b8e9e8a9527b8876a82d7dff00befe774312ac4978c06a71882e989"
+      "sha256": "1dd841c1bc602b1b9bb4a0e680b633d40d1cfc4b6b52186d1f224bea68ee3042"
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
       "bytes": 1676,
-      "sha256": "6b0ba8868d97f6b7f9a2cac037f5bb96579b108ad9b1682aee6e3fb563a28d18"
+      "sha256": "aef195465886fe13c3269396afb1b71b780b6fac54f464fb04984184746c764e"
+    },
+    {
+      "name": "hosted_oncall_readiness_pack_drill.json",
+      "bytes": 390,
+      "sha256": "236f0fedf6f91b602067f107f004432c1d9bfb2f5a2eb212c5599c4227559b0e"
     },
     {
       "name": "hosted_runner_readiness_drill.json",
@@ -229,28 +244,28 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 14067,
-      "sha256": "6e885db35e52617ad9f3f12d0dec6a6df7203898e43dca1ae1b8fc963a0d6763"
+      "bytes": 14879,
+      "sha256": "deb26472ac65129dca09fc2577ef59678e045968a32a403416464281e2e97040"
     },
     {
       "name": "independent_review_integrity_drill.json",
       "bytes": 1668,
-      "sha256": "7482d6620c2886e8dbe5818617a187d8aa0b3e2dd3fa1e0e9b7235cdcf873502"
+      "sha256": "0e36a4f659cfc5d0c5dbfd790a5d494376812b347eef3e461b9f56aaac36d90f"
     },
     {
       "name": "independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "b8226cc86d12599f7497623191998aece788ae0373ad3c5f49b185dfd84f25a6"
+      "sha256": "5742ccc0f473a8596f11695da0811f2adeda92099b83c09c7311f75621b2fb07"
     },
     {
       "name": "independent_review_request_drill.json",
       "bytes": 1454,
-      "sha256": "944e16d6832f01abd74b660cfa7f9e70a6ebe08b667127480a14bf57949e906b"
+      "sha256": "0695fc18790431fcaea6c92fe0d9fefcb0825eedbb8e1914e15c497146984f03"
     },
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
-      "sha256": "c8cfb4f033aabdfe9c20443685b2d5edf7350c8a119ad8242f3ae361d23952b8"
+      "sha256": "17ebe5c4e827d0c917556817f1aaf38eb43b9a99f29a129ef3153862e5af2de2"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -363,6 +378,11 @@
       "sha256": "c9010cdc884f85d8ec1884e1ad940079e9af342b9198366f3dc766b3414c2fbb"
     },
     {
+      "name": "oidc_email_domain_tenant_acl_drill.json",
+      "bytes": 889,
+      "sha256": "33bed5dc0c8e886572e21d210728329667c0cf136ec8ce06e0150da79166ea30"
+    },
+    {
       "name": "oidc_groups_role_acl_drill.json",
       "bytes": 979,
       "sha256": "7e28760d3493a66ca88e1d998cd9e7ab552d264379218921e2a89d7c84514099"
@@ -380,17 +400,17 @@
     {
       "name": "paging_ack_drill.json",
       "bytes": 365,
-      "sha256": "9a47f2c1fcc86401981c5d9cf9b0917474c8cded86756ad1cc06ca3b7c37ee21"
+      "sha256": "9d0f695d9fdc95be1a2156b71b7795054e1ac753adde21290f135ce423c59727"
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 311,
-      "sha256": "5b1f753b468a23cfcb1f097e3e0126899ee0ad7ee7179b1f0c421994f6e3eec7"
+      "bytes": 309,
+      "sha256": "9b10420beab30f26f7b8eb13a5928d118fbdedc5984d8dbb7effdc7243bdf6ce"
     },
     {
       "name": "paging_escalation_drill.json",
       "bytes": 463,
-      "sha256": "3d6a373dd93a318cb2784ff33c2ce18278bdcc412dd3b9b23d40922b428bb863"
+      "sha256": "746d5cfead9bd641c8784ffcbe5308ea1cabcc1f5a7cfe37add34fe4474bcf0c"
     },
     {
       "name": "paging_rehearsal.json",
@@ -438,6 +458,11 @@
       "sha256": "4277e4cbbcace62507993be0435569f395d82910ef67ad55eba61dff572e1fa4"
     },
     {
+      "name": "production_healing_readiness_drill.json",
+      "bytes": 1444,
+      "sha256": "18ca221d49b23a3e86849a09137a3cec034b978c5a133bdd55dbb5f53df9f5a8"
+    },
+    {
       "name": "production_healing_replay_pack_drill.json",
       "bytes": 1749,
       "sha256": "155a72b1babd7efbf0663d3608e48ed18985178558c7c938ef946b1a951fad01"
@@ -479,8 +504,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 6829,
-      "sha256": "37e47e5cea07f73dd5415b522638e775d3c0b3778970210210cbd8241d7b49fc"
+      "bytes": 7665,
+      "sha256": "6e6b2fae22203109399183ec8d6ba475877ae87d1a97966fdf6a5c7ee26bae98"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -505,7 +530,7 @@
     {
       "name": "studio_sso_principal_bootstrap_drill.json",
       "bytes": 472,
-      "sha256": "1aa375a344ec0cfc4ecaa530ec978116f8d3b868231cb629b5aa127ccec790a5"
+      "sha256": "c79cdb37d9101c44f8d8d7492edc174dc3793aa814992555f6bb10060e68dc8f"
     },
     {
       "name": "swarm_control_drill.json",
@@ -544,5 +569,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (107 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (112 artifacts hashed); independent human/reviewer sign-off still pending"
 }

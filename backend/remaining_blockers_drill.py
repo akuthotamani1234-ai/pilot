@@ -49,6 +49,7 @@ BLOCKERS = (
             "studio_sso_principal_bootstrap_drill.json",
             "hosted_idp_contract_drill.json",
             "hosted_idp_readiness_drill.json",
+            "hosted_idp_sso_readiness_pack_drill.json",
         ],
     },
     {
@@ -112,7 +113,9 @@ BLOCKERS = (
             "independent_review_request_drill.json",
             "independent_review_integrity_drill.json",
             "independent_review_evidence_catalog_drill.json",
+            "independent_review_attestation_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
+            "INDEPENDENT_REVIEW_ATTESTATION.md",
         ],
     },
 )
