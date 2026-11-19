@@ -61,6 +61,9 @@ def run_oidc_email_domain_tenant_acl_drill(*, ops_dir: Path | None = None) -> di
 
         prev_mode = os.environ.get("QPILOT_DASHBOARD_AUTH")
         os.environ["QPILOT_DASHBOARD_AUTH"] = "oidc"
+        import backend.tenancy_store as tenancy
+        prev_db = tenancy.DEFAULT_DB
+        tenancy.DEFAULT_DB = db
         results: list[dict] = []
         try:
             for case in cases:
@@ -93,6 +96,7 @@ def run_oidc_email_domain_tenant_acl_drill(*, ops_dir: Path | None = None) -> di
                         "cross_tenant_denied": not bool(cross.get("allowed")),
                     })
         finally:
+            tenancy.DEFAULT_DB = prev_db
             if prev_mode is None:
                 os.environ.pop("QPILOT_DASHBOARD_AUTH", None)
             else:

@@ -45,29 +45,50 @@ def test_principal_mode_uses_rbac(monkeypatch, tmp_path):
     assert authorize("Bearer missing")["ok"] is False
 
 
-def test_oidc_mode_accepts_valid_jwt_claims(monkeypatch):
+def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
     import base64
     import json
     import time
 
+    import backend.tenancy_store as ts
+
     monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "oidc")
     monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
     monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
+    db = tmp_path / "auth.sqlite"
+    monkeypatch.setattr(ts, "DEFAULT_DB", db)
+    upsert_tenant("t1", "Tenant", db_path=db)
+    upsert_principal("user-1", "t1", "user@ex.test", "operator", db_path=db)
+    upsert_principal("viewer-1", "t1", "view@ex.test", "viewer", db_path=db)
+    upsert_principal("other", "t2", "other@ex.test", "admin", db_path=db)
 
     def enc(obj: dict) -> str:
         raw = json.dumps(obj, separators=(",", ":")).encode()
         return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
-    payload = {
-        "iss": "https://idp.example",
-        "aud": "qpilot-dashboard",
-        "sub": "user-1",
-        "exp": int(time.time()) + 3600,
-    }
-    token = f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(payload)}.sig"
-    ok = authorize(f"Bearer {token}")
+    def token(sub: str, tid: str | None = None) -> str:
+        payload = {
+            "iss": "https://idp.example",
+            "aud": "qpilot-dashboard",
+            "sub": sub,
+            "exp": int(time.time()) + 3600,
+        }
+        if tid:
+            payload["tid"] = tid
+        return f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(payload)}.sig"
+
+    missing = authorize(f"Bearer {token('nobody')}")
+    assert missing["ok"] is False
+    assert missing["reason"] == "unknown principal"
+    ok = authorize(f"Bearer {token('user-1')}")
     assert ok["ok"] is True
     assert ok["mode"] == "oidc"
+    assert ok["role"] == "operator"
     assert ok["gate_i_complete"] is False
+    viewer = authorize(f"Bearer {token('viewer-1')}")
+    assert viewer["ok"] is False
+    mismatch = authorize(f"Bearer {token('user-1', 't2')}")
+    assert mismatch["ok"] is False
+    assert mismatch["reason"] == "token tenant does not match principal"
     bad = authorize("Bearer not-a-jwt")
     assert bad["ok"] is False

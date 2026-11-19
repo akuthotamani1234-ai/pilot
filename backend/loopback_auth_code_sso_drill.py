@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import tempfile
 import threading
 import time
 import urllib.error
@@ -331,7 +332,15 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
 
         # 5) validate + dashboard authorize
         validated = validate_bearer(access, verify_signature=True)
-        authz = authorize(f"Bearer {access}", action="review.write")
+        from . import tenancy_store as tenancy
+        principal_db = Path(tempfile.mkdtemp()) / "oidc-principal.sqlite"
+        prev_db = tenancy.DEFAULT_DB
+        tenancy.DEFAULT_DB = principal_db
+        tenancy.upsert_principal(sub, "tenant-loopback", email, "admin", db_path=principal_db)
+        try:
+            authz = authorize(f"Bearer {access}", action="review.write")
+        finally:
+            tenancy.DEFAULT_DB = prev_db
         steps.append({
             "step": "validate_authorize",
             "ok": bool(validated.get("ok")) and bool(authz.get("ok")),

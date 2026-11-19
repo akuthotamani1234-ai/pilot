@@ -51,6 +51,9 @@ def run_studio_sso_principal_bootstrap_drill(*, ops_dir: Path | None = None) -> 
 
         prev_mode = os.environ.get("QPILOT_DASHBOARD_AUTH")
         os.environ["QPILOT_DASHBOARD_AUTH"] = "oidc"
+        import backend.tenancy_store as tenancy
+        prev_db = tenancy.DEFAULT_DB
+        tenancy.DEFAULT_DB = db
         try:
             with loopback_oidc_session(
                 sub=sub, email=email, extra_claims={"tid": tid},
@@ -102,6 +105,7 @@ def run_studio_sso_principal_bootstrap_drill(*, ops_dir: Path | None = None) -> 
                     ),
                 }
         finally:
+            tenancy.DEFAULT_DB = prev_db
             if prev_mode is None:
                 os.environ.pop("QPILOT_DASHBOARD_AUTH", None)
             else:

@@ -326,6 +326,7 @@ def progress() -> dict:
         {"id": "B-recover-lease-cas", "label": "Expired-lease recovery cannot clobber a live lease", "status": "done"},
         {"id": "B-redis-status-cas", "label": "Redis claim and cancel cannot revive or overwrite a finished task", "status": "done"},
         {"id": "B-enqueue-once", "label": "Concurrent enqueue with one idempotency key inserts one task", "status": "done"},
+        {"id": "I-oidc-principal-rbac", "label": "OIDC dashboard auth requires a principal role and matching tenant", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

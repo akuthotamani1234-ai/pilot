@@ -113,21 +113,28 @@ def run_dashboard_auth_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     finally:
         ts.DEFAULT_DB = prev_db
 
-    # oidc (claim check; live IdP SSO still open)
-    with _env({
-        "QPILOT_DASHBOARD_AUTH": "oidc",
-        "QPILOT_OIDC_ISSUER": "https://idp.example",
-        "QPILOT_OIDC_AUDIENCE": "qpilot-dashboard",
-    }):
-        payload = {
-            "iss": "https://idp.example",
-            "aud": "qpilot-dashboard",
-            "sub": "user-1",
-            "exp": int(time.time()) + 3600,
-        }
-        token = f"{_b64({'alg': 'none', 'typ': 'JWT'})}.{_b64(payload)}.sig"
-        oidc_ok = authorize(f"Bearer {token}")
-        oidc_bad = authorize("Bearer not-a-jwt")
+    # oidc (claim check plus principal RBAC; live IdP SSO still open)
+    prev_db = ts.DEFAULT_DB
+    ts.DEFAULT_DB = db
+    try:
+        upsert_tenant("t1", "Tenant", db_path=db)
+        upsert_principal("user-1", "t1", "user@ex.test", "operator", db_path=db)
+        with _env({
+            "QPILOT_DASHBOARD_AUTH": "oidc",
+            "QPILOT_OIDC_ISSUER": "https://idp.example",
+            "QPILOT_OIDC_AUDIENCE": "qpilot-dashboard",
+        }):
+            payload = {
+                "iss": "https://idp.example",
+                "aud": "qpilot-dashboard",
+                "sub": "user-1",
+                "exp": int(time.time()) + 3600,
+            }
+            token = f"{_b64({'alg': 'none', 'typ': 'JWT'})}.{_b64(payload)}.sig"
+            oidc_ok = authorize(f"Bearer {token}")
+            oidc_bad = authorize("Bearer not-a-jwt")
+    finally:
+        ts.DEFAULT_DB = prev_db
         rows.append({
             "mode": "oidc", "case": "valid_claims", "ok": bool(oidc_ok.get("ok")),
             "expected_ok": True,

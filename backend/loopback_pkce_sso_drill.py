@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import secrets
+import tempfile
 import threading
 import time
 import urllib.error
@@ -26,8 +27,6 @@ from .oidc_auth_code_grant import (
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "loopback_pkce_sso_drill.json"
-
-
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -334,7 +333,13 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             steps.append({"step": "reject_bad_verifier", "ok": exc.code == 400})
 
         validated = validate_bearer(access, verify_signature=True)
-        authz = authorize(f"Bearer {access}", action="review.write")
+        from . import tenancy_store as tenancy
+        prev_db, tenancy.DEFAULT_DB = tenancy.DEFAULT_DB, Path(tempfile.mkdtemp()) / "p.sqlite"
+        tenancy.upsert_principal(sub, "tenant-loopback", email, "admin", db_path=tenancy.DEFAULT_DB)
+        try:
+            authz = authorize(f"Bearer {access}", action="review.write")
+        finally:
+            tenancy.DEFAULT_DB = prev_db
         steps.append({
             "step": "validate_authorize",
             "ok": bool(validated.get("ok")) and bool(authz.get("ok")),
