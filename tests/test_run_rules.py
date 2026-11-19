@@ -74,6 +74,32 @@ def test_an_excel_workbook_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (other / "keep.txt").read_bytes() == secret
 
 
+def test_generated_scripts_do_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.script_generator import script_generator_agent
+
+    secret = b"tenant-b-only-script"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {"run_dir": str(linked / "run"), "app_map": [], "test_cases": [], "url": "https://shop.test", "log": []}
+    refused = script_generator_agent(state)
+    assert refused["scripts"] == [] and "link" in refused["log"][-1]
+    assert not (nested / "generated_tests").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = script_generator_agent({**state, "run_dir": str(real), "log": []})
+    script = real / "generated_tests" / "conftest.py"
+    assert script.is_file() and not script.is_symlink()
+    assert secret not in script.read_bytes()
+    assert saved["scripts"] == []
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_generated_script_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
     from backend.agents.script_generator import script_generator_agent

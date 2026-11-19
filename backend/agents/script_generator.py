@@ -2942,9 +2942,10 @@ def script_generator_agent(state: QAState) -> QAState:
         return {"scripts": [], "script_sources": {"qa_contracts.json": "contract"},
                 "script_errors": [], "test_cases": state.get("test_cases", []),
                 "log": state.get("log", []) + [note]}
+    from ..finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
     out_dir = run_dir / "generated_tests"
-    if run_dir.is_symlink() or out_dir.is_symlink():
+    if folder_is_linked(run_dir) or out_dir.is_symlink():
         note = "The generated tests folder is a link, so no scripts were written."
         return {"scripts": [], "script_sources": {}, "script_errors": [],
                 "log": state.get("log", []) + [note], "test_cases": state.get("test_cases", [])}
