@@ -126,6 +126,36 @@ def test_a_menu_journey_does_not_open_a_checkout_step():
     assert [j["spec"]["form"] for j in forms] == ["#contact"]
 
 
+def test_a_recorded_checkout_page_is_not_given_a_test_that_opens_it(tmp_path, monkeypatch):
+    from backend.agents.test_design import test_design_agent
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "reuse_tests", False)
+    monkeypatch.setattr(settings, "incremental", False)
+    monkeypatch.setattr("backend.agents.test_design.llm_enabled", lambda: False)
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    pay = "https://shop.example/index.php?rt=checkout/checkout"
+    state = {
+        "url": "https://shop.example/",
+        "run_dir": str(tmp_path),
+        "site_key": "shop",
+        "log": [],
+        "app_map": [
+            {"url": cart, "slug": "cart", "title": "Cart", "status": 200, "auth": False, "page_type": "cart",
+             "links": [], "buttons": [{"text": "Update", "selector": "#up"}], "inputs": [], "forms": []},
+            {"url": pay, "slug": "pay", "title": "Checkout", "status": 200, "auth": False,
+             "links": [], "inputs": [], "forms": [],
+             "buttons": [{"text": "Place order", "selector": "#order", "role": "button"}]},
+            {"url": "https://shop.example/index.php?rt=product/category", "slug": "shop", "title": "Shop",
+             "status": 200, "auth": False, "links": [], "buttons": [], "inputs": [], "forms": []},
+        ],
+    }
+    cases = test_design_agent(state)["test_cases"]
+    assert not any(c.get("url") == pay and not c.get("blocked") for c in cases)
+    assert any(c.get("blocked") and "Place order" in c.get("title", "") for c in cases)
+    assert any(c.get("url") == cart and not c.get("blocked") for c in cases)
+
+
 def test_the_every_page_check_does_not_open_checkout_again():
     from backend.agents.script_generator import site_script
     from backend.agents.test_design import small_checks
