@@ -2639,6 +2639,22 @@ def ops_hosted_idp_redirect_uri_allowlist():
     return {"gate_i_complete": False, "hosted_idp_redirect_uri_allowlist": evidence}
 
 
+@app.post("/api/ops/drills/dual-region-cutover-lag-gate")
+def ops_dual_region_cutover_lag_gate():
+    """Gate H: block cutover when measured lag exceeds the contract."""
+    from backend.dual_region_cutover_lag_gate_drill import (
+        run_dual_region_cutover_lag_gate_drill,
+    )
+    evidence = run_dual_region_cutover_lag_gate_drill()
+    _audit(
+        "ops_dual_region_cutover_lag_gate",
+        ok=bool(evidence.get("ok")),
+        blocked=bool(evidence.get("cutover_blocked")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_cutover_lag_gate": evidence}
+
+
 @app.post("/api/ops/drills/dual-region-replication-lag-contract")
 def ops_dual_region_replication_lag_contract():
     """Gate H: replication lag contract (hosted DR still open)."""

@@ -31,6 +31,7 @@ CHECKS = (
     ("hosted_dr_comms_contract_drill.json", "Hosted DR communications contract"),
     ("paging_severity_routing_contract_drill.json", "Paging severity routing contract"),
     ("dual_region_replication_lag_contract_drill.json", "Replication lag contract"),
+    ("dual_region_cutover_lag_gate_drill.json", "Cutover blocked when lag exceeds budget"),
 )
 
 
