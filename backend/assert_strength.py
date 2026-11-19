@@ -116,9 +116,13 @@ def _calls(fn: ast.AST) -> list[tuple[str | None, str]]:
 
 def analyse(test_dir: Path) -> dict[str, str]:
     """{"<file>::<test function>": strong | weak | none} for every test of the run's generated files."""
+    test_dir = Path(test_dir)
+    from .finalization import folder_is_linked
+    if folder_is_linked(test_dir):
+        return {}
     mods = {}
-    for f in Path(test_dir).glob("*.py"):
-        if f.name == "conftest.py":
+    for f in test_dir.glob("*.py"):
+        if f.name == "conftest.py" or f.is_symlink() or folder_is_linked(f.parent):
             continue
         try:
             tree = ast.parse(f.read_text(encoding="utf-8"))

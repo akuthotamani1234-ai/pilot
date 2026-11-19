@@ -236,3 +236,29 @@ def test_a_saved_result_line_does_not_follow_a_link_into_another_folder(tmp_path
     assert _result_count(real / "results.jsonl") == 1
     assert secret not in json.dumps(rows)
     assert secret in (nested / "results.jsonl").read_text(encoding="utf-8")
+
+
+def test_a_proof_reading_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.assert_strength import analyse
+
+    secret = "tenant-b-only-proof"
+    other = tmp_path / "other"
+    suite = other / "runs" / "run" / "generated_tests"
+    suite.mkdir(parents=True)
+    script = suite / "test_secret.py"
+    script.write_text(f"def test_secret():\n    assert {secret!r}\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert analyse(linked / "runs" / "run" / "generated_tests") == {}
+    assert secret in script.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_home.py").write_text("def test_home_own():\n    assert True\n", encoding="utf-8")
+    scores = analyse(real)
+    assert scores.get("test_home.py::test_home_own")
+    assert secret not in json.dumps(scores)
+    assert secret in script.read_text(encoding="utf-8")
