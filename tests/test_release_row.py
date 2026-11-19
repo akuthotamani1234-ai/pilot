@@ -8,6 +8,7 @@ from backend.release_row import (
     load_saved_crawl,
     open_target,
     page_record,
+    planted_marker,
     record_step,
     run_row,
     save_crawl_progress,
@@ -266,3 +267,43 @@ def test_a_crawl_record_does_not_follow_a_link_into_another_run(tmp_path):
     assert pending == ["https://shop.example/next"]
     assert store_api_spec(own, [{"method": "GET", "path": "/ours"}]) is True
     assert Path(own / "api_spec.json").is_file()
+
+
+def test_a_seeded_defect_id_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-seed"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    secret_text = json.dumps([{"id": secret}])
+    (nested / "planted.json").write_text(secret_text, encoding="utf-8")
+    (nested / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert planted_marker(linked / "run") == ""
+    row = from_run({
+        "run_dir": str(linked / "run"), "url": "https://shop.example",
+        "crawl": {"section": "/", "limit": 1, "time_limit_min": 1, "approved_hosts": ["shop.example"]},
+        "app_map": [{"url": "https://shop.example/", "status": 200}],
+        "test_cases": [], "results": [], "failures": [], "log": [],
+    })
+    assert secret not in json.dumps(row)
+    assert row["seed"]["reason"] == "no seeded defect"
+    assert (nested / "planted.json").read_text(encoding="utf-8") == secret_text
+    assert not (other / "fresh").exists()
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "planted.json").write_text(json.dumps([{"id": "home-own"}]), encoding="utf-8")
+    (real / "app_map.json").write_text("[]", encoding="utf-8")
+    assert planted_marker(real) == "home-own"
+    own = from_run({
+        "run_dir": str(real), "url": "https://shop.example",
+        "crawl": {"section": "/", "limit": 1, "time_limit_min": 1, "approved_hosts": ["shop.example"]},
+        "app_map": [{"url": "https://shop.example/", "status": 200}],
+        "test_cases": [], "results": [], "failures": [], "log": [],
+    })
+    assert own["seed"]["reason"] == "the seeded defect was not detected"
+    assert secret not in json.dumps(own)
+    assert (nested / "planted.json").read_text(encoding="utf-8") == secret_text
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
