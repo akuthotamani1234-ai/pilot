@@ -26,6 +26,7 @@ DEVICE_CHECKS = (
     ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
     ("hosted_ci_artifact_retention_contract_drill.json", "Artifact retention contract"),
     ("hosted_ci_permissions_contract_drill.json", "CI permissions contract"),
+    ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
 )
 
 BROWSER_CHECKS = (
@@ -39,6 +40,7 @@ BROWSER_CHECKS = (
     ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
     ("hosted_ci_artifact_retention_contract_drill.json", "Artifact retention contract"),
     ("hosted_ci_permissions_contract_drill.json", "CI permissions contract"),
+    ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
 )
 
 

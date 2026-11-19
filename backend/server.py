@@ -567,12 +567,13 @@ def sso_validate_bearer(authorization: str | None = Header(default=None)):
 def sso_callback(code: str = "", state: str = ""):
     """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open)."""
     from backend.studio_oidc_callback import exchange_code
-    verdict = exchange_code(code=code)
+    verdict = exchange_code(code=code, state=state)
     _audit(
         "sso_callback",
         ok=bool(verdict.get("ok")),
         verified=bool(verdict.get("signature_verified")),
         state=(state or "")[:40],
+        state_ok=verdict.get("state_ok"),
     )
     return verdict
 
@@ -2318,6 +2319,36 @@ def ops_hosted_dr_comms_contract():
         live=bool(evidence.get("live_hosted_dr")),
     )
     return {"gate_h_complete": False, "hosted_dr_comms_contract": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-state-binding")
+def ops_studio_sso_state_binding():
+    """Gate I: OIDC state binding (hosted IdP SSO still open)."""
+    from backend.studio_sso_state_binding_drill import run_studio_sso_state_binding_drill
+    evidence = run_studio_sso_state_binding_drill()
+    _audit(
+        "ops_studio_sso_state_binding",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_state_binding": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-timeout-budget")
+def ops_hosted_ci_timeout_budget():
+    """Gates D/F: workflow timeout budget contract (hosted runners still open)."""
+    from backend.hosted_ci_timeout_budget_drill import run_hosted_ci_timeout_budget_drill
+    evidence = run_hosted_ci_timeout_budget_drill()
+    _audit(
+        "ops_hosted_ci_timeout_budget",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_timeout_budget": evidence,
+    }
 
 
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")

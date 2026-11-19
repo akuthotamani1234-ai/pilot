@@ -1,7 +1,7 @@
 {
   "gate_f_complete": false,
   "drill": "demo_store_locale_portfolio",
-  "ran_at": "2026-11-19T04:15:27Z",
+  "ran_at": "2026-11-19T05:38:40Z",
   "fixture": "DemoStore",
   "observed": {
     "language": "en",

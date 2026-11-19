@@ -1,0 +1,26 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_timeout_budget",
+  "ran_at": "2026-11-19T05:41:01Z",
+  "kind": "contract_only",
+  "android": {
+    "path": ".github/workflows/android-appium.yml",
+    "timeout_minutes": 90,
+    "minimum": 30,
+    "maximum": 120,
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "browsers": {
+    "path": ".github/workflows/multi-browser-portfolios.yml",
+    "timeout_minutes": 45,
+    "minimum": 15,
+    "maximum": 90,
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Hosted CI timeout budget contract ok; broad hosted multi-device/browser runners still open"
+}

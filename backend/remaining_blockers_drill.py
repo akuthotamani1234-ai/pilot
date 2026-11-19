@@ -63,6 +63,7 @@ BLOCKERS = (
             "studio_sso_session_rebind_drill.json",
             "studio_sso_audience_binding_drill.json",
             "studio_sso_token_expiry_drill.json",
+            "studio_sso_state_binding_drill.json",
         ],
     },
     {
@@ -108,6 +109,7 @@ BLOCKERS = (
             "hosted_workflow_runner_audit_drill.json",
             "hosted_ci_artifact_retention_contract_drill.json",
             "hosted_ci_permissions_contract_drill.json",
+            "hosted_ci_timeout_budget_drill.json",
         ],
     },
     {
@@ -128,6 +130,7 @@ BLOCKERS = (
             "hosted_workflow_runner_audit_drill.json",
             "hosted_ci_artifact_retention_contract_drill.json",
             "hosted_ci_permissions_contract_drill.json",
+            "hosted_ci_timeout_budget_drill.json",
         ],
     },
     {

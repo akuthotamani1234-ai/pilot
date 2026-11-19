@@ -29,14 +29,51 @@ def token_endpoint() -> str:
     return f"{issuer}/token" if issuer else ""
 
 
+def validate_sso_state(state: str, *, expected: str | None = None) -> dict:
+    """Reject callback ``state`` when an expected value is configured.
+
+    When ``QPILOT_SSO_EXPECTED_STATE`` (or ``expected``) is empty, state is not
+    enforced — hosted IdP Studio SSO still open.
+    """
+    want = (expected if expected is not None else _env("QPILOT_SSO_EXPECTED_STATE")).strip()
+    got = (state or "").strip()
+    if not want:
+        return {
+            "ok": True,
+            "gate_i_complete": False,
+            "state_enforced": False,
+            "reason": "SSO state not enforced (expected state unset)",
+        }
+    if got != want:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "state_enforced": True,
+            "state_ok": False,
+            "reason": "state mismatch",
+        }
+    return {
+        "ok": True,
+        "gate_i_complete": False,
+        "state_enforced": True,
+        "state_ok": True,
+        "reason": "SSO state matched expected value",
+    }
+
+
 def exchange_code(
     *,
     code: str,
     redirect_uri: str | None = None,
     client_id: str | None = None,
+    state: str = "",
 ) -> dict:
     """POST authorization_code grant; validate access/id token when present."""
     from .oidc_jwt import validate_bearer
+
+    state_check = validate_sso_state(state)
+    if state_check.get("state_enforced") and not state_check.get("ok"):
+        return state_check
 
     endpoint = token_endpoint()
     if not endpoint:
