@@ -8,6 +8,7 @@ from backend.agents.discovery import (
     _Frontier,
     click_actions_allowed,
     click_page,
+    pending_visit,
     place_link,
     resume_seen,
     store_api_spec,
@@ -15,6 +16,7 @@ from backend.agents.discovery import (
 from backend.config import settings
 from backend.explore_score import rank_candidates
 from backend.locale_check import observe_page, remember_locale, write_locale
+from backend.release_row import load_saved_crawl, save_crawl_progress
 from backend.run_rules import locale_for, schema_for
 from backend.schema_diff import diff_specs
 from backend.scrape_seed import harvest_openapi_operations
@@ -78,6 +80,16 @@ def test_a_guest_page_does_not_count_as_the_logged_in_visit():
     assert ("https://shop.example/account", True) not in done
     assert ("https://shop.example/product/1", True) in done
     assert ("https://shop.example/product/1", False) not in done
+
+
+def test_a_waiting_logged_in_page_stays_logged_in_on_resume(tmp_path):
+    save_crawl_progress(tmp_path, [], [
+        "https://shop.example/about",
+        {"url": "https://shop.example/account", "auth": True, "depth": 2, "inside": True},
+    ])
+    _pages, pending = load_saved_crawl(tmp_path)
+    assert pending_visit(pending[0]) == ("https://shop.example/about", False)
+    assert pending_visit(pending[1]) == ("https://shop.example/account", True)
 
 
 def test_locale_file_keeps_only_facts_the_page_showed_and_the_sample(tmp_path, monkeypatch):

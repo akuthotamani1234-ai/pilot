@@ -63,12 +63,16 @@ def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
         if isinstance(payload, dict):
             found = payload.get("pending") if name == "crawl_progress.json" else payload.get("not_visited")
             if isinstance(found, list):
-                pending = [item for item in found if isinstance(item, str) and item]
+                pending = [
+                    item for item in found
+                    if (isinstance(item, str) and item)
+                    or (isinstance(item, dict) and item.get("url"))
+                ]
                 break
     return pages, pending
 
 
-def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list[str]) -> None:
+def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list) -> None:
     """Keep the inventory and the remaining queue so a stopped crawl can continue."""
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "app_map.json").write_text(json.dumps(pages, indent=2), encoding="utf-8")
