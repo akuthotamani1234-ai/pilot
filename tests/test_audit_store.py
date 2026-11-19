@@ -78,6 +78,8 @@ def test_a_signed_in_principal_cannot_read_another_tenants_run(monkeypatch, tmp_
     own = client.get("/api/v1/report/run-a", headers={"Authorization": "Bearer view-1"})
     assert own.status_code == 200
     assert own.json()["run"] == "run-a"
+    versioned = client.get("/api/v1/report/run-a", headers={"Authorization": "Bearer admin-2"})
+    assert versioned.status_code == 403
     stolen = client.get("/runs/run-a/report.html", headers={"Authorization": "Bearer admin-2"})
     assert stolen.status_code == 403
 

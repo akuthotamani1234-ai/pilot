@@ -50,6 +50,7 @@ _SCOPED_RUN = re.compile(
     r"|^/api/android/runs/([^/]+)/"
     r"|^/api/runs/([^/]+)/(?:repo-fix|recheck)"
     r"|^/api/visual/([^/]+)/"
+    r"|^/api/mcp/reports/([^/]+)"
     r"|^/runs/([^/]+)/"
 )
 IS_WINDOWS = os.name == "nt"
@@ -176,6 +177,10 @@ async def local_only(request: Request, call_next):
     resolved = resolve_path(request.url.path)
     if resolved.get("ok") and not resolved.get("legacy") and resolved.get("version") == 1:
         request.scope["path"] = "/api" + (resolved.get("resource") or "/")
+        request.scope["raw_path"] = request.scope["path"].encode("utf-8")
+        # The first path read cached the versioned URL. Drop it so the tenant check sees the route.
+        if hasattr(request, "_url"):
+            del request._url
     elif resolved.get("version") is not None and not resolved.get("ok"):
         return JSONResponse({"detail": resolved.get("reason") or "unsupported API version"}, status_code=404)
     path = request.url.path
@@ -405,6 +410,17 @@ def _job_or_404(job_id: int) -> dict:
     if not job:
         raise HTTPException(404, "job not found")
     return job
+
+
+def _mcp_visible_job(request, job):
+    """None when this caller may see the live test. A refusal response when they may not sign in.
+    False when the test belongs to another tenant."""
+    reader = _signed_in_reader(request.headers.get("authorization"), request.headers.get("x-qa-token"))
+    if isinstance(reader, JSONResponse):
+        return reader
+    if job is None or _refuse_job(job, reader) is None:
+        return None
+    return False
 
 
 def _refuse_job(job: dict, reader, action: str = "run.read"):
@@ -4839,7 +4855,7 @@ def component_inventory(run: str, page: str | None = None, offset: int = 0, limi
 # These read-only views have no optional MCP SDK dependency.
 from backend.mcp_api import register_mcp_api  # noqa: E402 - register views after their shared handlers exist
 
-register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence)
+register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence, _mcp_visible_job)
 register_privacy_api(app, jobs, lock, mcp_presence,
                      lambda: any(r.get("running") for r in rechecks.values()))
 

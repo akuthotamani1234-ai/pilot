@@ -3,7 +3,7 @@ from fastapi import HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 
 
-def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
+def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None, visible_job=None):
     @app.get("/api/mcp/info")
     def info(request: Request):
         from .privacy import public_policy
@@ -18,22 +18,40 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
         return {k: job.get(k) for k in ("id", "source", "status", "run", "target_type", "current",
                                         "stages", "started", "ended", "discovery_only", "workflow", "privacy_mode")}
 
+    def _job_gate(request: Request, job):
+        if visible_job is None:
+            return None
+        return visible_job(request, job)
+
     @app.get("/api/mcp/jobs")
-    def list_jobs(offset: int = 0, limit: int = 20):
+    def list_jobs(request: Request, offset: int = 0, limit: int = 20):
         _page(offset, limit)
+        blocked = _job_gate(request, None)
+        if blocked is not None:
+            return blocked
         with lock:
             entries = sorted(jobs.values(), key=lambda j: j["id"], reverse=True)
-            return {"jobs": [metadata(j) for j in entries[offset:offset + limit]],
-                    "total": len(entries), "offset": offset, "limit": limit}
+            shown = []
+            for job in entries:
+                verdict = _job_gate(request, job)
+                if verdict is None:
+                    shown.append(job)
+            return {"jobs": [metadata(j) for j in shown[offset:offset + limit]],
+                    "total": len(shown), "offset": offset, "limit": limit}
 
     @app.get("/api/mcp/jobs/{job_id}")
-    def status(job_id: int, since: int = 0, psince: int = 0, limit: int = 50):
+    def status(job_id: int, request: Request, since: int = 0, psince: int = 0, limit: int = 50):
         _page(since, limit)
         _page(psince, limit)
+        blocked = _job_gate(request, None)
+        if blocked is not None:
+            return blocked
         with lock:
             job = jobs.get(job_id)
             if job is None:
                 raise HTTPException(404, "Job not found. Job IDs last only for this UI server session.")
+            if _job_gate(request, job) is not None:
+                raise HTTPException(403, "tenant isolation")
             lines, pages = job.get("lines", []), job.get("pages", [])
             line_end, page_end = min(since + limit, len(lines)), min(psince + limit, len(pages))
             return {**metadata(job), "lines": lines[since:line_end], "next": line_end,
@@ -51,6 +69,8 @@ def register_mcp_api(app, jobs, lock, run_dir, read_json, presence=None):
             raise HTTPException(400, "Choose summary, results, failures, cases, pages, screens, crawl or coverage.")
         directory = run_dir(run)
         path = directory / allowed[section]
+        if path.is_symlink():
+            raise HTTPException(400, "This report file is a link.")
         if not path.is_file():
             return {"run": run, "section": section, "available": False, "items": [], "total": 0}
         if path.stat().st_size > 64 * 1024 * 1024:
