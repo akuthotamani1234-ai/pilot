@@ -101,6 +101,7 @@ BLOCKERS = (
             "production_healing_escalation_ladder_drill.json",
             "production_healing_escalation_enforcement_drill.json",
             "production_healing_approval_gate_drill.json",
+            "healing_approval_queue_drill.json",
             "healing_regression_drill.json",
         ],
     },

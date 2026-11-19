@@ -315,6 +315,7 @@ def progress() -> dict:
         {"id": "E-prod-healing-escalation-enforce", "label": "Auth and infrastructure repairs cannot auto-apply", "status": "done"},
         {"id": "I-sso-pkce-verifier", "label": "Studio callback sends code_verifier and can require it", "status": "done"},
         {"id": "E-prod-healing-approval", "label": "Level-3 healing applies once with a bound approval token", "status": "done"},
+        {"id": "E-healing-approval-queue", "label": "Approvals queue cannot override healing policy", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

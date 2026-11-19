@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T07:46:51Z",
+  "ran_at": "2026-11-19T07:49:15Z",
   "signed_off": false,
   "entries": [
     {
@@ -304,6 +304,13 @@
       ]
     },
     {
+      "name": "healing_approval_queue_drill.json",
+      "bytes": 550,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "healing_regression_drill.json",
       "bytes": 1554,
       "gates": [
@@ -515,7 +522,7 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 22676,
+      "bytes": 22812,
       "gates": [
         "gate_g"
       ]
@@ -963,7 +970,7 @@
     },
     {
       "name": "production_healing_readiness_drill.json",
-      "bytes": 2896,
+      "bytes": 3042,
       "gates": [
         "gate_e"
       ]
@@ -1056,7 +1063,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 14519,
+      "bytes": 14609,
       "gates": [
         "gate_g"
       ]
@@ -1224,7 +1231,7 @@
       ]
     }
   ],
-  "entry_count": 173,
+  "entry_count": 174,
   "by_gate": {
     "gate_g": 23,
     "gate_f": 10,
@@ -1234,10 +1241,10 @@
     "gate_j": 4,
     "gate_b": 6,
     "gate_i": 31,
-    "gate_e": 22,
+    "gate_e": 23,
     "gate_h": 25,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 173 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 174 files; signed_off remains False until external review"
 }
