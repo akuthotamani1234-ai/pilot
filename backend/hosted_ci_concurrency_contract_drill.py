@@ -16,16 +16,25 @@ ANDROID_WF = ROOT / ".github" / "workflows" / "android-appium.yml"
 BROWSER_WF = ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml"
 
 
+def _label(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def _audit(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    from .finalization import folder_is_linked
+    linked = folder_is_linked(path)
+    text = "" if linked or not path.is_file() else path.read_text(encoding="utf-8")
     checks = {
-        "present": path.is_file(),
+        "present": (not linked) and path.is_file(),
         "workflow_dispatch": "workflow_dispatch:" in text,
         "manual_only": "pull_request:" not in text and "push:" not in text,
         "single_job": text.count("runs-on:") == 1,
     }
     return {
-        "path": str(path.relative_to(ROOT)) if path.is_file() else str(path),
+        "path": _label(path),
         "checks": checks,
         "concurrency_group_declared": "concurrency:" in text,
         "cancel_in_progress_declared": "cancel-in-progress:" in text,
@@ -38,7 +47,21 @@ def _audit(path: Path) -> dict:
     }
 
 
+def _linked_concurrency() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "live_hosted_runners": False,
+        "drill": "hosted_ci_concurrency_contract",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_ci_concurrency_contract_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_concurrency()
     android = _audit(ANDROID_WF)
     browsers = _audit(BROWSER_WF)
     evidence = {
@@ -58,15 +81,17 @@ def run_hosted_ci_concurrency_contract_drill(*, ops_dir: Path | None = None) -> 
             "Hosted CI concurrency contract incomplete; hosted runners still open"
         ),
     }
+    text = json.dumps(evidence, indent=2)
+    name = "hosted_ci_concurrency_contract_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_concurrency()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_ci_concurrency_contract_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_concurrency()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_ci_concurrency_contract_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
