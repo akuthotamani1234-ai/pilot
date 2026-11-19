@@ -161,6 +161,7 @@ def progress() -> dict:
         {"id": "G-crawl-link", "label": "A crawl record does not follow a link into another run", "status": "done"},
         {"id": "G-visual-report-link", "label": "A visual report does not follow a link into another run", "status": "done"},
         {"id": "G-case-link", "label": "A designed case does not follow a link into another run", "status": "done"},
+        {"id": "G-contract-link", "label": "A contract run does not follow a link into another run", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
