@@ -23,14 +23,25 @@ def status(root: Path) -> dict:
 
 
 def _write(root: Path, value: dict) -> None:
+    from .repo_fix import RepoFixError
+    root = Path(root)
     dest = root / ".private" / "repo_fix_status.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
     temp = dest.with_suffix(".tmp")
+    if root.is_symlink() or dest.parent.is_symlink() or dest.is_symlink() or temp.is_symlink():
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
     temp.write_text(json.dumps(value), encoding="utf-8")
+    if dest.is_symlink() or temp.is_symlink():
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     os.replace(temp, dest)
 
 
 def start(root: Path, repo_url: str, token: str, selected: list[str]) -> dict:
+    root = Path(root)
+    if (root.is_symlink() or (root / ".private").is_symlink()
+            or (root / ".private" / "repo_fix_status.json").is_symlink()):
+        from .repo_fix import RepoFixError
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     from .config import settings
     from .privacy import guard_provider, runtime_mode
     from .repo_fix import RepoFixError, parse_repo
@@ -89,6 +100,9 @@ def _worker():
         from .repo_fix import _local_copy
         from .repo_proposals import prepare_ai
         cost_dir = root / ".private" / "repo_cost"
+        if root.is_symlink() or (root / ".private").is_symlink() or cost_dir.is_symlink():
+            from .repo_fix import RepoFixError
+            raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
         cost_dir.mkdir(parents=True, exist_ok=True)
         set_run_dir(cost_dir)
         snapshot = _local_copy(url, token, root)

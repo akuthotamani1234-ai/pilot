@@ -115,6 +115,68 @@ def test_exact_reviewed_patch_is_published_once(tmp_path, monkeypatch):
     assert all(not (method == "PUT" or "/heads/main" in path and method != "GET") for method, path, _ in calls)
 
 
+def test_a_reviewed_fix_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = "tenant-b-only-fix"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "repo_fix_plan.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_publication.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_journal.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_source.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_status.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    monkeypatch.setattr(repo_fix, "_gh", lambda *a, **k: pytest.fail("github"))
+
+    snap = tmp_path / "snap"
+    snap.mkdir()
+    (snap / ".private").symlink_to(other, target_is_directory=True)
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        from backend.repo_source import snapshot
+        snapshot("https://github.com/fixture/app", "token", snap)
+    assert json.loads((other / "repo_source.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    prep = tmp_path / "prep"
+    prep.mkdir()
+    run, _root = _setup(prep)
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(repo_proposals, "llm_enabled", lambda: True)
+    monkeypatch.setattr(repo_proposals, "ask_structured", lambda *a, **k: pytest.fail("asked"))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_proposals.prepare_ai(run, prep / "source", ["finding-age"])
+    assert json.loads((other / "repo_fix_plan.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / "fixes.json").write_text("[]", encoding="utf-8")
+    (legacy / "repo_fix_plan.json").symlink_to(other / "repo_fix_plan.json")
+    monkeypatch.setattr(repo_fix, "_local_copy", lambda *a: prep / "source")
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.prepare(legacy, "https://github.com/fixture/app", "")
+    assert json.loads((other / "repo_fix_plan.json").read_text(encoding="utf-8"))["secret"] == secret
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.create_pr(legacy, "token", "legacy-run")
+
+    published = tmp_path / "published"
+    published.mkdir()
+    saved, _root, plan = _prepare(published, monkeypatch)
+    private = saved / ".private"
+    (private / "repo_fix_publication.json").symlink_to(other / "repo_fix_publication.json")
+    (private / "repo_fix_journal.json").symlink_to(other / "repo_fix_journal.json")
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_publication.publish(saved, "token", plan["proposal_id"])
+    assert json.loads((other / "repo_fix_publication.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "repo_fix_journal.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / ".private").mkdir()
+    (job / ".private" / "repo_fix_status.json").symlink_to(other / "repo_fix_status.json")
+    monkeypatch.setattr("backend.repo_jobs.subprocess.Popen", lambda *a, **k: pytest.fail("started"))
+    from backend import repo_jobs
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_jobs.start(job, "https://github.com/fixture/app", "token", ["finding-age"])
+    assert json.loads((other / "repo_fix_status.json").read_text(encoding="utf-8"))["secret"] == secret
+
+
 def test_legacy_tag_match_must_be_unique_across_files(tmp_path, monkeypatch):
     run, root = _setup(tmp_path)
     for name in ("first.html", "second.html"):

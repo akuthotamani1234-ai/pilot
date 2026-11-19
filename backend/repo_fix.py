@@ -127,8 +127,12 @@ def _text_hash(text: str) -> str:
 # ------------------------------------------------------------------ 1) prepare (local only)
 
 def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
+    run_dir = Path(run_dir)
+    fixes_path = run_dir / "fixes.json"
+    if run_dir.is_symlink() or fixes_path.is_symlink() or (run_dir / "repo_fix_plan.json").is_symlink():
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     owner, repo = parse_repo(repo_url)
-    fixes = json.loads((run_dir / "fixes.json").read_text(encoding="utf-8")) if (run_dir / "fixes.json").exists() else []
+    fixes = json.loads(fixes_path.read_text(encoding="utf-8")) if fixes_path.exists() else []
     with_code = [x for x in fixes if (x.get("code") or {}).get("before") and (x.get("code") or {}).get("after")]
     root = _local_copy(repo_url, token, run_dir)
     files = _source_files(root)
@@ -217,7 +221,9 @@ def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
         "fixes_total": len(fixes),
         "prepared": time.time(),
     }
-    (run_dir / "repo_fix_plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(run_dir, "repo_fix_plan.json", json.dumps(plan, indent=2)):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     return dict(plan) | {"files": [{k: v for k, v in f.items() if k != "content"} for f in out_files]}
 
 
@@ -235,10 +241,16 @@ def _gh(method: str, path: str, token: str, **kw) -> dict:
 
 
 def create_pr(run_dir: Path, token: str, run_id: str, summary: dict | None = None, proposal_id: str = "") -> dict:
-    if (run_dir / ".private" / "repo_fix_plan.json").exists():
+    run_dir = Path(run_dir)
+    private_plan = run_dir / ".private" / "repo_fix_plan.json"
+    public_plan = run_dir / "repo_fix_plan.json"
+    if (run_dir.is_symlink() or (run_dir / ".private").is_symlink() or private_plan.is_symlink()
+            or public_plan.is_symlink()):
+        raise RepoFixError("The reviewed proposal is a link, so it was not published.")
+    if private_plan.is_file():
         from .repo_publication import publish
         return publish(run_dir, token, proposal_id)
-    plan_file = run_dir / "repo_fix_plan.json"
+    plan_file = public_plan
     if not plan_file.exists():
         raise RepoFixError("Press 'Prepare changes' first.")
     plan = json.loads(plan_file.read_text(encoding="utf-8"))
