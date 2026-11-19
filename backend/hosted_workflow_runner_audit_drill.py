@@ -17,10 +17,19 @@ ANDROID_WF = ROOT / ".github" / "workflows" / "android-appium.yml"
 BROWSER_WF = ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml"
 
 
+def _label(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def _audit(path: Path, *, required_inputs: tuple[str, ...] = ()) -> dict:
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    from .finalization import folder_is_linked
+    linked = folder_is_linked(path)
+    text = "" if linked or not path.is_file() else path.read_text(encoding="utf-8")
     checks = {
-        "present": path.is_file(),
+        "present": (not linked) and path.is_file(),
         "workflow_dispatch": "workflow_dispatch:" in text,
         "runs_on": "runs-on:" in text,
         "upload_artifact": "upload-artifact@" in text,
@@ -37,7 +46,7 @@ def _audit(path: Path, *, required_inputs: tuple[str, ...] = ()) -> dict:
         and all(input_hits.values())
     )
     return {
-        "path": str(path.relative_to(ROOT)) if path.is_file() else str(path),
+        "path": _label(path),
         "checks": checks,
         "required_inputs": input_hits,
         "ok": ok,
@@ -45,7 +54,21 @@ def _audit(path: Path, *, required_inputs: tuple[str, ...] = ()) -> dict:
     }
 
 
+def _linked_runner_audit() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "live_hosted_runners": False,
+        "drill": "hosted_workflow_runner_audit",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_workflow_runner_audit_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_runner_audit()
     android = _audit(
         ANDROID_WF,
         required_inputs=("api_level", "include_api24_smoke", "artifact_prefix"),
@@ -71,15 +94,17 @@ def run_hosted_workflow_runner_audit_drill(*, ops_dir: Path | None = None) -> di
             "Hosted workflow runner audit incomplete; hosted runners still open"
         ),
     }
+    text = json.dumps(evidence, indent=2)
+    name = "hosted_workflow_runner_audit_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_runner_audit()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_workflow_runner_audit_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_runner_audit()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_workflow_runner_audit_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
