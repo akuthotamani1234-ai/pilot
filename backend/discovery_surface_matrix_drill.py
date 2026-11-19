@@ -100,6 +100,11 @@ def _load_surface(path: Path) -> dict:
 
 def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
+
+    out_name = "discovery_surface_matrix_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_matrix()
     from .surface_evidence_drill import (
         run_admin_portal_surface_drill,
         run_classic_shop_surface_drill,
@@ -107,8 +112,6 @@ def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         run_travel_site_surface_drill,
     )
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
-        return _linked_matrix()
     # Refresh inventories so the matrix reflects current fixtures.
     run_admin_portal_surface_drill(ops_dir=ops_dir)
     run_demo_store_surface_drill(ops_dir=ops_dir)
@@ -155,15 +158,10 @@ def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             f"union={union_hit}/{len(SIGNALS)}; full Gate A live completeness still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (
-        (Path(ops_dir) / "discovery_surface_matrix_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_matrix()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "discovery_surface_matrix_drill.json"
