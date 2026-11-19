@@ -29,7 +29,26 @@ def _try_launch(pw, name: str):
         return None, f"{name}: {exc}"[:160]
 
 
+def _linked_compat() -> dict:
+    return {
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "demo_store_compatibility_portfolio",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_compatibility_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "compatibility_portfolio_drill.json"
+    work = ROOT / "artifacts" / "ops" / "compatibility_portfolio_work"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_compat()
+    if ops_dir is None and (folder_is_linked(work) or folder_is_linked(work / "compatibility.json")):
+        return _linked_compat()
+
     from playwright.sync_api import sync_playwright
 
     from tests.demo_store import DemoStore
@@ -112,15 +131,19 @@ def run_compatibility_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
             "broad live multi-browser CI still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    matrix_text = json.dumps(matrix, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_compat()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "compatibility_portfolio_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_compat()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "compatibility_portfolio_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-        work = ROOT / "artifacts" / "ops" / "compatibility_portfolio_work"
-        work.mkdir(parents=True, exist_ok=True)
-        (work / "compatibility.json").write_text(json.dumps(matrix, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+        if not folder_is_linked(work) and not folder_is_linked(work / "compatibility.json"):
+            work.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(work, "compatibility.json", matrix_text)
     return evidence
