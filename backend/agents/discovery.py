@@ -1535,6 +1535,13 @@ def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
         folder, "api_spec.json", json.dumps({"operations": operations}, indent=2))
 
 
+def saved_roles(run_dir: Path) -> dict:
+    """Roles saved for this run. A linked file or folder is not another tenant's list."""
+    from ..finalization import read_json
+    loaded = read_json(Path(run_dir) / "roles.json", {})
+    return loaded if isinstance(loaded, dict) else {}
+
+
 # At phone width: does the page scroll sideways, and which controls are cut off (outside the screen) or covered?
 LAYOUT_JS = r"""() => {
   const vis = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e);
@@ -3237,7 +3244,7 @@ def discovery_agent(state: QAState) -> QAState:
            if pending else "(all reachable pages within the limits were visited).")
         + (f" {len(skipped)} link(s) were skipped on purpose (see the coverage section)." if skipped else "")
     ] + ([f"Login: {login['note']}"] if login["found"] else [])
-    roles = json.loads((run_dir / "roles.json").read_text(encoding="utf-8")) if (run_dir / "roles.json").exists() else {}
+    roles = saved_roles(run_dir)
     locale_written = write_locale(run_dir, locale_seen)
     if locale_written["observed"]:
         shown = ", ".join(f"{key}={locale_written['observed'][key]}" for key in locale_written["observed"])
