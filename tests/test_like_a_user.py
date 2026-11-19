@@ -107,6 +107,27 @@ def test_continue_is_not_clicked_when_it_opens_checkout():
     assert fake.loc.clicked is False
 
 
+def test_a_checkout_form_is_not_filled():
+    ex = _explorer()
+    entry = {"forms": [{
+        "selector": "form.pay",
+        "action": "/checkout",
+        "fields": [{"selector": "#card", "label": "Card", "type": "text", "name": "card"}],
+        "submit": {"text": "Continue", "selector": "#go"},
+    }]}
+
+    class _Boom:
+        def goto(self, *_args, **_kwargs):
+            raise AssertionError("a payment form was opened")
+
+    assert ex.fill_forms(_Boom(), "http://shop.test/cart", entry) == []
+    skipped = entry["form_fills"][0]
+    assert skipped["sent"] is False
+    assert skipped["filled"] == []
+    assert "never filled" in skipped["not_sent"]
+    assert entry["form_fills"][0]["form"] == "form.pay"
+
+
 def test_the_menu_sections_are_visited_before_deeper_pages():
     q = _Frontier(("https://hr.test/", 0, True, True))
     q.popleft()
