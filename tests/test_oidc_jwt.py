@@ -41,6 +41,24 @@ def test_rejects_wrong_issuer(monkeypatch):
     assert "iss mismatch" in out["reason"]
 
 
+def test_a_bad_signature_is_not_accepted(monkeypatch):
+    monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
+    monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
+    token = _jwt({
+        "iss": "https://idp.example",
+        "aud": "qpilot-dashboard",
+        "sub": "user-1",
+        "exp": int(time.time()) + 3600,
+    })
+    out = validate_bearer(token, verify_signature=True)
+    assert out["ok"] is False
+    assert out["signature_verified"] is False
+    assert out["gate_i_complete"] is False
+    assert "signature" in out["reason"]
+    unsigned = validate_bearer(token, verify_signature=False)
+    assert unsigned["ok"] is True
+
+
 def test_rejects_expired(monkeypatch):
     monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
     token = _jwt({"iss": "https://idp.example", "exp": int(time.time()) - 10})

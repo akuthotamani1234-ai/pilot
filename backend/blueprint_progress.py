@@ -389,6 +389,7 @@ def progress() -> dict:
         {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
+        {"id": "I-signature-closed", "label": "A token whose signature cannot be checked is refused", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
