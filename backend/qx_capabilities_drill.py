@@ -25,9 +25,10 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "qx_capabilities_drill.json"
 
 
 def _incremental_from_surfaces() -> dict:
+    from .finalization import folder_is_linked
     path = ROOT / "docs" / "ops-evidence" / "demo_store_surface_coverage.json"
     pages = ["/", "/about", "/lab", "/signin"]
-    if path.is_file():
+    if not folder_is_linked(path) and path.is_file():
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             walked = payload.get("pages_walked") or []
@@ -44,7 +45,19 @@ def _incremental_from_surfaces() -> dict:
     return plan_pages(saved, current, fresh=False)
 
 
+def _linked_capabilities() -> dict:
+    return {
+        "gate_complete": False,
+        "ok": False,
+        "drill": "qx_capabilities_a02_a07_a12_a18",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_qx_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_capabilities()
     ranked = rank_candidates([
         {"url": "https://shop.example/known", "new_template": False, "journey_distance": 9},
         {"url": "https://shop.example/checkout", "new_template": True},
@@ -150,12 +163,17 @@ def run_qx_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
 
+    text = json.dumps(evidence, indent=2)
+    name = "qx_capabilities_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_capabilities()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "qx_capabilities_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_capabilities()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "qx_capabilities_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
