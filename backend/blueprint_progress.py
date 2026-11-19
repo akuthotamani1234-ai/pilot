@@ -143,6 +143,7 @@ def progress() -> dict:
         {"id": "G-baseline-delete", "label": "Deleting a run removes that tenant's baseline and leaves the other tenant's", "status": "done"},
         {"id": "G-reuse-link", "label": "Running the same tests again does not follow a link into another run", "status": "done"},
         {"id": "G-reuse-tenant", "label": "Running the same tests again does not copy another tenant's run", "status": "done"},
+        {"id": "G-benchmark", "label": "A benchmark does not read another tenant's run", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

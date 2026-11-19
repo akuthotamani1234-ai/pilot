@@ -33,8 +33,19 @@ class Manifest(Model):
 def run_path(root, name):
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,150}", name):
         raise ValueError("Use run IDs, not filesystem paths")
-    path = (Path(root) / name).resolve(strict=True)
-    path.relative_to(Path(root).resolve())
+    root_path = Path(root)
+    path = root_path / name
+    # Resolving a link named like one run still lands inside runs/ and would
+    # read the other run. The folder itself has to be a real directory.
+    if path.is_symlink():
+        raise ValueError("Run directory must stay inside runs.")
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(root_path.resolve())
+    except (OSError, ValueError) as exc:
+        raise ValueError("Use run IDs, not filesystem paths") from exc
+    if resolved.parent != root_path.resolve():
+        raise ValueError("Use run IDs, not filesystem paths")
     return path
 
 
@@ -50,7 +61,10 @@ def measure(root, value):
             raise ValueError("Known outcomes must be passed (clean) or failed (known defect)")
         for run in group.runs:
             directory = run_path(root, run)
-            results = json.loads((directory / "results.json").read_text(encoding="utf-8"))
+            results_file = directory / "results.json"
+            if results_file.is_symlink():
+                raise ValueError("Run directory must stay inside runs.")
+            results = json.loads(results_file.read_text(encoding="utf-8"))
             by_id = defaultdict(list)
             for result in results:
                 by_id[result.get("id") or result.get("test", "").removeprefix("test_")].append(result)

@@ -803,3 +803,71 @@ def test_tenant_scoped_list_and_export(tmp_path):
     assert exported["gate_g_complete"] is False
     assert exported["count"] == 1
     assert exported["events"][0]["actor"] == "b"
+
+
+def test_a_benchmark_does_not_read_another_tenants_run(monkeypatch, tmp_path):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import qa_benchmark, server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    secret = "tenant-b-only-case"
+
+    def write_run(name, case_id):
+        folder = runs / name
+        folder.mkdir(parents=True)
+        (folder / "results.json").write_text(json.dumps([
+            {"id": case_id, "outcome": "failed", "exception_type": "AssertionError", "checks": 1},
+        ]), encoding="utf-8")
+        (folder / "report.html").write_text("<p>report</p>", encoding="utf-8")
+
+    write_run("run-a", "mine-case")
+    write_run("run-b", secret)
+    (runs / "run-link").symlink_to(runs / "run-b", target_is_directory=True)
+    linked_file = runs / "run-file"
+    linked_file.mkdir()
+    (linked_file / "results.json").symlink_to(runs / "run-b" / "results.json")
+    (linked_file / "report.html").write_text("<p>report</p>", encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-link", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-file", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"}
+
+    def ask(run, case):
+        return client.post("/api/qa/benchmark", headers=header, json={
+            "groups": [{"name": "check", "runs": [run], "expected": {case: "failed"}}],
+        })
+
+    unsigned = client.post("/api/qa/benchmark", headers={"X-Agentic-QA": "1"}, json={
+        "groups": [{"name": "check", "runs": ["run-b"], "expected": {secret: "failed"}}],
+    })
+    assert unsigned.status_code == 401
+    assert secret not in unsigned.text
+    stolen = ask("run-b", secret)
+    assert stolen.status_code == 403
+    assert secret not in stolen.text
+    linked = ask("run-link", secret)
+    assert linked.status_code == 400
+    assert secret not in linked.text
+    copied = ask("run-file", "mine-case")
+    assert copied.status_code == 400
+    assert secret not in copied.text
+    own = ask("run-a", "mine-case")
+    assert own.status_code == 200
+    assert "mine-case" in own.text
+    assert secret not in own.text
+    showcase = own.json()["run"]
+    assert tenancy.get_run_tenant(showcase, db_path=db) == "t1"
+    assert qa_benchmark.run_path(runs, "run-a").name == "run-a"
