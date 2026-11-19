@@ -133,9 +133,15 @@ def measure(root, value):
 
 def save_showcase(root, manifest, output):
     output = Path(output)
+    benchmark = output / "benchmark.json"
+    report = output / "report.html"
+    if output.is_symlink() or benchmark.is_symlink() or report.is_symlink():
+        raise ValueError("The showcase folder is a link.")
     output.mkdir(parents=True, exist_ok=True)
     result = measure(root, manifest)
-    (output / "benchmark.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(output, "benchmark.json", json.dumps(result, indent=2)):
+        raise ValueError("The showcase folder is a link.")
     esc = lambda value: html.escape(str(value), quote=True)  # noqa: E731
     rows = []
     for row in result["rows"]:
@@ -175,7 +181,8 @@ body{margin:0;background:#f0f3fa;color:#17243d;font:16px/1.6 system-ui}main{max-
         "ENV_WHEN": esc(env["measured_at"]),
     }.items():
         document = document.replace(key, str(value))
-    (output / "report.html").write_text(document, encoding="utf-8")
+    if not write_text_unless_linked(output, "report.html", document):
+        raise ValueError("The showcase folder is a link.")
     return result
 
 

@@ -145,3 +145,74 @@ def test_benchmark_records_environment_and_refuses_overall_accuracy(tmp_path):
     assert "environment" in bench and "metric_labels" in bench
     assert "not overall product accuracy" in html.lower()
     assert "overall_accuracy_percent remains unset" in html.lower()
+
+
+def test_a_published_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import datetime as dt
+
+    import pytest
+
+    from backend.merge import merge_runs
+
+    secret = "tenant-b-only-report"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "benchmark.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    linked_out = tmp_path / "linked-showcase"
+    linked_out.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, {"groups": []}, linked_out)
+    assert json.loads((other / "benchmark.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    run = tmp_path / "clean_run"
+    run.mkdir()
+    (run / "results.json").write_text(json.dumps([
+        {"id": "login", "outcome": "passed", "checks": 1},
+    ]), encoding="utf-8")
+    (run / "report.html").write_text("<html></html>", encoding="utf-8")
+    manifest = {"groups": [{"name": "clean", "runs": ["clean_run"], "expected": {"login": "passed"}}]}
+    showcase = tmp_path / "showcase"
+    showcase.mkdir()
+    (showcase / "benchmark.json").symlink_to(other / "benchmark.json")
+    (showcase / "report.html").symlink_to(other / "report.html")
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, manifest, showcase)
+    assert json.loads((other / "benchmark.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    class _Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 19, 13, 22, 0)
+
+    monkeypatch.setattr("backend.merge.datetime", _Clock)
+    runs = tmp_path / "runs"
+    runs.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], runs)
+    planted = tmp_path / "real-runs"
+    planted.mkdir()
+    merged = planted / "merged_20261119_132200"
+    merged.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], planted)
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    own = tmp_path / "own-runs"
+    own.mkdir()
+    folder = own / "run_a"
+    folder.mkdir()
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["ok"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}, "items": []},
+    }), encoding="utf-8")
+    published = merge_runs([folder], own)
+    assert (published / "summary.json").is_file() and not (published / "summary.json").is_symlink()
+    assert (published / "report.html").is_file()
+    saved = save_showcase(tmp_path, manifest, tmp_path / "own-showcase")
+    assert saved["counts"]["tn"] == 1
+    assert (tmp_path / "own-showcase" / "benchmark.json").is_file()
