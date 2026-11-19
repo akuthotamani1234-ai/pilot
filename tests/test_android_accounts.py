@@ -246,6 +246,59 @@ def test_a_private_account_does_not_follow_a_link_into_another_run(tmp_path):
     assert secret not in json.dumps(session.secrets)
 
 
+def test_an_android_account_is_not_read_through_a_link_into_another_folder(tmp_path):
+    from types import SimpleNamespace
+
+    from backend.android_accounts import initialize
+    from backend.android_interact import ACCOUNT_PASSWORD, ACCOUNT_USERNAME
+
+    secret = "tenant-b-only-password"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    private = nested / ".private"
+    private.mkdir(parents=True)
+    setup = nested / "account_setup.json"
+    setup.write_text(json.dumps({"mode": "create", "status": "created"}), encoding="utf-8")
+    secrets = private / "auto_secrets.json"
+    secrets.write_text(json.dumps({
+        ACCOUNT_USERNAME: "other@example.com",
+        ACCOUNT_PASSWORD: secret,
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    session = SimpleNamespace(
+        account_mode="legacy",
+        account_setup={},
+        secrets={},
+        device=SimpleNamespace(stop_path=(linked / "runs" / "run") / "STOP", config={"account_mode": "create"}),
+        account="kept",
+        given_account=True,
+    )
+    initialize(session)
+    assert secret not in json.dumps(session.secrets)
+    assert session.account is None
+    assert session.account_setup["status"] == "not_started"
+    assert secret in secrets.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / ".private"
+    own.mkdir(parents=True)
+    (real / "account_setup.json").write_text(json.dumps({
+        "mode": "create", "status": "created",
+    }), encoding="utf-8")
+    (own / "auto_secrets.json").write_text(json.dumps({
+        ACCOUNT_USERNAME: "home@example.com",
+        ACCOUNT_PASSWORD: "home-own-password",
+    }), encoding="utf-8")
+    session.device = SimpleNamespace(stop_path=real / "STOP", config={"account_mode": "create"})
+    initialize(session)
+    assert session.secrets[ACCOUNT_PASSWORD] == "home-own-password"
+    assert session.account == (ACCOUNT_USERNAME, ACCOUNT_PASSWORD)
+    assert secret not in json.dumps(session.secrets)
+    assert secret in secrets.read_text(encoding="utf-8")
+
+
 def test_unconfirmed_registration_is_not_repeated_after_resume(tmp_path):
     from backend.android_accounts import begin_registration
     session, app, _, _ = account_session(tmp_path)
