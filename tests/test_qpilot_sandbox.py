@@ -83,3 +83,43 @@ def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypa
     assert (other / "results.jsonl").read_bytes() == secret
     assert (other / "results_junit.xml").read_bytes() == secret
     assert (other / "results_pytest_output.txt").read_bytes() == secret
+
+    (other / "traces").mkdir()
+    (other / "videos").mkdir()
+    (other / "auth.json").write_bytes(secret)
+    (other / "role.json").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    fresh = tmp_path / "fresh"
+    tests = fresh / "generated_tests"
+    tests.mkdir(parents=True)
+    (fresh / "traces").symlink_to(other / "traces", target_is_directory=True)
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    (fresh / "traces").unlink()
+    (fresh / "videos").symlink_to(other / "videos", target_is_directory=True)
+    monkeypatch.setattr(settings, "record_video", True)
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    (fresh / "videos").unlink()
+    private = fresh / ".private"
+    private.mkdir()
+    (private / "auth.json").symlink_to(other / "auth.json")
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    (private / "auth.json").unlink()
+    (private / "role.json").symlink_to(other / "role.json")
+    info = _run_pytest({"roles": {"roles": {"shopper": {"state": "role.json"}}}}, tests,
+                       fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    assert (other / "auth.json").read_bytes() == secret
+    assert (other / "role.json").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert list((other / "traces").iterdir()) == []
+    assert list((other / "videos").iterdir()) == []
+
+    owned = tmp_path / "owned"
+    (owned / "generated_tests").mkdir(parents=True)
+    from backend.agents.executor import _env
+    env = _env(owned, owned / "generated_tests", owned / "results.jsonl", owned / "screenshots", {})
+    assert Path(env["QA_RUN_DIR"]) == owned.resolve()
+    assert secret.decode() not in env["QA_RUN_DIR"]

@@ -241,8 +241,23 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     sandbox = "own process, clean environment, network + file guard, per-test time limit"
     junit = results_file.with_name(results_file.stem + "_junit.xml")
     log_path = results_file.with_name(results_file.stem + "_pytest_output.txt")
-    if (test_dir.is_symlink() or (test_dir / "pytest.ini").is_symlink() or results_file.parent.is_symlink()
-            or results_file.is_symlink() or junit.is_symlink() or log_path.is_symlink() or shot_dir.is_symlink()):
+    run_dir = test_dir.parent
+    private = run_dir / ".private"
+    roles = ((state.get("roles") or {}).get("roles") or {})
+    role_files = []
+    unsafe_role = False
+    for item in roles.values():
+        if not isinstance(item, dict) or not item.get("state"):
+            continue
+        name = str(item.get("state"))
+        if name in {".", ".."} or "/" in name or "\\" in name:
+            unsafe_role = True
+        else:
+            role_files.append(private / name)
+    linked = (test_dir, test_dir / "pytest.ini", results_file.parent, results_file, junit, log_path,
+              shot_dir, run_dir, run_dir / "traces", run_dir / "videos", private, private / "auth.json",
+              *role_files)
+    if unsafe_role or any(path.is_symlink() for path in linked):
         print("  [execution] the test results are a link, so the suite was not started", flush=True)
         return {"timed_out": False, "stopped": True, "returncode": -1, "sandbox": sandbox}
     # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
@@ -258,9 +273,10 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         return {"timed_out": True, "stopped": False, "returncode": -1, "sandbox": sandbox,
                 "reserve_skip": True}
     for f in [results_file] + _worker_files(results_file):
+        if f.is_symlink():
+            continue
         if f.exists():
             f.unlink()
-    run_dir = test_dir.parent
     # The browser reads qx_dependency.json when pytest starts. Writing it here, not after the
     # suite, is what lets an injected fault fail that service in the test browser.
     from ..run_rules import apply_execution
