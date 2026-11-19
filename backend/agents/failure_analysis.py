@@ -47,7 +47,8 @@ CATEGORY_NAME = {"product_defect": "Application defect (potential website bug)",
                  "third_party": "Third-party resource failed (another website's script, tracker or ad)",
                  "suspect": "Suspect - needs a person to look (it did nothing, while exploring and in its test)",
                  "rule_violation": "Rule violation? (a common convention between fields the site does not keep)",
-                 "test_mistake": "Test mistake - checked on screen: the website did the right thing"}
+                 "test_mistake": "Test mistake - checked on screen: the website did the right thing",
+                 "mixed_content": "Insecure asset (the page still works)"}
 NEXT_ACTION = {
     "product_defect": "Reproduce it by hand with the steps below; if it happens, fix the website.",
     "assertion_failure": "Compare the expected result with what the website does (screenshot; what exploring saw is in "
@@ -72,6 +73,7 @@ NEXT_ACTION = {
                       "not, it becomes a bug to fix.",
     "test_mistake": "Nothing to fix on the website. The AI looked at the screenshots (see 'Seen on screen'); if you "
                     "disagree, open the screenshot and check it yourself.",
+    "mixed_content": "Load the style, font, or picture over https. Nothing a visitor does is broken.",
 }
 
 
@@ -766,6 +768,8 @@ def failure_analysis_agent(state: QAState) -> QAState:
             cat = "third_party"
         elif slow or still_loading:
             cat = "timeout"
+        elif mixed:
+            cat = "mixed_content"
         elif own_http or app_js:
             cat = "product_defect"
         else:
