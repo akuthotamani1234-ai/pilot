@@ -243,6 +243,21 @@ def wait_for_person(tab, form: dict, seconds: int) -> dict | None:
     return None
 
 
+def reopen_if_safe(tab, landing: str, evidence: list, timeout: int) -> bool:
+    """Return True when the post-login page is checkout and was not opened again."""
+    from .payment_nav import opens_checkout
+
+    try:
+        blocked = opens_checkout(tab.request.get, landing, timeout=timeout)
+    except Exception:
+        blocked = ""
+    if blocked:
+        evidence.append("checkout was not opened again")
+        return True
+    tab.goto(landing, wait_until="domcontentloaded", timeout=timeout)
+    return False
+
+
 def log_in(context, url: str, form: dict, user: str, password: str, scope=None) -> tuple[object, dict]:
     """Open the login page in this (logged-in) browser session and sign in. Returns (tab, result).
     result = {"outcome", "logged_in", "evidence": [...], "final_url"} - never the password."""
@@ -264,6 +279,13 @@ def log_in(context, url: str, form: dict, user: str, password: str, scope=None) 
         return tab, result
 
     try:
+        from .payment_nav import opens_checkout
+        try:
+            blocked = opens_checkout(tab.request.get, url, timeout=settings.page_timeout_ms)
+        except Exception:
+            blocked = ""
+        if blocked:
+            return done("failed", "checkout, payment and placing an order are never tested")
         tab.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
         _settle(tab)
         if CAPTCHA.search(tab.content()):
@@ -362,7 +384,8 @@ def log_in(context, url: str, form: dict, user: str, password: str, scope=None) 
             return done("failed", *evidence, "no second sign of being logged in (address / log-out control)")
         # the login must hold: open the page again and check the login form does not come back
         landing = tab.url
-        tab.goto(landing, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        if reopen_if_safe(tab, landing, evidence, settings.page_timeout_ms):
+            return done("success", *evidence)
         _settle(tab)
         if looks_logged_out(tab, form):
             return done("failed", *evidence, "but the login form came back after opening the page again")
