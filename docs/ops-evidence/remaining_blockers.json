@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T00:06:40Z",
+  "ran_at": "2026-11-19T00:08:54Z",
   "ok": true,
   "blockers": [
     {
@@ -64,6 +64,7 @@
         "production_healing_matrix_drill.json",
         "production_healing_taxonomy_drill.json",
         "production_healing_contract_drill.json",
+        "production_healing_replay_pack_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
@@ -73,6 +74,7 @@
         "production_healing_matrix_drill.json",
         "production_healing_taxonomy_drill.json",
         "production_healing_contract_drill.json",
+        "production_healing_replay_pack_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []
@@ -87,7 +89,8 @@
         "multi_device_ci_contract.json",
         "device_artifact_manifest_drill.json",
         "apidemos_interaction_drill.json",
-        "workflow_dispatch_contract_drill.json"
+        "workflow_dispatch_contract_drill.json",
+        "hosted_ci_runner_matrix_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -96,7 +99,8 @@
         "multi_device_ci_contract.json",
         "device_artifact_manifest_drill.json",
         "apidemos_interaction_drill.json",
-        "workflow_dispatch_contract_drill.json"
+        "workflow_dispatch_contract_drill.json",
+        "hosted_ci_runner_matrix_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -108,14 +112,16 @@
         "multi_browser_portfolio_suite_drill.json",
         "multi_browser_ci_contract.json",
         "portfolio_artifact_manifest_drill.json",
-        "workflow_dispatch_contract_drill.json"
+        "workflow_dispatch_contract_drill.json",
+        "hosted_ci_runner_matrix_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
         "multi_browser_portfolio_suite_drill.json",
         "multi_browser_ci_contract.json",
         "portfolio_artifact_manifest_drill.json",
-        "workflow_dispatch_contract_drill.json"
+        "workflow_dispatch_contract_drill.json",
+        "hosted_ci_runner_matrix_drill.json"
       ],
       "local_partial_missing": []
     },

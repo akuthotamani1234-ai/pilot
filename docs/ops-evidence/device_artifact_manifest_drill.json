@@ -1,7 +1,7 @@
 {
   "gate_d_complete": false,
   "drill": "device_artifact_manifest",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-19T00:08:54Z",
   "kind": "manifest_only",
   "required": [
     "android_appium_product_matrix_drill.json",
@@ -16,7 +16,7 @@
     {
       "name": "android_appium_product_matrix_drill.json",
       "bytes": 2724,
-      "sha256": "270ae96a866c96747cf8f652369ec1403cb74e3821d5ab8013dbe98e51b3bd04",
+      "sha256": "83e59bbd23f176a781cf92347c1d15460a3a97493021552d80e0541c8aeb9bb1",
       "ci_upload_path": "docs/ops-evidence/android_appium_product_matrix_drill.json"
     },
     {
@@ -27,8 +27,8 @@
     },
     {
       "name": "multi_api_android_matrix_drill.json",
-      "bytes": 1601,
-      "sha256": "64f7f67ceb0f5dd99235f08063730af4fb14474304b181e947e5d7215f9f1dfa",
+      "bytes": 1589,
+      "sha256": "c9b8105cf21f1d96ed0f4e70575f21c76ec4f6a51e6e7063a17d425d0161c90e",
       "ci_upload_path": "docs/ops-evidence/multi_api_android_matrix_drill.json"
     },
     {
@@ -40,13 +40,13 @@
     {
       "name": "cross_platform_journey_drill.json",
       "bytes": 1429,
-      "sha256": "82cb0b7fc5b8303c0ae100740b670546d422d22c82e1f1b9f25c456c1ad0062b",
+      "sha256": "4532fbd24637b3fac4a0adfd5defac4221454561b96de4619efd3aa3c1d3828a",
       "ci_upload_path": "docs/ops-evidence/cross_platform_journey_drill.json"
     },
     {
       "name": "multi_device_ci_contract.json",
       "bytes": 1131,
-      "sha256": "682bc186fd1be7e3900ca3f8a4a820e00c46eb0d673066d17eecfe5005692656",
+      "sha256": "2647adf1b6f3297b14d85fbdf6803e6cf18dc817bf7a323ac00423ecde870291",
       "ci_upload_path": "docs/ops-evidence/multi_device_ci_contract.json"
     },
     {

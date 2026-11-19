@@ -51,6 +51,7 @@ BLOCKERS = (
             "production_healing_matrix_drill.json",
             "production_healing_taxonomy_drill.json",
             "production_healing_contract_drill.json",
+            "production_healing_replay_pack_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -65,6 +66,7 @@ BLOCKERS = (
             "device_artifact_manifest_drill.json",
             "apidemos_interaction_drill.json",
             "workflow_dispatch_contract_drill.json",
+            "hosted_ci_runner_matrix_drill.json",
         ],
     },
     {
@@ -76,6 +78,7 @@ BLOCKERS = (
             "multi_browser_ci_contract.json",
             "portfolio_artifact_manifest_drill.json",
             "workflow_dispatch_contract_drill.json",
+            "hosted_ci_runner_matrix_drill.json",
         ],
     },
     {

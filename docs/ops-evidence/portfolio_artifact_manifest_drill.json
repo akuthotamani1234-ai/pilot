@@ -1,7 +1,7 @@
 {
   "gate_f_complete": false,
   "drill": "portfolio_artifact_manifest",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-19T00:08:54Z",
   "kind": "manifest_only",
   "required": [
     "multi_browser_portfolio_suite_drill.json",
@@ -59,7 +59,7 @@
     {
       "name": "multi_browser_ci_contract.json",
       "bytes": 1211,
-      "sha256": "10498771981aeaf66ee02d22d559d9c9e9ad1c65f0656f6ed0bc34bed08df02f",
+      "sha256": "4a5b732ea0d29f188adf0eb0e4804957d87126e55c981508b0e921cd4f59bd62",
       "ci_upload_path": "docs/ops-evidence/multi_browser_ci_contract.json"
     }
   ],

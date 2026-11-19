@@ -197,6 +197,8 @@ def progress() -> dict:
         {"id": "E-prod-healing-4apps", "label": "Production-like healing matrix on 4 demos (+nav)", "status": "done"},
         {"id": "E-prod-healing-taxonomy", "label": "Production healing taxonomy (auth/infra/flaky/…)", "status": "done"},
         {"id": "E-prod-healing-contract", "label": "Production healing suite contract (not third-party)", "status": "done"},
+        {"id": "E-prod-healing-replay", "label": "Production healing before/after replay pack (fixtures)", "status": "done"},
+        {"id": "DF-hosted-runner-matrix", "label": "Hosted CI runner matrix honesty snapshot", "status": "done"},
         {"id": "D-android-refresh", "label": "Live Appium product-matrix refresh (API30 emulator)", "status": "done"},
         {"id": "D-apidemos-deep", "label": "Live ApiDemos deep interaction (Accessibility+tap)", "status": "done"},
         {"id": "D-android-refresh2", "label": "Re-verify live Appium matrix + ApiDemos after G/I work", "status": "done"},
