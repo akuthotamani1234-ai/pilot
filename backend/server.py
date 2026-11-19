@@ -2187,6 +2187,64 @@ def ops_hosted_ci_artifact_retention_contract():
     }
 
 
+@app.post("/api/ops/drills/studio-sso-audience-binding")
+def ops_studio_sso_audience_binding():
+    """Gate I: wrong-aud rejection (hosted IdP SSO still open)."""
+    from backend.studio_sso_audience_binding_drill import (
+        run_studio_sso_audience_binding_drill,
+    )
+    evidence = run_studio_sso_audience_binding_drill()
+    _audit(
+        "ops_studio_sso_audience_binding",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_audience_binding": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-rpo-contract")
+def ops_hosted_dr_rpo_contract():
+    """Gate H: RPO/backup retention contract (hosted DR still open)."""
+    from backend.hosted_dr_rpo_contract_drill import run_hosted_dr_rpo_contract_drill
+    evidence = run_hosted_dr_rpo_contract_drill()
+    _audit(
+        "ops_hosted_dr_rpo_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_rpo_contract": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-response-sla")
+def ops_independent_review_response_sla():
+    """Gate G: reviewer response SLA contract (unsigned)."""
+    from backend.independent_review_response_sla_drill import (
+        run_independent_review_response_sla_drill,
+    )
+    evidence = run_independent_review_response_sla_drill()
+    _audit(
+        "ops_independent_review_response_sla",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_response_sla": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-fixture-coverage")
+def ops_production_healing_fixture_coverage():
+    """Gate E: fixture coverage map (production suite still open)."""
+    from backend.production_healing_fixture_coverage_drill import (
+        run_production_healing_fixture_coverage_drill,
+    )
+    evidence = run_production_healing_fixture_coverage_drill()
+    _audit(
+        "ops_production_healing_fixture_coverage",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_fixture_coverage": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

@@ -1,0 +1,32 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_dr_rpo_contract",
+  "ran_at": "2026-11-19T05:33:41Z",
+  "kind": "contract_only",
+  "contract": {
+    "rpo_minutes": 15,
+    "rto_budget_minutes": 30,
+    "backup_retention_days": 30,
+    "stores": [
+      "postgres",
+      "redis",
+      "minio"
+    ],
+    "replication": "async_local_dual_region",
+    "cutover_evidence": "hosted_dr_cutover_checklist_drill.json",
+    "note": "RPO contract only; live hosted multi-region DR still required"
+  },
+  "live_hosted_dr": false,
+  "local_partial_present": [
+    "multi_region_dr_drill.json",
+    "multi_store_dr_drill.json",
+    "failover_rto_drill.json",
+    "dual_region_store_health_probe_drill.json",
+    "hosted_dr_cutover_checklist_drill.json",
+    "multi_region_dr_readiness_pack_drill.json",
+    "hosted_oncall_rota_contract_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted DR RPO contract recorded (7/7 local partials present); live hosted multi-region DR / on-call paging still open"
+}

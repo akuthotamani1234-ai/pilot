@@ -25,6 +25,9 @@ CHECKS = (
     ("oidc_org_tenant_acl_drill.json", "OIDC org/hd→tenant ACL"),
     ("oidc_acl_matrix_pack_drill.json", "OIDC ACL matrix pack"),
     ("hosted_idp_contract_drill.json", "Hosted IdP contract snapshot"),
+    ("studio_sso_login_path_drill.json", "Studio SSO login-path contract"),
+    ("studio_sso_session_rebind_drill.json", "Studio SSO session rebind"),
+    ("studio_sso_audience_binding_drill.json", "Studio SSO audience binding"),
 )
 
 
