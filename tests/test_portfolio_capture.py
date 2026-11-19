@@ -3,6 +3,35 @@ from backend.portfolio_capture import capture_portfolios
 from backend.portfolio_gates import evaluate_portfolios
 
 
+def test_a_portfolio_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-portfolio"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "a11y_page.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    page = {"url": "https://shop.test/", "load_time_ms": 800, "inputs": [], "buttons": []}
+    refused = capture_portfolios(linked / "run", [page], source_url="https://shop.test/")
+    missing = capture_portfolios(linked / "fresh", [page], source_url="https://shop.test/")
+    assert refused["a11y_page"] == {} and refused["performance"] is None
+    assert missing["a11y_page"] == {}
+    assert not (other / "fresh").exists()
+    assert not (nested / "performance.json").exists()
+    assert (nested / "a11y_page.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    saved = capture_portfolios(real, [page], source_url="https://shop.test/", crawl={"mobile_check": True})
+    written = real / "a11y_page.json"
+    assert written.is_file() and not written.is_symlink()
+    assert secret not in written.read_bytes()
+    assert saved["performance"]["load_ms"] == 800
+    assert (real / "compatibility.json").is_file()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_capture_writes_a11y_perf_and_security(tmp_path):
     app_map = [
         {
