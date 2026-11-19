@@ -9,6 +9,7 @@ from backend.agents.discovery import (
     click_actions_allowed,
     click_page,
     place_link,
+    resume_seen,
     store_api_spec,
 )
 from backend.config import settings
@@ -65,6 +66,18 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
     assert click_actions_allowed(click_page(
         "https://shop.example/product/saree-1", "https://shop.example/cart",
     )) is True
+
+
+def test_a_guest_page_does_not_count_as_the_logged_in_visit():
+    urls, done = resume_seen([
+        {"url": "https://shop.example/account", "auth": False},
+        {"url": "https://shop.example/product/1", "auth": True},
+    ])
+    assert urls == {"https://shop.example/account", "https://shop.example/product/1"}
+    assert ("https://shop.example/account", False) in done
+    assert ("https://shop.example/account", True) not in done
+    assert ("https://shop.example/product/1", True) in done
+    assert ("https://shop.example/product/1", False) not in done
 
 
 def test_locale_file_keeps_only_facts_the_page_showed_and_the_sample(tmp_path, monkeypatch):
