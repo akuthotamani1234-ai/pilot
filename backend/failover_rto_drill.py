@@ -40,7 +40,23 @@ def _time_store(name: str, runner) -> dict:
         }
 
 
+def _linked_rto() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "failover_rto",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_failover_rto_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "failover_rto_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_rto()
+
     from .minio_multi_region_drill import run_minio_multi_region_drill
     from .multi_region_dr_drill import run_multi_region_dr_drill
     from .redis_multi_region_drill import run_redis_multi_region_drill
@@ -68,12 +84,15 @@ def run_failover_rto_drill(*, ops_dir: Path | None = None) -> dict:
             "hosted multi-region DR / on-call still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_rto()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "failover_rto_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_rto()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "failover_rto_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
