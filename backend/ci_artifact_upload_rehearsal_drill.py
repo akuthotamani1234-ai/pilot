@@ -31,18 +31,39 @@ BROWSER_FILES = (
 )
 
 
+def _linked_rehearsal() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "ci_artifact_upload_rehearsal",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def _stage(names: tuple[str, ...], dest: Path) -> tuple[list[dict], list[str]]:
+    from .finalization import folder_is_linked
     ops = ROOT / "docs" / "ops-evidence"
     artifacts: list[dict] = []
     missing: list[str] = []
+    if folder_is_linked(dest) or folder_is_linked(ops):
+        return artifacts, list(names)
     dest.mkdir(parents=True, exist_ok=True)
+    if folder_is_linked(dest):
+        return artifacts, list(names)
     for name in names:
         src = ops / name
-        if not src.is_file():
+        if folder_is_linked(src) or not src.is_file():
             missing.append(name)
             continue
         target = dest / name
+        if folder_is_linked(target):
+            missing.append(name)
+            continue
         shutil.copy2(src, target)
+        if folder_is_linked(target):
+            missing.append(name)
+            continue
         artifacts.append({
             "name": name,
             "bytes": target.stat().st_size,
@@ -53,13 +74,18 @@ def _stage(names: tuple[str, ...], dest: Path) -> tuple[list[dict], list[str]]:
 
 
 def run_ci_artifact_upload_rehearsal_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .workflow_dispatch_contract_drill import run_workflow_dispatch_contract_drill
 
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_rehearsal()
     contracts = run_workflow_dispatch_contract_drill(ops_dir=ops_dir)
     staging_root = (
         (Path(ops_dir) / "ci-upload-rehearsal")
         if ops_dir else (ROOT / "artifacts" / "ops" / "ci-upload-rehearsal")
     )
+    if folder_is_linked(staging_root):
+        return _linked_rehearsal()
     if staging_root.exists():
         shutil.rmtree(staging_root)
     device_arts, device_missing = _stage(DEVICE_FILES, staging_root / "android")
@@ -96,14 +122,18 @@ def run_ci_artifact_upload_rehearsal_drill(*, ops_dir: Path | None = None) -> di
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "ci_artifact_upload_rehearsal_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_rehearsal()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_rehearsal()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "ci_artifact_upload_rehearsal_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
