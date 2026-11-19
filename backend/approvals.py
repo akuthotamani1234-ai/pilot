@@ -110,14 +110,21 @@ def _heal_run_in_tenant(detail: str, tenant_id: str) -> bool:
     from .config import settings
     from .tenancy_store import get_run_tenant
     run_name = Path(run_raw).name
-    if get_run_tenant(run_name) != tenant_id:
+    if not run_name or run_name in {".", ".."} or get_run_tenant(run_name) != tenant_id:
+        return False
+    studio = Path(settings.runs_dir) / run_name
+    # Resolving a symlink named like the run still matches the studio path, and the
+    # write would follow it. The run folder itself has to be a real directory.
+    if studio.is_symlink() or not studio.is_dir():
         return False
     try:
         resolved = Path(run_raw).resolve()
-        studio = (Path(settings.runs_dir) / run_name).resolve()
-    except OSError:
+        if resolved != studio.resolve():
+            return False
+        resolved.relative_to(Path(settings.runs_dir).resolve())
+    except (OSError, ValueError):
         return False
-    return resolved == studio
+    return True
 
 
 def heal_detail_allowed(detail: str) -> dict:
@@ -177,8 +184,16 @@ def apply_approved_heal(detail: str, token: str = "") -> dict:
     parts = Path(rel).parts
     if Path(rel).is_absolute() or ".." in parts or not parts:
         return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
-    run_dir = Path(run_raw).resolve()
-    path = (run_dir / "generated_tests" / rel).resolve()
+    run_path = Path(run_raw)
+    if run_path.is_symlink() or not run_path.is_dir():
+        return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
+    cursor = run_path
+    for part in ("generated_tests", *parts):
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
+    run_dir = run_path.resolve()
+    path = cursor.resolve()
     if run_dir not in path.parents:
         return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
     if not path.is_file():

@@ -132,6 +132,7 @@ def progress() -> dict:
         {"id": "G-job", "label": "A signed-in principal cannot stop or read another tenant's live test", "status": "done"},
         {"id": "G-approval", "label": "An approval stays in its tenant and cannot rewrite another tenant's test", "status": "done"},
         {"id": "G-heal-path", "label": "A heal can write only inside that tenant's run folder", "status": "done"},
+        {"id": "G-heal-symlink", "label": "A heal does not follow a symlink out of the run folder", "status": "done"},
         {"id": "G-baseline", "label": "A tenant's saved tests and baseline stay off another tenant's website", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},

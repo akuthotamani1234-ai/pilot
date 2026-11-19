@@ -248,3 +248,83 @@ def test_a_heal_can_write_only_inside_that_tenants_run_folder(monkeypatch, tmp_p
     assert accepted.json()["status"] == "accepted"
     assert owned.read_text(encoding="utf-8") == _GOOD
     assert evil.read_text(encoding="utf-8") == _OLD
+
+
+def test_a_heal_does_not_follow_a_symlink_out_of_the_run(tmp_path: Path):
+    reset_healing_approvals()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked = outside / "test_x.py"
+    linked.write_text(_OLD, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "generated_tests").symlink_to(outside, target_is_directory=True)
+    db = tmp_path / "approvals.sqlite"
+    detail = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+        "run_dir": str(run), "file": "test_x.py",
+    })
+    row = create("heal", "linked folder", detail=detail, path=db)
+    decided = decide_approval(row["id"], "yes", path=db)
+    assert decided["status"] == "rejected"
+    assert decided["reason"] == "script path must stay inside the run"
+    assert linked.read_text(encoding="utf-8") == _OLD
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "generated_tests").mkdir()
+    stolen = tmp_path / "stolen.py"
+    stolen.write_text(_OLD, encoding="utf-8")
+    (real / "generated_tests" / "test_x.py").symlink_to(stolen)
+    detail = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+        "run_dir": str(real), "file": "test_x.py",
+    })
+    row = create("heal", "linked file", detail=detail, path=db)
+    decided = decide_approval(row["id"], "yes", path=db)
+    assert decided["status"] == "rejected"
+    assert stolen.read_text(encoding="utf-8") == _OLD
+
+
+def test_a_signed_in_heal_does_not_follow_a_run_folder_symlink(monkeypatch, tmp_path: Path):
+    from fastapi.testclient import TestClient
+
+    import backend.approvals as approvals
+    import backend.tenancy_store as tenancy
+    from backend import server
+    from backend.config import settings
+
+    studio = tmp_path / "studio"
+    studio.mkdir()
+    outside = tmp_path / "outside" / "generated_tests"
+    outside.mkdir(parents=True)
+    script = outside / "test_x.py"
+    script.write_text(_OLD, encoding="utf-8")
+    (studio / "run-a").symlink_to(tmp_path / "outside", target_is_directory=True)
+    db = tmp_path / "approvals.sqlite"
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(settings, "runs_dir", studio)
+    monkeypatch.setattr(approvals, "DEFAULT_DB", db)
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", tmp_path / "tenancy.sqlite")
+    reset_healing_approvals()
+    tenancy.upsert_tenant("t1", "One")
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin")
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready")
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"}
+    detail = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+        "run_dir": str(studio / "run-a"), "file": "test_x.py",
+    })
+    made = client.post(
+        "/api/approvals", headers=header,
+        json={"kind": "heal", "subject": "linked run", "detail": detail},
+    )
+    assert made.status_code == 200
+    decided = client.post(
+        f"/api/approvals/{made.json()['id']}/decide", headers=header, json={"answer": "yes"},
+    )
+    assert decided.status_code == 200
+    assert decided.json()["status"] == "rejected"
+    assert decided.json()["reason"] == "tenant isolation"
+    assert script.read_text(encoding="utf-8") == _OLD
