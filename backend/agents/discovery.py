@@ -3041,8 +3041,8 @@ def discovery_agent(state: QAState) -> QAState:
 
         if login["logged_in"]:  # the tests reuse this login (cookies + local storage), so they don't log in each time
             try:  # (kept in runs/<run>/.private/: never served by the web UI, deleted when the run ends)
-                (run_dir / PRIVATE).mkdir(exist_ok=True)
-                contexts[True].storage_state(path=str(run_dir / PRIVATE / "auth.json"))
+                from ..finalization import save_login_state
+                save_login_state(run_dir, lambda path: contexts[True].storage_state(path=path))
             except Exception as e:
                 print(f"  [discovery] could not save the login for the tests: {str(e)[:150]}")
             # several user roles: what each other role may open (its access is tested - a lower role must be refused)
@@ -3055,7 +3055,8 @@ def discovery_agent(state: QAState) -> QAState:
                 role_map = {}
                 print(f"  [discovery] the other roles could not be explored: {str(e).splitlines()[0][:150]}")
             if role_map:
-                (run_dir / "roles.json").write_text(json.dumps(role_map, indent=2), encoding="utf-8")
+                from ..finalization import write_text_unless_linked
+                write_text_unless_linked(run_dir, "roles.json", json.dumps(role_map, indent=2))
         if site_swarm is not None:
             _close_swarm()
         browser.close()
@@ -3096,7 +3097,8 @@ def discovery_agent(state: QAState) -> QAState:
         roles=sorted(role_map),
         catalog_size=sum(len((page.get("itemLinks") or {}).get("links") or []) for page in app_map),
     )
-    (run_dir / "capabilities.json").write_text(json.dumps(capabilities, indent=2), encoding="utf-8")
+    from ..finalization import write_text_unless_linked
+    write_text_unless_linked(run_dir, "capabilities.json", json.dumps(capabilities, indent=2))
     crawl = {
         "start_url": start_url, "approved_hosts": list(dict.fromkeys([base_host] + scope.extra)),
         "mode": mode, "section": section, "limit": limit, "max_depth": settings.max_depth,
@@ -3138,7 +3140,7 @@ def discovery_agent(state: QAState) -> QAState:
     look_pool.shutdown(wait=True)  # (the AI looks at the pages it has not seen yet: what a person can use there)
     if not settings.discovery_only:
         vision.look_at_pages(app_map, run_dir)
-    (run_dir / "app_map.json").write_text(json.dumps(app_map, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "app_map.json", json.dumps(app_map, indent=2))
     records = [page_record(page) for page in app_map]
     target = read_target(run_dir) or {}
     found = inventory_pages(records, done=sorted(resumed_urls), page_budget=int(target.get("page_budget") or limit))
@@ -3151,8 +3153,8 @@ def discovery_agent(state: QAState) -> QAState:
           f"{len(found['remaining'])} still waiting", flush=True)
     print(f"  [discovery] graph: {len(graph['templates'])} template(s), {len(graph['elements'])} element(s), "
           f"{len(graph['transitions'])} transition(s)", flush=True)
-    (run_dir / "login.json").write_text(json.dumps(login, indent=2), encoding="utf-8")
-    (run_dir / "crawl.json").write_text(json.dumps(crawl, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "login.json", json.dumps(login, indent=2))
+    write_text_unless_linked(run_dir, "crawl.json", json.dumps(crawl, indent=2))
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)
     from ..discovery_graph import write_graph
     reg = registry.build(app_map, crawl)
@@ -3174,11 +3176,9 @@ def discovery_agent(state: QAState) -> QAState:
     from ..surface_coverage import summarize_surfaces
     from ..swarm_evidence import record_swarm
     viewport_rows = viewport_evidence_from_app_map(app_map)
-    (run_dir / "device_matrix_evidence.json").write_text(
-        json.dumps(viewport_rows, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "device_matrix_evidence.json", json.dumps(viewport_rows, indent=2))
     surfaces = summarize_surfaces(app_map, crawl)
-    (run_dir / "surface_coverage.json").write_text(
-        json.dumps(surfaces, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "surface_coverage.json", json.dumps(surfaces, indent=2))
     swarm = record_swarm(
         run_dir,
         [page.get("url") or "" for page in app_map if page.get("url")],
