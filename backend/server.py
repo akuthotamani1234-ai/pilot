@@ -997,27 +997,57 @@ def ops_multi_browser_portfolio_suite():
     return {"gate_f_complete": False, "multi_browser_portfolio_suite": evidence}
 
 
+def _audit_scope(authorization: str | None, x_qa_token: str | None, tenant_id: str | None) -> str | None:
+    """Local studio may list every tenant. A signed-in principal sees only their own."""
+    from backend.dashboard_auth import auth_mode, authorize
+    if auth_mode() not in ("principal", "oidc"):
+        return (tenant_id or "").strip() or None
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="audit.read")
+    if not verdict.get("ok"):
+        reason = verdict.get("reason") or "unauthorized"
+        raise HTTPException(403 if verdict.get("role") else 401, reason)
+    own = str(verdict.get("tenant_id") or "").strip()
+    if not own:
+        raise HTTPException(403, "principal has no tenant")
+    asked = (tenant_id or "").strip()
+    if asked and asked != own:
+        raise HTTPException(403, "tenant isolation")
+    return own
+
+
 @app.get("/api/audit/events")
-def audit_events(limit: int = 50, tenant_id: str | None = None):
+def audit_events(
+    limit: int = 50,
+    tenant_id: str | None = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
     from backend.audit_store import list_audits
+    scope = _audit_scope(authorization, x_qa_token, tenant_id)
     return {
         "events": list_audits(
             limit=min(200, max(1, int(limit or 50))),
-            tenant_id=tenant_id,
+            tenant_id=scope,
         ),
-        "tenant_id": (tenant_id or "").strip() or None,
+        "tenant_id": scope,
         "gate_g_complete": False,
     }
 
 
 @app.get("/api/audit/export")
-def audit_export(limit: int = 200, tenant_id: str | None = None):
+def audit_export(
+    limit: int = 200,
+    tenant_id: str | None = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """Gate G: export audit events package (SSO still open)."""
     from backend.audit_store import export_audits
-    body = export_audits(limit=min(500, max(1, int(limit or 200))), tenant_id=tenant_id)
+    scope = _audit_scope(authorization, x_qa_token, tenant_id)
+    body = export_audits(limit=min(500, max(1, int(limit or 200))), tenant_id=scope)
     _audit("audit_export", count=int(body.get("count") or 0),
-           tenant=(tenant_id or "")[:80] or None)
+           tenant=(scope or "")[:80] or None)
     return body
 
 
