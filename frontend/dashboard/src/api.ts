@@ -5,6 +5,12 @@ export type GateRow = {
   note?: string;
 };
 
+export type BlueprintRoadmap = {
+  landed?: GateRow[];
+  now?: GateRow[];
+  next?: GateRow[];
+};
+
 export type BlueprintProgress = {
   complete: boolean;
   rule: string;
@@ -12,6 +18,7 @@ export type BlueprintProgress = {
   gates: GateRow[];
   upcoming: GateRow[];
   blockers?: GateRow[];
+  roadmap?: BlueprintRoadmap;
   counts: {
     gates_strong_or_done: number;
     gates_partial: number;
@@ -20,6 +27,9 @@ export type BlueprintProgress = {
     phases_done?: number;
     phases_total?: number;
     blockers_open?: number;
+    landed?: number;
+    now?: number;
+    next?: number;
   };
 };
 
