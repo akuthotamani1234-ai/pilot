@@ -43,18 +43,10 @@ def _jwk_from_public(public_key, kid: str) -> dict:
 
 
 @contextmanager
-def loopback_oidc_session(
-    *,
-    sub: str = "loopback-user-1",
-    email: str = "loopback@example.test",
-    audience: str = "qpilot-loopback",
-    extra_claims: dict | None = None,
-    exp_offset_seconds: int = 600,
-):
-    """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live.
+def loopback_signer(*, audience: str = "qpilot-loopback"):
+    """Yield ``{issuer, audience, sign}`` while a local JWKS server is running.
 
-    ``exp_offset_seconds`` is added to ``iat`` for ``exp`` (use a negative value
-    to mint an already-expired token).
+    ``sign(claims)`` returns an RS256 JWT. The caller sets the issuer env.
     """
     import jwt
 
@@ -98,45 +90,77 @@ def loopback_oidc_session(
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
+    def sign(claims: dict | None = None) -> str:
+        now = int(time.time())
+        payload = {
+            "iss": issuer,
+            "aud": audience,
+            "exp": now + 600,
+            "iat": now,
+        }
+        if claims:
+            payload.update(claims)
+        token = jwt.encode(payload, private_pem, algorithm="RS256", headers={"kid": kid})
+        return token if isinstance(token, str) else token.decode()
+
+    try:
+        yield {"issuer": issuer, "audience": audience, "sign": sign}
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+
+@contextmanager
+def loopback_oidc_session(
+    *,
+    sub: str = "loopback-user-1",
+    email: str = "loopback@example.test",
+    audience: str = "qpilot-loopback",
+    extra_claims: dict | None = None,
+    exp_offset_seconds: int = 600,
+):
+    """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live.
+
+    ``exp_offset_seconds`` is added to ``iat`` for ``exp`` (use a negative value
+    to mint an already-expired token).
+    """
     prev = {
         "QPILOT_OIDC_ISSUER": os.environ.get("QPILOT_OIDC_ISSUER"),
         "QPILOT_OIDC_AUDIENCE": os.environ.get("QPILOT_OIDC_AUDIENCE"),
         "QPILOT_OIDC_CLIENT_ID": os.environ.get("QPILOT_OIDC_CLIENT_ID"),
     }
-    os.environ["QPILOT_OIDC_ISSUER"] = issuer
-    os.environ["QPILOT_OIDC_AUDIENCE"] = audience
-    os.environ["QPILOT_OIDC_CLIENT_ID"] = "qpilot-loopback-client"
-    try:
-        now = int(time.time())
-        claims = {
-            "iss": issuer,
-            "aud": audience,
-            "sub": sub,
-            "email": email,
-            "exp": now + int(exp_offset_seconds),
-            "iat": now,
-        }
-        if extra_claims:
-            claims.update(extra_claims)
-        token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
-        from .oidc_jwt import validate_bearer
+    with loopback_signer(audience=audience) as signer:
+        issuer = signer["issuer"]
+        os.environ["QPILOT_OIDC_ISSUER"] = issuer
+        os.environ["QPILOT_OIDC_AUDIENCE"] = audience
+        os.environ["QPILOT_OIDC_CLIENT_ID"] = "qpilot-loopback-client"
+        try:
+            now = int(time.time())
+            claims = {
+                "sub": sub,
+                "email": email,
+                "exp": now + int(exp_offset_seconds),
+                "iat": now,
+            }
+            if extra_claims:
+                claims.update(extra_claims)
+            token = signer["sign"](claims)
+            from .oidc_jwt import validate_bearer
 
-        result = validate_bearer(token, verify_signature=True)
-        yield {
-            "token": token,
-            "issuer": issuer,
-            "audience": audience,
-            "claims": claims,
-            "validate": result,
-        }
-    finally:
-        server.shutdown()
-        thread.join(timeout=2)
-        for key, val in prev.items():
-            if val is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = val
+            result = validate_bearer(token, verify_signature=True)
+            yield {
+                "token": token,
+                "issuer": issuer,
+                "audience": audience,
+                "claims": {"iss": issuer, "aud": audience, **claims},
+                "validate": result,
+            }
+        finally:
+            for key, val in prev.items():
+                if val is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = val
 
 
 def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:

@@ -113,32 +113,42 @@ def run_dashboard_auth_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     finally:
         ts.DEFAULT_DB = prev_db
 
-    # oidc (claim check plus principal RBAC; live IdP SSO still open)
+    # oidc: a signed token reaches principal RBAC; an unsigned token is refused.
+    # Live hosted IdP SSO stays open.
+    from backend.loopback_sso_drill import loopback_signer
+
     prev_db = ts.DEFAULT_DB
     ts.DEFAULT_DB = db
     try:
         upsert_tenant("t1", "Tenant", db_path=db)
         upsert_principal("user-1", "t1", "user@ex.test", "operator", db_path=db)
-        with _env({
-            "QPILOT_DASHBOARD_AUTH": "oidc",
-            "QPILOT_OIDC_ISSUER": "https://idp.example",
-            "QPILOT_OIDC_AUDIENCE": "qpilot-dashboard",
-        }):
-            payload = {
-                "iss": "https://idp.example",
-                "aud": "qpilot-dashboard",
-                "sub": "user-1",
-                "exp": int(time.time()) + 3600,
-            }
-            token = f"{_b64({'alg': 'none', 'typ': 'JWT'})}.{_b64(payload)}.sig"
-            oidc_ok = authorize(f"Bearer {token}")
-            oidc_bad = authorize("Bearer not-a-jwt")
+        with loopback_signer(audience="qpilot-dashboard") as signer:
+            with _env({
+                "QPILOT_DASHBOARD_AUTH": "oidc",
+                "QPILOT_OIDC_ISSUER": signer["issuer"],
+                "QPILOT_OIDC_AUDIENCE": "qpilot-dashboard",
+            }):
+                token = signer["sign"]({"sub": "user-1"})
+                payload = {
+                    "iss": signer["issuer"],
+                    "aud": "qpilot-dashboard",
+                    "sub": "user-1",
+                    "exp": int(time.time()) + 3600,
+                }
+                unsigned = f"{_b64({'alg': 'none', 'typ': 'JWT'})}.{_b64(payload)}.sig"
+                oidc_ok = authorize(f"Bearer {token}")
+                oidc_unsigned = authorize(f"Bearer {unsigned}")
+                oidc_bad = authorize("Bearer not-a-jwt")
     finally:
         ts.DEFAULT_DB = prev_db
         rows.append({
-            "mode": "oidc", "case": "valid_claims", "ok": bool(oidc_ok.get("ok")),
+            "mode": "oidc", "case": "signed_token", "ok": bool(oidc_ok.get("ok")),
             "expected_ok": True,
             "pass": bool(oidc_ok.get("ok")) and oidc_ok.get("gate_i_complete") is False,
+        })
+        rows.append({
+            "mode": "oidc", "case": "unsigned_token", "ok": bool(oidc_unsigned.get("ok")),
+            "expected_ok": False, "pass": not oidc_unsigned.get("ok"),
         })
         rows.append({
             "mode": "oidc", "case": "reject_garbage", "ok": bool(oidc_bad.get("ok")),
