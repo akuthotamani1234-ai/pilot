@@ -33,14 +33,21 @@ def _expect_file(site_key: str) -> Path:
 
 
 def load_expectations(site_key: str) -> dict:
+    from .my_tests import baseline_is_linked
+    path = _expect_file(site_key)
+    if baseline_is_linked(path):
+        return {}
     try:
-        return json.loads(_expect_file(site_key).read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
 
 def save_expectations(site_key: str, answers: dict) -> None:
+    from .my_tests import baseline_is_linked
     f = _expect_file(site_key)
+    if baseline_is_linked(f):
+        return
     f.parent.mkdir(parents=True, exist_ok=True)
     known = load_expectations(site_key)
     known.update(answers)
@@ -50,8 +57,11 @@ def save_expectations(site_key: str, answers: dict) -> None:
 def open_rule_questions(site_key: str) -> list[dict]:
     """The rule questions earlier runs left open (saved with the baseline)."""
     try:
-        from .my_tests import baseline_folder
-        return json.loads((baseline_folder(site_key) / "open_questions.json").read_text(encoding="utf-8"))
+        from .my_tests import baseline_folder, baseline_is_linked
+        path = baseline_folder(site_key) / "open_questions.json"
+        if baseline_is_linked(path):
+            return []
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 

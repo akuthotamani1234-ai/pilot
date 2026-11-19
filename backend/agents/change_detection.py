@@ -88,7 +88,10 @@ def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
                 except Exception:
                     pass
             return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
+    from ..my_tests import baseline_is_linked
     b = baseline_path(site_key)
+    if baseline_is_linked(b):
+        return None
     files = sorted((b / "tests").glob("*.py")) if (b / "tests").is_dir() else []
     if not files or not (b / "test_cases.json").exists():
         return None
@@ -97,11 +100,13 @@ def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
 
 
 def change_detection_agent(state: QAState) -> QAState:
+    from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
     old_map_file = bdir / "app_map.json"
+    linked = baseline_is_linked(bdir)
     current = [p for p in state["app_map"] if page_testable(p)]
 
-    if not old_map_file.exists():
+    if linked or not old_map_file.exists():
         changes = {"first_run": True, "baseline_dir": None, "baseline_origin": "",
                    "page_status": {p["slug"]: "new" for p in current},
                    "baseline_slug": {}, "new": [p["url"] for p in current],
@@ -168,7 +173,10 @@ def save_baseline_agent(state: QAState) -> QAState:
     if not ok_pages:
         return {"log": state.get("log", []) + ["Baseline: not updated (no pages loaded this run)."]}
     run_dir = Path(state["run_dir"])
+    from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
+    if baseline_is_linked(bdir):
+        return {"log": state.get("log", []) + ["Baseline: not updated (the folder is a link)."]}
     tests_dir = bdir / "tests"
     if tests_dir.exists():
         for f in tests_dir.glob("*.py"):
