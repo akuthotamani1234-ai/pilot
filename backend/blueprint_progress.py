@@ -313,6 +313,7 @@ def progress() -> dict:
         {"id": "G-appium-link", "label": "An Appium path does not follow a link into another folder", "status": "done"},
         {"id": "G-picture-link", "label": "A picture comparison does not follow a link into another folder", "status": "done"},
         {"id": "G-script-name-link", "label": "A script name does not follow a link into another folder", "status": "done"},
+        {"id": "G-python-app-link", "label": "A Python app check does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
