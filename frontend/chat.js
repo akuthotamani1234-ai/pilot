@@ -70,48 +70,76 @@
     return true;
   }
 
-  function blueprintTodoItems(bp) {
-    const items = [];
+  function blueprintRowHtml(row) {
+    const cls = row.status === "done" || row.status === "strong" ? "done"
+      : row.status === "active" ? "active"
+      : row.status === "partial" ? "partial" : "open";
+    const badge = row.status === "strong" ? "strong"
+      : row.status === "done" ? "done"
+      : row.status === "active" ? "now"
+      : row.status === "partial" ? "partial" : "next";
+    return "<li class=\"" + cls + "\">" +
+      "<span class=\"bp-badge\">" + esc(badge) + "</span>" +
+      "<span class=\"bp-copy\"><b>" + esc(row.label) + "</b>" +
+      (row.note ? "<span class=\"muted\">" + esc(row.note) + "</span>" : "") +
+      "</span></li>";
+  }
+
+  function blueprintRoadmapSections(bp) {
+    const roadmap = bp.roadmap || {};
     const activeId = bp.active && bp.active.id;
-    // Phases first so the sidebar shows how far implementation has reached.
-    (bp.phases || []).forEach((p) => {
-      items.push({
-        id: "phase-" + p.id,
-        label: p.label,
-        note: p.note || "",
-        status: p.status || "open",
-      });
-    });
-    (bp.gates || []).forEach((g) => {
-      const status = g.id === activeId ? "active" : (g.status || "open");
-      items.push({ id: "gate-" + g.id, label: g.label, note: g.note || "", status });
-    });
-    const upcoming = bp.upcoming || [];
-    // Recent done work (implemented) then active/open (where we are going).
-    upcoming.filter((u) => u.status === "done").slice(-4).forEach((u) => {
-      if (items.some((row) => row.id === u.id)) return;
-      items.push({ id: u.id, label: u.label, note: "Landed", status: "done" });
-    });
-    // Hard-open blockers first among remaining so the path ahead is visible.
-    (bp.blockers || []).forEach((b) => {
-      if (items.some((row) => row.id === b.id)) return;
-      items.push({
+    let landed = (roadmap.landed || []).slice();
+    let now = (roadmap.now || []).slice();
+    let next = (roadmap.next || []).slice();
+    if (!landed.length && !now.length && !next.length) {
+      // Fallback when older payloads omit roadmap.
+      landed = (bp.phases || [])
+        .filter((p) => p.status === "done" || p.status === "strong")
+        .map((p) => ({
+          id: "phase-" + p.id,
+          label: p.label,
+          note: p.note || "",
+          status: p.status || "done",
+        }))
+        .concat(
+          (bp.upcoming || [])
+            .filter((u) => u.status === "done")
+            .slice(-6)
+            .map((u) => ({ id: u.id, label: u.label, note: "Landed", status: "done" }))
+        );
+      now = (bp.gates || [])
+        .filter((g) => g.status === "active" || g.status === "partial" || g.status === "strong")
+        .map((g) => ({
+          id: "gate-" + g.id,
+          label: g.label,
+          note: g.note || "",
+          status: g.id === activeId ? "active" : (g.status || "partial"),
+        }));
+      next = (bp.blockers || []).map((b) => ({
         id: b.id,
         label: b.label || b.id,
         note: "Blocker · Gate " + (b.gate || "?"),
         status: "open",
-      });
-    });
-    upcoming.filter((u) => u.status === "active" || u.status === "open").slice(0, 5).forEach((u) => {
-      if (items.some((row) => row.id === u.id)) return;
-      items.push({
-        id: u.id,
-        label: u.label,
-        note: u.status === "active" ? "In progress" : "Next",
-        status: u.status || "open",
-      });
-    });
-    return items;
+      }));
+    } else {
+      now = now.map((g) => ({
+        id: g.id && String(g.id).startsWith("gate-") ? g.id : "gate-" + g.id,
+        label: g.label,
+        note: g.note || "",
+        status: (g.id === activeId || g.id === "gate-" + activeId) ? "active" : (g.status || "partial"),
+      }));
+      next = next.map((b) => ({
+        id: b.id,
+        label: b.label || b.id,
+        note: b.note || (b.gate ? ("Blocker · Gate " + b.gate) : "Next"),
+        status: b.status || "open",
+      }));
+    }
+    return [
+      { id: "landed", title: "Implemented", rows: landed },
+      { id: "now", title: "Where we are", rows: now },
+      { id: "next", title: "Where we are going", rows: next },
+    ];
   }
 
   async function loadBlueprintStatus() {
@@ -148,21 +176,14 @@
           "<small><b>Now</b> " + esc(active.label || "Advancing Partial gates") + "</small>" +
           "<small class=\"muted\">" + esc(bp.rule || "Gates A–J not complete") + "</small>" +
         "</div>";
-      const rows = blueprintTodoItems(bp).map((row) => {
-        const cls = row.status === "done" || row.status === "strong" ? "done"
-          : row.status === "active" ? "active"
-          : row.status === "partial" ? "partial" : "open";
-        const badge = row.status === "strong" ? "strong"
-          : row.status === "done" ? "done"
-          : row.status === "active" ? "now"
-          : row.status === "partial" ? "partial" : "next";
-        return "<li class=\"" + cls + "\">" +
-          "<span class=\"bp-badge\">" + esc(badge) + "</span>" +
-          "<span class=\"bp-copy\"><b>" + esc(row.label) + "</b>" +
-          (row.note ? "<span class=\"muted\">" + esc(row.note) + "</span>" : "") +
-          "</span></li>";
+      const sections = blueprintRoadmapSections(bp).map((section) => {
+        if (!section.rows.length) return "";
+        return "<div class=\"bp-section\" data-section=\"" + esc(section.id) + "\">" +
+          "<div class=\"bp-section-title\">" + esc(section.title) + "</div>" +
+          "<ol class=\"bp-todo\">" + section.rows.map(blueprintRowHtml).join("") + "</ol>" +
+          "</div>";
       }).join("");
-      box.innerHTML = meta + "<ol class=\"bp-todo\" id=\"blueprintTodo\">" + rows + "</ol>";
+      box.innerHTML = meta + "<div class=\"bp-roadmap\" id=\"blueprintTodo\">" + sections + "</div>";
     } catch (_err) {
       box.innerHTML = "<span class=\"muted small\">Blueprint progress unavailable</span>";
     }

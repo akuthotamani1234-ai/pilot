@@ -1513,6 +1513,22 @@ def ops_independent_review_summary():
     return {"gate_g_complete": False, "independent_review_summary": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-request")
+def ops_independent_review_request():
+    """Gate G: reviewer handoff receipt (unsigned; sign-off still open)."""
+    from backend.independent_review_request_drill import (
+        run_independent_review_request_drill,
+    )
+    evidence = run_independent_review_request_drill()
+    _audit(
+        "ops_independent_review_request",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        blockers=len((evidence.get("request") or {}).get("open_blockers") or []),
+    )
+    return {"gate_g_complete": False, "independent_review_request": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

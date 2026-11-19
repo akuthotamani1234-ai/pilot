@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T00:03:50Z",
+  "ran_at": "2026-11-19T00:06:40Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 89,
+  "artifact_count": 90,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -155,7 +155,7 @@
     {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
-      "sha256": "1f4175c2dea1bf2077d9d5843def545151c541f202a1ce3be508646bef888f97"
+      "sha256": "cc46b7d37b9ab3f372bd7acd791ea63af68c485de8447f37d1d894b5b2c1cf37"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -200,7 +200,12 @@
     {
       "name": "independent_review_readiness_drill.json",
       "bytes": 491,
-      "sha256": "5e7b93b2914a49b5419a09ea7522703cb445be27ac209108b13cc5a29815925b"
+      "sha256": "c1643dd9d1b99624c08960b87e91dcc3b022caa931abf844f2393ae1c97055a9"
+    },
+    {
+      "name": "independent_review_summary_drill.json",
+      "bytes": 390,
+      "sha256": "fbb5f4d1c6bd8609994652aac491e5e7bec39f1cf056283ae01ed606f684969c"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -250,7 +255,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "15ae16f54fecb1e5b62f8ee36c4adf3f62416e6c8827bbae0c276d85a13e5833"
+      "sha256": "65187b5db854a506194acb1b2bbc186681be51b5defecdf678391d0e26c0256f"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -290,7 +295,7 @@
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "c8bdf6772bed93c5359bc8929933ca04281fecb16158057642c9e6aeeb723dd8"
+      "sha256": "4977062bbcde908e1808806981f52163b8893ec06f4aa64c1a08c13488689536"
     },
     {
       "name": "multi_store_dr_drill.json",
@@ -385,7 +390,7 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "0b65b1be99f2c16db73f043d1b10dc83dfcaf0e9a6e28793bb3657318a692c19"
+      "sha256": "a8003200e5691bd1f849a277cee64ecbb3e5d3ec6164dfe2205a6235dbe3aced"
     },
     {
       "name": "redis_swarm_contention_drill.json",
@@ -394,8 +399,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 4721,
-      "sha256": "6edaca140ec7b0b2113cff3b87a765ba66fdf2cd21f7890a7451b871df456338"
+      "bytes": 5005,
+      "sha256": "095e7e77eaf16333150bf82c03614b8cd46d8a2528db15492334e7cba080077d"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -450,9 +455,9 @@
     {
       "name": "workflow_dispatch_contract_drill.json",
       "bytes": 1101,
-      "sha256": "11ab4c00c3f329b6872e219097347f9b9ea9aa8b9b54943808f66732d9e0fbde"
+      "sha256": "cb8a6ff9d7f3b850e2c4fc1cf37e9a1c17321beb8b513470a10e65f3697ab007"
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (89 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (90 artifacts hashed); independent human/reviewer sign-off still pending"
 }

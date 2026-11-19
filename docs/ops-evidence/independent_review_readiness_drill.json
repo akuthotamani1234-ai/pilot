@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_readiness",
-  "ran_at": "2026-11-19T00:03:50Z",
+  "ran_at": "2026-11-19T00:06:40Z",
   "signed_off": false,
   "checks": {
     "checklist_present": true,
@@ -13,7 +13,7 @@
   "score": 5,
   "score_of": 5,
   "open_blockers": 6,
-  "artifact_count": 89,
+  "artifact_count": 90,
   "ok": true,
-  "reason": "Independent review readiness 5/5 (artifacts=89, blockers=6); human sign-off still pending"
+  "reason": "Independent review readiness 5/5 (artifacts=90, blockers=6); human sign-off still pending"
 }
