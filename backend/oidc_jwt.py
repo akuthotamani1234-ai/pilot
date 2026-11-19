@@ -121,6 +121,7 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
         "email": payload.get("email"),
         "nonce": payload.get("nonce"),
         "jti": payload.get("jti"),
+        "nbf": payload.get("nbf"),
     }
     if cfg["issuer"] and str(payload.get("iss") or "") != cfg["issuer"]:
         out["reason"] = f"iss mismatch (want {cfg['issuer']})"
@@ -139,6 +140,16 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
                 return out
         except (TypeError, ValueError):
             out["reason"] = "exp claim is not a number"
+            return out
+    nbf = payload.get("nbf")
+    if nbf is not None:
+        try:
+            # 30s leeway absorbs small clock skew without accepting a future token.
+            if float(nbf) > time.time() + 30:
+                out["reason"] = "token not yet valid"
+                return out
+        except (TypeError, ValueError):
+            out["reason"] = "nbf claim is not a number"
             return out
 
     if replay_jti_enabled():

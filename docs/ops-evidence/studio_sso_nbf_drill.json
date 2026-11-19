@@ -1,0 +1,13 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_nbf",
+  "ran_at": "2026-11-19T06:37:13Z",
+  "kind": "nbf_local",
+  "current_ok": true,
+  "future_rejected": true,
+  "bad_nbf_rejected": true,
+  "future_reason": "token not yet valid",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO nbf check ok (current accepted, future and non-numeric nbf rejected); live hosted IdP Studio SSO still open"
+}
