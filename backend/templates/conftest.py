@@ -643,6 +643,16 @@ def _patched_goto(real):
         # Cart routes stay open. The check lives in this file, so a helper that only
         # calls page.goto still stops.
         def _meta_refresh_target(probe, current):
+            headers = getattr(probe, "headers", None) or {}
+            header = headers.get("refresh") or headers.get("Refresh") or ""
+            if header:
+                import re as _re
+                from urllib.parse import urljoin as _join
+                delay = _re.match(r"\s*(\d+)", str(header))
+                if not (delay and int(delay.group(1)) > 1):
+                    target = _re.search(r"""url\s*=\s*['"]?([^'";>\s]+)""", str(header), _re.I)
+                    if target:
+                        return _join(current, target.group(1).strip())
             text = getattr(probe, "text", None)
             try:
                 raw = text() if callable(text) else (text or "")
