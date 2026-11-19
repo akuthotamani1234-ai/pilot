@@ -170,6 +170,46 @@ def test_junit_results_keep_pass_skip_and_failure_outcomes(tmp_path):
     ]
 
 
+def test_an_android_discovery_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-discovery"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / ".private").mkdir()
+    (nested / ".private" / "android_config.json").write_bytes(secret)
+    (nested / "progress.log").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(android_pipeline, "create_session", lambda *_args, **_kwargs: pytest.fail("started"))
+    state = {
+        "run_dir": str(linked / "run"),
+        "config": {"app_mode": "installed", "package_name": "com.example.shop", "device_id": "emulator-5554"},
+    }
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent(state)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent({**state, "run_dir": str(linked / "fresh")})
+    assert android_pipeline._remember_package(linked / "run", {"package_name": "com.example.shop"}) is False
+    assert not (other / "fresh").exists()
+    assert (nested / ".private" / "android_config.json").read_bytes() == secret
+    assert (nested / "progress.log").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "android_config.json").write_text(
+        json.dumps({"app_mode": "installed", "package_name": ""}), encoding="utf-8")
+    assert android_pipeline._remember_package(real, {"package_name": "com.example.shop"}) is True
+    written = (real / ".private" / "android_config.json").read_bytes()
+    assert b"com.example.shop" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_an_android_record_does_not_follow_a_link_into_another_folder(tmp_path):
     import pytest
 

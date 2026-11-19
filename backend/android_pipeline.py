@@ -75,6 +75,32 @@ def _folder_is_linked(path: Path) -> bool:
     return any(parent.is_symlink() for parent in path.parents)
 
 
+def _remember_package(run_dir, config) -> bool:
+    """Keep the discovered package on this run's private config. A link is left untouched."""
+    stored = Path(run_dir) / ".private" / "android_config.json"
+    if _folder_is_linked(Path(run_dir)) or stored.is_symlink() or stored.parent.is_symlink():
+        return False
+    if not stored.is_file():
+        return False
+    try:
+        saved = json.loads(stored.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    changed = False
+    if config.get("app_mode") == "apk" and not saved.get("package_name"):
+        saved["package_name"] = config["package_name"]
+        changed = True
+    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
+        saved["package_name"] = config["package_name"]
+        changed = True
+    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
+        saved["app_activity"] = config["app_activity"]
+        changed = True
+    if changed:
+        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    return changed
+
+
 def setup_agent(state):
     config = validate_mobile_config(state["config"])
     run_dir = _run_dir(state)
@@ -119,6 +145,8 @@ def setup_agent(state):
 def discovery_agent(state):
     config = state["config"].copy()
     run_dir = _run_dir(state)
+    if _folder_is_linked(run_dir):
+        raise AndroidEnvironmentError("The Android run is a link.")
     from .android_dynamic import set_progress_log
     set_progress_log(run_dir / "progress.log")
     driver = create_session(config)
@@ -801,27 +829,8 @@ def discovery_agent(state):
                 time.sleep(.3)
                 initial = inspect_driver(driver, config)
             config["package_name"] = initial["package_name"]
-            stored = run_dir / ".private" / "android_config.json"
-            if stored.is_symlink() or stored.parent.is_symlink() or run_dir.is_symlink():
-                stored = None
-            if stored is not None and stored.is_file():
-                # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
-                try:
-                    saved = json.loads(stored.read_text(encoding="utf-8"))
-                    changed = False
-                    if config.get("app_mode") == "apk" and not saved.get("package_name"):
-                        saved["package_name"] = config["package_name"]
-                        changed = True
-                    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
-                        saved["package_name"] = config["package_name"]
-                        changed = True
-                    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
-                        saved["app_activity"] = config["app_activity"]
-                        changed = True
-                    if changed:
-                        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
-                except (OSError, ValueError):
-                    pass
+            # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
+            _remember_package(run_dir, config)
             bound_package = config.get('qa_contract', {}).get('android_package')
             if bound_package and bound_package != config['package_name']:
                 raise AndroidEnvironmentError('The uploaded app does not match the package required by these test flows')
