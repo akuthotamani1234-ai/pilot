@@ -3,7 +3,7 @@ import json
 
 from playwright.sync_api import sync_playwright
 
-from backend.agents.discovery import EXTRACT_JS, _Frontier, place_link, store_api_spec
+from backend.agents.discovery import EXTRACT_JS, _Frontier, click_actions_allowed, place_link, store_api_spec
 from backend.config import settings
 from backend.explore_score import rank_candidates
 from backend.locale_check import observe_page, remember_locale, write_locale
@@ -48,6 +48,10 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
     assert payment == ["https://shop.example/checkout", "https://shop.example/payments/card"]
     assert order.index(payment[0]) > order.index(normal[-1])
     assert order.index(payment[-1]) < order.index(later[0])
+    assert click_actions_allowed("https://shop.example/product/plain") is True
+    assert click_actions_allowed("https://shop.example/checkout") is False
+    assert click_actions_allowed("https://www.paypal.com/cgi-bin/webscr") is False
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/cart") is True
 
 
 def test_locale_file_keeps_only_facts_the_page_showed_and_the_sample(tmp_path, monkeypatch):
