@@ -174,3 +174,36 @@ def test_a_failure_screenshot_folder_does_not_follow_a_link_into_another_folder(
     assert secret not in (real / "row.json").read_bytes()
     assert b"home-own" in (real / "row.json").read_bytes()
     assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_collected_suite_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _collect_nodeids
+
+    secret = "tenant-b-only-node"
+    other = tmp_path / "other"
+    suite = other / "generated_tests"
+    suite.mkdir(parents=True)
+    (suite / "test_secret.py").write_text(
+        f"def test_secret():\n    assert {secret!r}\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+
+    def refuse(*_args, **kwargs):
+        started.append(kwargs.get("cwd"))
+        raise AssertionError("pytest started in a linked folder")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.run", refuse)
+    assert _collect_nodeids(linked / "generated_tests") == []
+    assert started == []
+    assert secret in (suite / "test_secret.py").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+    monkeypatch.undo()
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("def test_home_own():\n    assert True\n", encoding="utf-8")
+    ids = _collect_nodeids(real)
+    assert any("test_home_own" in item for item in ids)
+    assert secret not in "\n".join(ids)
+    assert secret in (suite / "test_secret.py").read_text(encoding="utf-8")
