@@ -393,6 +393,7 @@ def progress() -> dict:
         {"id": "G-oidc-groups-link", "label": "A group role check does not follow a link into another folder", "status": "done"},
         {"id": "G-oidc-tid-link", "label": "A tenant id check does not follow a link into another folder", "status": "done"},
         {"id": "G-dual-tenant-acl-link", "label": "A two-tenant access check does not follow a link into another folder", "status": "done"},
+        {"id": "G-oidc-org-link", "label": "An organization check does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
