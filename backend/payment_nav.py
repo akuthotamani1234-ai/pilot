@@ -282,7 +282,12 @@ def open_refusing_checkout(page, url: str, *, timeout: int, wait_until: str = "d
         try:
             blocked = opens_checkout(page.request.get, url, timeout=timeout)
         except Exception:
-            blocked = ""
+            from .swarm import is_payment_url
+            if is_payment_url(url):
+                return url
+            _response, landed = navigate_for_crawl(
+                page, url, timeout=timeout, wait_until=wait_until)
+            return landed or ""
         if blocked:
             return blocked
         page.goto(url, wait_until=wait_until, timeout=timeout)
