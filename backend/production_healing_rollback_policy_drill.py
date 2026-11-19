@@ -30,9 +30,28 @@ TRIGGERS = (
 )
 
 
+def _linked_rollback() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_rollback_policy",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_production_healing_rollback_policy_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "production_healing_rollback_policy_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_rollback()
+
     ops = ROOT / "docs" / "ops-evidence"
-    present = [n for n in LOCAL_PARTIAL if (ops / n).is_file()]
+    present = [
+        n for n in LOCAL_PARTIAL
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
     evidence = {
         "gate_e_complete": False,
         "drill": "production_healing_rollback_policy",
@@ -49,17 +68,15 @@ def run_production_healing_rollback_policy_drill(*, ops_dir: Path | None = None)
             "production / third-party healing suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_rollback()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "production_healing_rollback_policy_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_rollback()
     if ops_dir is None:
-        art = (
-            ROOT / "artifacts" / "ops" / "production_healing_rollback_policy_drill.json"
-        )
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
