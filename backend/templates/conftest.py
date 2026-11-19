@@ -795,6 +795,13 @@ def _risky(names: list) -> bool:
     shown, other = names[0], " ".join(names[1:])
     both = f"{shown} {other}"
     href = names[3] if len(names) > 3 else ""
+    # A payment address is blocked even when the link text does not say pay.
+    # Cart routes (index.php?rt=checkout/cart) and product names stay open.
+    path = href.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
+    if re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", href, re.I) or re.search(
+            r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
+            path, re.I):
+        return True
     reference = re.compile(os.environ.get('QA_REFERENCE_NAV_RX') or r'(?!)', re.I)
     if len(names) >= 8 and reference.fullmatch(shown) and names[5] == 'a' and not names[7] and (
             names[6] == 'menuitem' or bool(href and href != '#')) and not re.search(

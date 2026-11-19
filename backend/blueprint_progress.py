@@ -335,6 +335,7 @@ def progress() -> dict:
         {"id": "E-approval-writes-once", "label": "An accepted heal approval writes the script once, inside the run", "status": "done"},
         {"id": "C-result-ai-oracle", "label": "A contract result that names an AI oracle is not a product defect", "status": "done"},
         {"id": "B-browser-paypal", "label": "The test browser refuses PayPal hosts and checkout files", "status": "done"},
+        {"id": "B-click-paypal", "label": "A generated test cannot click a link to PayPal or a checkout file", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
