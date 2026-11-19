@@ -174,6 +174,57 @@ def test_a_page_that_lands_on_checkout_is_not_kept():
     assert ("read", "https://shop.example/product/silk") not in notes
 
 
+def test_a_worker_does_not_follow_a_redirect_into_checkout():
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from playwright.sync_api import sync_playwright
+
+    from backend.swarm import open_guarded
+
+    hits = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            if self.path.startswith("/cart"):
+                self.send_response(302)
+                self.send_header("Location", "/checkout")
+                self.end_headers()
+                return
+            body = b"product" if self.path.startswith("/product") else b"pay"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            try:
+                page = browser.new_page()
+                _response, blocked = open_guarded(page, f"{base}/cart")
+                product, not_blocked = open_guarded(page, f"{base}/product/1")
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert not_blocked is None
+    assert product is not None and product.status == 200
+    assert "/checkout" not in hits
+    assert "/product/1" in hits
+
+
 def test_the_whole_website_is_split_across_workers():
     urls = [
         "https://shop.example/",

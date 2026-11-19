@@ -44,7 +44,15 @@ from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
-from ..swarm import SiteSwarm, WorkerBrowser, assign_workers, choose_listing, is_payment_url, sample_limit
+from ..swarm import (
+    SiteSwarm,
+    WorkerBrowser,
+    assign_workers,
+    choose_listing,
+    is_payment_url,
+    open_guarded,
+    sample_limit,
+)
 from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
@@ -2133,15 +2141,9 @@ def discovery_agent(state: QAState) -> QAState:
                 def open_page(address: str) -> dict:
                     page = session.page()
                     try:
-                        response = page.goto(address, wait_until="domcontentloaded", timeout=20000)
-                        final = page.url or address
-                        if is_payment_url(final):
-                            return {
-                                "url": address,
-                                "final_url": final,
-                                "status": "blocked",
-                                "summary": "checkout, payment and placing an order are never tested",
-                            }
+                        response, blocked = open_guarded(page, address)
+                        if blocked:
+                            return blocked
                         data = page.evaluate(EXTRACT_JS) or {}
                         links = len(data.get("links") or [])
                         buttons = len(data.get("buttons") or [])
