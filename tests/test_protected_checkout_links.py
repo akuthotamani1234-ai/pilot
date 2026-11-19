@@ -388,6 +388,26 @@ def test_a_generated_open_does_not_follow_a_redirect_into_checkout():
         goto(Page(), product, wait_until="commit")
     assert opened == [product]
 
+    class Html:
+        def __init__(self, body):
+            self.status = 200
+            self.headers = {}
+            self._body = body
+
+        def text(self):
+            return self._body
+
+    class RefreshPage(Page):
+        def get(self, url, **kwargs):
+            if str(url).endswith("/product/1"):
+                return Html('<html><meta http-equiv="refresh" content="0;url=/checkout"></html>')
+            return Probe(200)
+
+    opened.clear()
+    with pytest.raises(pytest.skip.Exception):
+        goto(RefreshPage(), product)
+    assert opened == []
+
 
 def test_a_generated_read_does_not_fetch_checkout():
     import ast

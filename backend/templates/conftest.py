@@ -642,6 +642,32 @@ def _patched_goto(real):
         # Checkout is recorded by the crawl. A later test must not open it again.
         # Cart routes stay open. The check lives in this file, so a helper that only
         # calls page.goto still stops.
+        def _meta_refresh_target(probe, current):
+            text = getattr(probe, "text", None)
+            try:
+                raw = text() if callable(text) else (text or "")
+            except Exception:
+                return ""
+            raw = raw[:8000].decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)[:8000]
+            if "refresh" not in raw.lower():
+                return ""
+            import re as _re
+            from urllib.parse import urljoin as _join
+            for attrs in _re.findall(r"<meta\b([^>]*)>", raw, _re.I):
+                if not _re.search(r"""http-equiv\s*=\s*['"]?\s*refresh\b""", attrs, _re.I):
+                    continue
+                found = _re.search(r"""content\s*=\s*(?:(['"])(.*?)\1|([^\s>]+))""", attrs, _re.I)
+                if not found:
+                    continue
+                value = found.group(2) if found.group(2) is not None else (found.group(3) or "")
+                delay = _re.match(r"\s*(\d+)", value)
+                if delay and int(delay.group(1)) > 1:
+                    continue
+                target = _re.search(r"""url\s*=\s*['"]?([^'";>\s]+)""", value, _re.I)
+                if target:
+                    return _join(current, target.group(1).strip())
+            return ""
+
         checker = globals().get("_payment_target")
         if checker and checker(str(url or "")):
             pytest.skip("Blocked: checkout or payment is recorded and not opened again")
@@ -656,7 +682,13 @@ def _patched_goto(real):
                 except Exception:
                     break
                 if getattr(probe, "status", None) not in (301, 302, 303, 307, 308):
-                    break
+                    nxt = _meta_refresh_target(probe, current)
+                    if not nxt or nxt == current:
+                        break
+                    if checker(nxt):
+                        pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+                    current = nxt
+                    continue
                 headers = getattr(probe, "headers", None) or {}
                 location = headers.get("location") or headers.get("Location") or ""
                 if not location:
