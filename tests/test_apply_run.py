@@ -129,6 +129,39 @@ def test_apply_run_indexes_tenant_when_env_set(tmp_path, monkeypatch):
     ]
 
 
+def test_applied_rules_do_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("QPILOT_REDIS_URL", raising=False)
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    secret = b"tenant-b-only-rules"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "qx_applied.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {"run_id": "linked", "verdict": "Ready", "app_map": [], "failures": [], "results": [],
+             "test_cases": [], "healing_log": [], "crawl": {}, "changes": {}, "log": []}
+    applied = write_applied(dict(state, run_dir=str(linked / "run")))
+    missing = write_applied(dict(state, run_dir=str(linked / "fresh")))
+    assert applied["trends"]["verdict"] == "Ready"
+    assert missing["trends"]["verdict"] == "Ready"
+    assert not (other / "fresh").exists()
+    assert not (nested / "portfolio_gates.json").exists()
+    assert (nested / "qx_applied.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    written = write_applied(dict(state, run_dir=str(real), run_id="real"))
+    saved = real / "qx_applied.json"
+    assert saved.is_file() and not saved.is_symlink()
+    assert secret not in saved.read_bytes()
+    assert written["trends"]["verdict"] == "Ready"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_applied_rules_do_not_follow_a_link_into_another_run(tmp_path):
     secret = "tenant-b-only-rules"
     other = tmp_path / "other"
