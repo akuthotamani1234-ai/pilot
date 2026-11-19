@@ -19,7 +19,10 @@ from backend.android_evidence import app_problem, device_time, read_log, save_lo
 from backend.android_runtime import MobileRuntime, device_unavailable, read_only_case, same_screen
 from backend.safety import redact
 
-RUN = Path(os.environ["ANDROID_MOBILE_CONFIG"]).resolve().parent.parent
+_CONFIG_PATH = Path(os.environ["ANDROID_MOBILE_CONFIG"])
+if _CONFIG_PATH.is_symlink() or any(parent.is_symlink() for parent in _CONFIG_PATH.parents):
+    raise AndroidEnvironmentError("The Android run is a link.")
+RUN = _CONFIG_PATH.resolve().parent.parent
 CONFIG = json.loads(Path(os.environ["ANDROID_MOBILE_CONFIG"]).read_text(encoding="utf-8"))
 CASES = json.loads(Path(os.environ["ANDROID_MOBILE_CASES"]).read_text(encoding="utf-8"))
 SCREENS = json.loads((RUN / "screens.json").read_text(encoding="utf-8"))
@@ -40,11 +43,19 @@ def _app_package():
     return (CONFIG.get("package_name") or "").strip() or SCREENS[0]["package_name"]
 
 
+def _is_linked(path):
+    """True when this file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def _append(name, record):
     if not name or name in {".", ".."} or "/" in str(name) or "\\" in str(name):
         return
     path = RUN / name
-    if path.is_symlink() or path.parent.is_symlink():
+    if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
         return
     with path.open("a", encoding="utf-8") as output:
         output.write(redact(json.dumps(record, ensure_ascii=False)) + "\n")
@@ -77,7 +88,7 @@ def pytest_runtest_makereport(item, call):
     if call.excinfo:
         item.mobile_exception_type = call.excinfo.type.__name__
         item.mobile_exception_message = redact(str(call.excinfo.value))[:1000]
-        if device_unavailable(call.excinfo.value) and not UNAVAILABLE.exists():
+        if device_unavailable(call.excinfo.value) and not UNAVAILABLE.exists() and not _is_linked(UNAVAILABLE):
             UNAVAILABLE.write_text(json.dumps({"case": item.name, "error": item.mobile_exception_message}), encoding="utf-8")
     if report.when == "call":
         item.mobile_report = report
@@ -104,6 +115,8 @@ def appium_driver():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = create_session(CONFIG)
     session_file = RUN / ".private" / "active_appium_session.json"
+    if _is_linked(session_file):
+        raise AndroidEnvironmentError("The Android run is a link.")
     try:
         session_file.write_text(json.dumps({"session_id": driver.session_id}), encoding="utf-8")
         if CONFIG.get("app_mode") == "installed" and not interaction_blocker(CONFIG):

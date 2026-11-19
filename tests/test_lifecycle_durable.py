@@ -331,6 +331,28 @@ def _coverage():
     return _CDP()
 
 
+def test_an_android_result_line_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b'{"id":"tenant-b-only"}\n'
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "android_results.jsonl").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    append = _load_append()
+    append(linked / "runs" / "run", "android_results.jsonl", {"id": "sneak"})
+    assert (nested / "android_results.jsonl").read_bytes() == secret
+    assert not (nested / "fresh").exists()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    append(real, "android_results.jsonl", {"id": "kept-home"})
+    written = (real / "android_results.jsonl").read_text(encoding="utf-8")
+    assert "kept-home" in written and "tenant-b-only" not in written
+    assert (nested / "android_results.jsonl").read_bytes() == secret
+
+
 def _load_append():
     import ast
     from pathlib import Path
