@@ -8,10 +8,20 @@ from .safety import redact
 ADVERSE = {"failed", "error", "inconclusive"}
 
 
+def path_unless_linked(folder: Path, name: str) -> Path | None:
+    """A real file path in this folder. A link, or a name that leaves the folder, is refused."""
+    folder = Path(folder)
+    path = folder / name
+    if (not name or folder.is_symlink() or path.is_symlink()
+            or Path(name).is_absolute() or ".." in Path(name).parts):
+        return None
+    return path
+
+
 def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
     """Write one file in this run. A link, or a name that leaves the run, is left untouched."""
-    path = Path(run_dir) / name
-    if Path(run_dir).is_symlink() or path.is_symlink() or Path(name).is_absolute() or ".." in Path(name).parts:
+    path = path_unless_linked(Path(run_dir), name)
+    if path is None:
         return False
     path.write_text(text, encoding="utf-8")
     return True
