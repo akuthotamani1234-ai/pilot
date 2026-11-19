@@ -104,6 +104,9 @@ def test_a_continue_control_that_opens_checkout_is_payment():
     assert control_opens_payment(page, form_action="javascript:location='/index.php?rt=checkout/confirm'")
     assert not control_opens_payment(page, href="javascript:location.href='/cart'")
     assert not control_opens_payment(page, href="javascript:history.back()")
+    from backend.swarm import stored_control_opens_payment
+    assert stored_control_opens_payment(page, {"text": "Continue", "to": "/checkout"})
+    assert stored_control_opens_payment(page, {"text": "Cart", "to": "/cart"}) is False
 
 
 def test_zero_sample_keeps_the_whole_list():

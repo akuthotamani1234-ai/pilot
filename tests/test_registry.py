@@ -49,6 +49,25 @@ def test_a_recorded_checkout_page_is_not_turned_into_features_to_test():
     assert shop["state"] == "inspected"
 
 
+def test_a_link_or_learned_step_into_checkout_is_not_a_next_step():
+    shop = _page(
+        "https://x.test/shop", "shop",
+        buttons=[{"text": "Continue", "accname": "Continue", "selector": "#go", "role": "button", "to": "/checkout"}],
+        links=[{"href": "https://x.test/checkout", "text": "Pay"},
+               {"href": "https://x.test/cart", "text": "Cart"}],
+        behaviour=[{"control": "Continue", "selector": "#go", "to": "https://x.test/checkout", "effect": "navigates"},
+                   {"control": "Cart", "selector": "#cart", "to": "https://x.test/cart", "effect": "navigates"}],
+    )
+    cart = _page("https://x.test/cart", "cart", buttons=[])
+    pay = _page("https://x.test/checkout", "checkout", buttons=[])
+    reg = registry.build([shop, cart, pay], {})
+    urls = {e["to_url"] for e in reg["edges"]}
+    assert "https://x.test/cart" in urls
+    assert "https://x.test/checkout" not in urls
+    cont = next(f for f in reg["features"].values() if f["name"] == "Continue")
+    assert cont["status"] == "blocked"
+
+
 def test_ids_are_stable_and_patterns_and_shared_controls_count_once():
     a, b = registry.build(APP, CRAWL), registry.build(APP, CRAWL)
     assert set(a["features"]) == set(b["features"]) and set(a["pages"]) == set(b["pages"])  # same site -> same ids
