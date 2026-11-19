@@ -346,6 +346,7 @@ def progress() -> dict:
         {"id": "B-form-destination", "label": "A checkout form is not filled, even when the button says Continue", "status": "done"},
         {"id": "B-test-form-destination", "label": "A generated test cannot click Continue on a form that opens checkout", "status": "done"},
         {"id": "C-stale-assertion", "label": "A stored contract assertion cannot hide an AI oracle label", "status": "done"},
+        {"id": "E-token-not-digest", "label": "A level-3 heal token is a secret, not the hash of the diff", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

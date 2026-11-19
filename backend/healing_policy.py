@@ -6,6 +6,7 @@ policy evidence without re-implementing AST rules.
 from __future__ import annotations
 
 import hashlib
+from uuid import uuid4
 
 # Categories the failure classifier actually emits. Levels 3 and 4 never auto-apply.
 _HUMAN = {
@@ -14,6 +15,8 @@ _HUMAN = {
 }
 _ABORT = {"infrastructure", "data_corruption", "security"}
 _USED_APPROVALS: set[str] = set()
+_ISSUED_APPROVALS: dict[str, str] = {}
+_USED_DIGESTS: set[str] = set()
 _USED_APPROVALS_MAX = 256
 _RULE = "may change how elements are found; never what is asserted"
 
@@ -21,6 +24,8 @@ _RULE = "may change how elements are found; never what is asserted"
 def reset_healing_approvals() -> None:
     """Clear process-local single-use healing approval tokens."""
     _USED_APPROVALS.clear()
+    _ISSUED_APPROVALS.clear()
+    _USED_DIGESTS.clear()
 
 
 def repair_digest(old_code: str, new_code: str, failure_class: str) -> str:
@@ -60,10 +65,22 @@ def issue_healing_approval(old_code: str, new_code: str, failure_class: str) -> 
             "reason": f"{decision['category']} does not need human approval",
             "escalation": decision,
         }
+    digest = repair_digest(old_code, new_code, decision["category"])
+    if digest in _USED_DIGESTS:
+        return {
+            "ok": False,
+            "gate_e_complete": False,
+            "reason": "healing approval already used",
+            "escalation": decision,
+        }
+    token = uuid4().hex
+    _ISSUED_APPROVALS[token] = digest
+    while len(_ISSUED_APPROVALS) > _USED_APPROVALS_MAX:
+        _ISSUED_APPROVALS.pop(next(iter(_ISSUED_APPROVALS)))
     return {
         "ok": True,
         "gate_e_complete": False,
-        "token": repair_digest(old_code, new_code, decision["category"]),
+        "token": token,
         "escalation": decision,
     }
 
@@ -137,16 +154,16 @@ def review_repair(
             )
         token = (approval_token or "").strip()
         digest = repair_digest(old_code, new_code, decision["category"])
-        if token != digest:
-            return _decision(
-                allowed=False,
-                reason=f"{decision['category']} requires {decision['action']}",
-                decision=decision,
-            )
-        if healing_approval_used(token):
+        if healing_approval_used(token) or digest in _USED_DIGESTS:
             return _decision(
                 allowed=False,
                 reason="healing approval already used",
+                decision=decision,
+            )
+        if _ISSUED_APPROVALS.get(token) != digest:
+            return _decision(
+                allowed=False,
+                reason=f"{decision['category']} requires {decision['action']}",
                 decision=decision,
             )
         problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
@@ -154,6 +171,9 @@ def review_repair(
             return _decision(allowed=False, reason=problem, decision=decision)
         if consume:
             _note_approval_used(token)
+            _USED_DIGESTS.add(digest)
+            while len(_USED_DIGESTS) > _USED_APPROVALS_MAX:
+                _USED_DIGESTS.pop()
         return _decision(allowed=True, reason="", decision=decision)
     problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
     return _decision(
