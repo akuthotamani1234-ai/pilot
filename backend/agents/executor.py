@@ -40,13 +40,15 @@ def _worker_files(results_file: Path) -> list[Path]:
 
 def _result_count(results_file: Path) -> int:
     """How many pytest results have landed so far, without parsing the whole file."""
+    from ..finalization import folder_is_linked
     total = 0
     for f in [results_file] + _worker_files(results_file):
-        if f.exists():
-            try:
-                total += sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip())
-            except OSError:
-                pass
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.exists():
+            continue
+        try:
+            total += sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip())
+        except OSError:
+            pass
     return total
 
 
@@ -373,10 +375,12 @@ def _write_run_json(run_dir: Path, name: str, payload) -> None:
 
 
 def _read(results_file: Path) -> list[dict]:
+    from ..finalization import folder_is_linked
     out = []
     for f in [results_file] + _worker_files(results_file):
-        if not f.is_symlink() and f.exists():
-            for line in f.read_text(encoding="utf-8").splitlines():
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.exists():
+            continue
+        for line in f.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 try:
