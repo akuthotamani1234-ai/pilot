@@ -377,6 +377,55 @@ def test_opening_a_login_screen_is_navigation_and_does_not_submit_credentials():
     assert runtime.checks == 1
 
 
+def test_a_contract_run_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = b"tenant-b-only-contract"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "qa_contracts.json").write_bytes(secret)
+    (nested / "contract_results.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("launched")
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", explode)
+    contract = {
+        "version": 1,
+        "test_environment": True,
+        "allowed_origins": ["https://shop.test"],
+        "flows": [{
+            "id": "home",
+            "title": "Home is shown",
+            "approved": True,
+            "steps": [{"action": "assert_text", "locator": loc("h1"), "value": "Home"}],
+        }],
+    }
+    refused = run_contracts(linked / "run", "https://shop.test/", contract)
+    missing = run_contracts(linked / "fresh", "https://shop.test/", contract)
+    assert refused == {"test_cases": [], "results": []}
+    assert missing == {"test_cases": [], "results": []}
+    assert not (other / "fresh").exists()
+    assert (nested / "qa_contracts.json").read_bytes() == secret
+    assert (nested / "contract_results.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    try:
+        run_contracts(real, "https://shop.test/", contract)
+    except AssertionError as exc:
+        assert str(exc) == "launched"
+    else:
+        raise AssertionError("the real contract did not reach the browser")
+    written = real / "qa_contracts.json"
+    assert written.is_file() and not written.is_symlink()
+    assert b"home" in written.read_bytes() and secret not in written.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_contract_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     secret = "tenant-b-only-contract"
     other = tmp_path / "other"
