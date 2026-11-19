@@ -10,7 +10,7 @@ import time
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .swarm_queue import SCHEMA_VERSION, TRANSIENT, lease_is_current
+from .swarm_queue import SCHEMA_VERSION, TRANSIENT
 
 try:
     import redis as redis_lib
@@ -20,6 +20,31 @@ except ImportError:  # pragma: no cover
 
 def _now() -> float:
     return time.time()
+
+
+# Apply a hash update only while this worker still holds an unexpired lease.
+_HOLD_LEASE = """
+local status = redis.call('HGET', KEYS[1], 'status')
+local owner = redis.call('HGET', KEYS[1], 'lease_owner')
+local until_s = redis.call('HGET', KEYS[1], 'lease_until')
+if status ~= 'leased' or owner ~= ARGV[1] then
+  return 0
+end
+local until_n = tonumber(until_s)
+local now = tonumber(ARGV[2])
+if until_n == nil or until_n < now then
+  return 0
+end
+local i = 5
+while i <= #ARGV do
+  redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
+  i = i + 2
+end
+if ARGV[4] == '1' then
+  redis.call('ZADD', KEYS[2], now, ARGV[3])
+end
+return 1
+"""
 
 
 class RedisDurableQueue:
@@ -95,6 +120,23 @@ class RedisDurableQueue:
             "error_class": raw.get("error_class") or None,
             "updated_at": float(raw.get("updated_at") or 0),
         }
+
+    def _held_update(
+        self, task_id: str, worker_id: str, mapping: dict, *, pending_key: str = "",
+    ) -> bool:
+        """Write ``mapping`` only if ``worker_id`` still holds an unexpired lease."""
+        script = getattr(self, "_hold_script", None)
+        if script is None:
+            script = self._r.register_script(_HOLD_LEASE)
+            self._hold_script = script
+        now = _now()
+        args = [worker_id, str(now), task_id, "1" if pending_key else "0"]
+        for key, value in mapping.items():
+            args.append(key)
+            args.append("" if value is None else str(value))
+        pending = pending_key or self._task_key(task_id)
+        result = script(keys=[self._task_key(task_id), pending], args=args)
+        return int(result) == 1
 
     def enqueue(self, *, run_id: str, role: str, payload: dict,
                 idempotency_key: str | None = None, max_attempts: int | None = None) -> dict:
@@ -184,22 +226,17 @@ class RedisDurableQueue:
             return row
 
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
-        row = self._load(task_id)
-        if not lease_is_current(row, worker_id, _now()):
-            return False
-        row["lease_until"] = _now() + self.lease_seconds
-        row["updated_at"] = _now()
-        self._dump(row)
-        return True
+        now = _now()
+        return self._held_update(task_id, worker_id, {
+            "lease_until": str(now + self.lease_seconds),
+            "updated_at": str(now),
+        })
 
     def checkpoint(self, task_id: str, worker_id: str, checkpoint: dict) -> bool:
-        row = self._load(task_id)
-        if not lease_is_current(row, worker_id, _now()):
-            return False
-        row["checkpoint"] = checkpoint
-        row["updated_at"] = _now()
-        self._dump(row)
-        return True
+        return self._held_update(task_id, worker_id, {
+            "checkpoint_json": json.dumps(checkpoint),
+            "updated_at": str(_now()),
+        })
 
     def complete(self, task_id: str, worker_id: str, result: dict) -> tuple[bool, str]:
         row = self._load(task_id)
@@ -207,23 +244,23 @@ class RedisDurableQueue:
             return False, "missing task"
         if row["status"] == "succeeded":
             return True, "already succeeded"
-        if not lease_is_current(row, worker_id, _now()):
+        now = _now()
+        ok = self._held_update(task_id, worker_id, {
+            "status": "succeeded",
+            "result_json": json.dumps(result),
+            "lease_owner": "",
+            "lease_until": "",
+            "error_class": "",
+            "updated_at": str(now),
+        })
+        if not ok:
             return False, "worker does not own this lease"
-        row["status"] = "succeeded"
-        row["result"] = result
-        row["lease_owner"] = None
-        row["lease_until"] = None
-        row["error_class"] = None
-        row["updated_at"] = _now()
-        self._dump(row)
         return True, ""
 
     def fail(self, task_id: str, worker_id: str, *, error_class: str, detail: str = "") -> tuple[bool, str]:
         row = self._load(task_id)
         if not row:
             return False, "missing task"
-        if not lease_is_current(row, worker_id, _now()):
-            return False, "worker does not own this lease"
         attempt = int(row["attempt"])
         transient = error_class in TRANSIENT
         if transient and attempt < int(row["max_attempts"]):
@@ -233,15 +270,23 @@ class RedisDurableQueue:
             status = "failed"
             msg = "permanent failure" if not transient else "attempts exhausted"
         now = _now()
-        row["status"] = status
-        row["result"] = {"error_class": error_class, "detail": detail, "attempt": attempt}
-        row["error_class"] = error_class
-        row["lease_owner"] = None
-        row["lease_until"] = None
-        row["updated_at"] = now
-        self._dump(row)
-        if status == "retry_wait":
-            self._r.zadd(self._pending_key(row["run_id"]), {task_id: now})
+        pending = self._pending_key(row["run_id"]) if status == "retry_wait" else ""
+        ok = self._held_update(
+            task_id, worker_id,
+            {
+                "status": status,
+                "result_json": json.dumps({
+                    "error_class": error_class, "detail": detail, "attempt": attempt,
+                }),
+                "error_class": error_class,
+                "lease_owner": "",
+                "lease_until": "",
+                "updated_at": str(now),
+            },
+            pending_key=pending,
+        )
+        if not ok:
+            return False, "worker does not own this lease"
         return True, msg
 
     def mark_blocked(self, task_id: str, reason: str = "") -> bool:
