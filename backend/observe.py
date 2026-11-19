@@ -329,7 +329,7 @@ SEEN_CONTROL_JS = """e => {
            text: (c.innerText || c.value || c.getAttribute('aria-label') || '').trim().split('\\n')[0].slice(0, 80),
            icon: i ? `${i.getAttribute('class') || ''} ${i.getAttribute('aria-label') || ''}`.trim() : '',
            href: c.getAttribute('href') || '',
-           form_action: f ? (f.getAttribute('action') || '') : '',
+           form_action: c.getAttribute('formaction') || (f ? (f.getAttribute('action') || '') : ''),
            onclick: (c.getAttribute('onclick') || '').slice(0, 240) }; }"""
 
 
@@ -836,14 +836,15 @@ class Explorer:
             return []
         from .actions import DELETE, action_class
         from .forms import SEARCHY, is_login_form, keep_form_field
-        from .swarm import control_opens_payment, is_payment_url
+        from .swarm import is_payment_url, stored_control_opens_payment
         if is_payment_url(url) or is_payment_url(getattr(page, "url", "") or ""):
             return []
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
-            if control_opens_payment(url, form_action=str(f.get("action") or "")):
+            submit = f.get("submit") or {}
+            if stored_control_opens_payment(url, f) or stored_control_opens_payment(url, submit):
                 fills.append({
                     "form": f.get("selector"),
                     "name": said or "the form",

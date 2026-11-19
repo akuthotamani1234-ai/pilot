@@ -800,7 +800,7 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
   const i = said ? null : e.querySelector('i, svg, img, [class*=icon]');
   const icon = i ? [i.getAttribute('class'), i.getAttribute('data-icon'), i.getAttribute('aria-label'),
                     i.getAttribute('alt')].filter(Boolean).join(' ').replace(/[-_]+/g, ' ') : '';
-  const action = f ? (f.getAttribute('action') || '') : '';
+  const action = e.getAttribute('formaction') || (f ? (f.getAttribute('action') || '') : '');
   const clicked = (e.getAttribute('onclick') || '').slice(0, 240);
   return [box ? '' : said, e.getAttribute('aria-label') || '', e.getAttribute('title') || '', e.getAttribute('href') || '',
           icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : '', action, clicked].map(s => s.trim().slice(0, 180)); }"""

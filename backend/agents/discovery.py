@@ -488,7 +488,7 @@ EXTRACT_JS = r"""
     .filter(b => visible(b) && !bookmark(b)).slice(0, 300).map(b => ({ ...shadowOf(b),
       text: nameOf(b), accname: accName(b), role: roleOf(b), selector: sel(b), type: b.getAttribute('type') || '',
       tag: b.tagName.toLowerCase(), href: b.getAttribute('href') || '',
-      form_action: (b.closest('form') && b.closest('form').getAttribute('action')) || '',
+      form_action: b.getAttribute('formaction') || (b.closest('form') && b.closest('form').getAttribute('action')) || '',
       onclick: (b.getAttribute('onclick') || '').slice(0, 240),
       // a real name (a word a person reads or hears), not one made of its CSS classes ('btn btn orange')
       named: /[\p{L}\p{N}]/u.test(`${accName(b)} ${b.getAttribute('title') || ''}`) || !!b.querySelector('img[alt]:not([alt=""])'),
@@ -605,7 +605,8 @@ EXTRACT_JS = r"""
         readonly: i.readOnly, disabled: i.disabled,
         placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i),
         chrome: chromeShell(i), in_table: inTableRow(i)})),
-      submit: submit ? {text: accName(submit), selector: sel(submit)} : null
+      submit: submit ? {text: accName(submit), selector: sel(submit),
+        formaction: submit.getAttribute('formaction') || ''} : null
     };
   }).filter(f => f.selector);
   for (const f of forms.filter(f => f.fields.length && f.submit)) {
