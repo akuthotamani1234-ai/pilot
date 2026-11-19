@@ -499,10 +499,13 @@ def _merge_retry(results: list[dict], rerun: dict) -> None:
 def _clean_up_again(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path) -> None:
     """Staging: a retry or a healing re-run of a form test sends the form again AFTER test_cleanup.py ran - what it
     created is removed by running the cleanup once more, at the very end (nothing tagged with the run may stay)."""
+    from ..finalization import folder_is_linked
     f = run_dir / "created.jsonl"
-    if run_dir.is_symlink() or f.is_symlink():
+    if (folder_is_linked(run_dir) or folder_is_linked(test_dir) or folder_is_linked(shot_dir)
+            or f.is_symlink() or folder_is_linked(f.parent)):
         return
-    if not (test_dir / "test_cleanup.py").exists() or not f.exists() or runctl.stopping():
+    cleanup = test_dir / "test_cleanup.py"
+    if cleanup.is_symlink() or not cleanup.is_file() or not f.is_file() or runctl.stopping():
         return
     latest = {}
     for line in f.read_text(encoding="utf-8").splitlines():

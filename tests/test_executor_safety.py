@@ -209,6 +209,53 @@ def test_a_live_test_status_does_not_follow_a_link_into_another_file(tmp_path):
     assert secret in target.read_text(encoding="utf-8")
 
 
+def test_a_second_cleanup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _clean_up_again
+
+    secret = "tenant-b-only-created"
+    other = tmp_path / "other"
+    nested = other / "run"
+    tests = nested / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (nested / "created.jsonl").write_text(
+        json.dumps({"tag": secret, "status": "created"}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+    monkeypatch.setattr("backend.agents.executor.runctl.stopping", lambda: False)
+    monkeypatch.setattr("backend.agents.executor._run_pytest", lambda *args, **kwargs: started.append(args))
+    _clean_up_again({}, linked / "run", linked / "run" / "generated_tests", linked / "run" / "shots")
+    file_run = tmp_path / "file-link"
+    file_tests = file_run / "generated_tests"
+    file_tests.mkdir(parents=True)
+    (file_tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (file_run / "created.jsonl").symlink_to(nested / "created.jsonl")
+    _clean_up_again({}, file_run, file_tests, file_run / "shots")
+    script_run = tmp_path / "script-link"
+    script_tests = script_run / "generated_tests"
+    script_tests.mkdir(parents=True)
+    (script_tests / "test_cleanup.py").symlink_to(tests / "test_cleanup.py")
+    (script_run / "created.jsonl").write_text(
+        json.dumps({"tag": "home-script", "status": "created"}) + "\n", encoding="utf-8")
+    _clean_up_again({}, script_run, script_tests, script_run / "shots")
+    assert started == []
+    assert secret in (nested / "created.jsonl").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_tests = real / "generated_tests"
+    real_tests.mkdir(parents=True)
+    (real_tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (real / "created.jsonl").write_text(
+        json.dumps({"tag": "home-own", "status": "created"}) + "\n", encoding="utf-8")
+    _clean_up_again({}, real, real_tests, real / "shots")
+    assert len(started) == 1
+    assert secret not in repr(started)
+    assert real_tests in started[0]
+    assert secret in (nested / "created.jsonl").read_text(encoding="utf-8")
+
+
 def test_a_failure_screenshot_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     from backend.agents.executor import execution_agent
 
