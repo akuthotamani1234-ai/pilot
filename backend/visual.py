@@ -185,6 +185,10 @@ def compare_layout(old: dict, new: dict, move_px: int) -> list[dict]:
 
 def compare_pictures(page, old_png: Path, new_png: Path, diff_png: Path) -> dict:
     """The share of the picture that changed (%), and the diff picture written to diff_png when anything changed."""
+    from .finalization import folder_is_linked
+    old_png, new_png, diff_png = Path(old_png), Path(new_png), Path(diff_png)
+    if folder_is_linked(old_png) or folder_is_linked(new_png) or folder_is_linked(diff_png):
+        raise OSError("The picture is a link.")
     def url(p: Path) -> str:
         return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
     r = page.evaluate(DIFF_JS, [url(old_png), url(new_png), PIXEL_TOLERANCE, MAX_HEIGHT])

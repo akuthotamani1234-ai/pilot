@@ -302,3 +302,45 @@ def test_a_deploy_script_starts_a_run_with_the_webhook_token(hook, monkeypatch):
     monkeypatch.setattr(settings, "webhook_token", "")
     assert client.post("/api/hooks/run", json={"url": "https://shop.test"},
                        headers={"X-QA-Token": "hook-token-123"}).status_code == 404  # off without a token
+
+
+def test_a_picture_comparison_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.visual import compare_pictures
+
+    secret = b"tenant-b-only-picture"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "old.png").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked.png"
+    linked.symlink_to(other / "old.png")
+    new_png = tmp_path / "new.png"
+    new_png.write_bytes(b"home-own-new")
+    diff = tmp_path / "diff.png"
+
+    class Page:
+        def evaluate(self, script, args):
+            raise AssertionError("a linked picture was read")
+
+    with pytest.raises(OSError, match="link"):
+        compare_pictures(Page(), linked, new_png, diff)
+    assert (other / "old.png").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not diff.exists()
+    assert not (other / "fresh").exists()
+
+    old_png = tmp_path / "old.png"
+    old_png.write_bytes(b"home-own-old")
+
+    class RealPage:
+        def evaluate(self, script, args):
+            assert base64.b64encode(b"home-own-old").decode() in args[0]
+            assert base64.b64encode(b"home-own-new").decode() in args[1]
+            assert secret.decode() not in "".join(item for item in args if isinstance(item, str))
+            return {"percent": 1.5, "diff": ""}
+
+    found = compare_pictures(RealPage(), old_png, new_png, diff)
+    assert found["percent"] == 1.5
+    assert secret.decode() not in json.dumps(found)
+    assert old_png.read_bytes() == b"home-own-old"
+    assert (other / "old.png").read_bytes() == secret
