@@ -294,6 +294,39 @@ def test_an_android_config_does_not_follow_a_link_into_another_run(tmp_path, mon
     assert (other / "app.apk").read_bytes() == secret
 
 
+def test_an_android_run_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.android_runner import prepare_android_run
+
+    secret = b"tenant-b-only-android-run"
+    other = tmp_path / "other"
+    nested = other / "runs"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "android_real").mkdir()
+    (nested / "android_real" / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked / "runs", "android_real")
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked / "fresh", "android_new")
+    assert not (other / "fresh").exists()
+    assert not (nested / "android_real" / ".private").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert (nested / "android_real" / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real-runs"
+    real.mkdir()
+    created = prepare_android_run(real, "android_real")
+    private = created / ".private"
+    assert private.is_dir() and not private.is_symlink()
+    (private / "note.txt").write_text("shop", encoding="utf-8")
+    assert (private / "note.txt").read_text(encoding="utf-8") == "shop"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import datetime as dt
     from pathlib import Path

@@ -19,7 +19,7 @@ def prepare_android_run(runs: Path, run_id: str) -> Path:
     runs = Path(runs)
     if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
         raise ValueError("The Android run is a link.")
-    if runs.is_symlink():
+    if _path_is_linked(runs):
         raise ValueError("The runs folder is a link.")
     directory = runs / run_id
     private = directory / ".private"
