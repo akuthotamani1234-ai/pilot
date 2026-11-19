@@ -1369,6 +1369,25 @@ def click_actions_allowed(url: str) -> bool:
     return not is_payment_url(url)
 
 
+def resume_seen(saved_pages: list[dict]) -> tuple[set[str], set[tuple[str, bool]]]:
+    """URLs already inventoried, and the visits that are done.
+
+    Each visit is (address, logged-in). A guest inventory does not count as
+    the logged-in visit of the same address.
+    """
+    urls: set[str] = set()
+    done: set[tuple[str, bool]] = set()
+    for page in saved_pages or []:
+        if not isinstance(page, dict):
+            continue
+        saved = _normalize(str(page.get("url") or ""))
+        if not saved:
+            continue
+        urls.add(saved)
+        done.add((saved, bool(page.get("auth"))))
+    return urls, done
+
+
 def click_page(requested: str, final: str = "") -> str:
     """The address whose controls may be clicked.
 
@@ -1836,17 +1855,13 @@ def discovery_agent(state: QAState) -> QAState:
     seen = {(start_url, False)}
     skipped: dict = {}  # url -> reason (filled as links are refused)
     resumed_urls: set[str] = set()
+    resumed_visits: set[tuple[str, bool]] = set()
     if state.get("resuming"):
         saved_pages, pending = load_saved_crawl(run_dir)
         if saved_pages:
             app_map.extend(saved_pages)
-            for page in saved_pages:
-                saved_url = _normalize(page.get("url") or "")
-                if not saved_url:
-                    continue
-                resumed_urls.add(saved_url)
-                seen.add((saved_url, False))
-                seen.add((saved_url, True))
+            resumed_urls, resumed_visits = resume_seen(saved_pages)
+            seen.update(resumed_visits)
             for raw in pending:
                 waiting = _normalize(raw)
                 if not waiting or (waiting, False) in seen:
@@ -2139,7 +2154,7 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
-            if url in resumed_urls and (url, auth) not in reread:
+            if (url, auth) in resumed_visits and (url, auth) not in reread:
                 continue
             if not inside and not_app >= MAX_NOT_APP:
                 continue
