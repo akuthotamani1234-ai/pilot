@@ -1,7 +1,7 @@
 """The blueprint rules run against a finished run, and the listing sample stays put."""
 import json
 
-from backend.apply_run import apply_run
+from backend.apply_run import apply_run, write_applied
 from backend.swarm import choose_listing
 
 
@@ -127,3 +127,38 @@ def test_apply_run_indexes_tenant_when_env_set(tmp_path, monkeypatch):
     assert [r["run_id"] for r in ts.list_runs_for_tenant("t-apply", db_path=tmp_path / "tenancy.sqlite")] == [
         "run-tenant"
     ]
+
+
+def test_applied_rules_do_not_follow_a_link_into_another_run(tmp_path):
+    secret = "tenant-b-only-rules"
+    other = tmp_path / "other"
+    other.mkdir()
+    names = ("qx_applied.json", "portfolio_gates.json", "swarm_evidence.json", "a11y_page.json",
+             "lifecycle.json", "oracle_decisions.json", "summary.json")
+    for name in names:
+        (other / name).write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    state = {"run_id": "linked", "verdict": "Ready", "app_map": [], "failures": [], "results": [],
+             "test_cases": [], "healing_log": [], "crawl": {}, "changes": {}}
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    applied = write_applied(dict(state, run_dir=str(linked)))
+    assert applied["trends"]["verdict"] == "Ready"
+    for name in names:
+        assert json.loads((other / name).read_text(encoding="utf-8"))["secret"] == secret
+    assert not (other / "swarm_queue.sqlite").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    for name in ("qx_applied.json", "portfolio_gates.json", "swarm_evidence.json", "a11y_page.json", "lifecycle.json"):
+        (real / name).symlink_to(other / name)
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    (sibling / "summary.json").symlink_to(other / "summary.json")
+    written = write_applied(dict(state, run_dir=str(real), run_id="real"))
+    assert written["trends"]["verdict"] == "Ready"
+    for name in ("qx_applied.json", "portfolio_gates.json", "swarm_evidence.json", "a11y_page.json", "lifecycle.json", "summary.json"):
+        assert json.loads((other / name).read_text(encoding="utf-8"))["secret"] == secret
+    saved = json.loads((real / "oracle_decisions.json").read_text(encoding="utf-8"))
+    assert secret not in json.dumps(saved)
+    assert (real / "oracle_decisions.json").is_file() and not (real / "oracle_decisions.json").is_symlink()

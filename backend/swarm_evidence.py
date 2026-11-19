@@ -17,6 +17,8 @@ from .swarm_supervisor import drain, enqueue_plan, open_queue, plan_run, queue_b
 def mirror_listing(run_dir: str | Path, listing_tasks: list[dict], *, run_id: str = "") -> dict:
     """Enqueue SiteSwarm listing handoffs into the durable queue (no drain yet)."""
     path = Path(run_dir)
+    if path.is_symlink():
+        return {"mirrored": 0, "run_id": run_id or path.name or "run", "backend": "none"}
     path.mkdir(parents=True, exist_ok=True)
     rid = (run_id or path.name or "run").strip()
     tasks = [t for t in (listing_tasks or []) if isinstance(t, dict)]
@@ -36,7 +38,8 @@ def mirror_listing(run_dir: str | Path, listing_tasks: list[dict], *, run_id: st
                 f"SiteSwarm listing dual-written to durable {backend}; Gate B review still open"
             ),
         }
-        (path / "swarm_listing_mirror.json").write_text(json.dumps(note, indent=2), encoding="utf-8")
+        from .finalization import write_text_unless_linked
+        write_text_unless_linked(path, "swarm_listing_mirror.json", json.dumps(note, indent=2))
         return note
     finally:
         try:
@@ -50,6 +53,9 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
                  listing_tasks: list[dict] | None = None) -> dict:
     """Plan + drain durable tasks for safe URLs. Optionally enqueue listing tasks first."""
     path = Path(run_dir)
+    if path.is_symlink():
+        return {"gate_b_complete": False, "ran": False, "reason": "The run folder is a link.",
+                "backend": "none", "processed": 0, "tasks": [], "listing_mirrored": 0}
     path.mkdir(parents=True, exist_ok=True)
     rid = (run_id or path.name or "run").strip()
     clean = [u for u in urls if isinstance(u, str) and u.strip()][: max(1, int(limit))]
@@ -64,7 +70,8 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
             "tasks": [],
             "listing_mirrored": 0,
         }
-        (path / "swarm_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        from .finalization import write_text_unless_linked
+        write_text_unless_linked(path, "swarm_evidence.json", json.dumps(evidence, indent=2))
         return evidence
     queue = open_queue(path)
     backend = queue_backend_name(queue)
@@ -150,5 +157,6 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
             queue.close()
         except Exception:
             pass
-    (path / "swarm_evidence.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(path, "swarm_evidence.json", json.dumps(evidence, indent=2))
     return evidence
