@@ -74,6 +74,30 @@ def test_an_object_key_does_not_follow_a_link_out_of_the_store(tmp_path):
     assert sibling.read_bytes() == secret
 
 
+def test_an_object_store_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-store"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked-store"
+    linked.symlink_to(other, target_is_directory=True)
+    opened = open_object_store(f"local:{linked}")
+    assert opened["ready"] is False and opened["store"] is None
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    nested = open_object_store(f"local:{parent / 'child'}")
+    assert nested["ready"] is False and nested["store"] is None
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "child").exists()
+
+    real = tmp_path / "real-store"
+    store = open_object_store(f"local:{real}")["store"]
+    store.put("note.txt", b"mine")
+    assert store.get("note.txt") == b"mine"
+    assert secret not in (real / "note.txt").read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_remote_object_store_is_not_silently_ready():
     opened = open_object_store("minio://example.local/bucket")
     assert opened["ready"] is False
