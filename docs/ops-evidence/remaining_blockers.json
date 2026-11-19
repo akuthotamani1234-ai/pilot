@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T05:44:28Z",
+  "ran_at": "2026-11-19T05:45:41Z",
   "ok": true,
   "blockers": [
     {
@@ -172,7 +172,8 @@
         "hosted_workflow_runner_audit_drill.json",
         "hosted_ci_artifact_retention_contract_drill.json",
         "hosted_ci_permissions_contract_drill.json",
-        "hosted_ci_timeout_budget_drill.json"
+        "hosted_ci_timeout_budget_drill.json",
+        "hosted_ci_concurrency_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -192,7 +193,8 @@
         "hosted_workflow_runner_audit_drill.json",
         "hosted_ci_artifact_retention_contract_drill.json",
         "hosted_ci_permissions_contract_drill.json",
-        "hosted_ci_timeout_budget_drill.json"
+        "hosted_ci_timeout_budget_drill.json",
+        "hosted_ci_concurrency_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -214,7 +216,8 @@
         "hosted_workflow_runner_audit_drill.json",
         "hosted_ci_artifact_retention_contract_drill.json",
         "hosted_ci_permissions_contract_drill.json",
-        "hosted_ci_timeout_budget_drill.json"
+        "hosted_ci_timeout_budget_drill.json",
+        "hosted_ci_concurrency_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -231,7 +234,8 @@
         "hosted_workflow_runner_audit_drill.json",
         "hosted_ci_artifact_retention_contract_drill.json",
         "hosted_ci_permissions_contract_drill.json",
-        "hosted_ci_timeout_budget_drill.json"
+        "hosted_ci_timeout_budget_drill.json",
+        "hosted_ci_concurrency_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -256,6 +260,7 @@
         "independent_review_response_sla_drill.json",
         "independent_reviewer_roster_contract_drill.json",
         "independent_review_findings_freeze_drill.json",
+        "independent_review_window_contract_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md",
         "INDEPENDENT_REVIEW_FINDINGS.md"
@@ -278,6 +283,7 @@
         "independent_review_response_sla_drill.json",
         "independent_reviewer_roster_contract_drill.json",
         "independent_review_findings_freeze_drill.json",
+        "independent_review_window_contract_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md",
         "INDEPENDENT_REVIEW_FINDINGS.md"

@@ -1,9 +1,9 @@
 {
   "gate_e_complete": false,
   "drill": "demo_store_healing_live",
-  "ran_at": "2026-11-18T20:00:33Z",
+  "ran_at": "2026-11-19T05:45:01Z",
   "live": {
-    "url": "http://127.0.0.1:44279",
+    "url": "http://127.0.0.1:43145",
     "missing_locator": true,
     "good_locator": true,
     "missing_error": "Locator.click: Timeout 800ms exceeded.\nCall log:\n  - waiting for locator(\"#qpilot-missing-buy-button\")\n"

@@ -113,6 +113,7 @@ BLOCKERS = (
             "hosted_ci_artifact_retention_contract_drill.json",
             "hosted_ci_permissions_contract_drill.json",
             "hosted_ci_timeout_budget_drill.json",
+            "hosted_ci_concurrency_contract_drill.json",
         ],
     },
     {
@@ -134,6 +135,7 @@ BLOCKERS = (
             "hosted_ci_artifact_retention_contract_drill.json",
             "hosted_ci_permissions_contract_drill.json",
             "hosted_ci_timeout_budget_drill.json",
+            "hosted_ci_concurrency_contract_drill.json",
         ],
     },
     {
@@ -157,6 +159,7 @@ BLOCKERS = (
             "independent_review_response_sla_drill.json",
             "independent_reviewer_roster_contract_drill.json",
             "independent_review_findings_freeze_drill.json",
+            "independent_review_window_contract_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
             "INDEPENDENT_REVIEW_FINDINGS.md",
