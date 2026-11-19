@@ -1,5 +1,12 @@
 """Pay/checkout destinations are recorded as protected, even when the label says Continue."""
-from backend.agents.test_design import blocked_cases, coverage, learned_cases, rule_based_cases, safe_buttons
+from backend.agents.test_design import (
+    blocked_cases,
+    builtin_journeys,
+    coverage,
+    learned_cases,
+    rule_based_cases,
+    safe_buttons,
+)
 from backend.features import page_features
 from backend.registry import build, link_tests, record_outcomes
 
@@ -77,6 +84,46 @@ def test_continue_that_opens_checkout_is_not_planned_as_a_click():
     assert reg["features"][control["id"]]["status"] == "blocked"
     clicked = {t["how"] for t in reg["features"][control["id"]]["tests"]}
     assert "clicks" not in clicked
+
+
+def test_a_menu_journey_does_not_open_a_checkout_step():
+    home = {
+        "url": "https://shop.example/index.php?rt=common/home",
+        "title": "Home", "slug": "home", "auth": False,
+        "links": [
+            {"href": "https://shop.example/index.php?rt=checkout/checkout", "text": "Continue", "visible": True},
+            {"href": "https://shop.example/index.php?rt=product/category", "text": "Shop", "visible": True},
+            {"href": "https://shop.example/index.php?rt=account/login", "text": "Login", "visible": True},
+        ],
+        "buttons": [], "inputs": [],
+        "forms": [
+            {"selector": "#contact", "action": "index.php?rt=content/contact",
+             "fields": [
+                 {"name": "first", "label": "First", "type": "text", "selector": "#first"},
+                 {"name": "email", "label": "Email", "type": "email", "selector": "#email"},
+                 {"name": "note", "label": "Note", "type": "text", "selector": "#note"},
+             ],
+             "submit": {"text": "Send", "selector": "#send"}},
+            {"selector": "#pay", "action": "index.php?rt=checkout/confirm",
+             "fields": [
+                 {"name": "card", "label": "Card", "type": "text", "selector": "#card"},
+                 {"name": "name", "label": "Name", "type": "text", "selector": "#name"},
+                 {"name": "expiry", "label": "Expiry", "type": "text", "selector": "#exp"},
+             ],
+             "submit": {"text": "Continue", "selector": "#go"}},
+        ],
+    }
+    shop = {"url": "https://shop.example/index.php?rt=product/category", "title": "Shop", "slug": "shop",
+            "auth": False, "links": [], "buttons": [], "forms": [], "inputs": []}
+    login = {"url": "https://shop.example/index.php?rt=account/login", "title": "Login", "slug": "login",
+             "auth": False, "links": [], "buttons": [], "forms": [], "inputs": []}
+    checkout = {"url": "https://shop.example/index.php?rt=checkout/checkout", "title": "Checkout", "slug": "pay",
+                "auth": False, "links": [], "buttons": [], "forms": [], "inputs": []}
+    journeys = builtin_journeys([home, shop, login, checkout], limit=20)
+    menu = next(j for j in journeys if j["journey"] == "navigate")
+    assert [link["text"] for link in menu["spec"]["links"]] == ["Shop", "Login"]
+    forms = [j for j in journeys if j["journey"] == "form"]
+    assert [j["spec"]["form"] for j in forms] == ["#contact"]
 
 
 def test_checkout_addresses_are_not_opened_by_the_link_checks():

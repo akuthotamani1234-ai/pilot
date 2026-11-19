@@ -1132,13 +1132,14 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
     # 1) log in with the test account, then open the pages behind the login (the login must hold)
     lp = next((p for p in guests if login_form(p)), None)
     if lp and settings.test_username and settings.test_password:
-        after = [{"url": p["url"], "name": _short(p)} for p in users[:8]]
+        behind = [p for p in users[:8] if not is_payment_url(p.get("final_url") or p.get("url") or "")]
+        after = [{"url": p["url"], "name": _short(p)} for p in behind]
         out.append(_journey(
             len(out) + 1, "login", f"Log in with the test account and use the app ({len(after)} page(s) behind the login)",
             [f"Open {_page_name(lp)}", "Type the test account's email / user name and password", "Click the login button",
              "You are logged in (the login form is gone)"] + [f"Open '{a['name']}' - you are still logged in" for a in after],
             "The login works and every page behind it opens without sending you back to the login page",
-            [lp] + users[:8], dict(login_form(lp), url=lp["url"], after=after), guest=True, test_data="test account (TEST_USERNAME)"))
+            [lp] + behind, dict(login_form(lp), url=lp["url"], after=after), guest=True, test_data="test account (TEST_USERNAME)"))
 
     # 2) Full product shopping journey FIRST (before many short "Shop on" cases consume LARGE).
     # DemoStore Phase 1 showed cart_total was never tested when 40 product pages filled the journey budget
@@ -1209,6 +1210,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             base = urlparse(f["href"]).path.rstrip("/") + "/"
             subs = [{"href": l["href"], "text": (l.get("text") or "").split("\n")[0].strip()[:40]}
                     for l in (detail or {}).get("links", []) if not l.get("external")
+                    and not is_payment_url(l.get("href") or "")
                     and urlparse(l["href"]).path.startswith(base) and (l.get("text") or "").strip()][:3]
             out.append(_journey(
                 len(out) + 1, "orders", f"Open an order from '{_short(p)}' and see its details"
@@ -1253,7 +1255,10 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
         if p.get("page_type") == "cart":
             continue  # (its forms are only there while the cart holds an item: see CART_STATE)
         lf = login_form(p)
-        forms = [f for f in p.get("forms", []) if not (lf and (f.get("submit") or {}).get("selector") == lf["submit"])]
+        page_url = p.get("final_url") or p.get("url") or ""
+        forms = [f for f in p.get("forms", []) if not (lf and (f.get("submit") or {}).get("selector") == lf["submit"])
+                 and not stored_control_opens_payment(page_url, f)
+                 and not is_payment_url(page_url)]
         candidates = [(f, _form_fields(p, f)) for f in forms]
         for f, fields in candidates:
             key = tuple(sorted(x["name"] for x in fields))
@@ -1282,6 +1287,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
 
     # 4) move through the website by clicking its menu like a person (visitor, and logged in)
     for group in (guests, users):
+        group = [p for p in group if not is_payment_url(p.get("final_url") or p.get("url") or "")]
         if not group or len(out) >= limit:
             continue
         start = group[0]
@@ -1295,6 +1301,8 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
                 continue
             if UNSAFE_BUTTON.search(text):  # ('Checkout', 'Log out': never clicked - one of them must not block the
                 continue                    # whole journey; the page itself is still checked by 'Every page opens')
+            if is_payment_url(l.get("href") or "") or is_payment_url(target.get("final_url") or target.get("url") or ""):
+                continue
             seen.add(target["url"])
             links.append({"text": text[:60], "href": l["href"], "to": target.get("final_url") or target["url"],
                           "name": _short(target)})
@@ -1327,6 +1335,8 @@ def section_links(pages: list[dict]) -> list[dict]:
     for p in pages:
         for s in p.get("sections", []):
             target = s["href"].split("#")[0]
+            if is_payment_url(target) or is_payment_url(p.get("final_url") or p.get("url") or ""):
+                continue
             key = (target.rstrip("/"), s["section"])
             if key in seen:
                 continue
