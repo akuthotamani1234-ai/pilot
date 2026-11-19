@@ -38,7 +38,7 @@ def test_a_findings_template_does_not_follow_a_link_into_another_folder(tmp_path
 
 def test_findings_link_stays_on_the_sidebar():
     snap = progress()
-    row = next(item for item in snap["upcoming"] if item["id"] == "G-findings-link")
+    row = next(item for item in snap["upcoming"] if item["id"] == "G-findings-template-link")
     assert row["status"] == "done"
     assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
     assert snap["complete"] is False
