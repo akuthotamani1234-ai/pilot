@@ -5,6 +5,16 @@ from backend.observability_probe_drill import run_observability_probe_drill
 
 def test_an_observability_probe_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.observability_probe_drill as mod
+    import backend.ops_readiness as ops
+
+    calls = {"n": 0}
+    real_ready = ops.readiness
+
+    def _ready():
+        calls["n"] += 1
+        return real_ready()
+
+    monkeypatch.setattr(ops, "readiness", _ready)
 
     secret = "tenant-b-metric"
     other = tmp_path / "other"
@@ -19,9 +29,22 @@ def test_an_observability_probe_does_not_follow_a_link_into_another_folder(tmp_p
     assert "link" in refused["reason"]
     assert refused["ok"] is False
     assert refused["gate_h_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
+
+    folder = tmp_path / "planted"
+    folder.mkdir()
+    planted = folder / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_observability_probe_drill(ops_dir=folder)
+    assert "link" in skipped_file["reason"]
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
 
     secret_dir = other / "evidence"
     secret_dir.mkdir()
@@ -33,6 +56,7 @@ def test_an_observability_probe_does_not_follow_a_link_into_another_folder(tmp_p
     real.mkdir()
     skipped = run_observability_probe_drill(ops_dir=real)
     written = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 1
     assert skipped["gate_h_complete"] is False
     assert skipped["evidence_artifacts"] == 0
     assert secret not in written
@@ -46,6 +70,7 @@ def test_an_observability_probe_does_not_follow_a_link_into_another_folder(tmp_p
     monkeypatch.setattr(mod, "OPS_EVIDENCE", install)
     saved = run_observability_probe_drill(ops_dir=real)
     saved_text = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 2
     assert saved["gate_h_complete"] is False
     assert saved["ok"] is True
     assert saved["evidence_artifacts"] == 1
