@@ -309,6 +309,7 @@ def progress() -> dict:
         {"id": "G-driver-link", "label": "A driver check does not follow a link into another folder", "status": "done"},
         {"id": "G-chromedriver-link", "label": "A ChromeDriver path does not follow a link into another folder", "status": "done"},
         {"id": "G-java-link", "label": "A Java path does not follow a link into another folder", "status": "done"},
+        {"id": "G-sdk-link", "label": "An Android SDK path does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
