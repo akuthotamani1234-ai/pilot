@@ -216,3 +216,85 @@ def test_a_published_report_does_not_follow_a_link_into_another_run(tmp_path, mo
     saved = save_showcase(tmp_path, manifest, tmp_path / "own-showcase")
     assert saved["counts"]["tn"] == 1
     assert (tmp_path / "own-showcase" / "benchmark.json").is_file()
+
+
+def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    from backend.config import settings
+    from backend.integrations import create_jira_issues, integrations_agent
+    from backend.privacy import PrivacyPolicy
+
+    secret = "tenant-b-only-handoff"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "jira.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "integrations.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "cart.png").write_bytes(secret.encode())
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    discovery_report({"run_id": "linked", "run_dir": str(linked), "url": "https://shop.test",
+                      "app_map": [], "crawl": {}, "log": []})
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "summary.json").symlink_to(other / "summary.json")
+    (real / "report.html").symlink_to(other / "report.html")
+    (real / "integrations.json").symlink_to(other / "integrations.json")
+    shots = real / "failure_screenshots"
+    shots.mkdir()
+    (shots / "cart.png").symlink_to(other / "cart.png")
+    discovery_report({"run_id": "real", "run_dir": str(real), "url": "https://shop.test",
+                      "app_map": [{"url": "https://shop.test/", "title": "Home", "status": 200}],
+                      "crawl": {}, "log": []})
+    assert (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_symlink()
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    base = tmp_path / "baseline"
+    site = base / "shop"
+    site.mkdir(parents=True)
+    (site / "jira.json").symlink_to(other / "jira.json")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    monkeypatch.setattr(settings, "baseline_dir", base)
+    monkeypatch.setattr(settings, "slack_webhook_url", "")
+    monkeypatch.setattr(settings, "jira_url", "https://jira.test")
+    monkeypatch.setattr(settings, "jira_email", "qa@shop.test")
+    monkeypatch.setattr(settings, "jira_api_token", "jira-secret-token")
+    monkeypatch.setattr(settings, "jira_project", "QA")
+    monkeypatch.setattr("backend.privacy.load_policy", lambda: PrivacyPolicy(mode="cloud", cloud_consent=True))
+    bodies = []
+
+    class _Response:
+        status_code = 201
+        text = ""
+
+        def json(self):
+            return {"key": "QA-1"}
+
+    class _Session:
+        def __init__(self):
+            self.headers = {}
+            self.auth = None
+
+        def post(self, url, timeout=30, json=None, headers=None, files=None, **kwargs):
+            if files:
+                bodies.append(files["file"][1].read())
+            return _Response()
+
+    monkeypatch.setattr("backend.integrations.requests.Session", _Session)
+    failure = {"category": "product_defect", "confidence": "high", "severity": "high",
+               "test": "test_cart", "page_url": "https://shop.test/cart", "screenshot": "failure_screenshots/cart.png",
+               "bug": {"title": "Cart total"}}
+    state = {"url": "https://shop.test/", "run_dir": str(real), "run_id": "real", "site_key": "shop",
+             "verdict": "Not Ready", "failures": [failure], "log": []}
+    create_jira_issues(state, [failure])
+    integrations_agent(state)
+    assert json.loads((other / "jira.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (real / "integrations.json").is_symlink()
+    assert json.loads((other / "integrations.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert all(secret.encode() not in body for body in bodies)
