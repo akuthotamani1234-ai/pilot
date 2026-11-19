@@ -1,10 +1,10 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_readiness",
-  "ran_at": "2026-11-19T06:48:01Z",
+  "ran_at": "2026-11-19T07:09:22Z",
   "kind": "readiness_score_only",
-  "score": 23,
-  "score_of": 23,
+  "score": 24,
+  "score_of": 24,
   "checks": [
     {
       "artifact": "loopback_sso_drill.json",
@@ -120,9 +120,14 @@
       "artifact": "studio_sso_redirect_allowlist_enforcement_drill.json",
       "label": "Redirect URI enforcement",
       "ready": true
+    },
+    {
+      "artifact": "studio_sso_code_reuse_drill.json",
+      "label": "Authorization code single use",
+      "ready": true
     }
   ],
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Hosted IdP readiness 23/23; live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP readiness 24/24; live hosted IdP Studio SSO login still open"
 }

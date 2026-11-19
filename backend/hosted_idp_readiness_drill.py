@@ -36,6 +36,7 @@ CHECKS = (
     ("hosted_idp_metadata_contract_drill.json", "Hosted IdP metadata contract"),
     ("hosted_idp_redirect_uri_allowlist_drill.json", "Redirect URI allowlist"),
     ("studio_sso_redirect_allowlist_enforcement_drill.json", "Redirect URI enforcement"),
+    ("studio_sso_code_reuse_drill.json", "Authorization code single use"),
 )
 
 

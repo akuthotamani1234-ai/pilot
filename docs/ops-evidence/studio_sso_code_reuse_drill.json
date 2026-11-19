@@ -1,0 +1,12 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_code_reuse",
+  "ran_at": "2026-11-19T07:09:22Z",
+  "kind": "authorization_code_single_use",
+  "fresh_code": true,
+  "reuse_rejected": true,
+  "reuse_reason": "authorization code already used",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO authorization code is single-use (second presentation rejected before token exchange); live hosted IdP Studio SSO still open"
+}
