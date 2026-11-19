@@ -1176,10 +1176,14 @@ def _execute_mobile(state):
         ANDROID_PENDING_CASES=json.dumps([case["id"] for case in pending]),
     )
     # Refresh the trusted harness when resuming an older generated run.
-    template = Path(__file__).parent / "templates" / "android_conftest.py"
+    from .android_design import ANDROID_CONFTEST
+    from .finalization import folder_is_linked
+    template = ANDROID_CONFTEST
     harness = script.parent / "conftest.py"
     if script.parent.is_symlink() or harness.is_symlink():
         raise AndroidEnvironmentError("The Android run is a link.")
+    if folder_is_linked(template):
+        raise AndroidEnvironmentError("The Android test template is a link.")
     harness.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
     junit = run_dir / "android_junit.xml"
     if not junit.is_symlink():
