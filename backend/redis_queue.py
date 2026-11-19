@@ -10,7 +10,7 @@ import time
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from .swarm_queue import SCHEMA_VERSION, TRANSIENT
+from .swarm_queue import SCHEMA_VERSION, TRANSIENT, lease_is_current
 
 try:
     import redis as redis_lib
@@ -185,7 +185,7 @@ class RedisDurableQueue:
 
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
         row = self._load(task_id)
-        if not row or row["status"] != "leased" or row.get("lease_owner") != worker_id:
+        if not lease_is_current(row, worker_id, _now()):
             return False
         row["lease_until"] = _now() + self.lease_seconds
         row["updated_at"] = _now()
@@ -194,7 +194,7 @@ class RedisDurableQueue:
 
     def checkpoint(self, task_id: str, worker_id: str, checkpoint: dict) -> bool:
         row = self._load(task_id)
-        if not row or row["status"] != "leased" or row.get("lease_owner") != worker_id:
+        if not lease_is_current(row, worker_id, _now()):
             return False
         row["checkpoint"] = checkpoint
         row["updated_at"] = _now()
@@ -207,7 +207,7 @@ class RedisDurableQueue:
             return False, "missing task"
         if row["status"] == "succeeded":
             return True, "already succeeded"
-        if row.get("lease_owner") != worker_id or row["status"] != "leased":
+        if not lease_is_current(row, worker_id, _now()):
             return False, "worker does not own this lease"
         row["status"] = "succeeded"
         row["result"] = result
@@ -222,7 +222,7 @@ class RedisDurableQueue:
         row = self._load(task_id)
         if not row:
             return False, "missing task"
-        if row.get("lease_owner") != worker_id or row["status"] != "leased":
+        if not lease_is_current(row, worker_id, _now()):
             return False, "worker does not own this lease"
         attempt = int(row["attempt"])
         transient = error_class in TRANSIENT
