@@ -122,6 +122,15 @@ def partition_site(urls: list[str], worker_count: int, limit: int | None = None)
     return assign_workers(picked, worker_count)
 
 
+def landed_on_payment(found) -> bool:
+    """True when a page that looked safe ended on checkout or payment."""
+    if not isinstance(found, dict):
+        return False
+    if found.get("status") == "blocked":
+        return True
+    return is_payment_url(str(found.get("final_url") or ""))
+
+
 def perform(assignments: list[dict], open_page, *, on_status=None, session=None) -> list[dict]:
     """Each worker opens its own pages, then finishes. Workers run at the same time.
 
@@ -154,11 +163,17 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
                     done.append({**row, "status": "blocked"})
                     continue
                 try:
-                    own_open(url)
+                    found = own_open(url)
                 except Exception:
                     if on_status:
                         on_status(worker, "stopped", url)
                     done.append({**row, "status": "stopped"})
+                    continue
+                if landed_on_payment(found):
+                    final = str(found.get("final_url") or url) if isinstance(found, dict) else url
+                    if on_status:
+                        on_status(worker, "blocked", final)
+                    done.append({**row, "status": "blocked", "work": found})
                     continue
                 if on_status:
                     on_status(worker, "opened", url)
@@ -274,6 +289,17 @@ class SiteSwarm:
                 except Exception:
                     if self._on_status:
                         self._on_status(worker, "stopped", url)
+                    continue
+                if landed_on_payment(found):
+                    final = str(found.get("final_url") or url)
+                    if self._on_status:
+                        self._on_status(worker, "blocked", final)
+                    with self._lock:
+                        for row in self.rows:
+                            if row.get("worker") == worker and row.get("url") == url and "work" not in row:
+                                row["status"] = "blocked"
+                                row["work"] = found
+                                break
                     continue
                 summary = ""
                 if isinstance(found, dict):

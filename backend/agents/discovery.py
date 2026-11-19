@@ -2067,6 +2067,14 @@ def discovery_agent(state: QAState) -> QAState:
                     page = session.page()
                     try:
                         response = page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                        final = page.url or address
+                        if is_payment_url(final):
+                            return {
+                                "url": address,
+                                "final_url": final,
+                                "status": "blocked",
+                                "summary": "checkout, payment and placing an order are never tested",
+                            }
                         data = page.evaluate(EXTRACT_JS) or {}
                         links = len(data.get("links") or [])
                         buttons = len(data.get("buttons") or [])
