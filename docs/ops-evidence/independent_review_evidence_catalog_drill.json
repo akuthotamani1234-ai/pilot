@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T05:42:46Z",
+  "ran_at": "2026-11-19T05:48:44Z",
   "signed_off": false,
   "entries": [
     {
@@ -69,7 +69,7 @@
     },
     {
       "name": "android_device_ci_readiness_pack_drill.json",
-      "bytes": 1982,
+      "bytes": 2262,
       "gates": [
         "gate_d"
       ]
@@ -132,7 +132,7 @@
     },
     {
       "name": "browser_portfolio_ci_readiness_pack_drill.json",
-      "bytes": 2137,
+      "bytes": 2417,
       "gates": [
         "gate_f"
       ]
@@ -189,7 +189,7 @@
     },
     {
       "name": "cross_platform_journey_drill.json",
-      "bytes": 1429,
+      "bytes": 893,
       "gates": [
         "untagged"
       ]
@@ -255,6 +255,13 @@
       ]
     },
     {
+      "name": "dual_region_replication_lag_contract_drill.json",
+      "bytes": 1059,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
       "name": "dual_region_store_health_probe_drill.json",
       "bytes": 525,
       "gates": [
@@ -308,6 +315,13 @@
       "bytes": 2232,
       "gates": [
         "gate_d"
+      ]
+    },
+    {
+      "name": "hosted_ci_concurrency_contract_drill.json",
+      "bytes": 1295,
+      "gates": [
+        "untagged"
       ]
     },
     {
@@ -374,8 +388,22 @@
       ]
     },
     {
+      "name": "hosted_idp_metadata_contract_drill.json",
+      "bytes": 1141,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
       "name": "hosted_idp_readiness_drill.json",
-      "bytes": 2564,
+      "bytes": 2845,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "hosted_idp_redirect_uri_allowlist_drill.json",
+      "bytes": 822,
       "gates": [
         "gate_i"
       ]
@@ -396,7 +424,7 @@
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
-      "bytes": 2525,
+      "bytes": 2819,
       "gates": [
         "gate_h"
       ]
@@ -416,8 +444,15 @@
       ]
     },
     {
+      "name": "hosted_runner_os_matrix_contract_drill.json",
+      "bytes": 972,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
       "name": "hosted_runner_readiness_drill.json",
-      "bytes": 4073,
+      "bytes": 4673,
       "gates": [
         "gate_d"
       ]
@@ -452,7 +487,7 @@
     },
     {
       "name": "independent_review_blocker_freeze_drill.json",
-      "bytes": 1869,
+      "bytes": 1802,
       "gates": [
         "gate_g"
       ]
@@ -487,7 +522,7 @@
     },
     {
       "name": "independent_review_handoff_pack_drill.json",
-      "bytes": 464,
+      "bytes": 513,
       "gates": [
         "gate_g"
       ]
@@ -544,6 +579,13 @@
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_window_contract_drill.json",
+      "bytes": 892,
       "gates": [
         "gate_g"
       ]
@@ -787,6 +829,13 @@
       ]
     },
     {
+      "name": "paging_severity_routing_contract_drill.json",
+      "bytes": 1139,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
       "name": "perf_portfolio_drill.json",
       "bytes": 772,
       "gates": [
@@ -829,6 +878,13 @@
       ]
     },
     {
+      "name": "production_healing_budget_contract_drill.json",
+      "bytes": 1065,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "production_healing_contract_drill.json",
       "bytes": 1567,
       "gates": [
@@ -865,7 +921,7 @@
     },
     {
       "name": "production_healing_readiness_drill.json",
-      "bytes": 2302,
+      "bytes": 2442,
       "gates": [
         "gate_e"
       ]
@@ -958,7 +1014,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 12051,
+      "bytes": 13153,
       "gates": [
         "gate_g"
       ]
@@ -1084,20 +1140,20 @@
       ]
     }
   ],
-  "entry_count": 153,
+  "entry_count": 161,
   "by_gate": {
-    "gate_g": 21,
+    "gate_g": 22,
     "gate_f": 10,
     "gate_c": 6,
-    "gate_d": 15,
-    "untagged": 29,
+    "gate_d": 16,
+    "untagged": 31,
     "gate_j": 4,
     "gate_b": 6,
-    "gate_i": 23,
-    "gate_e": 18,
-    "gate_h": 23,
+    "gate_i": 25,
+    "gate_e": 19,
+    "gate_h": 24,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 153 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 161 files; signed_off remains False until external review"
 }

@@ -150,7 +150,13 @@ export function App() {
                           <span className="pill">{badge(row.status)}</span>
                           <span>
                             <strong>{row.label}</strong>
-                            <small>{row.note || (id === "next" ? "Blocker" : "")}</small>
+                            <small>
+                              {row.note
+                                || (row.local_partial_score_of
+                                  ? `Local Partial ${row.local_partial_score}/${row.local_partial_score_of}`
+                                  : "")
+                                || (id === "next" ? "Blocker" : "")}
+                            </small>
                           </span>
                         </li>
                       ))}
@@ -170,7 +176,12 @@ export function App() {
                     <span className="pill">next</span>
                     <span>
                       <strong>{row.label}</strong>
-                      <small>{row.note || "Blocker"}</small>
+                      <small>
+                        {row.note
+                          || (row.local_partial_score_of
+                            ? `Local Partial ${row.local_partial_score}/${row.local_partial_score_of}`
+                            : "Blocker")}
+                      </small>
                     </span>
                   </li>
                 ))}

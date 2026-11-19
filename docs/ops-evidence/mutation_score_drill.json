@@ -1,7 +1,7 @@
 {
   "gate_j_complete": false,
   "drill": "mutation_score_demostore",
-  "ran_at": "2026-11-18T20:08:25Z",
+  "ran_at": "2026-11-19T05:47:29Z",
   "source": "deep_validation/live_runs/phase1_demo_store_run7_summary.json",
   "planted": [
     "cart_total",

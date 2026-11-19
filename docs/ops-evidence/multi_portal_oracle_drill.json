@@ -1,7 +1,7 @@
 {
   "gate_c_complete": false,
   "drill": "multi_portal_oracle_bind",
-  "ran_at": "2026-11-18T21:52:44Z",
+  "ran_at": "2026-11-19T05:47:29Z",
   "portals": [
     {
       "portal": "DemoStore",
