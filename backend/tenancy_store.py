@@ -56,14 +56,30 @@ def index_run(run_id: str, tenant_id: str, *, source: str = "", verdict: str = "
     path = Path(db_path) if db_path else DEFAULT_DB
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT tenant_id FROM run_index WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+        if row is not None and str(row["tenant_id"]) != tenant_id:
+            return {
+                "run_id": run_id,
+                "tenant_id": str(row["tenant_id"]),
+                "source": source,
+                "verdict": verdict,
+                "ok": False,
+                "reason": "run already belongs to another tenant",
+                "gate_g_complete": False,
+            }
         conn.execute(
             "INSERT INTO run_index(run_id, tenant_id, source, verdict, created_at) VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(run_id) DO UPDATE SET tenant_id=excluded.tenant_id, source=excluded.source, "
-            "verdict=excluded.verdict",
+            "ON CONFLICT(run_id) DO UPDATE SET source=excluded.source, verdict=excluded.verdict",
             (run_id, tenant_id, source, verdict, stamp),
         )
         conn.commit()
-    return {"run_id": run_id, "tenant_id": tenant_id, "source": source, "verdict": verdict}
+    return {
+        "run_id": run_id, "tenant_id": tenant_id, "source": source, "verdict": verdict,
+        "ok": True, "gate_g_complete": False,
+    }
 
 
 def list_runs_for_tenant(tenant_id: str, *, db_path: str | Path | None = None) -> list[dict]:

@@ -88,13 +88,28 @@ def index_run_pg(run_id: str, tenant_id: str, *, source: str = "", verdict: str 
     sql = (
         "INSERT INTO run_index(run_id, tenant_id, source, verdict, created_at) VALUES ("
         f"'{q(run_id)}', '{q(tenant_id)}', '{q(source)[:300]}', '{q(verdict)}', '{stamp}') "
-        "ON CONFLICT(run_id) DO UPDATE SET tenant_id=EXCLUDED.tenant_id, source=EXCLUDED.source, "
-        "verdict=EXCLUDED.verdict;"
+        "ON CONFLICT(run_id) DO UPDATE SET source=EXCLUDED.source, verdict=EXCLUDED.verdict "
+        "WHERE run_index.tenant_id = EXCLUDED.tenant_id;"
     )
     proc = run_psql(sql, dsn=target)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip()[:300] or "index_run_pg failed")
-    return {"run_id": run_id, "tenant_id": tenant_id, "source": source, "verdict": verdict, "backend": "postgres"}
+    stored = run_psql(
+        f"SELECT tenant_id FROM run_index WHERE run_id='{q(run_id)}' LIMIT 1;",
+        dsn=target,
+    )
+    owner = (stored.stdout or "").strip().splitlines()
+    kept = owner[0].strip() if owner else tenant_id
+    if kept != tenant_id:
+        return {
+            "run_id": run_id, "tenant_id": kept, "source": source, "verdict": verdict,
+            "backend": "postgres", "ok": False, "reason": "run already belongs to another tenant",
+            "gate_g_complete": False,
+        }
+    return {
+        "run_id": run_id, "tenant_id": tenant_id, "source": source, "verdict": verdict,
+        "backend": "postgres", "ok": True, "gate_g_complete": False,
+    }
 
 
 def runs_visible_to_principal_pg(principal_id: str, *, dsn: str | None = None) -> dict:

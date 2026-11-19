@@ -36,3 +36,10 @@ def test_tenancy_crud_and_isolation(tmp_path: Path):
     assert any(a["action"] == "run.read" and not a["allowed"] for a in audits)
     allowed = assert_run_access(principal_id="p-a", run_id="run-a", db_path=db)
     assert allowed["allowed"] is True
+    stolen = index_run("run-a", "t-b", source="https://b.test", verdict="Not Ready", db_path=db)
+    assert stolen["ok"] is False and stolen["tenant_id"] == "t-a"
+    assert [r["run_id"] for r in list_runs_for_tenant("t-a", db_path=db)] == ["run-a"]
+    assert list_runs_for_tenant("t-b", db_path=db)[0]["run_id"] == "run-b"
+    refreshed = index_run("run-a", "t-a", source="https://a.test", verdict="Ready with Risks", db_path=db)
+    assert refreshed["ok"] is True
+    assert list_runs_for_tenant("t-a", db_path=db)[0]["verdict"] == "Ready with Risks"
