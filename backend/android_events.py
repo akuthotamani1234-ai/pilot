@@ -34,12 +34,13 @@ class Timeline:
                   "phase": self.phase, "case_id": self.case.get("id", ""),
                   "case_title": self.case.get("title", ""), **details}
         if self.stream is None:
+            from .finalization import folder_is_linked
             dest = self.root / f"events.android-{os.getpid()}.jsonl"
-            if self.root.is_symlink() or dest.is_symlink() or self.root.parent.is_symlink():
+            if folder_is_linked(self.root) or dest.is_symlink():
                 return
             if not self.root.exists():
                 self.root.mkdir(parents=True, exist_ok=True)
-            if self.root.is_symlink() or dest.is_symlink() or not self.root.is_dir():
+            if folder_is_linked(self.root) or dest.is_symlink() or not self.root.is_dir():
                 return
             self.stream = dest.open("a", encoding="utf-8")
         # Redact free text before encoding: a short numeric secret must not turn

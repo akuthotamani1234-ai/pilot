@@ -120,6 +120,37 @@ def test_created_jsonl_delete_refuses_uncleared_records(tmp_path):
     save_lifecycle(tmp_path, life)
 
 
+def test_an_android_event_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_events import Timeline
+
+    secret = b"tenant-b-only-event"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = Timeline(linked / "runs" / "run", {"id": "home", "title": "Home"})
+    refused.emit("info", "pressed the shop button")
+    refused.close()
+    missing = Timeline(linked / "runs" / "fresh", {"id": "home", "title": "Home"})
+    missing.emit("info", "pressed the shop button")
+    missing.close()
+    assert not (other / "runs" / "fresh").exists()
+    assert list(nested.glob("events.android-*.jsonl")) == []
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = Timeline(real, {"id": "home", "title": "Home"})
+    own.emit("info", "pressed the shop button")
+    own.close()
+    event = next(real.glob("events.android-*.jsonl"))
+    text = event.read_bytes()
+    assert b"pressed the shop button" in text and secret not in text
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_phase_record_does_not_follow_a_link_into_another_folder(tmp_path):
     from backend.agents.discovery import record_created
     from backend.scheduling import record_phase
