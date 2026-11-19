@@ -40,9 +40,11 @@ def initialize(session) -> None:
         return
     session.account = None
     session.given_account = False
-    root = session.device.stop_path.parent
+    from .finalization import folder_is_linked
+    root = Path(session.device.stop_path.parent)
     public, private = root / "account_setup.json", root / ".private" / "auto_secrets.json"
-    if (root.is_symlink() or public.is_symlink() or private.is_symlink() or (root / ".private").is_symlink()):
+    if (folder_is_linked(root) or public.is_symlink() or private.is_symlink()
+            or (root / ".private").is_symlink()):
         return
     if public.is_file():
         saved = json.loads(public.read_text(encoding="utf-8"))
