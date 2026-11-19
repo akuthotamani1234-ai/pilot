@@ -100,6 +100,34 @@ def test_generated_scripts_do_not_follow_a_link_into_another_folder(tmp_path):
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_a_live_rule_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.run_rules import _store
+
+    secret = b"tenant-b-only-rules"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "qx_live.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    _store(linked / "run", "environment", {"ok": True})
+    _store(linked / "fresh", "environment", {"ok": True})
+    assert not (other / "fresh").exists()
+    assert not (nested / "qx_environment.json").exists()
+    assert (nested / "qx_live.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _store(real, "environment", {"ok": True})
+    live = json.loads((real / "qx_live.json").read_text(encoding="utf-8"))
+    assert live["environment"]["ok"] is True
+    assert secret not in (real / "qx_live.json").read_bytes()
+    assert secret not in (real / "qx_environment.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_generated_script_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
     from backend.agents.script_generator import script_generator_agent

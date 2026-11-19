@@ -54,10 +54,11 @@ def _read(path: Path):
 
 
 def _store(run_dir: Path, name: str, payload: dict) -> None:
+    from .finalization import folder_is_linked
     run_dir = Path(run_dir)
     live = run_dir / "qx_live.json"
     one = run_dir / f"qx_{name}.json"
-    if (run_dir.is_symlink() or live.is_symlink() or one.is_symlink()
+    if (folder_is_linked(run_dir) or live.is_symlink() or one.is_symlink()
             or not name or Path(name).is_absolute() or ".." in Path(name).parts):
         return
     run_dir.mkdir(parents=True, exist_ok=True)
