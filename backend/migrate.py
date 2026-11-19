@@ -20,6 +20,26 @@ def list_migrations() -> list[Path]:
     return sorted(p for p in MIGRATIONS.glob("*.sql") if p.is_file())
 
 
+def sqlite_path_is_linked(path: str | Path) -> bool:
+    """True when the database file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_absolute():
+        cursor = Path(path.anchor)
+        parts = path.parts[1:]
+    else:
+        cursor = Path()
+        parts = path.parts
+    for part in parts:
+        if not part or part in {".", ".."}:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+        if not cursor.exists():
+            return False
+    return False
+
+
 def _sqlite_path(uri: str) -> Path:
     raw = uri.strip()
     for prefix in ("sqlite:///", "sqlite://", "sqlite:", "file:", "local:"):
@@ -32,7 +52,13 @@ def _sqlite_path(uri: str) -> Path:
 def apply_sqlite(path: str | Path) -> dict:
     """Apply all *.sql migrations to a SQLite database file."""
     db_path = Path(path)
+    if sqlite_path_is_linked(db_path):
+        return {"ready": False, "backend": "sqlite", "path": str(db_path), "applied": [], "versions": [],
+                "reason": "The tenant database is a link."}
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    if sqlite_path_is_linked(db_path):
+        return {"ready": False, "backend": "sqlite", "path": str(db_path), "applied": [], "versions": [],
+                "reason": "The tenant database is a link."}
     files = list_migrations()
     conn = sqlite3.connect(db_path)
     try:
@@ -70,7 +96,7 @@ def apply_sqlite(path: str | Path) -> dict:
 def applied_versions(path: str | Path) -> list[str]:
     """Read applied migration versions without applying new ones."""
     db_path = Path(path)
-    if not db_path.is_file():
+    if sqlite_path_is_linked(db_path) or not db_path.is_file():
         return []
     conn = sqlite3.connect(db_path)
     try:

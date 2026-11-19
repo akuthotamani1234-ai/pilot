@@ -5,7 +5,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .migrate import apply_migrations
+from .migrate import apply_migrations, sqlite_path_is_linked
 from .rbac import audit_event
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -13,7 +13,11 @@ DEFAULT_DB = ROOT / "runs" / ".qpilot.sqlite"
 
 
 def _connect(path: Path) -> sqlite3.Connection:
+    if sqlite_path_is_linked(path):
+        raise ValueError("The tenant database is a link.")
     apply_migrations(f"sqlite:{path}")
+    if sqlite_path_is_linked(path):
+        raise ValueError("The tenant database is a link.")
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -51,7 +55,7 @@ def list_audits(*, limit: int = 50, tenant_id: str | None = None,
                 db_path: str | Path | None = None) -> list[dict]:
     """Newest audit events first. Optional tenant_id scopes the list (Gate G)."""
     path = Path(db_path) if db_path else DEFAULT_DB
-    if not path.is_file():
+    if sqlite_path_is_linked(path) or not path.is_file():
         return []
     conn = _connect(path)
     try:

@@ -4442,12 +4442,21 @@ def _next_time(s: dict, after):
     return t
 
 
+def _schedule_is_linked() -> bool:
+    return SCHEDULES.is_symlink() or SCHEDULES.parent.is_symlink()
+
+
 def _schedules() -> list[dict]:
+    if _schedule_is_linked():
+        return []
     return _read_json(SCHEDULES, [])
 
 
-def _save_schedules(items: list[dict]) -> None:
+def _save_schedules(items: list[dict]) -> bool:
+    if _schedule_is_linked():
+        return False
     SCHEDULES.write_text(json.dumps(items, indent=1), encoding="utf-8")
+    return True
 
 
 def _same_schedule_slot(old: dict, new: dict) -> bool:
@@ -4522,7 +4531,8 @@ def add_schedule(
          "from_run": req.run, "created": datetime.now().isoformat(timespec="minutes")}
     s["next"] = _next_time(s, datetime.now()).isoformat(timespec="minutes")
     items = [x for x in _schedules() if not _same_schedule_slot(x, s)] + [s]
-    _save_schedules(items)
+    if not _save_schedules(items):
+        raise HTTPException(400, "The schedule file is a link.")
     _audit("add_schedule", schedule=s["id"], every=s["every"], at=s["at"])
     return s
 
@@ -4539,7 +4549,8 @@ def delete_schedule(
         refused = _require_run_change(authorization, x_qa_token, str(target.get("from_run") or ""))
         if refused is not None:
             return refused
-    _save_schedules([x for x in items if x["id"] != sid])
+    if not _save_schedules([x for x in items if x["id"] != sid]):
+        raise HTTPException(400, "The schedule file is a link.")
     _audit("delete_schedule", schedule=sid)
     return {"ok": True, "deleted": len(items) - len(_schedules())}
 
