@@ -359,6 +359,64 @@ def test_permission_stop_does_not_accept_a_prompt_and_still_allows_cleanup(tmp_p
     assert not driver.clicks and not driver.granted
 
 
+def test_a_scroll_stop_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.android_scroll import discover_viewports, seek_observed
+
+    secret = "tenant-b-only-scroll"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    calls = []
+
+    class Driver:
+        def execute_script(self, *args):
+            calls.append(args)
+
+    element = {"scroll_hint": {"direction": "down"}, "locators": [{"strategy": "accessibility id", "value": "home-own"}]}
+    screen = {"identity": ["home"], "elements": []}
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        seek_observed(Driver(), screen, element, {}, run / "STOP")
+    assert secret not in str(stopped.value)
+    assert calls == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    scroll = {
+        "visible": True, "scrollable": True, "locator_unique": True,
+        "locators": [{"strategy": "accessibility id", "value": "home-own"}],
+        "accessibility_id": "home-own", "class_name": "android.widget.ScrollView",
+    }
+    listed = {"identity": ["home"], "id": "s1", "elements": [scroll]}
+    config = {"package_name": PACKAGE, "max_scroll_actions": 5, "max_scrolls_per_screen": 5}
+    with pytest.raises(AndroidEnvironmentError, match="link") as listed_stop:
+        discover_viewports(Driver(), listed, config, {}, time.monotonic() + 10, linked)
+    assert secret not in str(listed_stop.value)
+    assert calls == []
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "screenshots").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    with pytest.raises(AndroidEnvironmentError, match="stopped by the user"):
+        seek_observed(Driver(), screen, element, {}, real / "STOP")
+    gaps = discover_viewports(Driver(), listed, config, {}, time.monotonic() + 10, real)
+    assert gaps[0]["label"] == "home-own"
+    assert gaps[0]["reason"] == "Stop requested during viewport discovery"
+    assert secret not in json.dumps(gaps)
+    assert calls == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_offscreen_inventory_and_replay_use_observed_controls_and_restore_the_top(tmp_path):
     from backend.android_design import normalize_screens
     from backend.android_scroll import discover_viewports, seek_observed
