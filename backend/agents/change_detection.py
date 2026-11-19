@@ -79,9 +79,10 @@ def _reuse_path_is_linked(root: Path, path: Path) -> bool:
 
 
 def run_path_is_linked(run_dir: Path, *parts: str) -> bool:
-    """True when the run folder, or a named file under it, is a symlink."""
+    """True when the run folder, a folder on the way to it, or a named file under it, is a symlink."""
     run_dir = Path(run_dir)
-    if run_dir.is_symlink():
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir):
         return True
     for part in parts:
         if not part or part in {".", ".."} or "/" in part or "\\" in part:
@@ -99,7 +100,8 @@ def relative_path_is_linked(root: Path, rel: str | Path) -> bool:
     """
     root = Path(root)
     rel_path = Path(rel)
-    if root.is_symlink() or not str(rel) or rel_path.is_absolute():
+    from ..finalization import folder_is_linked
+    if folder_is_linked(root) or not str(rel) or rel_path.is_absolute():
         return True
     cursor = root
     for part in rel_path.parts:

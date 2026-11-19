@@ -442,3 +442,35 @@ def _load_cov_save():
         ns["_cov_save"](cdp)
 
     return save
+
+
+def test_a_recheck_list_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.change_detection import run_read_block
+    from backend.recheck import tests_of
+
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+
+    secret = "tenant-b-only-recheck"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    findings = nested / "failures.json"
+    findings.write_text(json.dumps([
+        {"id": 0, "nodeid": secret, "category": "product_defect"},
+    ]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert tests_of(linked / "runs" / "run", [0]) == []
+    assert run_read_block(linked / "runs" / "run", "failures.json")
+    assert secret in findings.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "failures.json").write_text(json.dumps([
+        {"id": 0, "nodeid": "test_home.py::test_home_own", "category": "product_defect"},
+    ]), encoding="utf-8")
+    assert tests_of(real, [0]) == ["test_home.py::test_home_own"]
+    assert run_read_block(real, "failures.json") == ""
+    assert secret not in json.dumps(tests_of(real, [0]))
+    assert secret in findings.read_text(encoding="utf-8")

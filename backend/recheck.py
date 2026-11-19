@@ -21,9 +21,11 @@ SAFE_SETTINGS = ("allowed_hosts", "environment", "allow_actions", "test_payment"
 
 
 def _json(path: Path, default):
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return default
     try:
-        if Path(path).is_symlink():
-            return default
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
