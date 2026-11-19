@@ -274,6 +274,37 @@ def test_undiscovered_plan_reference_is_rejected_before_generation(tmp_path, mon
         android_pipeline.script_generator_agent(state)
 
 
+def test_an_android_screenshot_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-shot"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+
+    class Shot:
+        current_context = "NATIVE_APP"
+        current_package = "com.example"
+        page_source = "<hierarchy/>"
+
+        def save_screenshot(self, path):
+            Path(path).write_bytes(b"home-own-png")
+            return True
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert android.capture_screenshot(Shot(), linked / "run", "home", "com.example") is None
+    assert not (nested / "screenshots").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    assert android.capture_screenshot(Shot(), real, "home-own", "com.example") == "screenshots/home-own.png"
+    assert (real / "screenshots" / "home-own.png").read_bytes() == b"home-own-png"
+    assert secret not in (real / "screenshots" / "home-own.png").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_screenshots_do_not_capture_external_apps(tmp_path):
     class External:
         current_package = "com.android.settings"

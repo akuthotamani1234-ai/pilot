@@ -920,7 +920,10 @@ def capture_screenshot(driver, run_dir: Path, name: str, package_name: str | Non
     """Evidence stays inside the run. A failed capture must not mask the original failure."""
     if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
         raise ValueError("Invalid evidence name")
+    from .finalization import folder_is_linked
     path = run_dir / "screenshots" / (name + ".png")
+    if folder_is_linked(run_dir) or folder_is_linked(path.parent) or path.is_symlink():
+        return None
     path.parent.mkdir(exist_ok=True)
     try:
         if getattr(driver, "current_context", "NATIVE_APP") != "NATIVE_APP":
