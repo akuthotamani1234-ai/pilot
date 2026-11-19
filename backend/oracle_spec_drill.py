@@ -10,6 +10,7 @@ import json
 import time
 from pathlib import Path
 
+from .finalization import folder_is_linked, write_text_unless_linked
 from .oracle import bind_assertion, decide_observation
 from .oracle_bind import attach_assertion, soften_defect_category
 
@@ -18,7 +19,20 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "oracle_spec_drill.json"
 TRUTH = ROOT / "tests" / "demo_store_truth.json"
 
 
+def _linked_drill() -> dict:
+    return {
+        "gate_c_complete": False,
+        "ok": False,
+        "drill": "demo_store_oracle_spec",
+        "reason": "A link was in the way, so the drill was not saved.",
+    }
+
+
 def run_oracle_spec_drill(*, ops_dir: Path | None = None) -> dict:
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
+    if folder_is_linked(TRUTH):
+        return _linked_drill()
     truth = json.loads(TRUTH.read_text(encoding="utf-8"))
     features = list(truth.get("features") or [])[:5]
     if not features:
@@ -112,11 +126,15 @@ def run_oracle_spec_drill(*, ops_dir: Path | None = None) -> dict:
     }
 
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "oracle_spec_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "oracle_spec_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
