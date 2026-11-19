@@ -71,8 +71,22 @@ def _post(port: int, payload: dict) -> int:
     return status
 
 
+def _linked_escalation() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "paging_escalation",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_paging_escalation_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     base = Path(ops_dir) if ops_dir else ROOT / "artifacts" / "ops"
+    name = "paging_escalation_drill.json"
+    if folder_is_linked(base) or folder_is_linked(base / name):
+        return _linked_escalation()
     base.mkdir(parents=True, exist_ok=True)
     primary_port = _free_port()
     secondary_port = _free_port()
@@ -135,9 +149,14 @@ def run_paging_escalation_drill(*, ops_dir: Path | None = None) -> dict:
             "Paging escalation rehearsal failed; live hosted on-call still open"
         ),
     }
-    out = base / "paging_escalation_drill.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(base) or folder_is_linked(base / name):
+        return _linked_escalation()
+    if not write_text_unless_linked(base, name, text):
+        return _linked_escalation()
     if ops_dir is None:
-        EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
-        EVIDENCE.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        evidence_dir = EVIDENCE.parent
+        if not folder_is_linked(evidence_dir) and not folder_is_linked(EVIDENCE):
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(evidence_dir, EVIDENCE.name, text)
     return evidence
