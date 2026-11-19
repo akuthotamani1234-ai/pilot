@@ -512,7 +512,7 @@ class Explorer:
             live = page.locator(t["selector"]).first.evaluate(
                 """el => ({
                   href: el.getAttribute('href') || '',
-                  action: (el.form && el.form.getAttribute('action')) || '',
+                  action: el.getAttribute('formaction') || (el.form && el.form.getAttribute('action')) || '',
                   onclick: el.getAttribute('onclick') || ''
                 })"""
             )
