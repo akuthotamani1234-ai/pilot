@@ -62,10 +62,45 @@ def test_a_trace_redaction_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert target.read_bytes() == original
 
 
+def test_a_trace_redaction_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-temp"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "stolen.zip"
+    _zip(target, secret)
+    original = target.read_bytes()
+    module = _load(tmp_path, monkeypatch)
+    run = tmp_path / "run"
+    run.mkdir()
+    real = run / "trace.zip"
+    _zip(real, "home-own-trace secret-pass")
+    before = real.read_bytes()
+    linked = run / "trace.tmp"
+    linked.symlink_to(target)
+    module._redact_zip(real)
+    assert linked.is_symlink()
+    assert target.read_bytes() == original
+    assert real.read_bytes() == before
+    assert secret.encode() not in real.read_bytes()
+
+    linked.unlink()
+    module._redact_zip(real)
+    with zipfile.ZipFile(real) as handle:
+        text = handle.read("note.txt")
+    assert b"home-own-trace" in text
+    assert b"secret-pass" not in text
+    assert b"[REDACTED]" in text
+    assert secret.encode() not in text
+    assert target.read_bytes() == original
+    assert not linked.exists()
+
+
 def test_trace_redact_link_stays_on_the_sidebar():
     snap = progress()
     row = next(item for item in snap["upcoming"] if item["id"] == "G-trace-redact-link")
+    temp = next(item for item in snap["upcoming"] if item["id"] == "G-trace-temp-link")
     assert row["status"] == "done"
+    assert temp["status"] == "done"
     assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
     assert snap["complete"] is False
     assert "tenant-b-only-trace" not in json.dumps(snap)

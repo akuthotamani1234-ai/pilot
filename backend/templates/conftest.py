@@ -1505,6 +1505,8 @@ def _redact_zip(path: Path) -> None:
     if not secrets or not path.exists():
         return
     tmp = path.with_suffix(".tmp")
+    if _output_is_linked(tmp):
+        return
     with zipfile.ZipFile(path) as src, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as dst:
         for info in src.infolist():
             data = src.read(info.filename)
