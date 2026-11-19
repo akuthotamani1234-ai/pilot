@@ -138,6 +138,40 @@ def test_an_approved_look_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_an_approved_picture_does_not_follow_a_source_link_into_another_folder(tmp_path):
+    from backend.blueprint_progress import progress
+    from backend.finalization import copy_unless_linked
+
+    secret = b"tenant-b-only-picture"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "shot.png").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked.png"
+    linked.symlink_to(other / "shot.png")
+    linked_dir = tmp_path / "linked-dir"
+    linked_dir.symlink_to(other, target_is_directory=True)
+    dest = tmp_path / "run" / "visual" / "home_desktop_approved.png"
+    assert copy_unless_linked(linked, dest) is False
+    assert copy_unless_linked(linked_dir / "shot.png", dest) is False
+    assert not dest.exists()
+    assert (other / "shot.png").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+
+    src = tmp_path / "ours.png"
+    src.write_bytes(b"home-own-picture")
+    assert copy_unless_linked(src, dest) is True
+    assert dest.is_file() and not dest.is_symlink()
+    assert dest.read_bytes() == b"home-own-picture"
+    assert secret not in dest.read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+    snap = progress()
+    row = next(item for item in snap["upcoming"] if item["id"] == "G-copy-source-link")
+    assert row["status"] == "done"
+    assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
+    assert snap["complete"] is False
+
+
 def test_a_visual_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.finalization import copy_unless_linked, write_bytes_unless_linked
