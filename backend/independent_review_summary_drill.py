@@ -26,12 +26,17 @@ def _linked_drill() -> dict:
 
 def run_independent_review_summary_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
+
+    out_name = "independent_review_summary_drill.json"
+    md_name = "INDEPENDENT_REVIEW_SUMMARY.md"
+    dest = Path(ops_dir) if ops_dir else SUMMARY_MD.parent
+    md_out = dest / md_name
+    if folder_is_linked(dest) or folder_is_linked(md_out) or folder_is_linked(dest / out_name):
+        return _linked_drill()
     from .independent_review_pack_drill import run_independent_review_pack_drill
     from .independent_review_readiness_drill import run_independent_review_readiness_drill
     from .remaining_blockers_drill import run_remaining_blockers_drill
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
-        return _linked_drill()
     pack = run_independent_review_pack_drill(ops_dir=ops_dir)
     ready = run_independent_review_readiness_drill(ops_dir=ops_dir)
     blockers = run_remaining_blockers_drill(ops_dir=ops_dir)
@@ -73,13 +78,7 @@ def run_independent_review_summary_drill(*, ops_dir: Path | None = None) -> dict
         "",
     ])
     md = "\n".join(lines)
-    dest = Path(ops_dir) if ops_dir else SUMMARY_MD.parent
-    md_out = (Path(ops_dir) / "INDEPENDENT_REVIEW_SUMMARY.md") if ops_dir else SUMMARY_MD
-    out = (
-        (Path(ops_dir) / "independent_review_summary_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    if folder_is_linked(dest) or folder_is_linked(md_out) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(md_out) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
     if not write_text_unless_linked(dest, md_out.name, md):
@@ -99,7 +98,7 @@ def run_independent_review_summary_drill(*, ops_dir: Path | None = None) -> dict
             f"{blockers.get('open_count')} blockers); human sign-off still pending"
         ),
     }
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_summary_drill.json"
