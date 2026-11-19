@@ -67,6 +67,34 @@ def test_validate_apk_checks_manifest_and_archive(tmp_path):
         validate_apk(invalid_path)
 
 
+def test_an_apk_check_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-apk"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.apk").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked.apk"
+    linked.symlink_to(other / "app.apk")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        validate_apk(linked)
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        validate_apk(parent / "app.apk")
+    assert (other / "app.apk").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "home.apk"
+    with zipfile.ZipFile(real, "w") as apk:
+        apk.writestr("AndroidManifest.xml", b"home-own")
+        apk.writestr("classes.dex", b"dex")
+    assert validate_apk(real) == real.resolve()
+    own = real.read_bytes()
+    assert b"home-own" in own and secret not in own
+    assert (other / "app.apk").read_bytes() == secret
+
+
 def test_validate_apk_rejects_non_apk_and_unsafe_paths(tmp_path):
     wrong_extension = tmp_path / "demo.zip"
     wrong_extension.write_bytes(b"not an apk")
