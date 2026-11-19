@@ -125,7 +125,9 @@ def automation_status(case: dict, test_dir: Path | None) -> tuple[str, str]:
     from .finalization import folder_is_linked
     if not test_dir or folder_is_linked(test_dir) or not test_dir.is_dir():
         return "Pending", ""
-    if case.get("kind") == "contract" and not case.get("blocked") and (test_dir.parent / "qa_contracts.json").exists():
+    contract = test_dir.parent / "qa_contracts.json"
+    if (case.get("kind") == "contract" and not case.get("blocked") and contract.is_file()
+            and not contract.is_symlink() and not folder_is_linked(contract.parent)):
         return "Automated", "Trusted QA contract runtime"
     names = _case_names(case)
     for name in _case_files(case):
