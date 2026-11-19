@@ -8,6 +8,26 @@ from .safety import redact
 ADVERSE = {"failed", "error", "inconclusive"}
 
 
+def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
+    """Write one file in this run. A link, or a name that leaves the run, is left untouched."""
+    path = Path(run_dir) / name
+    if Path(run_dir).is_symlink() or path.is_symlink() or Path(name).is_absolute() or ".." in Path(name).parts:
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def save_login_state(run_dir: Path, write) -> bool:
+    """Save this run's login. A linked private folder or auth file is not written."""
+    private = Path(run_dir) / ".private"
+    auth_path = private / "auth.json"
+    if Path(run_dir).is_symlink() or private.is_symlink() or auth_path.is_symlink():
+        return False
+    private.mkdir(exist_ok=True)
+    write(str(auth_path))
+    return True
+
+
 def _path_is_linked(path: Path) -> bool:
     path = Path(path)
     return path.is_symlink() or path.parent.is_symlink()

@@ -58,7 +58,14 @@ ACTION_DELAY_MS = 0 if HEADLESS else max(0, min(SLOW_MO_MS, 3000))
 EVENT_SESSION = uuid.uuid4().hex[:12]
 EVENT_FILE = RUN_DIR / f"events.{EVENT_SESSION}.{os.environ.get('PYTEST_XDIST_WORKER', 'main')}.jsonl"
 _EVENT_SEQUENCE = 0
-SHOT_DIR.mkdir(parents=True, exist_ok=True)
+if not SHOT_DIR.is_symlink():
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _output_is_linked(path: Path) -> bool:
+    """A result file that is a link is another run's file."""
+    path = Path(path)
+    return path.is_symlink() or path.parent.is_symlink()
 REDACTED = "[REDACTED]"
 
 
@@ -325,6 +332,8 @@ RUNNING_FILE = RESULTS_FILE.parent / f"running.{RESULTS_FILE.stem}.{os.environ.g
 
 def _running(item=None) -> None:
     """Which test this browser runs now, since when, and its steps so far (the chat shows them ticking)."""
+    if _output_is_linked(RUNNING_FILE):
+        return
     try:
         RUNNING_FILE.write_text(json.dumps({"file": Path(str(item.fspath)).name, "test": item.name,
                                             "since": getattr(item, "_qa_t0", time.time()), "limit_s": TEST_TIMEOUT_S,
@@ -477,6 +486,8 @@ pytest.qa_step = _step  # (a journey's own verified steps - `_step_ok()` in the 
 
 def _event(text, status, **details):
     global _EVENT_SEQUENCE
+    if _output_is_linked(EVENT_FILE):
+        return
     item = _CURRENT["item"]
     if item is None:
         return
@@ -1508,7 +1519,7 @@ def page(_shared, request):
     del p.on
     if tracing:  # keep the trace only when the test failed (it shows every step, with snapshots)
         try:
-            if getattr(request.node, "_qa_trace", None):
+            if getattr(request.node, "_qa_trace", None) and not _output_is_linked(Path(request.node._qa_trace)):
                 context.tracing.stop_chunk(path=request.node._qa_trace)
                 _redact_zip(Path(request.node._qa_trace))
             else:
@@ -1690,7 +1701,7 @@ def track_created():
     says what was cleaned up, and what is left for manual cleanup."""
     def record(what: str, tag: str, where: str, status: str = "created"):
         path = RUN_DIR / "created.jsonl"
-        if RUN_DIR.is_symlink() or path.is_symlink():
+        if _output_is_linked(path):
             return
         line = json.dumps({"what": what, "tag": tag, "where": where, "status": status, "time": time.time()})
         with path.open("a", encoding="utf-8") as f:
@@ -1702,7 +1713,7 @@ def track_created():
 def created_so_far():
     """Everything the run created so far (for the cleanup at the end)."""
     f = RUN_DIR / "created.jsonl"
-    if RUN_DIR.is_symlink() or f.is_symlink() or not f.exists():
+    if _output_is_linked(f) or not f.exists():
         return []
     out = []
     for line in f.read_text(encoding="utf-8").splitlines():
@@ -1840,6 +1851,8 @@ def console_errors(page, request):
 
 
 def _record(entry):
+    if _output_is_linked(RESULTS_FILE):
+        return
     entry = {k: _redact(v) for k, v in entry.items()}  # (the test password never reaches the results)
     with RESULTS_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
@@ -1902,15 +1915,16 @@ def pytest_runtest_makereport(item, call):
                 path = SHOT_DIR / f"{_name(item)}_{int(time.time())}.png"
                 try:
                     entry["url"] = p.url
-                    p.screenshot(path=str(path), full_page=True)
-                    entry["screenshot"] = str(path)
+                    if not _output_is_linked(SHOT_DIR) and not path.is_symlink():
+                        p.screenshot(path=str(path), full_page=True)
+                        entry["screenshot"] = str(path)
                 except Exception:
                     pass
                 # the session ended DURING the test: the login page is no failure of the page this test is about
                 if rep.when == "call" and getattr(item, "_qa_kind", "") == "user" and _logged_out(p):
                     entry["outcome"] = "inconclusive"
                     entry["error"] = LOGGED_OUT + "\n" + entry["error"]
-            if RECORD_TRACES and rep.when == "call":  # saved when the page fixture ends (just after this)
+            if RECORD_TRACES and rep.when == "call" and not _output_is_linked(TRACE_DIR):
                 TRACE_DIR.mkdir(parents=True, exist_ok=True)
                 item._qa_trace = str(TRACE_DIR / f"{_name(item)}.zip")
                 entry["trace"] = item._qa_trace
@@ -1919,8 +1933,9 @@ def pytest_runtest_makereport(item, call):
             if p is not None and not p.is_closed():
                 try:
                     path = SHOT_DIR / f"{_name(item)}_{int(time.time())}.png"
-                    p.screenshot(path=str(path), full_page=True)
-                    entry.update(screenshot=str(path), url=p.url)
+                    if not _output_is_linked(SHOT_DIR) and not path.is_symlink():
+                        p.screenshot(path=str(path), full_page=True)
+                        entry.update(screenshot=str(path), url=p.url)
                 except Exception:
                     pass  # the unavailable screenshot is not a passing check
         _event(entry.get("error") or "Test finished", entry["outcome"], checks=entry["checks"])

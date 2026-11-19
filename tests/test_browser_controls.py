@@ -183,3 +183,74 @@ def test_the_suite_template_applies_the_controls_in_the_browser():
     assert "_CLOCK_SCRIPT" in text
     assert 'else "failed"' in text
     assert 'abort("blockedbyclient")' in text
+
+
+def test_a_test_result_does_not_follow_a_link_into_another_run(tmp_path):
+    import ast
+
+    from backend.finalization import save_login_state, write_text_unless_linked
+
+    secret = "tenant-b-only-result"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "results.jsonl").write_text(secret + "\n", encoding="utf-8")
+    (other / "running.json").write_text(secret, encoding="utf-8")
+    (other / "events.jsonl").write_text(secret + "\n", encoding="utf-8")
+    (other / "crawl.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    private = other / "private"
+    private.mkdir()
+
+    run = tmp_path / "run-a"
+    run.mkdir()
+    (run / "results.jsonl").symlink_to(other / "results.jsonl")
+    (run / "running.json").symlink_to(other / "running.json")
+    (run / "events.jsonl").symlink_to(other / "events.jsonl")
+    (run / "crawl.json").symlink_to(other / "crawl.json")
+    (run / ".private").symlink_to(private, target_is_directory=True)
+
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_record", "_running", "_event"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+
+    class _Item:
+        name = "test_secret"
+        nodeid = "test_secret"
+        _qa_t0 = 0
+        _qa_page = None
+
+    ns = {
+        "Path": Path, "json": json, "os": __import__("os"), "time": __import__("time"),
+        "RESULTS_FILE": run / "results.jsonl",
+        "RUNNING_FILE": run / "running.json",
+        "EVENT_FILE": run / "events.jsonl",
+        "EVENT_SESSION": "s",
+        "TEST_TIMEOUT_S": 1, "MAX_STEPS": 5,
+        "_CURRENT": {"item": _Item()}, "_EVENT_SEQUENCE": 0,
+        "_redact": lambda value: value,
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    ns["_record"]({"nodeid": "test_ok", "outcome": "passed", "error": "ours"})
+    ns["_running"](None)
+    ns["_event"]("finished", "passed")
+    assert (other / "results.jsonl").read_text(encoding="utf-8") == secret + "\n"
+    assert (other / "running.json").read_text(encoding="utf-8") == secret
+    assert (other / "events.jsonl").read_text(encoding="utf-8") == secret + "\n"
+
+    own = tmp_path / "own"
+    own.mkdir()
+    ns["RESULTS_FILE"] = own / "results.jsonl"
+    ns["_record"]({"nodeid": "test_ok", "outcome": "passed"})
+    assert "test_ok" in (own / "results.jsonl").read_text(encoding="utf-8")
+
+    assert write_text_unless_linked(run, "crawl.json", json.dumps({"visited": 1})) is False
+    assert json.loads((other / "crawl.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert write_text_unless_linked(own, "crawl.json", json.dumps({"visited": 1})) is True
+    assert json.loads((own / "crawl.json").read_text(encoding="utf-8"))["visited"] == 1
+
+    written = []
+    assert save_login_state(run, written.append) is False
+    assert written == []
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert save_login_state(own, written.append) is True
+    assert written == [str(own / ".private" / "auth.json")]
