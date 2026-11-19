@@ -131,6 +131,41 @@ def test_workers_open_their_products_at_the_same_time_and_leave_checkout_closed(
     assert (2, "finished", "") in notes
 
 
+def test_a_page_that_lands_on_checkout_is_not_kept():
+    def open_page(url):
+        return {
+            "url": url,
+            "final_url": "https://shop.example/checkout",
+            "status": "blocked",
+            "summary": "checkout, payment and placing an order are never tested",
+        }
+
+    notes = []
+    rows = perform(
+        [{"worker": 1, "url": "https://shop.example/product/saree-1"}],
+        open_page,
+        on_status=lambda worker, status, url: notes.append((worker, status, url)),
+    )
+    assert rows[0]["status"] == "blocked"
+    assert (1, "opened", "https://shop.example/product/saree-1") not in notes
+    assert (1, "blocked", "https://shop.example/checkout") in notes
+
+    seen = []
+
+    def session():
+        def open_one(url):
+            seen.append(url)
+            return open_page(url)
+        return open_one, lambda: None
+
+    swarm = SiteSwarm(1, 4, session, lambda _worker, status, url: notes.append((status, url)))
+    swarm.submit(["https://shop.example/product/silk"])
+    finished = swarm.finish()
+    assert finished[0]["status"] == "blocked"
+    assert seen == ["https://shop.example/product/silk"]
+    assert ("read", "https://shop.example/product/silk") not in notes
+
+
 def test_the_whole_website_is_split_across_workers():
     urls = [
         "https://shop.example/",

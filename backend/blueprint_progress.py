@@ -349,6 +349,7 @@ def progress() -> dict:
         {"id": "E-token-not-digest", "label": "A level-3 heal token is a secret, not the hash of the diff", "status": "done"},
         {"id": "B-checkout-recorded-blocked", "label": "A checkout page records Place order as blocked and does not click it", "status": "done"},
         {"id": "B-worker-session", "label": "A swarm worker opens later pages with the saved login", "status": "done"},
+        {"id": "B-redirect-checkout", "label": "A page that redirects to checkout is not kept as a read page", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
