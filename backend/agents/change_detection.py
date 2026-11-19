@@ -59,7 +59,8 @@ def diff_pages(old: dict, new: dict) -> list[str]:
 
 
 def baseline_path(site_key: str) -> Path:
-    return settings.baseline_dir / site_key
+    from ..my_tests import baseline_folder
+    return baseline_folder(site_key)
 
 
 def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
