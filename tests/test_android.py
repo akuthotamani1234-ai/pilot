@@ -25,6 +25,35 @@ def test_java_path_discovers_user_local_blowai_jdk_without_java_home(tmp_path, m
     assert android._java_path() == str(java)
 
 
+def test_an_appium_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-appium"
+    name = "appium.cmd" if android.os.name == "nt" else "appium"
+    other = tmp_path / "other"
+    binary = other / "BlowAI" / "AndroidTools" / "node_modules" / ".bin" / name
+    binary.parent.mkdir(parents=True)
+    binary.write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-local"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("LOCALAPPDATA", str(linked))
+    monkeypatch.setattr(android.shutil, "which", lambda _name: None)
+    assert android._appium_path() is None
+    assert binary.read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-local"
+    own = real / "BlowAI" / "AndroidTools" / "node_modules" / ".bin" / name
+    own.parent.mkdir(parents=True)
+    own.write_text("home-own", encoding="utf-8")
+    monkeypatch.setenv("LOCALAPPDATA", str(real))
+    found = android._appium_path()
+    assert found == str(own)
+    assert secret not in found
+    assert own.read_text(encoding="utf-8") == "home-own"
+    assert binary.read_text(encoding="utf-8") == secret
+
+
 def test_an_android_sdk_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     secret = "tenant-b-only-sdk"
     name = "adb.exe" if android.os.name == "nt" else "adb"
