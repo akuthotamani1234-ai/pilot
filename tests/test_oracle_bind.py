@@ -107,6 +107,30 @@ def test_a_stale_contract_assertion_cannot_hide_an_ai_label():
     assert "bug" not in finding
 
 
+def test_a_stored_contract_assertion_cannot_hide_an_ai_label_on_the_result():
+    from backend.agents.failure_analysis import _finding_from_result
+
+    case = attach_assertion({
+        "tc_id": "TC-CONTRACT", "title": "Total", "expected": "Total matches",
+        "contract_id": "totals", "url": "https://shop.example/cart",
+    })
+    assert case["assertion"]["accepted"] is True
+    result = {
+        "outcome": "failed", "error_type": "AssertionError", "error": "expected total",
+        "oracle": "ai", "contract_id": "totals", "tc_id": "TC-CONTRACT",
+        "nodeid": "t.py::test_total", "test": "test_total", "file": "t.py",
+        "url": "https://shop.example/cart",
+    }
+    cat, _why, decision = soften_defect_category("product_defect", case, result)
+    assert cat == "inconclusive"
+    assert decision["verdict"] == "needs_review"
+    assert case["assertion"]["accepted"] is True
+    finding = _finding_from_result(result, fid=3, cases=[case])
+    assert finding["category"] == "inconclusive"
+    assert finding["oracle_decision"]["verdict"] == "needs_review"
+    assert "bug" not in finding
+
+
 def test_a_contract_case_without_an_ai_label_stays_an_approved_oracle():
     case = attach_assertion({
         "tc_id": "TC-CONTRACT", "title": "Total", "expected": "Total matches",
