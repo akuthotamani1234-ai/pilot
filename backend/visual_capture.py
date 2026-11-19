@@ -13,6 +13,11 @@ def capture_visual(run_dir: str | Path, app_map: list[dict] | None = None) -> di
     """Write or reuse visual.json. Existing pixel reports are left untouched."""
     path = Path(run_dir)
     existing = path / "visual.json"
+    if path.is_symlink() or existing.is_symlink():
+        return {
+            "first_run": False, "pages": [], "changed": [], "same": [],
+            "source": "discovery_screenshots", "note": "the visual report is a link",
+        }
     if existing.is_file():
         try:
             payload = json.loads(existing.read_text(encoding="utf-8"))
@@ -20,13 +25,15 @@ def capture_visual(run_dir: str | Path, app_map: list[dict] | None = None) -> di
                 return payload
         except (OSError, ValueError):
             pass
+    from .agents.change_detection import relative_path_is_linked
     pages = []
     for page in app_map or []:
         shot = page.get("screenshot") or ""
         if not shot:
             continue
-        shot_path = path / shot
-        if not shot_path.is_file():
+        rel = Path(str(shot))
+        shot_path = path / rel
+        if relative_path_is_linked(path, rel) or not shot_path.is_file():
             continue
         pages.append({
             "key": page.get("slug") or page.get("url") or shot,
@@ -42,6 +49,8 @@ def capture_visual(run_dir: str | Path, app_map: list[dict] | None = None) -> di
         "source": "discovery_screenshots",
         "note": "pixel diff not run; pages recorded as first-run evidence only",
     }
-    path.mkdir(parents=True, exist_ok=True)
-    existing.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not path.is_symlink():
+        path.mkdir(parents=True, exist_ok=True)
+        write_text_unless_linked(path, "visual.json", json.dumps(report, indent=2))
     return report
