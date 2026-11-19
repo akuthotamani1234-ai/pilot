@@ -67,7 +67,10 @@ def _linked_runner_audit() -> dict:
 
 def run_hosted_workflow_runner_audit_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    name = "hosted_workflow_runner_audit_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_runner_audit()
     android = _audit(
         ANDROID_WF,
@@ -95,8 +98,6 @@ def run_hosted_workflow_runner_audit_drill(*, ops_dir: Path | None = None) -> di
         ),
     }
     text = json.dumps(evidence, indent=2)
-    name = "hosted_workflow_runner_audit_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_runner_audit()
     dest.mkdir(parents=True, exist_ok=True)
