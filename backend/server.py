@@ -1702,6 +1702,22 @@ def ops_independent_review_integrity():
     return {"gate_g_complete": False, "independent_review_integrity": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-evidence-catalog")
+def ops_independent_review_evidence_catalog():
+    """Gate G: catalog ops-evidence for reviewers (unsigned)."""
+    from backend.independent_review_evidence_catalog_drill import (
+        run_independent_review_evidence_catalog_drill,
+    )
+    evidence = run_independent_review_evidence_catalog_drill()
+    _audit(
+        "ops_independent_review_evidence_catalog",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        entries=int(evidence.get("entry_count") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_evidence_catalog": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
