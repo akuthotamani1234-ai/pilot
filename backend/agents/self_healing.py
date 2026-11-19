@@ -380,6 +380,16 @@ def self_healing_agent(state: QAState) -> QAState:
             except LLMError as e:
                 why_not = f"LLM failed: {e}"
 
+        if after is not None:
+            from ..healing_policy import review_repair
+            verdict = review_repair(
+                before, after, need_tests=is_test_file,
+                failure_class=str(f.get("category") or ""),
+                approval_token=str(f.get("approval_token") or ""),
+            )
+            if not verdict.get("allowed"):
+                why_not = verdict.get("reason") or "repair refused"
+                after = None
         if after is None:
             entry["status"] = "could not heal"
             entry["change"] = why_not or "no safe repair found"
