@@ -373,6 +373,7 @@ def progress() -> dict:
         {"id": "G-concurrency-link", "label": "A concurrency contract does not follow a link into another folder", "status": "done"},
         {"id": "G-timeout-budget-link", "label": "A timeout budget does not follow a link into another folder", "status": "done"},
         {"id": "G-permissions-link", "label": "A permissions contract does not follow a link into another folder", "status": "done"},
+        {"id": "G-runner-audit-link", "label": "A runner audit does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
