@@ -193,8 +193,9 @@ def apply_approved_heal(detail: str, token: str = "") -> dict:
     parts = Path(rel).parts
     if Path(rel).is_absolute() or ".." in parts or not parts:
         return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
+    from .finalization import folder_is_linked
     run_path = Path(run_raw)
-    if run_path.is_symlink() or not run_path.is_dir():
+    if folder_is_linked(run_path) or not run_path.is_dir():
         return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
     cursor = run_path
     for part in ("generated_tests", *parts):
