@@ -31,6 +31,7 @@ CHECKS = (
     ("studio_sso_token_expiry_drill.json", "Studio SSO token expiry rejection"),
     ("studio_sso_state_binding_drill.json", "Studio SSO state binding"),
     ("hosted_idp_metadata_contract_drill.json", "Hosted IdP metadata contract"),
+    ("hosted_idp_redirect_uri_allowlist_drill.json", "Redirect URI allowlist"),
 )
 
 

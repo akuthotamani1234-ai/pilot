@@ -2479,6 +2479,36 @@ def ops_hosted_runner_os_matrix_contract():
     }
 
 
+@app.post("/api/ops/drills/hosted-idp-redirect-uri-allowlist")
+def ops_hosted_idp_redirect_uri_allowlist():
+    """Gate I: redirect URI allowlist contract (hosted SSO still open)."""
+    from backend.hosted_idp_redirect_uri_allowlist_drill import (
+        run_hosted_idp_redirect_uri_allowlist_drill,
+    )
+    evidence = run_hosted_idp_redirect_uri_allowlist_drill()
+    _audit(
+        "ops_hosted_idp_redirect_uri_allowlist",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_redirect_uri_allowlist": evidence}
+
+
+@app.post("/api/ops/drills/dual-region-replication-lag-contract")
+def ops_dual_region_replication_lag_contract():
+    """Gate H: replication lag contract (hosted DR still open)."""
+    from backend.dual_region_replication_lag_contract_drill import (
+        run_dual_region_replication_lag_contract_drill,
+    )
+    evidence = run_dual_region_replication_lag_contract_drill()
+    _audit(
+        "ops_dual_region_replication_lag_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_replication_lag_contract": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

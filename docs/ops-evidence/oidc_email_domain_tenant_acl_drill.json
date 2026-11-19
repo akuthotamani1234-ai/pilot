@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "oidc_email_domain_tenant_acl",
-  "ran_at": "2026-11-19T05:11:39Z",
+  "ran_at": "2026-11-19T05:48:43Z",
   "domain_map": {
     "acme.test": "tenant-acme",
     "globex.test": "tenant-globex"

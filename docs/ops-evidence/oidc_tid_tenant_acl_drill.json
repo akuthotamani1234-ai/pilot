@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "oidc_tid_tenant_acl",
-  "ran_at": "2026-11-19T05:11:34Z",
+  "ran_at": "2026-11-19T05:48:37Z",
   "cases": [
     {
       "sub": "tid-user-a",

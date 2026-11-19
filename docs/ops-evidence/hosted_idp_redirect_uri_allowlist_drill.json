@@ -1,0 +1,24 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_redirect_uri_allowlist",
+  "ran_at": "2026-11-19T05:48:35Z",
+  "kind": "contract_only",
+  "allowlist": [
+    "http://127.0.0.1/studio/callback",
+    "http://127.0.0.1/api/sso/callback",
+    "http://localhost/api/sso/callback"
+  ],
+  "configured_redirect_uri": "http://127.0.0.1/studio/callback",
+  "live_hosted_sso": false,
+  "local_partial_present": [
+    "studio_oidc_callback_drill.json",
+    "loopback_auth_code_sso_drill.json",
+    "loopback_pkce_sso_drill.json",
+    "studio_sso_login_path_drill.json",
+    "hosted_idp_metadata_contract_drill.json",
+    "hosted_idp_contract_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted IdP redirect URI allowlist recorded (3 URIs, 6/6 local partials); live hosted IdP Studio SSO still open"
+}

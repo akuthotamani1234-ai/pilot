@@ -3,6 +3,9 @@ export type GateRow = {
   label: string;
   status: string;
   note?: string;
+  gate?: string;
+  local_partial_score?: number;
+  local_partial_score_of?: number;
 };
 
 export type BlueprintRoadmap = {

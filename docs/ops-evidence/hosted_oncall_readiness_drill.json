@@ -1,10 +1,10 @@
 {
   "gate_h_complete": false,
   "drill": "hosted_oncall_readiness",
-  "ran_at": "2026-11-19T05:44:28Z",
+  "ran_at": "2026-11-19T05:48:43Z",
   "kind": "readiness_score_only",
-  "score": 17,
-  "score_of": 17,
+  "score": 18,
+  "score_of": 18,
   "checks": [
     {
       "artifact": "multi_region_dr_drill.json",
@@ -90,9 +90,14 @@
       "artifact": "paging_severity_routing_contract_drill.json",
       "label": "Paging severity routing contract",
       "ready": true
+    },
+    {
+      "artifact": "dual_region_replication_lag_contract_drill.json",
+      "label": "Replication lag contract",
+      "ready": true
     }
   ],
   "live_hosted_paging": false,
   "ok": true,
-  "reason": "Hosted DR/on-call readiness 17/17; live hosted multi-region DR / on-call paging still open"
+  "reason": "Hosted DR/on-call readiness 18/18; live hosted multi-region DR / on-call paging still open"
 }
