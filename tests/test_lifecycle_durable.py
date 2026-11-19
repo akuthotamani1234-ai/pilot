@@ -474,3 +474,40 @@ def test_a_recheck_list_does_not_follow_a_link_into_another_folder(tmp_path, mon
     assert run_read_block(real, "failures.json") == ""
     assert secret not in json.dumps(tests_of(real, [0]))
     assert secret in findings.read_text(encoding="utf-8")
+
+
+def test_an_account_tag_is_not_read_through_a_link_into_another_folder(tmp_path, monkeypatch):
+    import ast
+    import os
+    import re
+    from pathlib import Path
+
+    monkeypatch.setenv("PYTEST_XDIST_WORKER", "")
+    secret = "tenant-b-only-tag"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    life = nested / "qx_lifecycle.json"
+    life.write_text(json.dumps({"prepared": [[
+        {"kind": "account", "state": "ready", "worker": 1, "tag": secret},
+    ]]}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_worker_account_tag"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    ns = {"Path": Path, "json": json, "os": os, "re": re, "RUN_DIR": linked / "runs" / "run"}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "conftest.py", "exec"), ns)
+    assert ns["_worker_account_tag"]() == ""
+    assert secret in life.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "qx_lifecycle.json").write_text(json.dumps({"prepared": [[
+        {"kind": "account", "state": "ready", "worker": 1, "tag": "home-own"},
+    ]]}), encoding="utf-8")
+    ns["RUN_DIR"] = real
+    assert ns["_worker_account_tag"]() == "home-own"
+    assert secret not in ns["_worker_account_tag"]()
+    assert secret in life.read_text(encoding="utf-8")

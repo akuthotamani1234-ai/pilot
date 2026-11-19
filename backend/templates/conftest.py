@@ -1690,8 +1690,11 @@ def _worker_account_tag() -> str:
 
     Same choice as data_lifecycle.account_tag_for_worker: gw0 is worker 1, and a cleaned record is left unused.
     """
+    path = RUN_DIR / "qx_lifecycle.json"
+    if _output_is_linked(path):
+        return ""
     try:
-        payload = json.loads((RUN_DIR / "qx_lifecycle.json").read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return ""
     prepared = payload.get("prepared") if isinstance(payload, dict) else None
