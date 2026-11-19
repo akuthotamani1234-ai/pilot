@@ -349,6 +349,60 @@ def test_a_page_that_refreshes_into_checkout_is_not_opened():
     assert opened == ["https://shop.example/index.php?rt=checkout/cart"]
 
 
+def test_a_worker_retries_a_cancelled_page_and_still_skips_checkout():
+    from backend.swarm import open_guarded
+
+    opened = []
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+        def text(self):
+            return ""
+
+    class Page:
+        url = ""
+
+        def get(self, url, **kwargs):
+            if str(url).endswith("/product"):
+                return Probe(302, "https://shop.example/checkout")
+            return Probe(200)
+
+        @property
+        def request(self):
+            return self
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            if opened.count(url) == 1 and str(url).endswith("/account"):
+                raise RuntimeError(f"Page.goto: net::ERR_ABORTED at {url}")
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    page = Page()
+    response, blocked = open_guarded(page, "https://shop.example/account")
+    assert blocked is None and response.status == 200
+    assert opened == ["https://shop.example/account", "https://shop.example/account"]
+    opened.clear()
+    _response, pay = open_guarded(page, "https://shop.example/product")
+    assert pay["status"] == "blocked" and pay["final_url"].endswith("/checkout")
+    assert opened == []
+    opened.clear()
+
+    class Always(Page):
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            raise RuntimeError("Page.goto: net::ERR_ABORTED")
+
+    try:
+        open_guarded(Always(), "https://shop.example/account")
+    except RuntimeError as exc:
+        assert "ERR_ABORTED" in str(exc)
+    assert opened == ["https://shop.example/account", "https://shop.example/account"]
+
+
 def test_a_probe_that_cannot_reach_the_host_still_opens_the_page():
     from backend.swarm import open_guarded
 
