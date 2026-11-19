@@ -18,6 +18,27 @@ def path_unless_linked(folder: Path, name: str) -> Path | None:
     return path
 
 
+def write_bytes_unless_linked(path: Path, data: bytes) -> bool:
+    """Write bytes at this path. A linked file or folder is left untouched."""
+    path = Path(path)
+    if path.is_symlink() or path.parent.is_symlink():
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return True
+
+
+def copy_unless_linked(src: Path, dest: Path) -> bool:
+    """Copy onto a real file. A linked destination is left untouched."""
+    import shutil
+    dest = Path(dest)
+    if dest.is_symlink() or dest.parent.is_symlink():
+        return False
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dest)
+    return True
+
+
 def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
     """Write one file in this run. A link, or a name that leaves the run, is left untouched."""
     path = path_unless_linked(Path(run_dir), name)

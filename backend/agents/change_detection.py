@@ -91,6 +91,26 @@ def run_path_is_linked(run_dir: Path, *parts: str) -> bool:
     return False
 
 
+def relative_path_is_linked(root: Path, rel: str | Path) -> bool:
+    """True when a relative path walks through a link or leaves its folder.
+
+    Each part is the next file under the previous one, so a linked picture
+    inside a real screenshots folder is still refused.
+    """
+    root = Path(root)
+    rel_path = Path(rel)
+    if root.is_symlink() or not str(rel) or rel_path.is_absolute():
+        return True
+    cursor = root
+    for part in rel_path.parts:
+        if not part or part in {".", ".."} or "/" in part or "\\" in part:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
 def tenant_owns_run(name: str) -> bool:
     """Open mode (no tenant stamped) may use any run name. A stamped tenant may
     use only a run indexed to that tenant."""
