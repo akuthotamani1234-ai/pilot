@@ -78,6 +78,41 @@ def _reuse_path_is_linked(root: Path, path: Path) -> bool:
     return False
 
 
+def run_path_is_linked(run_dir: Path, *parts: str) -> bool:
+    """True when the run folder, or a named file under it, is a symlink."""
+    run_dir = Path(run_dir)
+    if run_dir.is_symlink():
+        return True
+    for part in parts:
+        if not part or part in {".", ".."} or "/" in part or "\\" in part:
+            return True
+        if (run_dir / part).is_symlink():
+            return True
+    return False
+
+
+def tenant_owns_run(name: str) -> bool:
+    """Open mode (no tenant stamped) may use any run name. A stamped tenant may
+    use only a run indexed to that tenant."""
+    tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+    if not tenant:
+        return True
+    if not name or not re.fullmatch(r"[\w.\-]+", name) or name.startswith("."):
+        return False
+    from ..tenancy_store import get_run_tenant
+    return get_run_tenant(name) == tenant
+
+
+def run_read_block(run_dir: Path, *parts: str) -> str:
+    """Empty when this run folder may be read. Otherwise a short reason."""
+    run_dir = Path(run_dir)
+    if run_path_is_linked(run_dir, *parts):
+        return "This run's folder is a link."
+    if not tenant_owns_run(run_dir.name):
+        return "This run belongs to another tenant."
+    return ""
+
+
 def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
     """The test scripts + test cases for a regression run, or None.
 

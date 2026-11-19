@@ -379,8 +379,13 @@ def main():
                                or args.approve_visual or args.resume):
         ap.error("--discovery-only cannot be combined with baseline, test-editing or resume options; resume uses the saved mode.")
     if args.replay:
+        from backend.agents.change_detection import run_read_block
         from backend.replay_pack import saved_replays
         run_dir = settings.runs_dir / Path(args.replay).name
+        blocked = run_read_block(run_dir, "qx_replay.json")
+        if blocked:
+            print(f"\n{blocked} It was not replayed.")
+            sys.exit(2)
         rows = saved_replays(run_dir)
         if not rows:
             print(f"\n{run_dir.name} has no recorded replay packages.")
@@ -406,7 +411,12 @@ def main():
         return
     if args.recheck:
         from backend import recheck as rc
+        from backend.agents.change_detection import run_read_block
         run_dir = settings.runs_dir / Path(args.recheck[0]).name
+        blocked = run_read_block(run_dir, "failures.json", "generated_tests", "run_args.json", "recheck.json")
+        if blocked:
+            print(f"\n{blocked} It was not re-checked.")
+            sys.exit(2)
         tests = args.recheck[1:] or rc.tests_of(run_dir, [f.get("id") for f in rc._json(run_dir / "failures.json", [])])
         if not tests:
             print(f"\nNothing to re-check in {run_dir}: only bugs and open questions found by a test can be re-checked.")
@@ -438,9 +448,17 @@ def main():
         signal.signal(signal.SIGBREAK, _on_ctrl_c)
 
     if args.resume:
+        from backend.agents.change_detection import run_read_block
         run_id = Path(args.resume).name
         run_dir = settings.runs_dir / run_id
+        blocked = run_read_block(run_dir, "run_args.json")
+        if blocked:
+            print(f"\n{blocked} It was not resumed.")
+            sys.exit(2)
         try:
+            if (run_dir / "run_args.json").is_symlink():
+                print("\nThis run's folder is a link. It was not resumed.")
+                sys.exit(2)
             saved = json.loads((run_dir / "run_args.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             print(f"\nThere is no run to resume at {run_dir} (run_args.json is missing).")

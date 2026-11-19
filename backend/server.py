@@ -4596,9 +4596,14 @@ def approve_visual(
     d = _run_dir(run)
     token = push_baseline_tenant(tenant)
     try:
+        if (d / "visual.json").is_symlink():
+            raise HTTPException(400, "This run's folder is a link. The look was not approved.")
         if not (d / "visual.json").exists():
             raise HTTPException(404, "This run has no visual check.")
-        n = approve(d, req.pages)
+        try:
+            n = approve(d, req.pages)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
     finally:
         pop_baseline_tenant(token)
     _audit("approve_visual", run=run, pages=n)

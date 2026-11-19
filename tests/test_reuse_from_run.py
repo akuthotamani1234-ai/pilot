@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import sys
+
+import pytest
 
 from backend.agents.change_detection import saved_tests
 from backend.config import settings
@@ -174,3 +177,154 @@ def test_a_launch_does_not_reuse_another_tenants_run(monkeypatch, tmp_path):
     finally:
         server.jobs.clear()
         server.jobs.update(kept)
+
+
+def _index(monkeypatch, tmp_path):
+    import backend.tenancy_store as tenancy
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://shop.test", verdict="Ready", db_path=db)
+    return tenancy
+
+
+def test_recheck_does_not_follow_a_link_or_another_tenant(monkeypatch, tmp_path, capsys):
+    import main as cli
+    from backend.recheck import recheck
+
+    runs = tmp_path / "runs"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    _index(monkeypatch, tmp_path)
+    other = runs / "run-b"
+    (other / "generated_tests").mkdir(parents=True)
+    (other / "generated_tests" / "test_secret.py").write_text("def test_secret():\n    assert True\n", encoding="utf-8")
+    secret = "tenant-b-only-failure"
+    (other / "failures.json").write_text(json.dumps([
+        {"id": 1, "nodeid": "test_secret.py::test_secret", "category": "product_defect", "note": secret},
+    ]), encoding="utf-8")
+    (other / "recheck.json").write_text("{}\n", encoding="utf-8")
+    link = runs / "run-link"
+    link.symlink_to(other, target_is_directory=True)
+
+    out = recheck(link, ["test_secret.py::test_secret"])
+    assert out["results"] == {}
+    assert "link" in out["note"]
+    assert (other / "recheck.json").read_text(encoding="utf-8") == "{}\n"
+
+    linked_file = runs / "run-a"
+    (linked_file / "generated_tests").mkdir(parents=True)
+    target = tmp_path / "recheck-target.json"
+    payload = json.dumps({"secret": secret}) + "\n"
+    target.write_text(payload, encoding="utf-8")
+    (linked_file / "recheck.json").symlink_to(target)
+    out = recheck(linked_file, ["test_secret.py::test_secret"])
+    assert out["results"] == {}
+    assert target.read_text(encoding="utf-8") == payload
+
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    monkeypatch.setattr(sys, "argv", ["main.py", "--recheck", "run-b", "test_secret.py::test_secret"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2
+    printed = capsys.readouterr().out
+    assert secret not in printed
+    assert "another tenant" in printed
+    assert (other / "recheck.json").read_text(encoding="utf-8") == "{}\n"
+
+
+def test_merge_does_not_read_another_tenants_summary(monkeypatch, tmp_path, capsys):
+    from backend.merge import merge_runs
+
+    runs = tmp_path / "runs"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    _index(monkeypatch, tmp_path)
+    secret = "tenant-b-only-verdict"
+    for name, verdict in (("run-a", "Ready"), ("run-b", secret)):
+        folder = runs / name
+        folder.mkdir(parents=True)
+        (folder / "summary.json").write_text(json.dumps({
+            "verdict": verdict, "pages": 3, "reasons": ["x"],
+            "coverage_card": {"pages": {"found": 3}},
+        }), encoding="utf-8")
+    linked = runs / "run-link"
+    linked.symlink_to(runs / "run-b", target_is_directory=True)
+
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    out = merge_runs([runs / "run-a", runs / "run-b", linked], runs)
+    summary = (out / "summary.json").read_text(encoding="utf-8")
+    assert "run-a" in summary
+    assert secret not in summary
+    assert "run-b" not in summary
+    assert "run-link" not in summary
+    printed = capsys.readouterr().out
+    assert secret not in printed
+
+
+def test_approve_and_replay_do_not_follow_a_link(tmp_path, monkeypatch):
+    from backend.replay_pack import saved_replays
+    from backend.visual import approve, keep_new_looks
+
+    runs = tmp_path / "runs"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    secret = "tenant-b-only-look"
+    other = runs / "run-b"
+    other.mkdir(parents=True)
+    visual = other / "visual.json"
+    visual.write_text(json.dumps({
+        "pages": [{"status": "changed", "key": "home", "title": "Home", "capture": "cap.json"}],
+        "counts": {"changed": 1},
+        "secret": secret,
+    }), encoding="utf-8")
+    (other / "run_args.json").write_text(json.dumps({"site_key": "shop.test"}), encoding="utf-8")
+    own = runs / "run-a"
+    own.mkdir()
+    (own / "visual.json").symlink_to(visual)
+    (own / "run_args.json").write_text(json.dumps({"site_key": "shop.test"}), encoding="utf-8")
+    before = visual.read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="link"):
+        approve(own)
+    assert visual.read_text(encoding="utf-8") == before
+    assert keep_new_looks(own, "shop.test") == 0
+    assert visual.read_text(encoding="utf-8") == before
+
+    replay = other / "qx_replay.json"
+    replay.write_text(json.dumps({"packages": [{"id": secret, "replay": {"ran": True}}]}), encoding="utf-8")
+    (own / "qx_replay.json").symlink_to(replay)
+    assert saved_replays(own) == []
+    rows = saved_replays(other)
+    assert rows and rows[0]["id"] == secret
+
+
+def test_resume_does_not_read_another_tenants_run(monkeypatch, tmp_path, capsys):
+    import main as cli
+
+    runs = tmp_path / "runs"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    _index(monkeypatch, tmp_path)
+    secret = "https://tenant-b-only.example/secret"
+    other = runs / "run-b"
+    other.mkdir(parents=True)
+    (other / "run_args.json").write_text(json.dumps({
+        "source": secret, "url": secret, "settings": {}, "code_project": False,
+    }), encoding="utf-8")
+    link = runs / "run-link"
+    link.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(cli, "run_pipeline", lambda *a, **k: (_ for _ in ()).throw(AssertionError("resumed")))
+
+    monkeypatch.setattr(sys, "argv", ["main.py", "--resume", "run-link"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2
+    assert secret not in capsys.readouterr().out
+
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    monkeypatch.setattr(sys, "argv", ["main.py", "--resume", "run-b"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2
+    printed = capsys.readouterr().out
+    assert secret not in printed
+    assert "another tenant" in printed
