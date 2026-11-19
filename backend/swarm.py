@@ -32,6 +32,29 @@ def is_payment_url(url: str) -> bool:
     return bool(_PAYMENT_PATH.search(path))
 
 
+_QUOTED = re.compile(r"""['"]([^'"]+)['"]""")
+
+
+def control_opens_payment(page_url: str, href: str = "", form_action: str = "", onclick: str = "") -> bool:
+    """True when the control's address is checkout or payment, whatever its label says."""
+    from urllib.parse import urljoin
+
+    base = page_url or ""
+    for raw in (href or "", form_action or ""):
+        text = raw.strip()
+        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
+            continue
+        if is_payment_url(urljoin(base, text)):
+            return True
+    for quoted in _QUOTED.findall(onclick or ""):
+        text = quoted.strip()
+        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
+            continue
+        if is_payment_url(urljoin(base, text)):
+            return True
+    return False
+
+
 def choose_listing(urls: list[str], sample_size: int) -> tuple[list[str], list[tuple[str, str]]]:
     """Pick the first products a shopper sees. Leave the rest of that list.
 

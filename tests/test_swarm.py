@@ -3,6 +3,7 @@ from backend.swarm import (
     SiteSwarm,
     assign_workers,
     choose_listing,
+    control_opens_payment,
     is_payment_url,
     partition_site,
     perform,
@@ -42,6 +43,20 @@ def test_checkout_is_never_given_to_a_worker():
     assert not is_payment_url("https://shop.example/product/buy-saree")
     assert not is_payment_url("https://shop.example/product/checkout-guide")
     assert not is_payment_url("https://notpaypal.com/shop")
+
+
+def test_a_continue_control_that_opens_checkout_is_payment():
+    page = "https://shop.example/cart"
+    assert control_opens_payment(page, href="/checkout.html")
+    assert control_opens_payment(page, href="https://www.paypal.com/cgi-bin/webscr")
+    assert control_opens_payment(page, form_action="/payments/card")
+    assert control_opens_payment(page, onclick="location='/checkout'")
+    assert control_opens_payment(page, href="/cart/checkout%2Ehtml")
+    assert not control_opens_payment(page, href="/product/buy-saree")
+    assert not control_opens_payment(page, href="index.php?rt=checkout/cart")
+    assert not control_opens_payment(page, href="/admin/pay-grades")
+    assert not control_opens_payment(page, href="/product/checkout-guide")
+    assert not control_opens_payment(page, onclick="location='/cart'")
 
 
 def test_zero_sample_keeps_the_whole_list():
