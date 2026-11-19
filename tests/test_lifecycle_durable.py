@@ -331,7 +331,8 @@ def _coverage():
     return _CDP()
 
 
-def test_a_test_coverage_note_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_test_coverage_note_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTEST_XDIST_WORKER", "main")
     secret = b"tenant-b-only-coverage"
     other = tmp_path / "other"
     nested = other / "runs" / "run"
