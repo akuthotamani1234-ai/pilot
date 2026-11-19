@@ -43,7 +43,18 @@ HEADLESS = os.environ.get("HEADLESS", "true").lower() != "false"
 SLOW_MO_MS = int(os.environ.get("SLOW_MO_MS", "0"))
 NAV_TIMEOUT_MS = int(os.environ.get("QA_NAV_TIMEOUT_MS", "30000"))  # time a page may take to open
 TEST_TIMEOUT_S = float(os.environ.get("QA_TEST_TIMEOUT_S", "180"))
-RUN_DIR = Path(os.environ.get("QA_RUN_DIR") or Path(__file__).resolve().parent.parent).resolve()
+
+
+def _output_is_linked(path: Path) -> bool:
+    """A result file, or a folder on the way to it, that is a link is another run's file."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+_raw_run = Path(os.environ.get("QA_RUN_DIR") or Path(__file__).resolve().parent.parent)
+RUN_DIR = _raw_run if _output_is_linked(_raw_run) else _raw_run.resolve()
 ALLOWED_HOSTS = [h.strip().lower() for h in os.environ.get("QA_ALLOWED_HOSTS", "").split(",") if h.strip()]
 TARGET_LOCAL = os.environ.get("QA_TARGET_LOCAL") == "1"
 VIDEO_DIR = os.environ.get("QA_VIDEO_DIR", "")  # set: a video of every browser window is saved there (RECORD_VIDEO)
@@ -58,14 +69,8 @@ ACTION_DELAY_MS = 0 if HEADLESS else max(0, min(SLOW_MO_MS, 3000))
 EVENT_SESSION = uuid.uuid4().hex[:12]
 EVENT_FILE = RUN_DIR / f"events.{EVENT_SESSION}.{os.environ.get('PYTEST_XDIST_WORKER', 'main')}.jsonl"
 _EVENT_SEQUENCE = 0
-if not SHOT_DIR.is_symlink():
+if not _output_is_linked(SHOT_DIR):
     SHOT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _output_is_linked(path: Path) -> bool:
-    """A result file that is a link is another run's file."""
-    path = Path(path)
-    return path.is_symlink() or path.parent.is_symlink()
 REDACTED = "[REDACTED]"
 
 
