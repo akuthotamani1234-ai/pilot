@@ -42,3 +42,83 @@ def test_each_stage_stores_its_rules_and_a_plugin_can_add_an_assertion(tmp_path,
     stored = json.loads((tmp_path / "qx_live.json").read_text(encoding="utf-8"))
     assert stored["order"][0] == "sessions"
     assert "trends" in stored
+
+
+def test_a_generated_script_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import backend.tenancy_store as tenancy
+    from backend.agents.script_generator import script_generator_agent
+    from backend.config import settings
+    from backend.excel import write_workbook
+    from backend.page_inventory import save_inventory
+    from backend.run_rules import _store, trends_for
+
+    monkeypatch.setattr(settings, "reuse_tests", False)
+    secret = "tenant-b-only-script"
+    other = tmp_path / "other-tests"
+    other.mkdir()
+    (other / "test_keep.py").write_text(secret, encoding="utf-8")
+    (other / "conftest.py").write_text(secret, encoding="utf-8")
+    cov = tmp_path / "cov.json"
+    cov.write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    live = tmp_path / "live.json"
+    live.write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    book = tmp_path / "book.xlsx"
+    book.write_bytes(b"tenant-b-only-script")
+    components = tmp_path / "components.json"
+    components.write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    run = tmp_path / "run-a"
+    run.mkdir()
+    (run / "generated_tests").symlink_to(other, target_is_directory=True)
+    out = script_generator_agent({
+        "run_dir": str(run), "app_map": [], "test_cases": [], "url": "https://shop.test", "log": [],
+    })
+    assert out["scripts"] == []
+    assert (other / "test_keep.py").read_text(encoding="utf-8") == secret
+    assert (other / "conftest.py").read_text(encoding="utf-8") == secret
+
+    target = tmp_path / "target.py"
+    target.write_text(secret, encoding="utf-8")
+    own = tmp_path / "own"
+    tests = own / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_keep.py").symlink_to(target)
+    (own / "coverage.json").symlink_to(cov)
+    (own / "test_cases.xlsx").symlink_to(book)
+    (own / "components.json").symlink_to(components)
+    (own / "qx_live.json").symlink_to(live)
+    script_generator_agent({
+        "run_dir": str(own), "app_map": [], "test_cases": [], "url": "https://shop.test", "log": [],
+    })
+    assert target.read_text(encoding="utf-8") == secret
+    assert json.loads(cov.read_text(encoding="utf-8"))["secret"] == secret
+    assert (tests / "conftest.py").is_file() and not (tests / "conftest.py").is_symlink()
+    write_workbook(own, [])
+    save_inventory(own, [])
+    assert book.read_bytes() == b"tenant-b-only-script"
+    assert json.loads(components.read_text(encoding="utf-8"))["secret"] == secret
+    _store(own, "environment", {"ok": True})
+    assert json.loads(live.read_text(encoding="utf-8"))["secret"] == secret
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    linked = runs / "shop.test_20260101_100000"
+    linked.mkdir()
+    (linked / "summary.json").symlink_to(cov)
+    theirs = runs / "shop.test_20260101_110000"
+    theirs.mkdir()
+    (theirs / "summary.json").write_text(json.dumps({
+        "verdict": secret, "qx_areas": [secret],
+    }), encoding="utf-8")
+    now = runs / "shop.test_20260102_100000"
+    now.mkdir()
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.index_run(now.name, "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    tenancy.index_run(theirs.name, "t2", source="https://shop.test", verdict=secret, db_path=db)
+    trends = trends_for(
+        {"run_dir": str(now), "site_key": ""}, "pass", [], [])
+    assert secret not in json.dumps(trends)

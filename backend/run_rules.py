@@ -44,6 +44,9 @@ ORDER = (
 
 
 def _read(path: Path):
+    path = Path(path)
+    if path.is_symlink() or path.parent.is_symlink():
+        return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -51,14 +54,20 @@ def _read(path: Path):
 
 
 def _store(run_dir: Path, name: str, payload: dict) -> None:
+    run_dir = Path(run_dir)
+    live = run_dir / "qx_live.json"
+    one = run_dir / f"qx_{name}.json"
+    if (run_dir.is_symlink() or live.is_symlink() or one.is_symlink()
+            or not name or Path(name).is_absolute() or ".." in Path(name).parts):
+        return
     run_dir.mkdir(parents=True, exist_ok=True)
-    current = _read(run_dir / "qx_live.json")
+    current = _read(live)
     if not isinstance(current, dict):
         current = {}
     current["order"] = list(ORDER)
     current[name] = payload
-    (run_dir / "qx_live.json").write_text(json.dumps(current, indent=2), encoding="utf-8")
-    (run_dir / f"qx_{name}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    live.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    one.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def priority_urls(site_key: str) -> list[str]:
@@ -330,8 +339,11 @@ def trends_for(state: dict, verdict: str, failures: list[dict],
     runs = [{"verdict": verdict, "failures": areas, "flaky": flaky_now}]
     parent = run_dir.parent
     if parent.is_dir():
+        from .agents.change_detection import tenant_owns_run
         for path in sorted(parent.glob("*/summary.json")):
-            if path.parent == run_dir:
+            if path.parent == run_dir or path.is_symlink() or path.parent.is_symlink():
+                continue
+            if not tenant_owns_run(path.parent.name):
                 continue
             summary = _read(path)
             if isinstance(summary, dict) and isinstance(summary.get("qx_areas"), list):
@@ -344,10 +356,11 @@ def trends_for(state: dict, verdict: str, failures: list[dict],
     if site and trends["next_priority"]:
         from .my_tests import baseline_folder, baseline_is_linked
         folder = baseline_folder(site)
-        if baseline_is_linked(folder):
+        dest = folder / "next_priority.json"
+        if baseline_is_linked(folder) or dest.is_symlink():
             return trends
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "next_priority.json").write_text(
+        dest.write_text(
             json.dumps({"next_priority": trends["next_priority"]}, indent=2), encoding="utf-8")
     return trends
 
