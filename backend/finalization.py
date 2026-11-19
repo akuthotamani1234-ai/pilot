@@ -48,13 +48,26 @@ def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
     return True
 
 
+def private_file(run_dir: Path, name: str) -> Path | None:
+    """A real file in this run's private folder. A link, or a name that leaves it, is refused."""
+    run_dir = Path(run_dir)
+    if not name or Path(name).is_absolute() or "/" in name or "\\" in name or name in {".", ".."}:
+        return None
+    private = run_dir / ".private"
+    if run_dir.is_symlink() or private.is_symlink():
+        return None
+    private.mkdir(exist_ok=True)
+    path = private / name
+    if path.is_symlink():
+        return None
+    return path
+
+
 def save_login_state(run_dir: Path, write) -> bool:
     """Save this run's login. A linked private folder or auth file is not written."""
-    private = Path(run_dir) / ".private"
-    auth_path = private / "auth.json"
-    if Path(run_dir).is_symlink() or private.is_symlink() or auth_path.is_symlink():
+    auth_path = private_file(run_dir, "auth.json")
+    if auth_path is None:
         return False
-    private.mkdir(exist_ok=True)
     write(str(auth_path))
     return True
 

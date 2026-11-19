@@ -256,6 +256,36 @@ def test_a_test_result_does_not_follow_a_link_into_another_run(tmp_path):
     assert written == [str(own / ".private" / "auth.json")]
 
 
+def test_a_saved_login_does_not_follow_a_link_into_another_run(tmp_path):
+    from backend.finalization import private_file, save_login_state
+
+    secret = "tenant-b-only-login"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "auth_admin.json").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    assert private_file(run, "auth_admin.json") is None
+    assert private_file(run, "auth.json") is None
+    assert save_login_state(run, lambda path: Path(path).write_text("ours", encoding="utf-8")) is False
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "auth_admin.json").read_text(encoding="utf-8") == secret
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / ".private").mkdir()
+    (own / ".private" / "auth_admin.json").symlink_to(other / "auth_admin.json")
+    assert private_file(own, "auth_admin.json") is None
+    assert (other / "auth_admin.json").read_text(encoding="utf-8") == secret
+    saved = private_file(own, "auth.json")
+    assert saved == own / ".private" / "auth.json"
+    saved.write_text("ours", encoding="utf-8")
+    assert saved.read_text(encoding="utf-8") == "ours"
+    assert private_file(own, "../auth.json") is None
+
+
 def test_a_generated_test_cannot_read_through_a_link_out_of_its_run(tmp_path, monkeypatch):
     import ast
     import os

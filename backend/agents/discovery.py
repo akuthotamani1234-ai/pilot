@@ -3278,8 +3278,10 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
                 print(f"  [discovery] role '{a['role']}': could not sign in ({res['outcome']})", flush=True)
                 continue
             safe = re.sub(r"[^A-Za-z0-9_-]", "_", a["role"])
-            (run_dir / PRIVATE).mkdir(exist_ok=True)
-            ctx.storage_state(path=str(run_dir / PRIVATE / f"auth_{safe}.json"))
+            from ..finalization import private_file
+            auth_path = private_file(run_dir, f"auth_{safe}.json")
+            if auth_path is not None:
+                ctx.storage_state(path=str(auth_path))
             seen = {}
             for p in blocked:
                 seen[p["url"]] = {"access": "blocked", "status": None, "to": ""}
@@ -3314,7 +3316,8 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
                     p.setdefault("roles", {})[a["role"]] = access
                 except Exception as e:
                     seen[p["url"]] = {"access": "error", "error": str(e).splitlines()[0][:120]}
-            out[a["role"]] = {"login": "success", "state": f"auth_{safe}.json", "pages": seen}
+            out[a["role"]] = {"login": "success", "state": auth_path.name if auth_path is not None else "",
+                              "pages": seen}
             n_ok = sum(1 for v in seen.values() if v["access"] == "ok")
             print(f"  [discovery] role '{a['role']}': may open {n_ok} of {len(seen)} page(s) behind the login", flush=True)
         except Exception as e:
@@ -3353,8 +3356,11 @@ def restore_login(state: QAState) -> str:
             _tab, res = log_in(context, login["page"], form, name, account["password"], scope)
             if not res["logged_in"]:
                 return f"Resume: signing in again did not work ({res['outcome']}) - the tests start logged out."
-            (run_dir / PRIVATE).mkdir(exist_ok=True)
-            context.storage_state(path=str(run_dir / PRIVATE / "auth.json"))
+            from ..finalization import private_file
+            auth_path = private_file(run_dir, "auth.json")
+            if auth_path is None:
+                return "Resume: the saved login is a link, so it was not written."
+            context.storage_state(path=str(auth_path))
         finally:
             browser.close()
     return "Resume: signed in again with the test account (the saved login is deleted when the run ends)."
