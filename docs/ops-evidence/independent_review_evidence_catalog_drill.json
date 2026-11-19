@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T05:48:44Z",
+  "ran_at": "2026-11-19T05:52:56Z",
   "signed_off": false,
   "entries": [
     {
@@ -69,7 +69,7 @@
     },
     {
       "name": "android_device_ci_readiness_pack_drill.json",
-      "bytes": 2262,
+      "bytes": 2396,
       "gates": [
         "gate_d"
       ]
@@ -132,7 +132,7 @@
     },
     {
       "name": "browser_portfolio_ci_readiness_pack_drill.json",
-      "bytes": 2417,
+      "bytes": 2551,
       "gates": [
         "gate_f"
       ]
@@ -318,6 +318,13 @@
       ]
     },
     {
+      "name": "hosted_ci_cache_key_contract_drill.json",
+      "bytes": 1821,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
       "name": "hosted_ci_concurrency_contract_drill.json",
       "bytes": 1295,
       "gates": [
@@ -452,7 +459,7 @@
     },
     {
       "name": "hosted_runner_readiness_drill.json",
-      "bytes": 4673,
+      "bytes": 4961,
       "gates": [
         "gate_d"
       ]
@@ -501,7 +508,14 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 20104,
+      "bytes": 21630,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_evidence_retention_contract_drill.json",
+      "bytes": 1211,
       "gates": [
         "gate_g"
       ]
@@ -892,6 +906,13 @@
       ]
     },
     {
+      "name": "production_healing_escalation_ladder_drill.json",
+      "bytes": 1732,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "production_healing_fixture_coverage_drill.json",
       "bytes": 2663,
       "gates": [
@@ -921,7 +942,7 @@
     },
     {
       "name": "production_healing_readiness_drill.json",
-      "bytes": 2442,
+      "bytes": 2589,
       "gates": [
         "gate_e"
       ]
@@ -1014,7 +1035,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 13153,
+      "bytes": 13613,
       "gates": [
         "gate_g"
       ]
@@ -1140,20 +1161,20 @@
       ]
     }
   ],
-  "entry_count": 161,
+  "entry_count": 164,
   "by_gate": {
-    "gate_g": 22,
+    "gate_g": 23,
     "gate_f": 10,
     "gate_c": 6,
     "gate_d": 16,
-    "untagged": 31,
+    "untagged": 32,
     "gate_j": 4,
     "gate_b": 6,
     "gate_i": 25,
-    "gate_e": 19,
+    "gate_e": 20,
     "gate_h": 24,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 161 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 164 files; signed_off remains False until external review"
 }

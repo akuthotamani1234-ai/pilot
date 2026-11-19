@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T05:48:47Z",
+  "ran_at": "2026-11-19T05:52:56Z",
   "ok": true,
   "blockers": [
     {
@@ -133,6 +133,7 @@
         "production_healing_rollback_policy_drill.json",
         "production_healing_human_loop_contract_drill.json",
         "production_healing_budget_contract_drill.json",
+        "production_healing_escalation_ladder_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
@@ -153,6 +154,7 @@
         "production_healing_rollback_policy_drill.json",
         "production_healing_human_loop_contract_drill.json",
         "production_healing_budget_contract_drill.json",
+        "production_healing_escalation_ladder_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []
@@ -180,7 +182,8 @@
         "hosted_ci_permissions_contract_drill.json",
         "hosted_ci_timeout_budget_drill.json",
         "hosted_ci_concurrency_contract_drill.json",
-        "hosted_runner_os_matrix_contract_drill.json"
+        "hosted_runner_os_matrix_contract_drill.json",
+        "hosted_ci_cache_key_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -202,7 +205,8 @@
         "hosted_ci_permissions_contract_drill.json",
         "hosted_ci_timeout_budget_drill.json",
         "hosted_ci_concurrency_contract_drill.json",
-        "hosted_runner_os_matrix_contract_drill.json"
+        "hosted_runner_os_matrix_contract_drill.json",
+        "hosted_ci_cache_key_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -226,7 +230,8 @@
         "hosted_ci_permissions_contract_drill.json",
         "hosted_ci_timeout_budget_drill.json",
         "hosted_ci_concurrency_contract_drill.json",
-        "hosted_runner_os_matrix_contract_drill.json"
+        "hosted_runner_os_matrix_contract_drill.json",
+        "hosted_ci_cache_key_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -245,7 +250,8 @@
         "hosted_ci_permissions_contract_drill.json",
         "hosted_ci_timeout_budget_drill.json",
         "hosted_ci_concurrency_contract_drill.json",
-        "hosted_runner_os_matrix_contract_drill.json"
+        "hosted_runner_os_matrix_contract_drill.json",
+        "hosted_ci_cache_key_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -271,6 +277,7 @@
         "independent_reviewer_roster_contract_drill.json",
         "independent_review_findings_freeze_drill.json",
         "independent_review_window_contract_drill.json",
+        "independent_review_evidence_retention_contract_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md",
         "INDEPENDENT_REVIEW_FINDINGS.md"
@@ -294,6 +301,7 @@
         "independent_reviewer_roster_contract_drill.json",
         "independent_review_findings_freeze_drill.json",
         "independent_review_window_contract_drill.json",
+        "independent_review_evidence_retention_contract_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md",
         "INDEPENDENT_REVIEW_FINDINGS.md"

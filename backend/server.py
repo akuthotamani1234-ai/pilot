@@ -2479,6 +2479,58 @@ def ops_hosted_runner_os_matrix_contract():
     }
 
 
+@app.post("/api/ops/drills/production-healing-escalation-ladder")
+def ops_production_healing_escalation_ladder():
+    """Gate E: healing escalation ladder (production suite still open)."""
+    from backend.production_healing_escalation_ladder_drill import (
+        run_production_healing_escalation_ladder_drill,
+    )
+    evidence = run_production_healing_escalation_ladder_drill()
+    _audit(
+        "ops_production_healing_escalation_ladder",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_escalation_ladder": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-cache-key-contract")
+def ops_hosted_ci_cache_key_contract():
+    """Gates D/F: CI cache-key contract (hosted runners still open)."""
+    from backend.hosted_ci_cache_key_contract_drill import (
+        run_hosted_ci_cache_key_contract_drill,
+    )
+    evidence = run_hosted_ci_cache_key_contract_drill()
+    _audit(
+        "ops_hosted_ci_cache_key_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_cache_key_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/independent-review-evidence-retention")
+def ops_independent_review_evidence_retention():
+    """Gate G: evidence retention contract (unsigned)."""
+    from backend.independent_review_evidence_retention_contract_drill import (
+        run_independent_review_evidence_retention_contract_drill,
+    )
+    evidence = run_independent_review_evidence_retention_contract_drill()
+    _audit(
+        "ops_independent_review_evidence_retention",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {
+        "gate_g_complete": False,
+        "independent_review_evidence_retention": evidence,
+    }
+
+
 @app.post("/api/ops/drills/hosted-idp-redirect-uri-allowlist")
 def ops_hosted_idp_redirect_uri_allowlist():
     """Gate I: redirect URI allowlist contract (hosted SSO still open)."""

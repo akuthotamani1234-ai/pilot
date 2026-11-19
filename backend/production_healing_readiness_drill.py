@@ -29,6 +29,7 @@ CHECKS = (
     ("production_healing_rollback_policy_drill.json", "Rollback / no-apply policy"),
     ("production_healing_human_loop_contract_drill.json", "Human-in-the-loop contract"),
     ("production_healing_budget_contract_drill.json", "Suite budget contract"),
+    ("production_healing_escalation_ladder_drill.json", "Escalation ladder contract"),
 )
 
 
