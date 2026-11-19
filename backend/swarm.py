@@ -165,6 +165,43 @@ def landed_on_payment(found) -> bool:
     return is_payment_url(str(found.get("final_url") or ""))
 
 
+def _payment_block(url: str, final: str) -> dict:
+    return {
+        "url": url,
+        "final_url": final,
+        "status": "blocked",
+        "summary": "checkout, payment and placing an order are never tested",
+    }
+
+
+def open_guarded(page, address: str, *, timeout: int = 20000):
+    """Open one worker page. A checkout document, including after a redirect, is not loaded."""
+    from urllib.parse import urljoin
+
+    if is_payment_url(address):
+        return None, _payment_block(address, address)
+    current = address
+    for _hop in range(5):
+        if is_payment_url(current):
+            return None, _payment_block(address, current)
+        probe = page.request.get(current, max_redirects=0, timeout=timeout)
+        if probe.status not in {301, 302, 303, 307, 308}:
+            break
+        nxt = urljoin(current, probe.headers.get("location") or "")
+        if is_payment_url(nxt):
+            return None, _payment_block(address, nxt)
+        current = nxt
+    else:
+        return None, _payment_block(address, current)
+    if is_payment_url(current):
+        return None, _payment_block(address, current)
+    response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
+    final = page.url or current
+    if is_payment_url(final):
+        return None, _payment_block(address, final)
+    return response, None
+
+
 def perform(assignments: list[dict], open_page, *, on_status=None, session=None) -> list[dict]:
     """Each worker opens its own pages, then finishes. Workers run at the same time.
 
