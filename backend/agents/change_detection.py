@@ -254,8 +254,10 @@ def change_detection_agent(state: QAState) -> QAState:
             })
     saved_pages = [{"url": url, "template": "same", "status": "ok"} for url in unchanged_urls]
     changes["incremental"] = plan_pages(saved_pages, current_pages, fresh=not settings.incremental)
-    out = Path(state["run_dir"]) / "changes.json"
-    if Path(state["run_dir"]).is_symlink() or out.is_symlink():
+    from ..finalization import folder_is_linked
+    run_dir = Path(state["run_dir"])
+    out = run_dir / "changes.json"
+    if folder_is_linked(run_dir) or out.is_symlink():
         msg = (msg + " The changes file is a link, so it was not written.").strip()
     else:
         out.write_text(json.dumps(changes, indent=2), encoding="utf-8")
@@ -268,10 +270,11 @@ def save_baseline_agent(state: QAState) -> QAState:
     if not ok_pages:
         return {"log": state.get("log", []) + ["Baseline: not updated (no pages loaded this run)."]}
     run_dir = Path(state["run_dir"])
+    from ..finalization import folder_is_linked
     from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
     writes = [bdir / name for name in ("tests", "app_map.json", "open_questions.json", "test_cases.json", "meta.json")]
-    if any(baseline_is_linked(path) for path in (bdir, *writes)):
+    if folder_is_linked(run_dir) or any(baseline_is_linked(path) for path in (bdir, *writes)):
         return {"log": state.get("log", []) + ["Baseline: not updated (the folder is a link)."]}
     tests_dir = bdir / "tests"
     if tests_dir.is_dir() and not tests_dir.is_symlink():

@@ -630,6 +630,49 @@ def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tm
     assert saved.read_text(encoding="utf-8") == secret
 
 
+def test_a_changes_file_does_not_follow_a_link_into_another_folder(monkeypatch, tmp_path):
+    from backend.agents.change_detection import change_detection_agent, save_baseline_agent
+    from backend.config import settings
+
+    secret = b"tenant-b-only-changes"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "changes.json").write_bytes(secret)
+    (nested / "generated_tests").mkdir()
+    (nested / "generated_tests" / "test_keep.py").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    state = {
+        "app_map": [{"url": "https://shop.test/", "status": 200, "slug": "home", "title": "Home"}],
+        "run_dir": str(linked / "run"), "site_key": "shop.test", "url": "https://shop.test/",
+        "source": "https://shop.test/", "run_id": "linked", "failures": [], "test_cases": [], "log": [],
+    }
+    refused = change_detection_agent(state)
+    assert "link" in refused["log"][-1]
+    skipped = save_baseline_agent(state)
+    assert "link" in skipped["log"][-1]
+    assert (nested / "changes.json").read_bytes() == secret
+    assert not (tmp_path / "baseline" / "shop.test").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "generated_tests" / "test_home.py").write_text("def test_home():\n    assert True\n", encoding="utf-8")
+    own = change_detection_agent({**state, "run_dir": str(real), "run_id": "real"})
+    written = (real / "changes.json").read_bytes()
+    assert b"https://shop.test/" in written and secret not in written
+    assert own["changes"]["first_run"] is True
+    kept = save_baseline_agent({**state, "run_dir": str(real), "run_id": "real"})
+    assert "saved to" in kept["log"][-1]
+    saved_test = tmp_path / "baseline" / "shop.test" / "tests" / "test_home.py"
+    assert saved_test.is_file() and secret not in saved_test.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_saving_a_baseline_does_not_follow_a_link_into_another_tenant(monkeypatch, tmp_path):
     import json
 
