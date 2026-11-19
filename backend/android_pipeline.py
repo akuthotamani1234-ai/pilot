@@ -1091,9 +1091,9 @@ def _run_mobile_process(command, env, timeout):
 
 def _cleanup_worker_session(run_dir, config):
     """Close only this run's recorded session, including after forced worker termination."""
-    session_file = run_dir / ".private" / "active_appium_session.json"
-    if (Path(run_dir).is_symlink() or (Path(run_dir) / ".private").is_symlink()
-            or session_file.is_symlink() or not session_file.is_file()):
+    session_file = Path(run_dir) / ".private" / "active_appium_session.json"
+    if (_folder_is_linked(session_file.parent) or session_file.is_symlink()
+            or not session_file.is_file()):
         return ""
     try:
         session_id = json.loads(session_file.read_text(encoding="utf-8"))["session_id"]
