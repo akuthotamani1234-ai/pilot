@@ -1514,6 +1514,14 @@ def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool
     return True
 
 
+def record_created(run_dir: Path, what: str, tag: str, where: str) -> bool:
+    """Append one record the crawl created. A linked run or file is left untouched."""
+    from ..finalization import append_text_unless_linked
+    line = json.dumps({"what": what, "tag": tag, "where": where, "status": "created",
+                       "time": time.time(), "by": "exploring"}) + "\n"
+    return append_text_unless_linked(Path(run_dir) / "created.jsonl", line)
+
+
 def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
     """Write this run's API spec. A missing baseline spec is not invented."""
     if operations is None:
@@ -1972,9 +1980,7 @@ def discovery_agent(state: QAState) -> QAState:
     MAX_NOT_APP = 10  # after this many, stop checking outside links (keeps the crawl quick)
     # learns what each control does (observe -> act -> verify -> expand); shared controls are learned once
     def created(what: str, tag: str, where: str) -> None:  # (a form exploring SENT - staging: for the cleanup)
-        with (run_dir / "created.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"what": what, "tag": tag, "where": where, "status": "created", "time": time.time(),
-                                 "by": "exploring"}) + "\n")
+        record_created(run_dir, what, tag, where)
     explorer = Explorer(EXTRACT_JS, _settle, crawl_started + crawl_budget_min * 60,
                         tag_base=re.sub(r"\D", "", run_dir.name)[-6:] or "run", on_created=created)
     # the AI looks at each page's screenshot while the crawl goes on (2 at a time): what it saw is tried too

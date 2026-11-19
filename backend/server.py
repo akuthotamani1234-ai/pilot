@@ -227,9 +227,9 @@ async def local_only(request: Request, call_next):
 def _audit(action: str, **details) -> None:
     """Consequential actions -> logs/audit.jsonl + Gate G SQLite audit_events (no secrets)."""
     try:
-        AUDIT.parent.mkdir(exist_ok=True)
-        with AUDIT.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": action, **details}) + "\n")
+        from backend.finalization import append_text_unless_linked
+        append_text_unless_linked(
+            AUDIT, json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": action, **details}) + "\n")
     except OSError:
         pass
     try:

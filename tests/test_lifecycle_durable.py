@@ -76,3 +76,153 @@ def test_created_jsonl_delete_refuses_uncleared_records(tmp_path):
     assert out["complete"] is False
     assert out["failed"][0]["reason"].startswith("created.jsonl still created")
     save_lifecycle(tmp_path, life)
+
+
+def test_a_live_log_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import os
+
+    from backend import server
+    from backend.agents.discovery import record_created
+    from backend.android_dynamic import note, reset_notes, set_progress_log
+    from backend.android_events import Timeline
+    from backend.jscov import append, summary
+    from backend.scheduling import record_phase
+
+    secret = "tenant-b-only-live"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "jscov").mkdir()
+    files = {
+        "created.jsonl": secret + "\n",
+        "phase_timings.jsonl": secret + "\n",
+        "progress.log": secret + "\n",
+        "audit.jsonl": secret + "\n",
+        "android_results.jsonl": secret + "\n",
+        "jscov.json": json.dumps({"secret": secret}),
+    }
+    for name, text in files.items():
+        (other / name).write_text(text, encoding="utf-8")
+    (other / "jscov" / "crawl.jsonl").write_text(secret + "\n", encoding="utf-8")
+    event_name = f"events.android-{os.getpid()}.jsonl"
+    (other / event_name).write_text(secret + "\n", encoding="utf-8")
+    monkeypatch.setattr("backend.audit_store.record_audit", lambda **_k: {})
+    monkeypatch.setenv("PYTEST_XDIST_WORKER", "main")
+
+    def unchanged():
+        for name, text in files.items():
+            assert (other / name).read_text(encoding="utf-8") == text
+        assert (other / "jscov" / "crawl.jsonl").read_text(encoding="utf-8") == secret + "\n"
+        assert (other / event_name).read_text(encoding="utf-8") == secret + "\n"
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert record_created(linked, "order", "tag", "/orders") is False
+    append(linked, "crawl", {"https://shop.example/app.js": {"length": 4, "covered": [[0, 1]]}})
+    record_phase(linked, "discovery", 0, "done")
+    reset_notes()
+    set_progress_log(linked / "progress.log")
+    note("started the crawl")
+    timeline = Timeline(linked, {"id": "c1", "title": "Catalog"})
+    timeline.emit("info", "pressed")
+    timeline.close()
+    monkeypatch.setattr(server, "AUDIT", linked / "audit.jsonl")
+    server._audit("start_test", run="linked")
+    assert summary(linked, "shop.example") is None
+    unchanged()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    for name in ("created.jsonl", "phase_timings.jsonl", "progress.log", "jscov.json", "android_results.jsonl"):
+        (real / name).symlink_to(other / name)
+    (real / "jscov").symlink_to(other / "jscov", target_is_directory=True)
+    (real / event_name).symlink_to(other / event_name)
+    assert record_created(real, "order", "tag", "/orders") is False
+    append(real, "crawl", {"https://shop.example/app.js": {"length": 4, "covered": [[0, 1]]}})
+    append(real, "../created", {"left": True})
+    record_phase(real, "discovery", 0, "done")
+    set_progress_log(real / "progress.log")
+    note("another line")
+    assert summary(real, "shop.example") is None
+    timeline = Timeline(real, {"id": "c1", "title": "Catalog"})
+    timeline.emit("info", "pressed")
+    timeline.close()
+    _append = _load_append()
+    _append(real, "android_results.jsonl", {"id": "c1"})
+    _save = _load_cov_save()
+    _save(real, _coverage())
+    unchanged()
+
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    assert record_created(fresh, "order", "qa-1", "/orders") is True
+    assert "qa-1" in (fresh / "created.jsonl").read_text(encoding="utf-8")
+    append(fresh, "crawl", {"https://shop.example/app.js": {"length": 4, "covered": [[0, 1]]}})
+    saved = (fresh / "jscov" / "crawl.jsonl").read_text(encoding="utf-8")
+    assert "shop.example" in saved and secret not in saved
+    record_phase(fresh, "discovery", 0, "done")
+    assert "discovery" in (fresh / "phase_timings.jsonl").read_text(encoding="utf-8")
+    set_progress_log(fresh / "progress.log")
+    note("fresh line")
+    assert "fresh line" in (fresh / "progress.log").read_text(encoding="utf-8")
+    timeline = Timeline(fresh, {"id": "c1", "title": "Catalog"})
+    timeline.emit("info", "pressed catalog")
+    timeline.close()
+    event = next(fresh.glob("events.android-*.jsonl"))
+    assert event.is_file() and not event.is_symlink()
+    assert "pressed catalog" in event.read_text(encoding="utf-8")
+    assert secret not in event.read_text(encoding="utf-8")
+    monkeypatch.setattr(server, "AUDIT", fresh / "audit.jsonl")
+    server._audit("start_test", run="fresh")
+    assert "start_test" in (fresh / "audit.jsonl").read_text(encoding="utf-8")
+    assert secret not in (fresh / "audit.jsonl").read_text(encoding="utf-8")
+    _append(fresh, "android_results.jsonl", {"id": "kept"})
+    assert "kept" in (fresh / "android_results.jsonl").read_text(encoding="utf-8")
+    _save(fresh, _coverage())
+    coverage = (fresh / "jscov" / "tests_main.jsonl").read_text(encoding="utf-8")
+    assert "shop.example" in coverage and secret not in coverage
+
+
+def _coverage():
+    class _CDP:
+        def send(self, method):
+            if method == "Profiler.takePreciseCoverage":
+                return {"result": [{"url": "https://shop.example/app.js", "functions": [
+                    {"ranges": [{"startOffset": 0, "endOffset": 4, "count": 1}]}]}]}
+            return {}
+
+        def detach(self):
+            return None
+
+    return _CDP()
+
+
+def _load_append():
+    import ast
+    from pathlib import Path
+    tree = ast.parse(Path("backend/templates/android_conftest.py").read_text(encoding="utf-8"))
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_append")
+    ns = {"json": json, "redact": lambda text: text}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "android_conftest.py", "exec"), ns)
+
+    def append(run, name, record):
+        ns["RUN"] = run
+        ns["_append"](name, record)
+
+    return append
+
+
+def _load_cov_save():
+    import ast
+    import os
+    from pathlib import Path
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_cov_save"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    ns = {"Path": Path, "json": json, "os": os}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "conftest.py", "exec"), ns)
+
+    def save(run, cdp):
+        ns["RUN_DIR"] = run
+        ns["_cov_save"](cdp)
+
+    return save
