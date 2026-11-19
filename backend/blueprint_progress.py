@@ -404,6 +404,7 @@ def progress() -> dict:
         {"id": "G-state-binding-link", "label": "A state check does not follow a link into another folder", "status": "done"},
         {"id": "G-token-expiry-link", "label": "A token-expiry check does not follow a link into another folder", "status": "done"},
         {"id": "G-audience-binding-link", "label": "An audience check does not follow a link into another folder", "status": "done"},
+        {"id": "G-login-path-link", "label": "A login path does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
