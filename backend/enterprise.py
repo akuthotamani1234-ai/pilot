@@ -47,8 +47,12 @@ def readiness() -> dict:
     swarm_control_evidence = ROOT / "docs" / "ops-evidence" / "swarm_control_drill.json"
     swarm_retry_evidence = ROOT / "docs" / "ops-evidence" / "swarm_retry_drill.json"
 
+    def _evidence_file(path: Path) -> bool:
+        from .finalization import folder_is_linked
+        return path.is_file() and not folder_is_linked(path)
+
     def _evidence_ok(path: Path) -> bool:
-        if not path.is_file():
+        if not _evidence_file(path):
             return False
         try:
             import json
@@ -57,14 +61,14 @@ def readiness() -> dict:
             return False
 
     pg_live = bool(postgres) and _evidence_ok(pg_evidence)
-    pg_tenancy_live = bool(postgres) and pg_tenancy_evidence.is_file()
+    pg_tenancy_live = bool(postgres) and _evidence_file(pg_tenancy_evidence)
     redis_live = bool(redis) and (
         _evidence_ok(redis_queue_evidence) or _evidence_ok(redis_evidence) or bool(redis_queue.get("ready"))
     )
     minio_live = bool(object_uri) and _evidence_ok(minio_evidence)
-    api_version_ready = api_version_evidence.is_file()
-    swarm_control_ready = swarm_control_evidence.is_file()
-    swarm_retry_ready = swarm_retry_evidence.is_file()
+    api_version_ready = _evidence_file(api_version_evidence)
+    swarm_control_ready = _evidence_file(swarm_control_evidence)
+    swarm_retry_ready = _evidence_file(swarm_retry_evidence)
     components = {
         "postgres": {
             "configured": bool(postgres),
