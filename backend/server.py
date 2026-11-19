@@ -2445,6 +2445,40 @@ def ops_independent_review_window_contract():
     return {"gate_g_complete": False, "independent_review_window_contract": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-budget-contract")
+def ops_production_healing_budget_contract():
+    """Gate E: healing suite budget contract (production suite still open)."""
+    from backend.production_healing_budget_contract_drill import (
+        run_production_healing_budget_contract_drill,
+    )
+    evidence = run_production_healing_budget_contract_drill()
+    _audit(
+        "ops_production_healing_budget_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_budget_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-runner-os-matrix-contract")
+def ops_hosted_runner_os_matrix_contract():
+    """Gates D/F: runner OS matrix contract (hosted runners still open)."""
+    from backend.hosted_runner_os_matrix_contract_drill import (
+        run_hosted_runner_os_matrix_contract_drill,
+    )
+    evidence = run_hosted_runner_os_matrix_contract_drill()
+    _audit(
+        "ops_hosted_runner_os_matrix_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_os_matrix_contract": evidence,
+    }
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

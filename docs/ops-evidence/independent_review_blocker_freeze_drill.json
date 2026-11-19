@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:45:41Z",
+  "ran_at": "2026-11-19T05:47:07Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -27,7 +27,7 @@
         "gate": "E",
         "label": "Production failure matrix / healing suite",
         "status": "open",
-        "local_partial_count": 16,
+        "local_partial_count": 17,
         "local_partial_missing": []
       },
       {
@@ -35,7 +35,7 @@
         "gate": "D",
         "label": "Broad multi-device CI Appium product-matrix artifacts",
         "status": "open",
-        "local_partial_count": 18,
+        "local_partial_count": 19,
         "local_partial_missing": []
       },
       {
@@ -43,7 +43,7 @@
         "gate": "F",
         "label": "Broad hosted multi-browser portfolio CI artifacts",
         "status": "open",
-        "local_partial_count": 15,
+        "local_partial_count": 16,
         "local_partial_missing": []
       },
       {
@@ -56,8 +56,8 @@
       }
     ]
   },
-  "freeze_sha256": "47523154188d8f72f0dc8c67ff40fef4160d64a9557675917544150d887f017f",
+  "freeze_sha256": "adf222254bf2e92f770093cdd3b69e03804c32224d824ff315c23ee11d2a533f",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze 47523154188d\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze adf222254bf2\u2026 (6 open); external sign-off still open"
 }

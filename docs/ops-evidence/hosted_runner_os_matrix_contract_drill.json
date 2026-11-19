@@ -1,0 +1,37 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_runner_os_matrix_contract",
+  "ran_at": "2026-11-19T05:47:07Z",
+  "kind": "contract_only",
+  "desired_matrix": {
+    "android": [
+      "ubuntu-latest (KVM-capable preferred)"
+    ],
+    "browsers": [
+      "ubuntu-latest"
+    ],
+    "note": "Broad multi-device/browser hosted runners still open"
+  },
+  "android": {
+    "path": ".github/workflows/android-appium.yml",
+    "runs_on": [
+      "ubuntu-latest"
+    ],
+    "expected_substring": "ubuntu",
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "browsers": {
+    "path": ".github/workflows/multi-browser-portfolios.yml",
+    "runs_on": [
+      "ubuntu-latest"
+    ],
+    "expected_substring": "ubuntu",
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Hosted runner OS matrix contract recorded (ubuntu workflows); broad hosted multi-device/browser runners still open"
+}

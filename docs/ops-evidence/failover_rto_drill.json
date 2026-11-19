@@ -1,34 +1,34 @@
 {
   "gate_h_complete": false,
   "drill": "failover_rto",
-  "ran_at": "2026-11-19T05:41:04Z",
+  "ran_at": "2026-11-19T05:46:08Z",
   "local_rto_budget_ms": 120000,
   "stores": [
     {
       "store": "postgres",
       "ok": true,
-      "elapsed_ms": 459,
+      "elapsed_ms": 460,
       "within_budget": true,
       "reason": "Local dual-region Postgres failover rehearsal ok (qpilot_region_a\u2192qpilot_region_b); hosted multi-region DR / on-call still open"
     },
     {
       "store": "minio",
       "ok": true,
-      "elapsed_ms": 20,
+      "elapsed_ms": 73,
       "within_budget": true,
       "reason": "Local MinIO dual-bucket failover (region-a\u2192region-b) verified; hosted multi-region object DR still open"
     },
     {
       "store": "redis",
       "ok": true,
-      "elapsed_ms": 28,
+      "elapsed_ms": 27,
       "within_budget": true,
       "reason": "Local Redis dual-DB failover (db0\u2192db1) verified; hosted Redis multi-region / sentinel still open"
     }
   ],
   "passed": 3,
   "total": 3,
-  "total_elapsed_ms": 507,
+  "total_elapsed_ms": 560,
   "ok": true,
-  "reason": "Local failover RTO 3/3 stores (budget=120000ms, total=507ms); hosted multi-region DR / on-call still open"
+  "reason": "Local failover RTO 3/3 stores (budget=120000ms, total=560ms); hosted multi-region DR / on-call still open"
 }

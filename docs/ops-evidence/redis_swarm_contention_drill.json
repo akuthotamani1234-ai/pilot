@@ -1,17 +1,17 @@
 {
   "gate_b_complete": false,
   "drill": "redis_swarm_contention",
-  "ran_at": "2026-11-18T23:55:15Z",
+  "ran_at": "2026-11-19T05:46:08Z",
   "backend": "redis",
   "redis_url_set": true,
-  "run_id": "swarm-contention-1795046115",
+  "run_id": "swarm-contention-1795067167",
   "claimed_a": [
-    "f2fa77171e7f4ccfb69811a97956ec8d",
-    "855acfc2633947718b14aab06cac6e43"
+    "106f40370ee54ff295587f9503f1c5e3",
+    "a2353757bc684734a938a02ebdd525f9"
   ],
   "claimed_b": [
-    "1dbc46f49eab44c7a64c0867d01825d2",
-    "d8205a7ebce844139631ca38af1ede12"
+    "0093912920ee47fda9765a498bb8bf5c",
+    "bb15b2bac7d7471ab86830f3f73831cc"
   ],
   "overlap": [],
   "total_claimed": 4,

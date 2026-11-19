@@ -1,10 +1,10 @@
 {
   "gate_d_complete": false,
   "drill": "android_device_ci_readiness_pack",
-  "ran_at": "2026-11-19T05:45:41Z",
+  "ran_at": "2026-11-19T05:47:07Z",
   "kind": "readiness_score_only",
-  "score": 13,
-  "score_of": 13,
+  "score": 14,
+  "score_of": 14,
   "checks": [
     {
       "artifact": "android_appium_product_matrix_drill.json",
@@ -70,9 +70,14 @@
       "artifact": "hosted_ci_concurrency_contract_drill.json",
       "label": "CI concurrency contract",
       "ready": true
+    },
+    {
+      "artifact": "hosted_runner_os_matrix_contract_drill.json",
+      "label": "Runner OS matrix contract",
+      "ready": true
     }
   ],
   "live_hosted_runners": false,
   "ok": true,
-  "reason": "Android device CI readiness 13/13; broad hosted multi-device Appium runners still open"
+  "reason": "Android device CI readiness 14/14; broad hosted multi-device Appium runners still open"
 }
