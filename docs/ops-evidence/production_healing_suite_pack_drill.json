@@ -1,0 +1,17 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_suite_pack",
+  "ran_at": "2026-11-19T03:30:04Z",
+  "kind": "local_ops_pack",
+  "parts": {
+    "readiness": true,
+    "flaky_policy": true,
+    "replay_pack": true,
+    "taxonomy": true,
+    "multi_app": true
+  },
+  "production_suite_executed": false,
+  "elapsed_ms": 11551,
+  "ok": true,
+  "reason": "Production healing suite pack ok in 11551ms; production / third-party healing suite still open"
+}

@@ -66,6 +66,7 @@ BLOCKERS = (
             "production_healing_replay_pack_drill.json",
             "production_healing_flaky_policy_drill.json",
             "production_healing_readiness_drill.json",
+            "production_healing_suite_pack_drill.json",
             "healing_regression_drill.json",
         ],
     },
