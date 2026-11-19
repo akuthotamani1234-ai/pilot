@@ -81,9 +81,14 @@ def _file_with(selector: str, test_dir: Path, failed_file: str) -> str | None:
 def _baseline_map(state: QAState) -> list[dict]:
     """The pages of the last run (the baseline) - where an old selector came from."""
     ch = state.get("changes") or {}
-    f = Path(ch["baseline_dir"], "app_map.json") if ch.get("baseline_dir") else None
+    if not ch.get("baseline_dir"):
+        return []
+    f = Path(ch["baseline_dir"], "app_map.json")
+    from ..finalization import folder_is_linked
+    if f.is_symlink() or folder_is_linked(f.parent):
+        return []
     try:
-        return json.loads(f.read_text(encoding="utf-8")) if f and f.exists() else []
+        return json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
     except (OSError, ValueError):
         return []
 
@@ -105,7 +110,8 @@ def _old_page(state: QAState, new_page: dict) -> dict | None:
     if not ch.get("baseline_dir"):
         return None
     f = Path(ch["baseline_dir"], "app_map.json")
-    if not f.exists():
+    from ..finalization import folder_is_linked
+    if f.is_symlink() or folder_is_linked(f.parent) or not f.exists():
         return None
     old_slug = ch.get("baseline_slug", {}).get(new_page["slug"])
     return next((p for p in json.loads(f.read_text(encoding="utf-8")) if p["slug"] == old_slug), None)
