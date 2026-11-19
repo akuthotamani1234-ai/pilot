@@ -2284,9 +2284,13 @@ def journeys_script(journeys: list[dict]) -> str:
 
 
 def site_script(pages: list[dict]) -> str:
-    """test_site.py: the small checks that run on EVERY page (opens, no JavaScript errors, pictures load)."""
+    """test_site.py: the small checks that run on EVERY page (opens, no JavaScript errors, pictures load).
+
+    A checkout or payment page is recorded by the crawl and is not opened again here.
+    """
+    from ..swarm import is_payment_url
     rows = [{"slug": _ident(p["slug"]), "url": p["url"], "guest": not p.get("auth"), "images": p.get("imageCount") or 0}
-            for p in pages]
+            for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
     return "\n".join([
         '"""Small checks for the whole website: every page opens, has no JavaScript errors, and its pictures load."""',
         "import pytest",

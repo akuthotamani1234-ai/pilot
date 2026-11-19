@@ -1310,6 +1310,8 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
         for s in sorted(start.get("sections", []), key=lambda s: not s.get("nav")):
             if not s.get("visible", True) or not s.get("text") or ("#" + s["section"]) in seen:
                 continue
+            if is_payment_url(s.get("href") or "") or is_payment_url((s.get("href") or "").split("#")[0]):
+                continue
             seen.add("#" + s["section"])
             links.append({"text": s["text"][:60], "href": s["href"], "section": s["section"],
                           "to": s["href"].split("#")[0], "name": "#" + s["section"]})
@@ -1348,14 +1350,23 @@ def section_links(pages: list[dict]) -> list[dict]:
 
 def small_checks(pages: list[dict], data: list[dict]) -> list[dict]:
     """The 5 small checks: each one runs on every page (or every link / every input box) of the site."""
-    n_links = len({l["href"].split("#")[0] for p in pages for l in p.get("links", []) if l["href"].startswith("http")})
+    hrefs = set()
+    for p in pages:
+        for link in p.get("links", []):
+            href = link["href"].split("#")[0]
+            if href.startswith("http") and not is_payment_url(href):
+                hrefs.add(href)
+    n_links = len(hrefs)
     n_sections = len(section_links(pages))
     boxes = len({c.get("field") for c in data})
-    with_images = [p for p in pages if p.get("imageCount")]
-    every = f"each of the {len(pages)} page(s)"
+    opened = [p for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
+    held = len(pages) - len(opened)
+    with_images = [p for p in opened if p.get("imageCount")]
+    every = f"each of the {len(opened)} page(s)"
+    held_note = f"; {held} checkout or payment page(s) stay recorded and are not opened" if held else ""
     data_files = sorted({f"test_{_ident(c['page'])}_data.py" for c in data})
     return [dict(c, size="small", page="all pages", url=pages[0]["url"]) for c in [
-        {"id": "site_pages_open", "title": f"Every page opens ({len(pages)} pages)", "type": "smoke",
+        {"id": "site_pages_open", "title": f"Every page opens ({len(opened)} pages){held_note}", "type": "smoke",
          "priority": "high", "steps": [f"Open {every}"], "expected": "Each page opens without an error and has a title",
          "files": ["test_site.py"], "tests": ["test_page_loads"]},
         {"id": "site_no_js_errors", "title": "No JavaScript errors on any page", "type": "smoke", "priority": "medium",

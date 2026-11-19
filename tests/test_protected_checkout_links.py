@@ -126,6 +126,27 @@ def test_a_menu_journey_does_not_open_a_checkout_step():
     assert [j["spec"]["form"] for j in forms] == ["#contact"]
 
 
+def test_the_every_page_check_does_not_open_checkout_again():
+    from backend.agents.script_generator import site_script
+    from backend.agents.test_design import small_checks
+    cart = {"url": "https://shop.example/index.php?rt=checkout/cart", "slug": "cart", "auth": False,
+            "title": "Cart", "imageCount": 1, "links": []}
+    checkout = {"url": "https://shop.example/index.php?rt=checkout/checkout", "slug": "pay", "auth": False,
+                "title": "Checkout", "imageCount": 2, "links": [
+                    {"href": "https://shop.example/index.php?rt=checkout/confirm", "text": "Continue"},
+                    {"href": "https://shop.example/index.php?rt=product/category", "text": "Shop"},
+                ]}
+    shop = {"url": "https://shop.example/index.php?rt=product/category", "slug": "shop", "auth": False,
+            "title": "Shop", "links": []}
+    code = site_script([cart, checkout, shop])
+    assert "checkout/cart" in code and "product/category" in code
+    assert "checkout/checkout" not in code
+    opened = next(c for c in small_checks([cart, checkout, shop], []) if c["id"] == "site_pages_open")
+    assert "2 pages" in opened["title"] and "1 checkout or payment page" in opened["title"]
+    links = next(c for c in small_checks([cart, checkout, shop], []) if c["id"] == "site_links")
+    assert "1 links" in links["title"]
+
+
 def test_checkout_addresses_are_not_opened_by_the_link_checks():
     from backend.agents.script_generator import all_links_script
     pages = [{
