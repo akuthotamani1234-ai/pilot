@@ -17,10 +17,25 @@ EVIDENCE = (
 )
 
 
+def _linked_redirect() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "studio_sso_redirect_allowlist_enforcement",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_studio_sso_redirect_allowlist_enforcement_drill(
     *, ops_dir: Path | None = None,
 ) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .studio_oidc_callback import validate_redirect_uri
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "studio_sso_redirect_allowlist_enforcement_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_redirect()
 
     allow = "http://127.0.0.1/api/sso/callback,http://localhost/api/sso/callback"
     good = validate_redirect_uri("http://127.0.0.1/api/sso/callback", allowlist=allow)
@@ -52,18 +67,15 @@ def run_studio_sso_redirect_allowlist_enforcement_drill(
             "Studio SSO redirect allowlist enforcement incomplete; hosted IdP still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_redirect()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "studio_sso_redirect_allowlist_enforcement_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_redirect()
     if ops_dir is None:
-        art = (
-            ROOT / "artifacts" / "ops"
-            / "studio_sso_redirect_allowlist_enforcement_drill.json"
-        )
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
