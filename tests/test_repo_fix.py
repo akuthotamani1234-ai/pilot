@@ -223,6 +223,30 @@ def test_a_reviewed_proposal_does_not_follow_a_link_into_another_folder(tmp_path
     assert secret in (nested / "fixes.json").read_text(encoding="utf-8")
 
 
+def test_a_source_file_list_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-source"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "page.html").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert repo_fix._source_files(linked) == []
+    assert (other / "page.html").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "page.html").write_text("home-own", encoding="utf-8")
+    found = repo_fix._source_files(real)
+    assert [item.name for item in found] == ["page.html"]
+    text = found[0].read_text(encoding="utf-8")
+    assert text == "home-own"
+    assert secret not in text
+    assert (other / "page.html").read_text(encoding="utf-8") == secret
+
+
 def test_a_published_proposal_file_does_not_follow_a_link_into_another_folder(tmp_path):
     from backend.repo_fix import RepoFixError
     from backend.repo_publication import _save_private

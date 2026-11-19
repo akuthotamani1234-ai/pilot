@@ -80,6 +80,9 @@ def prepare_ai(run_dir: Path, root: Path, selected: list[str]) -> dict:
     if (Path(run_dir).is_symlink() or (Path(run_dir) / ".private").is_symlink()
             or (Path(run_dir) / ".private" / "repo_fix_plan.json").is_symlink()):
         raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
+    from .finalization import folder_is_linked
+    if folder_is_linked(root):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     paths = _source_files(root)
     hints = " ".join(json.dumps(item["finding"]) for item in selected_findings).lower()
     paths.sort(key=lambda p: (p.name.lower() not in hints, len(p.parts), p.as_posix()))
