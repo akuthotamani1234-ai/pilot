@@ -17,9 +17,27 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "redis_swarm_contention_drill.json"
 
 
+def _linked_swarm() -> dict:
+    return {
+        "gate_b_complete": False,
+        "ok": False,
+        "drill": "redis_swarm_contention",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_redis_swarm_contention_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / "redis_swarm_contention_drill.json"):
+        return _linked_swarm()
+
     rid = f"swarm-contention-{int(time.time())}"
-    db_path = ROOT / "artifacts" / "ops" / f"{rid}.sqlite"
+    db_parent = ROOT / "artifacts" / "ops"
+    db_path = db_parent / f"{rid}.sqlite"
+    if folder_is_linked(db_parent) or folder_is_linked(db_path):
+        return _linked_swarm()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     opened = open_durable_queue(default_path=db_path)
     if not opened.get("ready") or opened.get("queue") is None:
@@ -35,7 +53,8 @@ def run_redis_swarm_contention_drill(*, ops_dir: Path | None = None) -> dict:
             "backend": backend,
             "reason": opened.get("reason") or "durable queue unavailable",
         }
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_swarm()
         return evidence
 
     for i in range(4):
@@ -93,19 +112,25 @@ def run_redis_swarm_contention_drill(*, ops_dir: Path | None = None) -> dict:
             f"overlap={len(overlap)}); product-wide review still open"
         ),
     }
-    _write(evidence, ops_dir)
+    if not _write(evidence, ops_dir):
+        return _linked_swarm()
     return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "redis_swarm_contention_drill.json"
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "redis_swarm_contention_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "redis_swarm_contention_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return True
