@@ -36,11 +36,28 @@ CHECKS = (
 )
 
 
+def _linked_readiness() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_readiness",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_production_healing_readiness_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "production_healing_readiness_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_readiness()
+
     ops = ROOT / "docs" / "ops-evidence"
     rows = []
     for name, label in CHECKS:
-        ready = (ops / name).is_file()
+        path = ops / name
+        ready = (not folder_is_linked(path)) and path.is_file()
         rows.append({"artifact": name, "label": label, "ready": ready})
     score = sum(1 for row in rows if row["ready"])
     evidence = {
@@ -58,15 +75,15 @@ def run_production_healing_readiness_drill(*, ops_dir: Path | None = None) -> di
             "production / third-party healing suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_readiness()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "production_healing_readiness_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_readiness()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "production_healing_readiness_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
