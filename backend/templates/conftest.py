@@ -1215,6 +1215,8 @@ def _adopt_saved_login(context) -> bool:
     sandbox, _SANDBOX["thread"] = _SANDBOX["thread"], None  # (the saved login is closed to test code, not to this file)
     try:
         saved = Path(AUTH_STATE)
+        if _output_is_linked(saved):
+            return False
         if saved.stat().st_mtime <= _SESSION["loaded"]:
             return False
         _SESSION["loaded"] = saved.stat().st_mtime
@@ -1232,7 +1234,10 @@ def _save_login(context) -> None:
         return
     sandbox, _SANDBOX["thread"] = _SANDBOX["thread"], None
     try:
-        tmp = Path(AUTH_STATE).with_name(f"auth.{os.getpid()}.tmp")
+        saved = Path(AUTH_STATE)
+        if _output_is_linked(saved):
+            return
+        tmp = saved.with_name(f"auth.{os.getpid()}.tmp")
         context.storage_state(path=str(tmp))
         os.replace(tmp, AUTH_STATE)
         _SESSION["loaded"] = Path(AUTH_STATE).stat().st_mtime

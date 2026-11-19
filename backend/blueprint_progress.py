@@ -259,6 +259,7 @@ def progress() -> dict:
         {"id": "G-benchmark-folder-link", "label": "A benchmark does not follow a link into another folder", "status": "done"},
         {"id": "G-baseline-map-link", "label": "A baseline map is not read through a link into another folder", "status": "done"},
         {"id": "G-script-read-link", "label": "A generated script is not read through a link into another folder", "status": "done"},
+        {"id": "G-login-read-link", "label": "A saved login is not read through a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
