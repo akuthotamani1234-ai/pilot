@@ -43,6 +43,41 @@ def test_a_visual_capture_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (other / "keep.txt").read_bytes() == secret
 
 
+def test_a_saved_look_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.config import settings
+    from backend.visual import save_capture, visual_check_agent
+
+    secret = b"tenant-b-only-look"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "visual.json").write_bytes(secret)
+    (nested / "home.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "visual_check", True)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    assert save_capture(linked / "run", "home", "https://shop.test/", {"boxes": []}, None) == ""
+    refused = visual_check_agent({"app_map": [], "run_dir": str(linked / "run"), "site_key": "shop", "log": []})
+    assert "link" in refused["log"][-1]
+    assert not (nested / "visual").exists()
+    assert (nested / "visual.json").read_bytes() == secret
+    assert (nested / "home.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    assert save_capture(real, "home", "https://shop.test/", {"boxes": []}, None) == "visual/home.json"
+    saved = visual_check_agent({"app_map": [], "run_dir": str(real), "site_key": "shop", "log": []})
+    look = real / "visual" / "home.json"
+    assert look.is_file() and not look.is_symlink()
+    assert secret not in look.read_bytes()
+    assert (real / "visual.json").is_file() and secret not in (real / "visual.json").read_bytes()
+    assert "link" not in saved["log"][-1]
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_visual_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.finalization import copy_unless_linked, write_bytes_unless_linked
