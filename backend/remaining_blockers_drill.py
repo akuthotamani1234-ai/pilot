@@ -63,6 +63,7 @@ BLOCKERS = (
         "label": "Broad multi-device CI Appium product-matrix artifacts",
         "local_partial": [
             "android_appium_product_matrix_drill.json",
+            "android_emulator_smoke_api24_drill.json",
             "multi_api_android_matrix_drill.json",
             "multi_device_ci_contract.json",
             "device_artifact_manifest_drill.json",

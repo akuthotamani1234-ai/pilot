@@ -94,14 +94,47 @@ def run_android_emulator_smoke_drill(*, ops_dir: Path | None = None) -> dict:
     dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "android_emulator_smoke_drill.json") if ops_dir else EVIDENCE
     out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    # Keep a dedicated API24 smoke artifact so later API30 refreshes do not erase it.
+    if evidence.get("ok") and int(evidence.get("api_level") or 0) == 24:
+        api24 = {
+            **evidence,
+            "drill": "android_emulator_smoke_api24",
+            "note": "Dedicated API24 smoke; preserved across higher-API refreshes",
+        }
+        api24_out = (
+            (Path(ops_dir) / "android_emulator_smoke_api24_drill.json")
+            if ops_dir else (EVIDENCE.parent / "android_emulator_smoke_api24_drill.json")
+        )
+        api24_out.write_text(json.dumps(api24, indent=2), encoding="utf-8")
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "android_emulator_smoke_drill.json"
         art.parent.mkdir(parents=True, exist_ok=True)
         art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-        # Persist matrix rows for the combined device matrix drill to pick up.
+        # Merge into live matrix rows so API24 evidence survives API30 refreshes.
         rows_path = ROOT / "docs" / "ops-evidence" / "android_live_matrix_rows.json"
-        rows_path.write_text(
-            json.dumps(evidence.get("matrix_rows") or [], indent=2),
-            encoding="utf-8",
-        )
+        existing: list = []
+        if rows_path.is_file():
+            try:
+                loaded = json.loads(rows_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    existing = [r for r in loaded if isinstance(r, dict)]
+            except (OSError, ValueError):
+                existing = []
+        fresh = [
+            r for r in (evidence.get("matrix_rows") or [])
+            if isinstance(r, dict)
+        ]
+        merged: list[dict] = []
+        seen: set[tuple] = set()
+        for row in existing + fresh:
+            key = (
+                str(row.get("source") or ""),
+                str(row.get("device_id") or ""),
+                str(row.get("api_level") or ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(row)
+        rows_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
     return evidence

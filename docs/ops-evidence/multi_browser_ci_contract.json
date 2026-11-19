@@ -1,7 +1,7 @@
 {
   "gate_f_complete": false,
   "drill": "multi_browser_ci_contract",
-  "ran_at": "2026-11-19T00:08:54Z",
+  "ran_at": "2026-11-19T00:21:44Z",
   "ok": true,
   "kind": "contract_only",
   "reason": "Offline CI contract for multi-browser portfolio artifacts; broad hosted multi-browser runner matrix still open",

@@ -167,6 +167,7 @@ def progress() -> dict:
         {"id": "G-live-drills-refresh7", "label": "Re-verify live Postgres/Redis/MinIO after B/C/D drills", "status": "done"},
         {"id": "H-drills", "gate": "H", "label": "Live hosted multi-region DR / on-call paging", "status": "open"},
         {"id": "D-emulator-smoke", "label": "Live API24 emulator adb smoke (profiles verified)", "status": "done"},
+        {"id": "D-api24-smoke-preserve", "label": "Preserve dedicated API24 smoke across API30 refreshes", "status": "done"},
         {"id": "D-appium-system-apps", "label": "Live Appium Settings/Contacts/Chrome on API30+", "status": "done"},
         {"id": "D-appium-apk", "label": "Live Appium third-party ApiDemos APK on API30+", "status": "done"},
         {"id": "D-appium-ci-contract", "label": "Offline Appium CI artifact contract (ubuntu+KVM)", "status": "done"},

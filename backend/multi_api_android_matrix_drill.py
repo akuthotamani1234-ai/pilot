@@ -31,16 +31,31 @@ def run_multi_api_android_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     rows: list[dict] = []
     sources: dict[str, bool] = {}
 
+    # Prefer dedicated API24 smoke artifact; fall back to latest smoke only if API==24.
+    api24 = _load("android_emulator_smoke_api24_drill.json")
     smoke = _load("android_emulator_smoke_drill.json")
-    if isinstance(smoke, dict):
-        sources["api24_smoke"] = bool(smoke.get("ok"))
-        for row in smoke.get("matrix_rows") or []:
+    api24_src = None
+    if isinstance(api24, dict) and bool(api24.get("ok")) and int(api24.get("api_level") or 0) == 24:
+        api24_src = api24
+    elif (
+        isinstance(smoke, dict)
+        and bool(smoke.get("ok"))
+        and int(smoke.get("api_level") or 0) == 24
+    ):
+        api24_src = smoke
+    if api24_src is not None:
+        sources["api24_smoke"] = True
+        for row in api24_src.get("matrix_rows") or []:
             if isinstance(row, dict):
                 rows.append({**row, "api_tier": "api24_smoke"})
+    else:
+        sources["api24_smoke"] = False
 
     appium = _load("android_appium_product_matrix_drill.json")
     if isinstance(appium, dict):
-        sources["api30_appium"] = bool(appium.get("ok"))
+        sources["api30_appium"] = bool(appium.get("ok")) and int(
+            appium.get("api_level") or 0
+        ) >= 26
         for row in appium.get("matrix_rows") or []:
             if isinstance(row, dict):
                 rows.append({**row, "api_tier": "api30_appium"})
