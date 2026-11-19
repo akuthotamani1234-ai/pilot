@@ -56,14 +56,16 @@ def _page_with_selector(selector: str, app_map: list[dict]) -> dict | None:
 def _script_is_linked(test_dir: Path, name: str) -> bool:
     """A generated script that is a link, or a name that leaves the run, is not this run's file."""
     path = Path(name)
-    if not name or path.is_absolute() or ".." in path.parts or test_dir.is_symlink():
+    from ..finalization import folder_is_linked
+    if not name or path.is_absolute() or ".." in path.parts or folder_is_linked(test_dir):
         return True
     return (test_dir / name).is_symlink()
 
 
 def _file_with(selector: str, test_dir: Path, failed_file: str) -> str | None:
     """Which generated file holds the broken selector: the failing file, else the step module it calls."""
-    if test_dir.is_symlink():
+    from ..finalization import folder_is_linked
+    if folder_is_linked(test_dir):
         return None
     names = [failed_file] + sorted(f.name for f in test_dir.glob("steps_*.py") if not f.is_symlink()) \
         + sorted(f.name for f in test_dir.glob("test_*.py") if not f.is_symlink())
