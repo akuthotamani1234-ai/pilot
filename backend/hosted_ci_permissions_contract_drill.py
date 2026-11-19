@@ -64,7 +64,10 @@ def _linked_permissions() -> dict:
 
 def run_hosted_ci_permissions_contract_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    name = "hosted_ci_permissions_contract_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_permissions()
     android = _audit(ANDROID_WF)
     browsers = _audit(BROWSER_WF)
@@ -86,8 +89,6 @@ def run_hosted_ci_permissions_contract_drill(*, ops_dir: Path | None = None) -> 
         ),
     }
     text = json.dumps(evidence, indent=2)
-    name = "hosted_ci_permissions_contract_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_permissions()
     dest.mkdir(parents=True, exist_ok=True)
