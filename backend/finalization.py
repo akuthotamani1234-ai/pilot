@@ -39,6 +39,24 @@ def copy_unless_linked(src: Path, dest: Path) -> bool:
     return True
 
 
+def append_text_unless_linked(path: Path, text: str) -> bool:
+    """Append to a real file. A linked file or folder is left untouched."""
+    path = Path(path)
+    parent = path.parent
+    if path.is_symlink() or parent.is_symlink() or parent.parent.is_symlink():
+        return False
+    try:
+        if not parent.exists():
+            parent.mkdir(exist_ok=True)
+        if path.is_symlink() or parent.is_symlink() or not parent.is_dir():
+            return False
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError:
+        return False
+    return True
+
+
 def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
     """Write one file in this run. A link, or a name that leaves the run, is left untouched."""
     path = path_unless_linked(Path(run_dir), name)

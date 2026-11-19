@@ -1601,9 +1601,16 @@ def _cov_save(cdp) -> None:
         out[url] = {"length": length, "covered": covered}
     if out:
         d = RUN_DIR / "jscov"
-        d.mkdir(exist_ok=True)
         worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
-        with (d / f"tests_{worker}.jsonl").open("a", encoding="utf-8") as f:
+        if not worker or worker in {".", ".."} or "/" in worker or "\\" in worker:
+            return
+        dest = d / f"tests_{worker}.jsonl"
+        if _output_is_linked(d) or _output_is_linked(dest):
+            return
+        d.mkdir(exist_ok=True)
+        if _output_is_linked(d) or _output_is_linked(dest):
+            return
+        with dest.open("a", encoding="utf-8") as f:
             f.write(json.dumps(out) + "\n")
 
 

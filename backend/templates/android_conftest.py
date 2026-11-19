@@ -41,7 +41,12 @@ def _app_package():
 
 
 def _append(name, record):
-    with (RUN / name).open("a", encoding="utf-8") as output:
+    if not name or name in {".", ".."} or "/" in str(name) or "\\" in str(name):
+        return
+    path = RUN / name
+    if path.is_symlink() or path.parent.is_symlink():
+        return
+    with path.open("a", encoding="utf-8") as output:
         output.write(redact(json.dumps(record, ensure_ascii=False)) + "\n")
 
 
