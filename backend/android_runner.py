@@ -24,7 +24,8 @@ def prepare_android_run(runs: Path, run_id: str) -> Path:
     directory = runs / run_id
     private = directory / ".private"
     if any(path.is_symlink() for path in (
-            directory, private, private / "app.apk", private / "android_config.json", directory / "repeat.log")):
+            directory, private, private / "app.apk", private / "android_config.json", directory / "repeat.log",
+            directory / "report.html", directory / "summary.json")):
         raise ValueError("The Android run is a link.")
     private.mkdir(parents=True)
     return directory
@@ -48,6 +49,24 @@ def _read_config(path: Path) -> tuple[dict, Path]:
         except ValueError as e:
             raise AndroidEnvironmentError("The APK must be stored in this run's private upload folder.") from e
     return config, run_dir
+
+
+def write_android_failure(run_dir: Path, run_id: str, source: str, message: str) -> bool:
+    """Write the short failure report. A linked report or summary is left untouched."""
+    from .finalization import write_text_unless_linked
+    body = ("<!doctype html><meta charset='utf-8'><h1>Insufficient Evidence</h1><p>"
+            + html.escape(message) + "</p>")
+    summary = json.dumps({
+        "target_type": "android",
+        "run_id": run_id,
+        "source": source,
+        "verdict": "Insufficient Evidence",
+        "incomplete": True,
+        "reasons": [message],
+    })
+    wrote_report = write_text_unless_linked(run_dir, "report.html", body)
+    wrote_summary = write_text_unless_linked(run_dir, "summary.json", summary)
+    return wrote_report and wrote_summary
 
 
 def main() -> int:
@@ -127,25 +146,9 @@ def main() -> int:
     except Exception as e:
         traceback.print_exc()
         message = redact(str(e))[:500]
-        report_path = run_dir / "report.html"
-        report_path.write_text(
-            "<!doctype html><meta charset='utf-8'><h1>Insufficient Evidence</h1><p>" + html.escape(message) + "</p>",
-            encoding="utf-8",
-        )
-        (run_dir / "summary.json").write_text(
-            json.dumps(
-                {
-                    "target_type": "android",
-                    "run_id": run_id,
-                    "source": source,
-                    "verdict": "Insufficient Evidence",
-                    "incomplete": True,
-                    "reasons": [message],
-                }
-            ),
-            encoding="utf-8",
-        )
-        final = {"verdict": "Insufficient Evidence", "report_path": str(report_path)}
+        if not write_android_failure(run_dir, run_id, source, message):
+            return 2
+        final = {"verdict": "Insufficient Evidence", "report_path": str(run_dir / "report.html")}
     finally:
         runctl.finished()
         (run_dir / "STOP").unlink(missing_ok=True)

@@ -14,7 +14,7 @@ def _dynamic_report(run_dir: Path, state: dict) -> dict:
     """Progress a stopped or failed run can be diagnosed from, without credentials."""
     events = list((state.get("dynamic") or {}).get("events") or [])
     path = Path(run_dir) / "dynamic.json"
-    if path.is_file():
+    if not Path(run_dir).is_symlink() and not path.is_symlink() and path.is_file():
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -476,6 +476,7 @@ def report(state: dict) -> dict:
         "dynamic": dynamic_report,
         "safety_restrictions": dynamic_report.get("safety_restrictions", []),
     }
+    from .finalization import write_text_unless_linked
     for name, value in (
         ("summary.json", summary),
         ("test_cases.json", cases),
@@ -487,14 +488,14 @@ def report(state: dict) -> dict:
                            "user_like": summary["user_like_coverage"]["rows"]}),
         ('features.json', features),
     ):
-        (run_dir / name).write_text(redact_json(value), encoding="utf-8")
+        write_text_unless_linked(run_dir, name, redact_json(value))
     cost = write_report(run_dir, cases, results)
     write_workbook(run_dir, cases, results, cost=cost)
     content = render_mobile_report(
         summary, cases, results, state.get("failures", []), screens, state.get("healing_log", [])
     )
+    write_text_unless_linked(run_dir, "report.html", redact(content))
     path = run_dir / "report.html"
-    path.write_text(redact(content), encoding="utf-8")
     return {
         "verdict": verdict,
         "report_path": str(path),
@@ -505,9 +506,11 @@ def report(state: dict) -> dict:
 
 def collect_healing(state: dict) -> dict:
     from .android_pipeline import read_jsonl
-
-    entries = read_jsonl(Path(state["run_dir"]) / "android_healing.jsonl")
-    (Path(state["run_dir"]) / "healing_log.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    run_dir = Path(state["run_dir"])
+    log_path = run_dir / "android_healing.jsonl"
+    entries = [] if run_dir.is_symlink() or log_path.is_symlink() else read_jsonl(log_path)
+    write_text_unless_linked(run_dir, "healing_log.json", json.dumps(entries, indent=2))
     return {"healing_log": entries}
 
 
