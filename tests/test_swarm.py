@@ -36,7 +36,12 @@ def test_checkout_is_never_given_to_a_worker():
         "https://shop.example/payment/card",
     }
     assert is_payment_url("https://shop.example/place-order")
+    assert is_payment_url("https://shop.example/checkout.html")
+    assert is_payment_url("https://shop.example/cart/checkout%2Ehtml")
+    assert is_payment_url("https://www.paypal.com/cgi-bin/webscr")
     assert not is_payment_url("https://shop.example/product/buy-saree")
+    assert not is_payment_url("https://shop.example/product/checkout-guide")
+    assert not is_payment_url("https://notpaypal.com/shop")
 
 
 def test_zero_sample_keeps_the_whole_list():
