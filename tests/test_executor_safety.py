@@ -262,3 +262,45 @@ def test_a_proof_reading_does_not_follow_a_link_into_another_folder(tmp_path):
     assert scores.get("test_home.py::test_home_own")
     assert secret not in json.dumps(scores)
     assert secret in script.read_text(encoding="utf-8")
+
+
+def test_an_accuracy_count_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.accuracy import measure
+
+    secret = "tenant-b-only-page"
+    truth = {"pages": [], "features": []}
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "app_map.json").write_text(json.dumps([{"slug": secret, "url": "https://other.test/"}]), encoding="utf-8")
+    (nested / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "other", "title": secret, "execution_status": "Failed",
+    }]), encoding="utf-8")
+    (nested / "failures.json").write_text(json.dumps([{
+        "tc_id": "other", "category": "rule_violation", "title": secret,
+    }]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = measure(linked / "runs" / "run", truth)
+    assert refused["pages"]["discovered"] == 0
+    assert refused["truth"]["questions"] == []
+    assert secret not in json.dumps(refused)
+    assert secret in (nested / "app_map.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "app_map.json").write_text(json.dumps([{"slug": "home-own", "url": "https://home.test/"}]), encoding="utf-8")
+    (real / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "home-own", "title": "home-own question", "execution_status": "Failed",
+    }]), encoding="utf-8")
+    (real / "failures.json").write_text(json.dumps([{
+        "tc_id": "home-own", "category": "rule_violation",
+    }]), encoding="utf-8")
+    counted = measure(real, truth)
+    assert counted["pages"]["discovered"] == 1
+    assert counted["truth"]["questions"][0]["tc_id"] == "home-own"
+    assert secret not in json.dumps(counted)
+    assert secret in (nested / "failures.json").read_text(encoding="utf-8")

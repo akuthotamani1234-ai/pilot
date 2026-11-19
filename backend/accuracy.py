@@ -29,6 +29,10 @@ LOGIN_NEEDED = re.compile(r"log ?in|sign ?in|test account", re.I)
 
 
 def _read(path: Path, default):
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
