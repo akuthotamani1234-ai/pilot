@@ -347,6 +347,7 @@ def progress() -> dict:
         {"id": "B-test-form-destination", "label": "A generated test cannot click Continue on a form that opens checkout", "status": "done"},
         {"id": "C-stale-assertion", "label": "A stored contract assertion cannot hide an AI oracle label", "status": "done"},
         {"id": "E-token-not-digest", "label": "A level-3 heal token is a secret, not the hash of the diff", "status": "done"},
+        {"id": "E-no-inherit", "label": "A test mistake does not inherit an automatic locator repair", "status": "done"},
         {"id": "B-checkout-recorded-blocked", "label": "A checkout page records Place order as blocked and does not click it", "status": "done"},
         {"id": "B-worker-session", "label": "A swarm worker opens later pages with the saved login", "status": "done"},
         {"id": "B-redirect-checkout", "label": "A page that redirects to checkout is not kept as a read page", "status": "done"},
