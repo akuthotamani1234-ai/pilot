@@ -99,6 +99,9 @@ def test_payment_urls_stay_blocked_even_when_no_fault_is_injected(tmp_path):
     # The cart page on a one-script shop, and an admin pay-grade screen, are not the payment.
     assert request_blocked("https://shop.example/index.php?rt=checkout/cart", controls) is False
     assert request_blocked("https://hr.example/admin/pay-grades", controls) is False
+    assert request_blocked("https://www.paypal.com/cgi-bin/webscr", controls) is True
+    assert request_blocked("https://shop.example/checkout.html", controls) is True
+    assert request_blocked("https://shop.example/cart/checkout%2Ehtml", controls) is True
     # A fault must not open the payment, even when that address is the document being opened.
     opened = dict(controls, start_url="https://shop.example/checkout", navigation=True)
     assert request_blocked("https://shop.example/checkout", opened) is True
