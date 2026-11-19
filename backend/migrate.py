@@ -15,9 +15,10 @@ MIGRATIONS = ROOT / "migrations"
 
 
 def list_migrations() -> list[Path]:
-    if not MIGRATIONS.is_dir():
+    from .finalization import folder_is_linked
+    if folder_is_linked(MIGRATIONS) or not MIGRATIONS.is_dir():
         return []
-    return sorted(p for p in MIGRATIONS.glob("*.sql") if p.is_file())
+    return sorted(p for p in MIGRATIONS.glob("*.sql") if p.is_file() and not folder_is_linked(p))
 
 
 def sqlite_path_is_linked(path: str | Path) -> bool:
