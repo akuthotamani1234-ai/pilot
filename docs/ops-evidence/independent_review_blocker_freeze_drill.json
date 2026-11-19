@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:42:46Z",
+  "ran_at": "2026-11-19T05:44:28Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -11,7 +11,7 @@
         "gate": "H",
         "label": "Live hosted multi-region DR / on-call paging",
         "status": "open",
-        "local_partial_count": 18,
+        "local_partial_count": 19,
         "local_partial_missing": []
       },
       {
@@ -19,7 +19,7 @@
         "gate": "I",
         "label": "Live hosted IdP Studio SSO login + multi-tenant ACLs",
         "status": "open",
-        "local_partial_count": 21,
+        "local_partial_count": 22,
         "local_partial_missing": []
       },
       {
@@ -56,8 +56,8 @@
       }
     ]
   },
-  "freeze_sha256": "9402083e8485a9836e4c035424f4f94deac0834d1fbedc244f53aea65e804a95",
+  "freeze_sha256": "c0074d21a78742b19fa8e0c220a681f769713d95ac835e6a8553ffb6fa10ec38",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze 9402083e8485\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze c0074d21a787\u2026 (6 open); external sign-off still open"
 }

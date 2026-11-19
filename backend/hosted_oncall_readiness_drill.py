@@ -29,6 +29,7 @@ CHECKS = (
     ("hosted_oncall_rota_contract_drill.json", "Hosted on-call rota contract"),
     ("hosted_dr_rpo_contract_drill.json", "Hosted DR RPO / backup contract"),
     ("hosted_dr_comms_contract_drill.json", "Hosted DR communications contract"),
+    ("paging_severity_routing_contract_drill.json", "Paging severity routing contract"),
 )
 
 

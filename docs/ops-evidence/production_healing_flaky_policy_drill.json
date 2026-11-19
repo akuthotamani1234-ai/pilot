@@ -1,7 +1,7 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_flaky_policy",
-  "ran_at": "2026-11-19T05:11:22Z",
+  "ran_at": "2026-11-19T05:43:34Z",
   "policy": {
     "locator_repair_allowed": true,
     "assertion_weaken_denied": true,
