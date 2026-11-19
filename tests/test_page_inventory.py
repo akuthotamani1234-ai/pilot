@@ -45,6 +45,35 @@ def test_component_states_preserve_hidden_visible_and_dropdown_history(tmp_path)
     assert (tmp_path / "components.html").is_file()
 
 
+def test_a_page_inventory_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-inventory"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "components.json").write_bytes(secret)
+    (other / "components.html").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    page = {"url": "https://shop.test", "title": "Shop", "slug": "shop", "component_inventory": {
+        "components": [{"selector": "#buy", "kind": "button", "name": "Buy", "discovery_status": "observed"}],
+    }}
+    result = save_inventory(linked / "run", [page])
+    assert result["total_components"] == 1
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "components.json").read_bytes() == secret
+    assert (other / "components.html").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = save_inventory(real, [page])
+    assert saved["total_components"] == 1
+    text = (real / "components.json").read_text(encoding="utf-8")
+    assert "#buy" in text and secret.decode() not in text
+    assert secret.decode() not in (real / "components.html").read_text(encoding="utf-8")
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_nested_opener_replay_reaches_the_grandchild_control(tmp_path):
     with ContractFixture(tmp_path / "fixture.sqlite") as fixture, sync_playwright() as playwright:
         browser = playwright.chromium.launch()
