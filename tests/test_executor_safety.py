@@ -66,3 +66,35 @@ def test_windows_job_object_failure_stops_generated_pytest(tmp_path, monkeypatch
     assert taskkill == [["taskkill", "/F", "/T", "/PID", "4321"]]
     if job is not None:
         assert job.closed
+
+
+def test_a_test_result_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _run_pytest, _write_run_json
+
+    secret = b"tenant-b-only-result"
+    other = tmp_path / "other"
+    nested = other / "run"
+    (nested / "generated_tests").mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "results.json").write_bytes(secret)
+    (nested / "results.jsonl").write_bytes(secret)
+    (nested / "results_pytest_output.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "run"
+    _write_run_json(run, "results.json", [{"nodeid": "test_home.py::test_home", "outcome": "passed"}])
+    info = _run_pytest({}, run / "generated_tests", run / "results.jsonl", run / "shots")
+    assert info["stopped"] is True
+    assert (nested / "results.json").read_bytes() == secret
+    assert (nested / "results.jsonl").read_bytes() == secret
+    assert (nested / "results_pytest_output.txt").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _write_run_json(real, "results.json", [{
+        "nodeid": "test_home.py::test_home", "outcome": "passed", "url": "https://shop.test/home",
+    }])
+    written = (real / "results.json").read_bytes()
+    assert b"https://shop.test/home" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
