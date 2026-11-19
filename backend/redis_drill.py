@@ -38,7 +38,24 @@ def _cli(url: str, *cmd: str) -> subprocess.CompletedProcess:
     return subprocess.run(args, capture_output=True, text=True, check=False, timeout=30)
 
 
-def lease_drill(*, url: str | None = None) -> dict:
+def _linked_lease() -> dict:
+    return {
+        "gate_g_complete": False,
+        "gate_b_complete": False,
+        "ok": False,
+        "drill": "redis_setnx_lease",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def lease_drill(*, url: str | None = None, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "redis_lease_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_lease()
+
     target = (url or _url() or "redis://127.0.0.1:6379/0").strip()
     evidence: dict = {
         "gate_g_complete": False,
@@ -76,9 +93,15 @@ def lease_drill(*, url: str | None = None) -> dict:
             "Lease exclusivity assertions failed"
         ),
     })
-    EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
-    EVIDENCE.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    art = ROOT / "artifacts" / "ops" / "redis_lease_drill.json"
-    art.parent.mkdir(parents=True, exist_ok=True)
-    art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_lease()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_lease()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
