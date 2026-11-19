@@ -33,7 +33,22 @@ def _uri_for_bucket(base: str, bucket: str) -> str:
     return urlunparse(parsed._replace(path="/" + bucket))
 
 
+def _linked_minio() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "minio_dual_bucket_failover",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_minio_multi_region_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / "minio_multi_region_drill.json"):
+        return _linked_minio()
+
     from .object_store import open_object_store
 
     base = _base_uri()
@@ -66,11 +81,13 @@ def run_minio_multi_region_drill(*, ops_dir: Path | None = None) -> dict:
     }
     if not opened_a.get("ready") or opened_a.get("store") is None:
         evidence["reason"] = opened_a.get("reason") or "region-a object store not ready"
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_minio()
         return evidence
     if not opened_b.get("ready") or opened_b.get("store") is None:
         evidence["reason"] = opened_b.get("reason") or "region-b object store not ready"
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_minio()
         return evidence
 
     store_a = opened_a["store"]
@@ -114,16 +131,25 @@ def run_minio_multi_region_drill(*, ops_dir: Path | None = None) -> dict:
                 store.delete(key)
             except Exception:
                 pass
-    _write(evidence, ops_dir)
+    if not _write(evidence, ops_dir):
+        return _linked_minio()
     return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "minio_multi_region_drill.json"
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "minio_multi_region_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "minio_multi_region_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return True
