@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T07:49:15Z",
+  "ran_at": "2026-11-19T07:54:30Z",
   "signed_off": false,
   "entries": [
     {
@@ -522,7 +522,7 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 22812,
+      "bytes": 22938,
       "gates": [
         "gate_g"
       ]
@@ -662,14 +662,14 @@
     },
     {
       "name": "loopback_auth_code_sso_drill.json",
-      "bytes": 658,
+      "bytes": 730,
       "gates": [
         "gate_i"
       ]
     },
     {
       "name": "loopback_pkce_sso_drill.json",
-      "bytes": 736,
+      "bytes": 808,
       "gates": [
         "gate_i"
       ]

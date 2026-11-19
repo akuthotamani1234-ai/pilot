@@ -114,7 +114,12 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 redirect = (qs.get("redirect_uri") or ["http://127.0.0.1/callback"])[0]
                 state = (qs.get("state") or [""])[0]
                 code = secrets.token_urlsafe(16)
-                codes[code] = {"sub": sub, "email": email, "client_id": client_id}
+                codes[code] = {
+                    "sub": sub,
+                    "email": email,
+                    "client_id": client_id,
+                    "redirect_uri": redirect,
+                }
                 loc = f"{redirect}?code={urllib.parse.quote(code)}&state={urllib.parse.quote(state)}"
                 self.send_response(302)
                 self.send_header("Location", loc)
@@ -134,8 +139,13 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
             form = urllib.parse.parse_qs(raw.decode("utf-8"))
             code = (form.get("code") or [""])[0]
             grant = (form.get("grant_type") or [""])[0]
+            redirect_uri = (form.get("redirect_uri") or [""])[0]
             entry = codes.pop(code, None)
-            if grant != "authorization_code" or not entry:
+            if (
+                grant != "authorization_code"
+                or not entry
+                or redirect_uri != entry.get("redirect_uri")
+            ):
                 body = json.dumps({"error": "invalid_grant"}).encode()
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
@@ -213,7 +223,36 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 "http_status": exc.code,
             })
 
-        # 3) token exchange
+        # 3) a different redirect_uri must not redeem the code
+        mismatch_code = ""
+        try:
+            opener.open(auth_url, timeout=5)
+        except urllib.error.HTTPError as exc:
+            loc = exc.headers.get("Location") or ""
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(loc).query)
+            mismatch_code = (qs.get("code") or [""])[0]
+        bad_form = urllib.parse.urlencode({
+            "grant_type": "authorization_code",
+            "code": mismatch_code,
+            "client_id": client_id,
+            "redirect_uri": "http://127.0.0.1/evil/callback",
+        }).encode()
+        bad_req = urllib.request.Request(  # noqa: S310
+            f"{issuer}/token",
+            data=bad_form,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(bad_req, timeout=5)  # noqa: S310
+            steps.append({"step": "reject_redirect_mismatch", "ok": False})
+        except urllib.error.HTTPError as exc:
+            steps.append({
+                "step": "reject_redirect_mismatch",
+                "ok": exc.code == 400 and bool(mismatch_code),
+            })
+
+        # 4) token exchange
         form = urllib.parse.urlencode({
             "grant_type": "authorization_code",
             "code": code,
@@ -231,7 +270,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
         access = token_body.get("access_token") or ""
         steps.append({"step": "token", "ok": bool(access)})
 
-        # 4) validate + dashboard authorize
+        # 5) validate + dashboard authorize
         validated = validate_bearer(access, verify_signature=True)
         authz = authorize(f"Bearer {access}", action="review.write")
         steps.append({
