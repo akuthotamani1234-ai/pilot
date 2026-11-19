@@ -108,7 +108,8 @@ def capture_portfolios(run_dir: str | Path, app_map: list[dict], *, source_url: 
                        crawl: dict | None = None) -> dict:
     """Write portfolio evidence files and return paths/payloads."""
     path = Path(run_dir)
-    if path.is_symlink():
+    from .finalization import folder_is_linked
+    if folder_is_linked(path):
         return {"a11y_page": {}, "performance": None, "security_headers": None, "compatibility": None}
     path.mkdir(parents=True, exist_ok=True)
     from .finalization import write_text_unless_linked

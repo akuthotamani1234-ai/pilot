@@ -209,6 +209,7 @@ def progress() -> dict:
         {"id": "G-heal-folder-link", "label": "A repair does not follow a link into another folder", "status": "done"},
         {"id": "G-applied-folder-link", "label": "Applied rules do not follow a link into another folder", "status": "done"},
         {"id": "G-review-folder-link", "label": "A review does not follow a link into another folder", "status": "done"},
+        {"id": "G-portfolio-folder-link", "label": "A portfolio does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
