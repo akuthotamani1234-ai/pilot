@@ -475,6 +475,7 @@ def progress() -> dict:
         {"id": "G-sso-contract-link", "label": "An SSO contract does not follow a link into another folder", "status": "done"},
         {"id": "G-journey-link", "label": "A cross-platform journey does not follow a link into another folder", "status": "done"},
         {"id": "G-browser-suite-link", "label": "A multi-browser suite does not follow a link into another folder", "status": "done"},
+        {"id": "G-audit-export-link", "label": "An audit export does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
