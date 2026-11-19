@@ -40,9 +40,10 @@ class PrivacyPolicy(BaseModel):
 
 
 def _policy_is_linked() -> bool:
-    parent = POLICY_PATH.parent
+    """True when the policy file, its temp file, or a folder on the way to either, is a link."""
+    from .finalization import folder_is_linked
     temp = POLICY_PATH.with_suffix(".tmp")
-    return parent.is_symlink() or POLICY_PATH.is_symlink() or temp.is_symlink()
+    return folder_is_linked(POLICY_PATH) or folder_is_linked(temp)
 
 
 def load_policy() -> PrivacyPolicy:
