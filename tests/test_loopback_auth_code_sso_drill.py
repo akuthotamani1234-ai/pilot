@@ -14,3 +14,5 @@ def test_loopback_auth_code_sso_reports_honestly(tmp_path: Path):
     assert (tmp_path / "loopback_auth_code_sso_drill.json").is_file()
     assert evidence.get("ok") is True
     assert all(s.get("ok") for s in (evidence.get("steps") or []))
+    steps = {s["step"]: s for s in evidence.get("steps") or []}
+    assert steps["reject_redirect_mismatch"]["ok"] is True

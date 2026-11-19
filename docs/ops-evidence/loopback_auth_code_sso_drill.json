@@ -1,8 +1,8 @@
 {
   "gate_i_complete": false,
   "drill": "loopback_auth_code_sso",
-  "ran_at": "2026-11-18T21:01:33Z",
-  "issuer": "http://127.0.0.1:34169",
+  "ran_at": "2026-11-19T07:54:29Z",
+  "issuer": "http://127.0.0.1:46117",
   "client_id": "qpilot-authcode-client",
   "sub": "authcode-user-1",
   "steps": [
@@ -14,6 +14,10 @@
       "step": "authorize",
       "ok": true,
       "http_status": 302
+    },
+    {
+      "step": "reject_redirect_mismatch",
+      "ok": true
     },
     {
       "step": "token",

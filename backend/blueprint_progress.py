@@ -316,6 +316,7 @@ def progress() -> dict:
         {"id": "I-sso-pkce-verifier", "label": "Studio callback sends code_verifier and can require it", "status": "done"},
         {"id": "E-prod-healing-approval", "label": "Level-3 healing applies once with a bound approval token", "status": "done"},
         {"id": "E-healing-approval-queue", "label": "Approvals queue cannot override healing policy", "status": "done"},
+        {"id": "I-loopback-redirect-bind", "label": "Loopback IdP rejects a token redirect_uri that does not match the code", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

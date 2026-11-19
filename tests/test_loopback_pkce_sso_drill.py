@@ -11,3 +11,4 @@ def test_loopback_pkce_sso_reports_honestly(tmp_path: Path):
     assert evidence.get("pkce") == "S256"
     steps = {s["step"]: s for s in evidence.get("steps") or []}
     assert steps["reject_bad_verifier"]["ok"] is True
+    assert steps["reject_redirect_mismatch"]["ok"] is True
