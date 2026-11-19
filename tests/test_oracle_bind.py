@@ -21,3 +21,37 @@ def test_ai_oracle_blocks_product_defect():
     assert cat == "inconclusive"
     assert "needs review" in why.lower() or "oracle" in why.lower()
     assert decision["verdict"] == "needs_review"
+
+
+def test_an_ai_guess_on_a_contract_case_cannot_become_a_product_defect():
+    case = attach_assertion({
+        "tc_id": "TC-AI-CONTRACT", "title": "Guess", "expected": "Maybe",
+        "oracle": "ai", "contract_id": "checkout", "script_source": "contract",
+        "url": "/checkout",
+    })
+    assert case["assertion"]["accepted"] is False
+    cat, _why, decision = soften_defect_category(
+        "product_defect", case, {"outcome": "failed", "error_type": "AssertionError"},
+    )
+    assert cat == "inconclusive"
+    assert decision["verdict"] == "needs_review"
+    accepted = attach_assertion({
+        "tc_id": "TC-AI-OK", "title": "Accepted", "expected": "Total matches",
+        "oracle": "ai", "contract_id": "totals", "human_accepted": True, "url": "/cart",
+    })
+    assert accepted["assertion"]["accepted"] is True
+    assert accepted["assertion"]["oracle_source"] == "human"
+
+
+def test_a_contract_case_without_an_ai_label_stays_an_approved_oracle():
+    case = attach_assertion({
+        "tc_id": "TC-CONTRACT", "title": "Total", "expected": "Total matches",
+        "contract_id": "totals", "url": "/cart",
+    })
+    assert case["assertion"]["accepted"] is True
+    assert case["assertion"]["oracle_source"] == "contract"
+    raw = {"tc_id": "TC-RAW", "oracle": "observed", "expected": "Maybe", "url": "/x",
+           "contract_id": "pay"}
+    cat, _why, decision = soften_defect_category("product_defect", raw, {"outcome": "failed"})
+    assert cat == "inconclusive"
+    assert decision["verdict"] == "needs_review"
