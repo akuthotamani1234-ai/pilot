@@ -163,7 +163,23 @@ def loopback_oidc_session(
                     os.environ[key] = val
 
 
+def _linked_sso() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "loopback_oidc_jwt",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "loopback_sso_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_sso()
+
     try:
         import jwt  # noqa: F401
     except ImportError:
@@ -201,12 +217,15 @@ def run_loopback_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 ),
             }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_sso()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "loopback_sso_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_sso()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "loopback_sso_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
