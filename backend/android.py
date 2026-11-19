@@ -115,18 +115,20 @@ def _appium_path() -> str | None:
 
 
 def _java_path() -> str | None:
+    from .finalization import folder_is_linked
     home = os.environ.get("JAVA_HOME")
-    candidate = Path(home) / "bin" / ("java.exe" if os.name == "nt" else "java") if home else None
-    if candidate and candidate.is_file():
+    name = "java.exe" if os.name == "nt" else "java"
+    candidate = Path(home) / "bin" / name if home else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
         return str(candidate)
     found = shutil.which("java")
     if found:
         return found
     local = os.environ.get("LOCALAPPDATA")
-    candidate = (
-        Path(local) / "BlowAI" / "jdk-21" / "bin" / ("java.exe" if os.name == "nt" else "java") if local else None
-    )
-    return str(candidate) if candidate and candidate.is_file() else None
+    candidate = Path(local) / "BlowAI" / "jdk-21" / "bin" / name if local else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
+        return str(candidate)
+    return None
 
 
 def _run_cli(program: str, args: list[str], timeout: int) -> subprocess.CompletedProcess:
