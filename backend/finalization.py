@@ -51,12 +51,12 @@ def append_text_unless_linked(path: Path, text: str) -> bool:
     """Append to a real file. A linked file or folder is left untouched."""
     path = Path(path)
     parent = path.parent
-    if path.is_symlink() or parent.is_symlink() or parent.parent.is_symlink():
+    if path.is_symlink() or folder_is_linked(parent):
         return False
     try:
         if not parent.exists():
             parent.mkdir(exist_ok=True)
-        if path.is_symlink() or parent.is_symlink() or not parent.is_dir():
+        if path.is_symlink() or folder_is_linked(parent) or not parent.is_dir():
             return False
         with path.open("a", encoding="utf-8") as handle:
             handle.write(text)
