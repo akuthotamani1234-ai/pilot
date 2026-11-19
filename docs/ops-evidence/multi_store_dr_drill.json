@@ -1,7 +1,7 @@
 {
   "gate_h_complete": false,
   "drill": "multi_store_dr_failover",
-  "ran_at": "2026-11-19T04:22:13Z",
+  "ran_at": "2026-11-19T05:22:07Z",
   "stores": {
     "postgres": {
       "ok": true,

@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:11:39Z",
+  "ran_at": "2026-11-19T05:22:08Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -35,7 +35,7 @@
         "gate": "D",
         "label": "Broad multi-device CI Appium product-matrix artifacts",
         "status": "open",
-        "local_partial_count": 14,
+        "local_partial_count": 15,
         "local_partial_missing": []
       },
       {
@@ -43,7 +43,7 @@
         "gate": "F",
         "label": "Broad hosted multi-browser portfolio CI artifacts",
         "status": "open",
-        "local_partial_count": 11,
+        "local_partial_count": 12,
         "local_partial_missing": []
       },
       {
@@ -56,8 +56,8 @@
       }
     ]
   },
-  "freeze_sha256": "e7b80d43808da6eb6ce47ab725a0e65e6c39a9ffe7d320361a0ecba63d0ce5ec",
+  "freeze_sha256": "c4297cfa120298b588d8874feee7fc1f83c94af2065299873abdf2c8fdf5e5bc",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze e7b80d43808d\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze c4297cfa1202\u2026 (6 open); external sign-off still open"
 }

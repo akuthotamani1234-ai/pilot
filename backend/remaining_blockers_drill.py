@@ -100,6 +100,7 @@ BLOCKERS = (
             "hosted_ci_artifact_gate_pack_drill.json",
             "android_device_ci_readiness_pack_drill.json",
             "hosted_workflow_runner_audit_drill.json",
+            "hosted_ci_artifact_retention_contract_drill.json",
         ],
     },
     {
@@ -118,6 +119,7 @@ BLOCKERS = (
             "hosted_ci_artifact_gate_pack_drill.json",
             "browser_portfolio_ci_readiness_pack_drill.json",
             "hosted_workflow_runner_audit_drill.json",
+            "hosted_ci_artifact_retention_contract_drill.json",
         ],
     },
     {

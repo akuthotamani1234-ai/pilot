@@ -1,7 +1,7 @@
 {
   "gate_h_complete": false,
   "drill": "dual_region_store_health_probe",
-  "ran_at": "2026-11-19T04:21:57Z",
+  "ran_at": "2026-11-19T05:22:05Z",
   "kind": "local_health_probe",
   "primary": {
     "postgres": true,
