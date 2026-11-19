@@ -113,6 +113,33 @@ def test_an_android_coverage_view_does_not_follow_a_link_into_another_folder(tmp
     assert secret in (nested / "test_cases.json").read_text(encoding="utf-8")
 
 
+def test_an_android_resume_view_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_resume import snapshot
+
+    secret = "tenant-b-only-resume"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    cases = nested / "test_cases.json"
+    cases.write_text(json.dumps([{"id": secret, "title": secret}]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = snapshot(linked / "runs" / "run")
+    assert secret not in json.dumps(refused)
+    assert refused["pending"] == []
+    assert secret in cases.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_cases.json").write_text(
+        json.dumps([{"id": "home-own", "title": "Home own"}]), encoding="utf-8")
+    kept = snapshot(real)
+    assert kept["pending"] == [{"id": "home-own", "title": "Home own"}]
+    assert secret not in json.dumps(kept)
+    assert secret in cases.read_text(encoding="utf-8")
+
+
 class Adapter:
     def __init__(self):
         self.taps = 0
