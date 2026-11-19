@@ -62,8 +62,9 @@ def _account_path(folder: Path, site_key: str) -> Path | None:
     key = str(site_key or "")
     if not key or key in {".", ".."} or "/" in key or "\\" in key or key != Path(key).name:
         return None
+    from .finalization import folder_is_linked
     folder = Path(folder)
-    if folder.is_symlink():
+    if folder_is_linked(folder):
         return None
     dest = folder / f"{key}.json"
     if dest.is_symlink():
@@ -76,9 +77,12 @@ def save_account(site_key: str, account: dict, folder: Path = ACCOUNTS) -> Path 
     dest = _account_path(folder, site_key)
     if dest is None:
         return None
+    from .finalization import folder_is_linked
+    if folder_is_linked(folder):
+        return None
     if not folder.exists():
         folder.mkdir(exist_ok=True)
-    if folder.is_symlink() or dest.is_symlink():
+    if folder_is_linked(folder) or dest.is_symlink():
         return None
     secret, method = protect(account["password"])
     data = {k: v for k, v in account.items() if k != "password"}
