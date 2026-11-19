@@ -12,6 +12,8 @@ from .swarm import is_payment_url, partition_site
 from .swarm_protocol import new_task, validate_task
 from .swarm_queue import DurableQueue
 
+_PAYMENT_REFUSAL = "checkout, payment and placing an order are never tested"
+
 
 def plan_run(run_id: str, urls: list[str], *, worker_count: int = 2, limit: int | None = None) -> list[dict]:
     """Create leader + worker + specialist (coverage/oracle) envelopes for safe URLs."""
@@ -81,7 +83,18 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
         task = queue.claim(worker_id=worker_id, run_id=run_id)
         if not task:
             break
-        if task["payload"].get("status") == "completed" and task["role"] == "leader":
+        payload = task.get("payload") or {}
+        if is_payment_url(str(payload.get("url") or "")):
+            ok, _reason = queue.fail(
+                task["task_id"], worker_id,
+                error_class="rule_violation", detail=_PAYMENT_REFUSAL,
+            )
+            if not ok:
+                lease_lost.append(task["task_id"])
+                break
+            processed += 1
+            continue
+        if payload.get("status") == "completed" and task["role"] == "leader":
             ok, _reason = queue.complete(
                 task["task_id"], worker_id,
                 {"evidence": task["payload"].get("evidence") or []},
