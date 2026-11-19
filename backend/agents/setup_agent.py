@@ -72,8 +72,30 @@ def _mask(text: str) -> str:
     return re.sub(r"//[^/@\s]+@github\.com", "//***@github.com", text)
 
 
+def _path_is_linked(path: Path) -> bool:
+    """True when this path, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_absolute():
+        cursor = Path(path.anchor)
+        parts = path.parts[1:]
+    else:
+        cursor = Path()
+        parts = path.parts
+    for part in parts:
+        if not part or part in {".", ".."}:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+        if not cursor.exists():
+            return False
+    return False
+
+
 def _run(cmd: str, cwd: Path, log_file: Path, timeout: int = 900) -> None:
     print(f"  [setup] $ {_mask(cmd)}")
+    if _path_is_linked(log_file) or _path_is_linked(cwd):
+        raise RuntimeError("The setup log is a link.")
     with log_file.open("a", encoding="utf-8", errors="replace") as log:
         log.write(f"\n$ {_mask(cmd)}\n")
         log.flush()
@@ -94,6 +116,10 @@ def _download_zip(owner: str, repo: str, branch: str | None, dest: Path) -> Path
     if r.status_code == 404:
         raise RuntimeError(f"GitHub repo not found: {owner}/{repo} (private repo? set GITHUB_TOKEN in .env)")
     r.raise_for_status()
+    if _path_is_linked(dest) or _path_is_linked(dest.parent / f"_{repo}_zip"):
+        raise RuntimeError("The project folder is a link.")
+    if dest.is_symlink():
+        raise RuntimeError("The project folder is a link.")
     shutil.rmtree(dest, ignore_errors=True)
     with zipfile.ZipFile(io.BytesIO(r.content)) as z:
         top = z.namelist()[0].split("/")[0]          # GitHub puts everything in one top folder
@@ -105,8 +131,15 @@ def _download_zip(owner: str, repo: str, branch: str | None, dest: Path) -> Path
 
 def _clone(source: str, log_file: Path) -> Path:
     owner, repo, branch = GITHUB_RE.match(source.strip()).groups()
-    settings.workspace_dir.mkdir(parents=True, exist_ok=True)
-    dest = (settings.workspace_dir / repo).resolve()
+    workspace = settings.workspace_dir
+    if _path_is_linked(workspace):
+        raise RuntimeError("The workspace folder is a link.")
+    workspace.mkdir(parents=True, exist_ok=True)
+    if _path_is_linked(workspace):
+        raise RuntimeError("The workspace folder is a link.")
+    dest = workspace / repo
+    if _path_is_linked(dest):
+        raise RuntimeError("The project folder is a link.")
     if not shutil.which("git"):
         return _download_zip(owner, repo, branch, dest)
     auth = f"x-access-token:{settings.github_token}@" if settings.github_token else ""
@@ -118,7 +151,7 @@ def _clone(source: str, log_file: Path) -> Path:
         except RuntimeError:
             shutil.rmtree(dest, ignore_errors=True)
     branch_opt = f"--branch {branch} " if branch else ""
-    _run(f'git clone --depth 1 {branch_opt}"{url}" "{dest}"', settings.workspace_dir.resolve(), log_file, timeout=600)
+    _run(f'git clone --depth 1 {branch_opt}"{url}" "{dest}"', workspace, log_file, timeout=600)
     return dest
 
 
@@ -183,6 +216,8 @@ def _start_server(cmd: str, cwd: Path, port: int, log_file: Path) -> subprocess.
     from ..safety import clean_env
     env = clean_env(os.environ.copy())  # the started app never sees your API keys, tokens or the test password
     env.update({"PORT": str(port), "BROWSER": "none", "CI": "true", "HOST": "127.0.0.1"})
+    if _path_is_linked(log_file) or _path_is_linked(cwd):
+        raise RuntimeError("The setup log is a link.")
     log = log_file.open("a", encoding="utf-8", errors="replace")
     log.write(f"\n$ {cmd}\n")
     log.flush()
@@ -197,6 +232,8 @@ def _start_server(cmd: str, cwd: Path, port: int, log_file: Path) -> subprocess.
 
 def _wait_until_up(proc: subprocess.Popen, port: int, log_file: Path) -> str:
     """Wait until the website answers. Returns its URL."""
+    if _path_is_linked(log_file):
+        raise RuntimeError("The setup log is a link.")
     deadline = time.time() + settings.server_start_timeout
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -244,6 +281,9 @@ def setup_agent(state: QAState) -> QAState:
 
     run_dir = Path(state["run_dir"])
     log_file = run_dir / "setup.log"
+    if _path_is_linked(log_file):
+        msg = "Setup: the setup log is a link, so the project was not started."
+        return {"setup_error": msg, "log": state.get("log", []) + [msg]}
     try:
         root = _clone(source, log_file) if is_github(source) else Path(source).expanduser().resolve()
         port = settings.app_port or _free_port()
