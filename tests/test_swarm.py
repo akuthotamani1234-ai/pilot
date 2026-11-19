@@ -225,6 +225,75 @@ def test_a_worker_does_not_follow_a_redirect_into_checkout():
     assert "/product/1" in hits
 
 
+def test_a_safe_redirect_is_opened_at_its_landing():
+    from backend.swarm import open_guarded
+
+    opened = []
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        url = ""
+
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            if str(url).endswith("/old"):
+                return Probe(302, "https://shop.example/new")
+            if str(url).endswith("/nowhere"):
+                return Probe(302, "")
+            return Probe(200)
+
+        @property
+        def request(self):
+            return self
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    page = Page()
+    response, blocked = open_guarded(page, "https://shop.example/old")
+    assert blocked is None
+    assert response.status == 200
+    assert opened == ["https://shop.example/new"]
+    _response, missing = open_guarded(page, "https://shop.example/nowhere")
+    assert missing["status"] == "blocked"
+    assert opened == ["https://shop.example/new"]
+
+
+def test_a_probe_that_cannot_reach_the_host_still_opens_the_page():
+    from backend.swarm import open_guarded
+
+    opened = []
+
+    class Page:
+        url = ""
+
+        def get(self, url, **kwargs):
+            raise OSError("getaddrinfo ENOTFOUND shop.test")
+
+        @property
+        def request(self):
+            return self
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    response, blocked = open_guarded(Page(), "https://shop.test/product")
+    assert blocked is None
+    assert response.status == 200
+    assert opened == ["https://shop.test/product"]
+    _response, pay = open_guarded(Page(), "https://shop.test/checkout")
+    assert pay["status"] == "blocked"
+    assert opened == ["https://shop.test/product"]
+
+
 def test_the_whole_website_is_split_across_workers():
     urls = [
         "https://shop.example/",

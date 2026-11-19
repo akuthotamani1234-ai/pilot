@@ -176,25 +176,15 @@ def _payment_block(url: str, final: str) -> dict:
 
 def open_guarded(page, address: str, *, timeout: int = 20000):
     """Open one worker page. A checkout document, including after a redirect, is not loaded."""
-    from urllib.parse import urljoin
+    from .payment_nav import follow_get
 
-    if is_payment_url(address):
-        return None, _payment_block(address, address)
-    current = address
-    for _hop in range(5):
-        if is_payment_url(current):
-            return None, _payment_block(address, current)
-        probe = page.request.get(current, max_redirects=0, timeout=timeout)
-        if probe.status not in {301, 302, 303, 307, 308}:
-            break
-        nxt = urljoin(current, probe.headers.get("location") or "")
-        if is_payment_url(nxt):
-            return None, _payment_block(address, nxt)
-        current = nxt
-    else:
-        return None, _payment_block(address, current)
-    if is_payment_url(current):
-        return None, _payment_block(address, current)
+    try:
+        current, landed = follow_get(page.request.get, address, timeout=timeout)
+    except Exception:
+        # A route-backed page has no network host. The browser open still runs.
+        current, landed = address, ""
+    if landed:
+        return None, _payment_block(address, landed)
     response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
     final = page.url or current
     if is_payment_url(final):
