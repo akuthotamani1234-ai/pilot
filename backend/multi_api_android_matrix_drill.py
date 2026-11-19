@@ -41,7 +41,9 @@ def _load(name: str) -> dict | list | None:
 def run_multi_api_android_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+    out_name = "multi_api_android_matrix_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_matrix()
 
     rows: list[dict] = []
@@ -108,16 +110,14 @@ def run_multi_api_android_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     }
 
     text = json.dumps(evidence, indent=2)
-    name = "multi_api_android_matrix_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    if folder_is_linked(dest) or folder_is_linked(dest / name):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, name, text):
+    if not write_text_unless_linked(dest, out_name, text):
         return _linked_matrix()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops"
-        if not folder_is_linked(art) and not folder_is_linked(art / name):
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
             art.mkdir(parents=True, exist_ok=True)
-            write_text_unless_linked(art, name, text)
+            write_text_unless_linked(art, out_name, text)
     return evidence
