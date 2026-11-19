@@ -124,6 +124,47 @@ def test_installed_driver_metadata_needs_registration_and_a_real_entrypoint(tmp_
     assert android._uiautomator_installation() is None
 
 
+def test_a_driver_check_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-driver"
+    other = tmp_path / "other"
+    package = other / "node_modules" / "appium-uiautomator2-driver"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(json.dumps({
+        "name": "appium-uiautomator2-driver", "version": secret,
+        "main": "index.js", "appium": {"driverName": "uiautomator2"},
+    }), encoding="utf-8")
+    (package / "index.js").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    manifest = other / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("drivers:\n  uiautomator2:\n    pkgName: appium-uiautomator2-driver\n", encoding="utf-8")
+    linked = tmp_path / "linked-home"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("APPIUM_HOME", str(linked))
+    assert android._uiautomator_installation() is None
+    assert (package / "package.json").read_text(encoding="utf-8").count(secret) == 1
+    assert (package / "index.js").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-home"
+    real_package = real / "node_modules" / "appium-uiautomator2-driver"
+    real_package.mkdir(parents=True)
+    (real_package / "package.json").write_text(json.dumps({
+        "name": "appium-uiautomator2-driver", "version": "9.9.9-home",
+        "main": "index.js", "appium": {"driverName": "uiautomator2"},
+    }), encoding="utf-8")
+    (real_package / "index.js").write_text("export {}", encoding="utf-8")
+    real_manifest = real / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    real_manifest.parent.mkdir(parents=True)
+    real_manifest.write_text("drivers:\n  uiautomator2:\n    pkgName: appium-uiautomator2-driver\n", encoding="utf-8")
+    monkeypatch.setenv("APPIUM_HOME", str(real))
+    found = android._uiautomator_installation()
+    assert found is not None and "9.9.9-home" in found
+    assert secret not in found
+    assert (package / "index.js").read_text(encoding="utf-8") == secret
+
+
 def test_only_the_known_system_ui_wait_dialog_can_be_recovered():
     class Button:
         clicked = 0
