@@ -1,0 +1,47 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_groups_role_acl",
+  "ran_at": "2026-11-19T00:24:22Z",
+  "group_role_map": {
+    "qpilot-admins": "admin",
+    "qpilot-viewers": "viewer"
+  },
+  "cases": [
+    {
+      "sub": "groups-admin",
+      "groups": [
+        "qpilot-admins"
+      ],
+      "mapped_role": "admin",
+      "oidc_ok": true,
+      "write_allowed": true,
+      "expect_write": true,
+      "ok": true
+    },
+    {
+      "sub": "groups-viewer",
+      "groups": [
+        "qpilot-viewers"
+      ],
+      "mapped_role": "viewer",
+      "oidc_ok": true,
+      "write_allowed": false,
+      "expect_write": false,
+      "ok": true
+    },
+    {
+      "sub": "groups-none",
+      "groups": [
+        "other-team"
+      ],
+      "mapped_role": null,
+      "oidc_ok": true,
+      "write_allowed": false,
+      "expect_write": false,
+      "ok": true
+    }
+  ],
+  "passed": 3,
+  "ok": true,
+  "reason": "OIDC groups\u2192role ACL 3/3; live hosted IdP Studio SSO still open"
+}

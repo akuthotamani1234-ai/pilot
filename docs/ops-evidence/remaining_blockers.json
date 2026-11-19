@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T00:21:44Z",
+  "ran_at": "2026-11-19T00:24:24Z",
   "ok": true,
   "blockers": [
     {
@@ -15,6 +15,7 @@
         "multi_store_dr_drill.json",
         "failover_rto_drill.json",
         "paging_escalation_drill.json",
+        "paging_ack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json"
       ],
@@ -26,6 +27,7 @@
         "multi_store_dr_drill.json",
         "failover_rto_drill.json",
         "paging_escalation_drill.json",
+        "paging_ack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json"
       ],
@@ -42,6 +44,7 @@
         "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json",
         "dual_tenant_oidc_acl_drill.json",
+        "oidc_groups_role_acl_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json"
       ],
@@ -53,6 +56,7 @@
         "studio_oidc_callback_drill.json",
         "sso_tenant_acl_drill.json",
         "dual_tenant_oidc_acl_drill.json",
+        "oidc_groups_role_acl_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json"
       ],

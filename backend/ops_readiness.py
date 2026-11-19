@@ -658,6 +658,22 @@ def readiness() -> dict:
                 else "No hosted on-call readiness score"
             ),
         },
+        "oidc_groups_role_acl_drill": {
+            "ready": _ops_evidence("oidc_groups_role_acl_drill.json"),
+            "reason": (
+                "OIDC groups→role ACL present; live hosted IdP SSO still open"
+                if _ops_evidence("oidc_groups_role_acl_drill.json")
+                else "No OIDC groups→role ACL evidence"
+            ),
+        },
+        "paging_ack_drill": {
+            "ready": _ops_evidence("paging_ack_drill.json"),
+            "reason": (
+                "Paging ack→resolve lifecycle present; live hosted on-call still open"
+                if _ops_evidence("paging_ack_drill.json")
+                else "No paging ack→resolve evidence"
+            ),
+        },
         "sso_tenant_acl_drill": {
             "ready": _ops_evidence("sso_tenant_acl_drill.json"),
             "reason": (
