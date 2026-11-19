@@ -232,6 +232,15 @@ def repeat_android(config_file, repeats, root):
     return ids
 
 
+def load_manifest(path: Path) -> dict:
+    """The showcase manifest. A link is not this install's known-truth list."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if folder_is_linked(path):
+        raise ValueError("The showcase manifest is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Measure known-truth QA runs, build a showcase, or repeat an Android configuration."
@@ -245,7 +254,7 @@ def main():
     if args.config:
         print(json.dumps({"runs": repeat_android(args.config, args.repeats, args.runs_root)}, indent=2))
     elif args.manifest:
-        result = save_showcase(args.runs_root, json.loads(args.manifest.read_text(encoding="utf-8")), args.out)
+        result = save_showcase(args.runs_root, load_manifest(args.manifest), args.out)
         print(json.dumps({k: v for k, v in result.items() if k != "rows"}, indent=2))
     else:
         parser.error("Provide --manifest or --config")
