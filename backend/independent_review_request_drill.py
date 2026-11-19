@@ -14,12 +14,25 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "independent_review_request_drill.json"
 
 
+def _linked_drill() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "signed_off": False,
+        "drill": "independent_review_request",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_independent_review_request_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .independent_review_pack_drill import run_independent_review_pack_drill
     from .independent_review_readiness_drill import run_independent_review_readiness_drill
     from .independent_review_summary_drill import run_independent_review_summary_drill
     from .remaining_blockers_drill import run_remaining_blockers_drill
 
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
     pack = run_independent_review_pack_drill(ops_dir=ops_dir)
     ready = run_independent_review_readiness_drill(ops_dir=ops_dir)
     summary = run_independent_review_summary_drill(ops_dir=ops_dir)
@@ -54,14 +67,18 @@ def run_independent_review_request_drill(*, ops_dir: Path | None = None) -> dict
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "independent_review_request_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_request_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
