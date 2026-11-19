@@ -28,6 +28,9 @@ export function App() {
   const [busyId, setBusyId] = useState("");
   const [token, setToken] = useState(() => loadDashboardToken());
   const [ssoCode, setSsoCode] = useState("");
+  const [ssoState, setSsoState] = useState("");
+  const [ssoVerifier, setSsoVerifier] = useState("");
+  const [ssoRedirect, setSsoRedirect] = useState("");
   const [ssoNote, setSsoNote] = useState("");
 
   async function refreshApprovals() {
@@ -43,7 +46,12 @@ export function App() {
   async function onExchangeCode() {
     setSsoNote("Exchanging…");
     try {
-      const result = await exchangeSsoCode(ssoCode.trim());
+      const result = await exchangeSsoCode({
+        code: ssoCode.trim(),
+        state: ssoState,
+        codeVerifier: ssoVerifier,
+        redirectUri: ssoRedirect,
+      });
       if (result.ok && result.access_token && result.principal_bound !== false) {
         saveDashboardToken(result.access_token);
         setToken(result.access_token);
@@ -217,6 +225,33 @@ export function App() {
             value={ssoCode}
             onChange={(e) => setSsoCode(e.target.value)}
             placeholder="OIDC code from /authorize redirect"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field">
+          State
+          <input
+            value={ssoState}
+            onChange={(e) => setSsoState(e.target.value)}
+            placeholder="state from the authorize redirect"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field">
+          Code verifier
+          <input
+            value={ssoVerifier}
+            onChange={(e) => setSsoVerifier(e.target.value)}
+            placeholder="PKCE code_verifier, when the IdP requires it"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field">
+          Redirect URI
+          <input
+            value={ssoRedirect}
+            onChange={(e) => setSsoRedirect(e.target.value)}
+            placeholder="Only sent when this Studio allows it"
             autoComplete="off"
           />
         </label>

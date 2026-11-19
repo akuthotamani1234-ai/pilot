@@ -110,8 +110,28 @@ export async function decideApproval(id: string, answer: string): Promise<Approv
   return res.json();
 }
 
+/** Query string for Studio's code exchange. Blank optional fields are left off. */
+export function ssoCallbackQuery(fields: {
+  code: string;
+  state?: string;
+  codeVerifier?: string;
+  redirectUri?: string;
+}): string {
+  const qs = new URLSearchParams();
+  qs.set("code", fields.code);
+  if (fields.state?.trim()) qs.set("state", fields.state.trim());
+  if (fields.codeVerifier?.trim()) qs.set("code_verifier", fields.codeVerifier.trim());
+  if (fields.redirectUri?.trim()) qs.set("redirect_uri", fields.redirectUri.trim());
+  return qs.toString();
+}
+
 /** Exchange an OIDC authorization code via Studio callback helper. */
-export async function exchangeSsoCode(code: string, state = ""): Promise<{
+export async function exchangeSsoCode(fields: {
+  code: string;
+  state?: string;
+  codeVerifier?: string;
+  redirectUri?: string;
+}): Promise<{
   ok: boolean;
   access_token?: string;
   role?: string;
@@ -120,8 +140,7 @@ export async function exchangeSsoCode(code: string, state = ""): Promise<{
   reason?: string;
   gate_i_complete?: boolean;
 }> {
-  const qs = new URLSearchParams({ code, state });
-  const res = await fetch(`/api/sso/callback?${qs.toString()}`);
+  const res = await fetch(`/api/sso/callback?${ssoCallbackQuery(fields)}`);
   const body = await res.json().catch(() => ({}));
   return body;
 }
