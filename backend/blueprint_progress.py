@@ -406,6 +406,7 @@ def progress() -> dict:
         {"id": "E-assertion-heal", "label": "An assertion failure is not rewritten unless a person approves it", "status": "done"},
         {"id": "E-named-classes", "label": "Only a locator repair or a bounded timeout retry applies on its own", "status": "done"},
         {"id": "E-no-inherit", "label": "A repair that needs a person is not copied onto the next failure", "status": "done"},
+        {"id": "E-no-checkout", "label": "A repair cannot point a test at checkout or payment", "status": "done"},
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
         {"id": "C-mixed-test", "label": "A console check that only reports an insecure font is not an application defect", "status": "done"},
         {"id": "C-mixed-hides-bug", "label": "An insecure font does not hide an application error in the same message", "status": "done"},

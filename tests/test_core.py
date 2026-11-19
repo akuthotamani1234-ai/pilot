@@ -23,6 +23,17 @@ def test_healing_cannot_remove_assertions():
     assert "assertions removed" in _safe_repair(GOOD, weakened)
 
 
+def test_a_repair_cannot_point_a_test_at_checkout():
+    opened = GOOD.replace("page.goto('x')", "page.goto('https://shop.test/checkout')")
+    assert "checkout" in (_safe_repair(GOOD, opened) or "")
+    clicked = GOOD.replace("page.goto('x')", "page.locator(\"a[href='/checkout']\").click()")
+    assert "checkout" in (_safe_repair(GOOD, clicked) or "")
+    cart = GOOD.replace("page.goto('x')", "page.goto('https://shop.test/cart')")
+    assert _safe_repair(GOOD, cart) is None
+    kept = opened.replace("assert page.title()", "page.locator('#title').wait_for()\n    assert page.title()")
+    assert _safe_repair(opened, kept) is None
+
+
 def test_page_key_ignores_host_and_port():
     assert page_key("http://localhost:3000/login/") == page_key("http://127.0.0.1:5173/login")
 
