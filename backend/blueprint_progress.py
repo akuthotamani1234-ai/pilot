@@ -123,6 +123,7 @@ def progress() -> dict:
         {"id": "E-healing-regression", "label": "Offline locator-only healing regression suite", "status": "done"},
         {"id": "A-rich-controls", "label": "Surface coverage counts canvas/file-upload/web-component", "status": "done"},
         {"id": "G-audit-export", "label": "Tenant-scoped audit list + /api/audit/export", "status": "done"},
+        {"id": "G-audit-principal", "label": "A signed-in principal sees only their own audit events", "status": "done"},
         {"id": "I-api-version-contract", "label": "API version contract drill (legacy→v1, reject v99)", "status": "done"},
         {"id": "G-live-drills-refresh3", "label": "Re-verify live Postgres/Redis/MinIO after audit/API work", "status": "done"},
         {"id": "C-lifecycle-cleanup-drill", "label": "Offline lifecycle + created.jsonl cleanup drill", "status": "done"},
