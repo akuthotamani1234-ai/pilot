@@ -363,13 +363,16 @@ def _registry_sheet(wb, run_dir: Path, cases: list[dict] | None = None):
 def write_workbook(run_dir: Path, cases: list[dict], results: list[dict] | None = None,
                    cost: dict | None = None, metrics: dict | None = None) -> Path | None:
     """Create / overwrite test_cases.xlsx. Returns its path, or None if openpyxl is not installed."""
+    from .finalization import folder_is_linked
+    run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return None
     try:
         from openpyxl import Workbook
     except ImportError:
         print("  [excel] openpyxl is not installed - skipping test_cases.xlsx (pip install openpyxl)")
         return None
 
-    run_dir = Path(run_dir)
     test_dir = run_dir / "generated_tests"
     case_cost = {(c["page"], c["id"]): c for c in (cost or {}).get("per_case", [])}
 
@@ -418,13 +421,13 @@ def write_workbook(run_dir: Path, cases: list[dict], results: list[dict] | None 
         _summary_sheet(wb, metrics)
 
     path = run_dir / "test_cases.xlsx"
-    if Path(run_dir).is_symlink() or path.is_symlink():
+    if folder_is_linked(run_dir) or path.is_symlink():
         return None
     try:
         wb.save(path)
     except PermissionError:  # the file is open in Excel right now
         path = run_dir / "test_cases_results.xlsx"
-        if path.is_symlink():
+        if folder_is_linked(path) or path.is_symlink():
             return None
         wb.save(path)
         print(f"  [excel] test_cases.xlsx is open in Excel - saved as {path.name} instead")

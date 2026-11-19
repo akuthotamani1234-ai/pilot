@@ -44,6 +44,36 @@ def test_each_stage_stores_its_rules_and_a_plugin_can_add_an_assertion(tmp_path,
     assert "trends" in stored
 
 
+def test_an_excel_workbook_does_not_follow_a_link_into_another_folder(tmp_path):
+    from openpyxl import load_workbook
+
+    from backend.excel import write_workbook
+
+    secret = b"tenant-b-only-excel"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "test_cases.xlsx").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert write_workbook(linked / "run", [{"id": "see-price", "title": "Price is shown", "page": "home"}]) is None
+    assert not (other / "run").exists()
+    assert (other / "test_cases.xlsx").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = write_workbook(real, [{"id": "see-price", "title": "Price is shown", "page": "home"}])
+    assert saved == real / "test_cases.xlsx"
+    assert saved.is_file() and not saved.is_symlink()
+    book = load_workbook(saved, read_only=True)
+    rows = list(book.active.iter_rows(values_only=True))
+    book.close()
+    assert rows[1][rows[0].index("Test Case")] == "Price is shown"
+    assert secret not in saved.read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_a_generated_script_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
     from backend.agents.script_generator import script_generator_agent
