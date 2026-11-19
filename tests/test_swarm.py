@@ -304,6 +304,10 @@ def test_a_page_that_refreshes_into_checkout_is_not_opened():
                     200,
                     '<html><meta http-equiv="refresh" content="0;url=/index.php?rt=checkout/cart"></html>',
                 )
+            if str(url).endswith("/later"):
+                return Probe(200, '<html><meta http-equiv="refresh" content="5;url=/checkout"></html>')
+            if str(url).endswith("/pause"):
+                return Probe(200, '<html><meta http-equiv="refresh" content="5;url=/about"></html>')
             return Probe(200, "<html>ok</html>")
 
         @property
@@ -350,6 +354,36 @@ def test_a_page_that_refreshes_into_checkout_is_not_opened():
     response, cart = open_guarded(page, "https://shop.example/cart")
     assert cart is None and response.status == 200
     assert opened == ["https://shop.example/index.php?rt=checkout/cart"]
+    fetched.clear()
+    opened.clear()
+    _response, blocked = open_guarded(page, "https://shop.example/later")
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert opened == []
+    fetched.clear()
+    opened.clear()
+    response, paused = open_guarded(page, "https://shop.example/pause")
+    assert paused is None and response.status == 200
+    assert opened == ["https://shop.example/pause"]
+
+    class SlowHeader:
+        status = 200
+        headers = {"Refresh": "5; url=/checkout"}
+
+        def text(self):
+            return "<html>ok</html>"
+
+    class SlowHeaderPage(Page):
+        def get(self, url, **kwargs):
+            fetched.append(str(url))
+            return SlowHeader()
+
+    fetched.clear()
+    opened.clear()
+    _response, blocked = open_guarded(SlowHeaderPage(), "https://shop.example/slow-header")
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert opened == []
 
 
 def test_a_worker_retries_a_cancelled_page_and_still_skips_checkout():
