@@ -73,7 +73,11 @@ def _run_path_is_linked(root: Path, path: Path) -> bool:
 
     Starlette keeps a resolved path that is still inside runs/, so a link named
     like one run can serve another run in the same folder. Any link is refused.
+    A folder on the way to the runs folder is refused too.
     """
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(root)) or folder_is_linked(Path(path)):
+        return True
     try:
         rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
     except ValueError:
@@ -370,13 +374,27 @@ def _principal_run_block(path: str, authorization: str | None, x_qa_token: str |
     return None
 
 
+def _write_stop(run: str) -> bool:
+    """Write this run's stop marker. A link is left untouched."""
+    d = _plain_run_dir(run)
+    stop = d / "STOP" if d is not None else None
+    if stop is None or _run_path_is_linked(RUNS, stop):
+        return False
+    try:
+        stop.write_text("stopped from the web UI", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
 def _plain_run_dir(run: str) -> Path | None:
     """The run folder when it is a real directory inside runs/. A link is not that folder."""
     if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
         return None
     d = RUNS / run
     try:
-        if d.is_symlink() or not d.is_dir() or _run_path_is_linked(RUNS, d):
+        from .finalization import folder_is_linked
+        if folder_is_linked(RUNS) or folder_is_linked(d) or d.is_symlink() or not d.is_dir() or _run_path_is_linked(RUNS, d):
             return None
         if d.resolve().parent != RUNS.resolve():
             return None
@@ -4071,14 +4089,9 @@ def stop_run(
     job["current"] = "stopping"
     _audit("stop_test", job=job_id, run=job.get("run"))
     run = job.get("run")
-    d = _plain_run_dir(str(run)) if run else None
-    stop = d / "STOP" if d is not None else None
-    if stop is not None and not _run_path_is_linked(RUNS, stop):
+    if run:
         # Preserve the stop marker for diagnostics, then stop main.py and its browser/pytest/Appium children now.
-        try:
-            stop.write_text("stopped from the web UI", encoding="utf-8")
-        except OSError:
-            pass  # termination must not wait on a run folder that is being removed or is read-only
+        _write_stop(str(run))
     _kill(job)
     return {"ok": True, "stopped_immediately": True}
 

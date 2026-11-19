@@ -238,6 +238,34 @@ def test_a_live_review_stop_or_console_log_does_not_follow_a_run_link(monkeypatc
         server.jobs.update(kept)
 
 
+def test_a_stop_file_does_not_follow_a_link_into_another_folder(monkeypatch, tmp_path):
+    from backend import server
+
+    secret = b"tenant-b-only-stop"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run-a"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "STOP").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(server, "RUNS", linked / "runs")
+    assert server._write_stop("run-a") is False
+    assert server._write_stop("run-new") is False
+    assert not (other / "runs" / "run-new").exists()
+    assert (nested / "STOP").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real-runs"
+    (real / "run-a").mkdir(parents=True)
+    monkeypatch.setattr(server, "RUNS", real)
+    assert server._write_stop("run-a") is True
+    written = (real / "run-a" / "STOP").read_bytes()
+    assert written == b"stopped from the web UI"
+    assert secret not in written
+    assert (nested / "STOP").read_bytes() == secret
+
+
 def test_the_run_list_hides_another_tenants_runs(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
