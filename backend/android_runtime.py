@@ -33,6 +33,20 @@ def device_unavailable(error):
     return False
 
 
+def stop_note(run_dir) -> str:
+    """Why this run should stop, or empty when it should continue.
+
+    A stop file reached through a link is not a user stop.
+    """
+    from .finalization import folder_is_linked
+    stop = Path(run_dir) / "STOP"
+    if folder_is_linked(stop):
+        return "The Android run is a link."
+    if stop.is_file():
+        return "The mobile run was stopped by the user."
+    return ""
+
+
 def screen_key(screen):
     identity = screen.get("identity")
     return (screen["package_name"], screen.get("activity"), tuple(identity)) if identity else screen["fingerprint"]
@@ -171,8 +185,9 @@ class MobileRuntime:
         self.recovery = ActionRecovery(retries=int(self.config.get("dynamic_retries", 1) or 0))
 
     def _inspect(self):
-        if (self.run_dir / "STOP").exists():
-            raise AndroidEnvironmentError("The mobile run was stopped by the user.")
+        note = stop_note(self.run_dir)
+        if note:
+            raise AndroidEnvironmentError(note)
         if time.monotonic() - self.started > 120:
             raise AndroidEnvironmentError("The Android case exceeded its 120 second action budget.")
         screen = inspect_driver(self.driver, self.config)
@@ -254,8 +269,9 @@ class MobileRuntime:
                     # The keyboard, or (test mode) a permission prompt an earlier test left in front, is cleared
                     if not bring_app_back(self.driver, self.config):
                         break
-                    if (self.run_dir / "STOP").exists():
-                        raise AndroidEnvironmentError("The mobile run was stopped by the user.")
+                    note = stop_note(self.run_dir)
+                    if note:
+                        raise AndroidEnvironmentError(note)
                     if time.monotonic() >= deadline:
                         raise AndroidEnvironmentError("The selected Android app did not enter the foreground after launch.")
                     time.sleep(.25)

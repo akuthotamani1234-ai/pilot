@@ -550,3 +550,49 @@ def test_forced_worker_cleanup_closes_only_recorded_local_session(tmp_path, monk
     assert android_pipeline._cleanup_worker_session(tmp_path, {"appium_url": "http://127.0.0.1:4723"})
     assert len(requests) == 1
     assert evidence.exists()
+
+
+def test_an_android_stage_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android_graph import _traced
+    from backend.android_runtime import stop_note
+
+    secret = "tenant-b-only-stop"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "STOP").write_text(secret, encoding="utf-8")
+    (nested / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    called = []
+
+    def agent(state):
+        called.append(state["run_dir"])
+        return {"log": ["ran"]}
+
+    stage = _traced("discovery", agent)
+    refused = stage({"run_dir": str(linked / "run"), "log": []})
+    assert "link" in refused["setup_error"]
+    assert called == []
+    assert secret not in json.dumps(refused)
+    assert stop_note(linked / "run") == "The Android run is a link."
+    report = _traced("report", agent)({"run_dir": str(linked / "run"), "log": []})
+    assert "link" in report["setup_error"]
+    assert called == []
+    assert (nested / "STOP").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    assert stop_note(real) == ""
+    continued = stage({"run_dir": str(real), "log": []})
+    assert continued["log"] == ["ran"]
+    assert called == [str(real)]
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped = stage({"run_dir": str(real), "log": []})
+    assert stopped["setup_error"] == "The mobile run was stopped by the user."
+    assert secret not in json.dumps(stopped)
+    assert called == [str(real)]
+    assert (nested / "STOP").read_text(encoding="utf-8") == secret
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
