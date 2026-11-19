@@ -137,6 +137,7 @@ def progress() -> dict:
         {"id": "G-heal-path", "label": "A heal can write only inside that tenant's run folder", "status": "done"},
         {"id": "G-heal-symlink", "label": "A heal does not follow a symlink out of the run folder", "status": "done"},
         {"id": "G-run-symlink", "label": "A linked run folder does not open another tenant's report", "status": "done"},
+        {"id": "G-run-write-link", "label": "A live review, stop, or console log does not follow a link out of the run", "status": "done"},
         {"id": "G-baseline", "label": "A tenant's saved tests and baseline stay off another tenant's website", "status": "done"},
         {"id": "G-baseline-link", "label": "A linked baseline folder does not read or write another tenant's saved tests", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
