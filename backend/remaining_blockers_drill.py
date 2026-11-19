@@ -187,13 +187,26 @@ BLOCKERS = (
 )
 
 
+def _linked_drill() -> dict:
+    return {
+        "complete": False,
+        "ok": False,
+        "drill": "remaining_blockers",
+        "open_count": 6,
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_remaining_blockers_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
     ops = ROOT / "docs" / "ops-evidence"
     rows = []
     for blocker in BLOCKERS:
         present = [
             name for name in blocker["local_partial"]
-            if (ops / name).is_file()
+            if (ops / name).is_file() and not folder_is_linked(ops / name)
         ]
         rows.append({
             **blocker,
@@ -216,11 +229,15 @@ def run_remaining_blockers_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "remaining_blockers.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "remaining_blockers.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
