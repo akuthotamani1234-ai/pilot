@@ -1,10 +1,10 @@
 {
   "gate_f_complete": false,
   "drill": "browser_portfolio_ci_readiness_pack",
-  "ran_at": "2026-11-19T05:47:07Z",
+  "ran_at": "2026-11-19T05:50:32Z",
   "kind": "readiness_score_only",
-  "score": 15,
-  "score_of": 15,
+  "score": 16,
+  "score_of": 16,
   "checks": [
     {
       "artifact": "multi_browser_portfolio_suite_drill.json",
@@ -80,9 +80,14 @@
       "artifact": "hosted_runner_os_matrix_contract_drill.json",
       "label": "Runner OS matrix contract",
       "ready": true
+    },
+    {
+      "artifact": "hosted_ci_cache_key_contract_drill.json",
+      "label": "CI cache-key contract",
+      "ready": true
     }
   ],
   "live_hosted_runners": false,
   "ok": true,
-  "reason": "Browser portfolio CI readiness 15/15; broad hosted multi-browser runners still open"
+  "reason": "Browser portfolio CI readiness 16/16; broad hosted multi-browser runners still open"
 }

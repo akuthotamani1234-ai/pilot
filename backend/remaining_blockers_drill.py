@@ -91,6 +91,7 @@ BLOCKERS = (
             "production_healing_rollback_policy_drill.json",
             "production_healing_human_loop_contract_drill.json",
             "production_healing_budget_contract_drill.json",
+            "production_healing_escalation_ladder_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -118,6 +119,7 @@ BLOCKERS = (
             "hosted_ci_timeout_budget_drill.json",
             "hosted_ci_concurrency_contract_drill.json",
             "hosted_runner_os_matrix_contract_drill.json",
+            "hosted_ci_cache_key_contract_drill.json",
         ],
     },
     {
@@ -141,6 +143,7 @@ BLOCKERS = (
             "hosted_ci_timeout_budget_drill.json",
             "hosted_ci_concurrency_contract_drill.json",
             "hosted_runner_os_matrix_contract_drill.json",
+            "hosted_ci_cache_key_contract_drill.json",
         ],
     },
     {
@@ -165,6 +168,7 @@ BLOCKERS = (
             "independent_reviewer_roster_contract_drill.json",
             "independent_review_findings_freeze_drill.json",
             "independent_review_window_contract_drill.json",
+            "independent_review_evidence_retention_contract_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
             "INDEPENDENT_REVIEW_FINDINGS.md",

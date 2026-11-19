@@ -1,0 +1,68 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_escalation_ladder",
+  "ran_at": "2026-11-19T05:50:24Z",
+  "kind": "contract_local_only",
+  "ladder": [
+    {
+      "level": 1,
+      "name": "auto_locator_heal",
+      "allowed": true,
+      "classes": [
+        "stale_locator",
+        "missing_text",
+        "layout_shift"
+      ]
+    },
+    {
+      "level": 2,
+      "name": "auto_retry_with_budget",
+      "allowed": true,
+      "classes": [
+        "transient_timeout",
+        "network_blip"
+      ],
+      "requires": [
+        "production_healing_budget_contract_drill.json"
+      ]
+    },
+    {
+      "level": 3,
+      "name": "human_approval_gate",
+      "allowed": false,
+      "classes": [
+        "flaky",
+        "auth_problem",
+        "product_defect"
+      ],
+      "requires": [
+        "production_healing_human_loop_contract_drill.json"
+      ]
+    },
+    {
+      "level": 4,
+      "name": "abort_and_page",
+      "allowed": false,
+      "classes": [
+        "infrastructure",
+        "data_corruption",
+        "security"
+      ],
+      "requires": [
+        "production_healing_rollback_policy_drill.json"
+      ]
+    }
+  ],
+  "production_suite_executed": false,
+  "local_partial_present": [
+    "production_healing_human_loop_contract_drill.json",
+    "production_healing_flaky_policy_drill.json",
+    "production_healing_rollback_policy_drill.json",
+    "production_healing_budget_contract_drill.json",
+    "production_healing_acceptance_gate_drill.json",
+    "production_healing_suite_pack_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Production healing escalation ladder recorded (4 levels, 6/6 local partials); production / third-party healing suite still open"
+}

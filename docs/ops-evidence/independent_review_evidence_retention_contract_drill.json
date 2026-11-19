@@ -1,0 +1,33 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_evidence_retention_contract",
+  "ran_at": "2026-11-19T05:50:24Z",
+  "kind": "contract_only",
+  "signed_off": false,
+  "contract": {
+    "retention_days": 365,
+    "immutable_freeze_hashes": true,
+    "retain": [
+      "independent_review_pack.json",
+      "independent_review_integrity_drill.json",
+      "independent_review_blocker_freeze_drill.json",
+      "independent_review_findings_freeze_drill.json",
+      "INDEPENDENT_REVIEW_SUMMARY.md",
+      "INDEPENDENT_REVIEW_ATTESTATION.md",
+      "INDEPENDENT_REVIEW_FINDINGS.md"
+    ],
+    "delete_after_days": null,
+    "note": "Retention contract only; independent human sign-off still required"
+  },
+  "local_partial_present": [
+    "independent_review_pack.json",
+    "independent_review_integrity_drill.json",
+    "independent_review_evidence_catalog_drill.json",
+    "independent_review_blocker_freeze_drill.json",
+    "independent_review_findings_freeze_drill.json",
+    "independent_review_window_contract_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Independent review evidence retention contract recorded (365d, 6/6 local partials); signed_off remains False"
+}

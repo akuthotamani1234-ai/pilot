@@ -29,6 +29,7 @@ ARTIFACTS = (
     ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
     ("hosted_ci_concurrency_contract_drill.json", "CI concurrency contract"),
     ("hosted_runner_os_matrix_contract_drill.json", "Runner OS matrix contract"),
+    ("hosted_ci_cache_key_contract_drill.json", "CI cache-key contract"),
 )
 
 
