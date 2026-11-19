@@ -515,6 +515,58 @@ def test_a_tenants_saved_tests_stay_off_another_tenants_website(monkeypatch, tmp
     assert "QPILOT_TENANT_ID" not in env
 
 
+def test_deleting_a_run_removes_only_that_tenants_baseline(monkeypatch, tmp_path):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import my_tests, server
+    from backend.config import settings
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    run = runs / "run-a"
+    run.mkdir(parents=True)
+    (run / "summary.json").write_text('{"source": "https://shop.test", "verdict": "Ready"}', encoding="utf-8")
+    base = tmp_path / "baseline"
+    mine = base / "t1" / "shop.test"
+    theirs = base / "t2" / "shop.test"
+    mine.mkdir(parents=True)
+    theirs.mkdir(parents=True)
+    (mine / "meta.json").write_text(json.dumps({"run_id": "run-a", "origin": "https://shop.test"}), encoding="utf-8")
+    (mine / "keep.txt").write_text("mine", encoding="utf-8")
+    (theirs / "meta.json").write_text(json.dumps({"run_id": "run-a", "origin": "https://shop.test"}), encoding="utf-8")
+    (theirs / "keep.txt").write_text("theirs", encoding="utf-8")
+    shared = base / "shop.test"
+    shared.symlink_to(theirs, target_is_directory=True)
+    plain = base / "other.test"
+    plain.mkdir()
+    (plain / "meta.json").write_text(json.dumps({"run_id": "run-a"}), encoding="utf-8")
+    (plain / "keep.txt").write_text("shared", encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(settings, "baseline_dir", base)
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    monkeypatch.setattr(server, "_audit", lambda *a, **k: None)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    assert [p.name for p in my_tests.baseline_dirs_saved_by("run-a", "")] == ["other.test"]
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    deleted = client.delete(
+        "/api/runs/run-a", headers={"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"},
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["baseline_removed"] is True
+    assert not mine.exists()
+    assert (theirs / "keep.txt").read_text(encoding="utf-8") == "theirs"
+    assert shared.is_symlink()
+    assert (shared / "keep.txt").read_text(encoding="utf-8") == "theirs"
+    assert (plain / "keep.txt").read_text(encoding="utf-8") == "shared"
+
+
 def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tmp_path):
     from backend import my_tests
     from backend.config import settings

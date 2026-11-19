@@ -4218,10 +4218,11 @@ def delete_run(run: str, x_agentic_qa: str | None = Header(default=None)):
     if any(j.get("run") == run and j["status"] == "running" for j in jobs.values()):
         raise HTTPException(409, "This test is still running. Stop it first.")
     baseline_removed = False
-    for meta in (ROOT / "baseline").glob("*/meta.json"):  # the baseline saved by this test, if any
-        if (_read_json(meta, {}) or {}).get("run_id") == run:
-            shutil.rmtree(meta.parent, ignore_errors=True)
-            baseline_removed = True
+    from backend.my_tests import baseline_dirs_saved_by
+    from backend.tenancy_store import get_run_tenant
+    for site in baseline_dirs_saved_by(run, get_run_tenant(run) or ""):
+        shutil.rmtree(site, ignore_errors=True)
+        baseline_removed = True
 
     def _rmtree_force(path: Path) -> None:
         """Delete a run folder; clear read-only bits and retry (common on Windows when Excel held a file)."""
