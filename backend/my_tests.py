@@ -67,6 +67,31 @@ def _file(site_key: str, tenant_id: str | None = None) -> Path:
     return baseline_folder(site_key, tenant_id) / FILE
 
 
+def baseline_dirs_saved_by(run_id: str, tenant_id: str = "") -> list[Path]:
+    """Site folders whose meta names this run.
+
+    A tenant only matches baseline/<tenant>/<site>. A run with no tenant only
+    matches the shared baseline/<site>. A link is left in place.
+    """
+    root = Path(settings.baseline_dir)
+    tenant = (tenant_id or "").strip()
+    parent = root / tenant if tenant and re.fullmatch(r"[\w.-]+", tenant) else root
+    if not parent.is_dir() or baseline_is_linked(parent):
+        return []
+    found: list[Path] = []
+    for meta in parent.glob("*/meta.json"):
+        if baseline_is_linked(meta):
+            continue
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        site = meta.parent
+        if isinstance(data, dict) and data.get("run_id") == run_id and not site.is_symlink():
+            found.append(site)
+    return found
+
+
 def baseline_is_linked(path: Path) -> bool:
     """True when a baseline path follows a symlink.
 
