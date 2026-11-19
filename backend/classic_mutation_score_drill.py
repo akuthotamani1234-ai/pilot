@@ -61,7 +61,9 @@ def _linked_drill() -> dict:
 
 
 def run_classic_mutation_score_drill(*, ops_dir: Path | None = None) -> dict:
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+    out_name = "classic_mutation_score_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     planted_ids = _planted_ids(TRUTH)
     planted = [{"id": bid} for bid in planted_ids]
@@ -90,12 +92,10 @@ def run_classic_mutation_score_drill(*, ops_dir: Path | None = None) -> dict:
             "broader third-party mutation suites still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (Path(ops_dir) / "classic_mutation_score_drill.json") if ops_dir else EVIDENCE
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "classic_mutation_score_drill.json"
