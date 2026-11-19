@@ -257,6 +257,13 @@ def guard_context(context, scope: Scope, blocked: list) -> None:
                 top = False
             if top:
                 why = scope.navigation_blocked(req.url)
+            if not why:
+                from .payment_nav import embedded_payment
+                try:
+                    frame_url = req.frame.url or ""
+                except Exception:
+                    frame_url = ""
+                why = embedded_payment(req.url, top_document=top, frame_url=frame_url) or None
         if why:
             if len(blocked) < 200:
                 blocked.append({"url": req.url[:200], "reason": why})

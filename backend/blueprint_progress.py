@@ -387,6 +387,7 @@ def progress() -> dict:
         {"id": "A-click-redirect", "label": "A link that redirects into checkout is not clicked", "status": "done"},
         {"id": "A-seed-redirect", "label": "A redirect into checkout is not read while seeding pages", "status": "done"},
         {"id": "A-crawl-redirect", "label": "The crawl does not follow a safe address into checkout", "status": "done"},
+        {"id": "A-embedded-checkout", "label": "A checkout frame or background call from another page is not loaded", "status": "done"},
         {"id": "B-test-redirect", "label": "A generated test does not follow a redirect into checkout", "status": "done"},
         {"id": "B-contract-redirect", "label": "A contract does not follow a redirect into checkout", "status": "done"},
         {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},

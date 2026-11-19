@@ -42,6 +42,23 @@ def follow_get(fetch, address: str, *, base: str = "", timeout: int = 10000) -> 
     return open_url, blocked
 
 
+def embedded_payment(url: str, *, top_document: bool, frame_url: str = "") -> str:
+    """Return a block reason when checkout is loaded from some other page.
+
+    A top-level document that is itself checkout may be recorded once. Requests
+    made by that checkout page are left alone.
+    """
+    from .swarm import is_payment_url
+
+    if not is_payment_url(url):
+        return ""
+    if top_document:
+        return ""
+    if frame_url and is_payment_url(frame_url):
+        return ""
+    return "checkout, payment and placing an order are never tested"
+
+
 def read_safe(fetch, address: str, *, base: str = "", timeout: int = 10000):
     """Return the GET response, or None when the chain reaches checkout.
 

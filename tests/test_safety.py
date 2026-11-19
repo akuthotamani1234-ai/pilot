@@ -7,6 +7,68 @@ import pytest
 from backend.safety import REDACTED, Scope, UrlError, check_target, clean_env, is_metadata_host, redact
 
 
+def test_a_checkout_frame_or_background_call_is_stopped():
+    from backend.safety import guard_context
+
+    class Frame:
+        def __init__(self, url, parent):
+            self.url = url
+            self.parent_frame = parent
+
+    class Req:
+        def __init__(self, url, frame):
+            self.url = url
+            self.frame = frame
+
+        def is_navigation_request(self):
+            return True
+
+    class Route:
+        def __init__(self, req):
+            self.request = req
+            self.done = ""
+
+        def abort(self, reason):
+            self.done = reason
+
+        def continue_(self):
+            self.done = "continue"
+
+    class Context:
+        def route(self, _pattern, handler):
+            self.handler = handler
+
+    ctx = Context()
+    blocked = []
+    guard_context(ctx, Scope("https://shop.example/"), blocked)
+    pay = "https://shop.example/checkout"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    product = Frame("https://shop.example/product/1", None)
+
+    frame = Route(Req(pay, Frame("about:blank", product)))
+    ctx.handler(frame)
+    assert frame.done == "blockedbyclient"
+    assert blocked[-1]["url"] == pay
+
+    background = Route(Req(pay, product))
+    background.request.is_navigation_request = lambda: False
+    ctx.handler(background)
+    assert background.done == "blockedbyclient"
+
+    direct = Route(Req(pay, Frame("https://shop.example/", None)))
+    ctx.handler(direct)
+    assert direct.done == "continue"
+
+    own_asset = Route(Req(pay + "/app.js", Frame(pay, None)))
+    own_asset.request.is_navigation_request = lambda: False
+    ctx.handler(own_asset)
+    assert own_asset.done == "continue"
+
+    cart_frame = Route(Req(cart, Frame("about:blank", product)))
+    ctx.handler(cart_frame)
+    assert cart_frame.done == "continue"
+
+
 def test_only_http_websites_can_be_tested():
     assert check_target("https://shop.test/login", resolve=False) == "https://shop.test/login"
     for bad in ("ftp://shop.test", "file:///C:/Windows", "javascript:alert(1)", "shop.test"):
