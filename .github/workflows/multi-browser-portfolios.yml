@@ -37,6 +37,15 @@ jobs:
             print(ev.get('reason')); \
             raise SystemExit(0 if ev.get('ok') else 1)"
 
+      - name: Refresh portfolio artifact manifest
+        if: always()
+        run: |
+          python -c "from backend.portfolio_artifact_manifest_drill import run_portfolio_artifact_manifest_drill; \
+            ev=run_portfolio_artifact_manifest_drill(); \
+            assert ev.get('gate_f_complete') is False; \
+            print(ev.get('reason')); \
+            raise SystemExit(0 if ev.get('ok') else 1)"
+
       - name: Upload portfolio evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,7 +1,7 @@
 {
   "gate_a_surfaces_complete": false,
   "drill": "admin_portal_surface_coverage",
-  "ran_at": "2026-11-19T00:00:49Z",
+  "ran_at": "2026-11-19T00:03:45Z",
   "fixture": "AdminPortal",
   "pages_walked": [
     "home",
@@ -35,6 +35,24 @@
     "downloads": {
       "pages_with_downloads": 1,
       "links": 1
+    },
+    "lazy": {
+      "pages_with_lazy": 0,
+      "items_seen": 0
+    },
+    "metadata": {
+      "pages_with_locale": 7,
+      "pages_with_skeleton": 0,
+      "title_or_meta": 7
+    },
+    "viewports": {
+      "desktop_or_default": 7,
+      "mobile_checked": 1
+    },
+    "api": {
+      "network_seeded": 0,
+      "openapi_or_scrape": 0,
+      "blocked_requests": 0
     },
     "rich_controls": {
       "canvas": 0,

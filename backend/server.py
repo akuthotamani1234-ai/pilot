@@ -1497,6 +1497,22 @@ def ops_production_healing_contract():
     return {"gate_e_complete": False, "production_healing_contract": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-summary")
+def ops_independent_review_summary():
+    """Gate G: human-readable review summary (unsigned; sign-off still open)."""
+    from backend.independent_review_summary_drill import (
+        run_independent_review_summary_drill,
+    )
+    evidence = run_independent_review_summary_drill()
+    _audit(
+        "ops_independent_review_summary",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        blockers=int(evidence.get("open_blockers") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_summary": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

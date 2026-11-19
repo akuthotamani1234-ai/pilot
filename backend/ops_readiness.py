@@ -606,6 +606,18 @@ def readiness() -> dict:
                 else "No independent review readiness evidence"
             ),
         },
+        "independent_review_summary_drill": {
+            "ready": _ops_evidence("independent_review_summary_drill.json")
+            or (ROOT / "docs" / "ops-evidence" / "INDEPENDENT_REVIEW_SUMMARY.md").is_file(),
+            "reason": (
+                "Independent review summary present; human sign-off still pending"
+                if (
+                    _ops_evidence("independent_review_summary_drill.json")
+                    or (ROOT / "docs" / "ops-evidence" / "INDEPENDENT_REVIEW_SUMMARY.md").is_file()
+                )
+                else "No independent review summary evidence"
+            ),
+        },
         "sso_tenant_acl_drill": {
             "ready": _ops_evidence("sso_tenant_acl_drill.json"),
             "reason": (
