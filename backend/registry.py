@@ -73,7 +73,7 @@ def build(app_map: list[dict], crawl: dict) -> dict:
     from .agents.test_design import features as basic_features
     from .auth import login_form
     from .features import page_features
-    from .swarm import stored_control_opens_payment
+    from .swarm import is_payment_url, stored_control_opens_payment
 
     pages, features, edges, by_url = {}, {}, [], {}
     seen_on = Counter()  # control key -> on how many page patterns (shared header / footer controls: one feature)
@@ -114,6 +114,10 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             "error": p.get("error") or "", "lazy": bool(p.get("lazy")), "features": [], "state": "discovered"})
         pg["urls"].append(p.get("url"))
         pg["slugs"].append(p.get("slug"))
+        if is_payment_url(p.get("final_url") or "") or is_payment_url(p.get("url") or ""):
+            pg["state"] = "blocked"
+            pg["why"] = "checkout, payment and placing an order are never tested"
+            continue
         # (an API address the crawl opened from a link answers 405: its error page - 'Media type', 'Content', 'OPTIONS'
         # on automationexercise.com/api/createAccount - is no feature of the website)
         if p.get("error") or p.get("needs_permission") or p.get("status") == 405:
