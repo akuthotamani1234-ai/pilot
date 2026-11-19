@@ -306,6 +306,49 @@ def test_a_generated_open_does_not_start_checkout():
     assert opened == [cart]
 
 
+def test_a_generated_read_does_not_fetch_checkout():
+    import ast
+    import re
+    from pathlib import Path
+    from urllib.parse import urljoin
+
+    import pytest
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    code = "\n\n".join(
+        ast.get_source_segment(src, node)
+        for node in ast.parse(src).body
+        if getattr(node, "name", None) in {"_payment_target", "_checked"}
+    )
+    ns = {"re": re, "pytest": pytest, "urljoin": urljoin, "_blocked": lambda url, navigation=False: None}
+    exec(code, ns)
+    opened = []
+
+    class Resp:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    def real(self, url, **kwargs):
+        opened.append(url)
+        if url.endswith("checkout/cart"):
+            return Resp(302, "https://shop.example/index.php?rt=checkout/confirm")
+        return Resp(200)
+
+    read = ns["_checked"](real)
+    pay = "https://shop.example/index.php?rt=checkout/checkout"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    product = "https://shop.example/product/1"
+    with pytest.raises(pytest.skip.Exception):
+        read(object(), pay)
+    assert opened == []
+    resp = read(object(), cart)
+    assert resp.status == 302
+    assert opened == [cart]
+    opened.clear()
+    assert read(object(), product).status == 200
+    assert opened == [product]
+
+
 def test_extra_pages_of_one_kind_do_not_include_checkout():
     from backend.items import item_cases
     pay = "https://shop.example/index.php?rt=checkout/confirm"

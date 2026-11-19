@@ -213,14 +213,21 @@ _real_head = APIRequestContext.head
 def _checked(real):
     def call(self, url, **kwargs):
         hops, current = 0, url
+        checker = globals().get("_payment_target")
         while True:
+            # A direct read of checkout is refused. A redirect into checkout is not followed.
+            if checker and checker(str(current or "")):
+                pytest.skip("Blocked: checkout or payment is recorded and not opened again")
             why = _blocked(current)
             if why:
                 raise PermissionError(f"blocked by the test sandbox: {current} ({why})")
             r = real(self, current, **dict(kwargs, max_redirects=0))
             location = r.headers.get("location")
             if r.status in (301, 302, 303, 307, 308) and location and hops < 5:
-                current, hops = urljoin(current, location), hops + 1
+                nxt = urljoin(current, location)
+                if checker and checker(nxt):
+                    return r
+                current, hops = nxt, hops + 1
                 continue
             return r
     return call
