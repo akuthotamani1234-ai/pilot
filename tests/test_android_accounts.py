@@ -173,6 +173,50 @@ def test_existing_account_validation_and_creation_permission():
                                 "device_id": "emulator-5554", "account_mode": "create"})
 
 
+def test_a_private_account_does_not_follow_a_link_into_another_folder(tmp_path):
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from backend.android_accounts import persist
+    from backend.android_interact import ACCOUNT_USERNAME
+    from backend.finalization import save_login_state
+
+    secret = b"tenant-b-only-account"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "account_setup.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    session = SimpleNamespace(
+        account_mode="create",
+        account_setup={"mode": "create", "status": "created"},
+        secrets={ACCOUNT_USERNAME: "ours@example.com"},
+        device=SimpleNamespace(stop_path=(linked / "run") / "STOP", config={"account_mode": "create"}),
+    )
+    persist(session)
+    assert save_login_state(linked / "run", lambda path: Path(path).write_text("ours", encoding="utf-8")) is False
+    assert save_login_state(linked / "fresh", lambda path: Path(path).write_text("ours", encoding="utf-8")) is False
+    assert not (other / "fresh").exists()
+    assert not (nested / ".private").exists()
+    assert (nested / "account_setup.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    session.device = SimpleNamespace(stop_path=real / "STOP", config={"account_mode": "create"})
+    persist(session)
+    public = real / "account_setup.json"
+    private = real / ".private" / "auto_secrets.json"
+    assert public.is_file() and not public.is_symlink()
+    assert b"created" in public.read_bytes() and secret not in public.read_bytes()
+    assert private.is_file() and b"ours@example.com" in private.read_bytes()
+    assert secret not in private.read_bytes()
+    assert save_login_state(real, lambda path: Path(path).write_text("ours", encoding="utf-8")) is True
+    assert (real / ".private" / "auth.json").read_text(encoding="utf-8") == "ours"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_private_account_does_not_follow_a_link_into_another_run(tmp_path):
     from types import SimpleNamespace
 

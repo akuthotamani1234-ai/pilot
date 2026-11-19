@@ -80,7 +80,7 @@ def private_file(run_dir: Path, name: str) -> Path | None:
     if not name or Path(name).is_absolute() or "/" in name or "\\" in name or name in {".", ".."}:
         return None
     private = run_dir / ".private"
-    if run_dir.is_symlink() or private.is_symlink():
+    if folder_is_linked(run_dir) or private.is_symlink():
         return None
     private.mkdir(exist_ok=True)
     path = private / name
