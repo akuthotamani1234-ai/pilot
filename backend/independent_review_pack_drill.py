@@ -13,7 +13,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE_DIR = ROOT / "docs" / "ops-evidence"
-OUT = EVIDENCE_DIR / "independent_review_pack.json"
 CHECKLIST = ROOT / "docs" / "INDEPENDENT_REVIEW_CHECKLIST.md"
 
 
@@ -29,7 +28,10 @@ def _linked_drill() -> dict:
 
 def run_independent_review_pack_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    out_name = "independent_review_pack.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE_DIR
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name) or folder_is_linked(EVIDENCE_DIR):
         return _linked_drill()
     files: list[dict] = []
     for path in sorted(EVIDENCE_DIR.glob("*.json")):
@@ -56,12 +58,10 @@ def run_independent_review_pack_drill(*, ops_dir: Path | None = None) -> dict:
             "independent human/reviewer sign-off still pending"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE_DIR
-    out = (Path(ops_dir) / "independent_review_pack.json") if ops_dir else OUT
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_pack.json"
