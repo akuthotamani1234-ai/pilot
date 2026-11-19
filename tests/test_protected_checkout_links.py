@@ -85,11 +85,14 @@ def test_checkout_addresses_are_not_opened_by_the_link_checks():
         "url": "https://shop.example/cart", "slug": "cart", "title": "Cart",
         "links": [
             {"href": "https://shop.example/checkout", "text": "Continue"},
+            {"href": "https://shop.example/index.php?rt=checkout/checkout", "text": "Continue"},
             {"href": "https://shop.example/index.php?rt=checkout/cart", "text": "Cart"},
             {"href": "https://shop.example/product/1", "text": "Saree"},
         ],
     }]
     code, count = all_links_script(pages)
     assert count == 2
-    assert "shop.example/checkout" not in code.split("LINKS = ", 1)[1].split("SECTIONS", 1)[0]
+    listed = code.split("LINKS = ", 1)[1].split("SECTIONS", 1)[0]
+    assert "shop.example/checkout" not in listed
+    assert "checkout/checkout" not in listed
     assert "checkout/cart" in code and "product/1" in code

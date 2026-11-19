@@ -233,6 +233,9 @@ def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
     assert risky(["Continue", "", "", "", "", "button", "", "", "", "location='/checkout'"])
     assert not risky(["Continue", "", "", "", "", "button", "", "in_form",
                       "index.php?rt=checkout/cart", ""])
+    assert risky(["Continue", "", "", "", "", "button", "", "in_form",
+                  "index.php?rt=checkout/confirm", ""])
+    assert risky(["Continue", "", "", "index.php?rt=checkout/checkout"])
     assert not risky(["Continue", "", "", "", "", "button", "", "in_form", "/product/buy-saree", ""])
 
 

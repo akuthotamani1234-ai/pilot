@@ -44,6 +44,12 @@ def test_checkout_is_never_given_to_a_worker():
     assert not is_payment_url("https://shop.example/product/buy-saree")
     assert not is_payment_url("https://shop.example/product/checkout-guide")
     assert not is_payment_url("https://notpaypal.com/shop")
+    assert is_payment_url("https://shop.example/index.php?rt=checkout/checkout")
+    assert is_payment_url("https://shop.example/index.php?rt=checkout%2Fconfirm")
+    assert is_payment_url("https://shop.example/index.php?route=checkout/payment")
+    assert not is_payment_url("https://shop.example/index.php?rt=checkout/cart")
+    assert not is_payment_url("https://shop.example/index.php?rt=checkout/cart&remove=1")
+    assert not is_payment_url("https://shop.example/index.php?rt=account/login")
 
 
 def test_a_worker_uses_the_saved_login_for_later_pages():
@@ -89,6 +95,8 @@ def test_a_continue_control_that_opens_checkout_is_payment():
     assert control_opens_payment(page, href="/cart/checkout%2Ehtml")
     assert not control_opens_payment(page, href="/product/buy-saree")
     assert not control_opens_payment(page, href="index.php?rt=checkout/cart")
+    assert control_opens_payment(page, form_action="index.php?rt=checkout/confirm")
+    assert control_opens_payment(page, href="index.php?route=checkout/checkout")
     assert not control_opens_payment(page, href="/admin/pay-grades")
     assert not control_opens_payment(page, href="/product/checkout-guide")
     assert not control_opens_payment(page, onclick="location='/cart'")
