@@ -432,8 +432,9 @@ class Explorer:
 
     def _eligible(self, t: dict, page_url: str = "") -> tuple[str, str]:
         """(risk, why not) - why not = '' when the action may be performed."""
-        from .swarm import control_opens_payment
-        if control_opens_payment(page_url, t.get("href") or "", t.get("form_action") or "", t.get("onclick") or ""):
+        from .swarm import control_opens_payment, is_payment_url
+        if is_payment_url(page_url) or control_opens_payment(
+                page_url, t.get("href") or "", t.get("form_action") or "", t.get("onclick") or ""):
             return "protected", blocked_reason("pay")
         cls = action_class(t["text"] or t["name"], t["selector"],
                            role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))

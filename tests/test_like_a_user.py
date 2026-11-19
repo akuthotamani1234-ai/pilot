@@ -98,6 +98,10 @@ def test_continue_is_not_clicked_when_it_opens_checkout():
         "href": "index.php?rt=checkout/cart",
     }, page)
     assert cart_why == "" and cart_risk == "safe"
+    page_risk, page_why = ex._eligible({
+        "text": "Next", "name": "Next", "selector": "button.next",
+    }, "http://shop.test/checkout")
+    assert page_risk == "protected" and page_why.startswith("protected: payment")
     fake = _Page({"href": "/checkout.html", "action": "", "onclick": ""})
     ex._untouched = page
     result = ex._try(fake, page, {"lazy": False}, {
