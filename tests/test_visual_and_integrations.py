@@ -243,7 +243,7 @@ def test_nothing_is_sent_without_settings_or_significant_defects(tmp_path, monke
 def hook(monkeypatch):
     from backend import server
     started = []
-    monkeypatch.setattr(server, "start_run", lambda req: started.append(req) or {"id": len(started)})
+    monkeypatch.setattr(server, "_launch_run", lambda req, _caller=None: started.append(req) or {"id": len(started)})
     monkeypatch.setattr(settings, "webhook_token", "hook-token-123")
     monkeypatch.setattr(settings, "webhook_test_url", "")
     return TestClient(server.app, base_url="http://127.0.0.1:8000"), started

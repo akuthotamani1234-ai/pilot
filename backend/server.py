@@ -3344,6 +3344,15 @@ def start_run(
         access = assert_run_access(principal_id=caller, run_id=reused, audit=True)
         if not access.get("allowed"):
             return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return _launch_run(req, caller if isinstance(caller, str) else None)
+
+
+def _launch_run(req: RunRequest, caller: str | None):
+    """Start one test. The HTTP route has already checked the caller.
+
+    A due schedule and a webhook call this directly. They have already shown
+    who may start it, and a schedule keeps that tenant's baseline.
+    """
     from backend.agents.discovery import unwrap_link
     from backend.safety import API_KEY_ENV, safe_url_for_display
     req.llm_provider = _privacy_provider(req.llm_provider, req.privacy_mode)
@@ -4433,10 +4442,12 @@ def add_schedule(
     env_ = st.get("environment") if st.get("environment") in ("test", "staging", "production") else "test"
     reader = _signed_in_reader(authorization, x_qa_token, "run.write")
     tenant = ""
-    if isinstance(reader, str):
+    principal = reader if isinstance(reader, str) else ""
+    if principal:
         from backend.tenancy_store import get_principal
-        tenant = str((get_principal(reader) or {}).get("tenant_id") or "")
+        tenant = str((get_principal(principal) or {}).get("tenant_id") or "")
     s = {"id": f"S{time.time_ns()}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
+         "principal_id": principal,
          "tenant_id": tenant if re.fullmatch(r"[\w.-]+", tenant) else "",
          "settings": {"llm_provider": prov or None, "llm_model": st.get("llm_model") or None, "environment": env_,
                       "production_confirmed": env_ == "production", "max_pages": int(st.get("max_pages") or 0),
@@ -4486,7 +4497,8 @@ def run_due_schedules(now=None) -> list[str]:
             from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
             token = push_baseline_tenant(str(s.get("tenant_id") or ""))
             try:
-                job = start_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})))
+                owner = str(s.get("principal_id") or "") or None
+                job = _launch_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})), owner)
             finally:
                 pop_baseline_tenant(token)
             s.update(last=now.isoformat(timespec="minutes"), last_job=job["id"], last_error="", waiting=False)
@@ -4577,7 +4589,7 @@ async def hook_run(request: Request):
     url = url or settings.webhook_test_url
     if not url:
         raise HTTPException(400, 'No website address: send {"url": "https://..."} or set WEBHOOK_TEST_URL in .env.')
-    job = start_run(RunRequest(source=str(url), authorized=True))
+    job = _launch_run(RunRequest(source=str(url), authorized=True), None)
     _audit("webhook_run", job=job["id"], event=event or "hook")
     return {"ok": True, "started": True, "job": job["id"]}
 
