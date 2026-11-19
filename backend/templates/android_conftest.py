@@ -63,6 +63,14 @@ def _session_unavailable() -> bool:
     return UNAVAILABLE.is_file() and not _is_linked(UNAVAILABLE)
 
 
+def _user_stopped() -> bool:
+    """True when this run was stopped. A stop file reached through a link is refused."""
+    stop = RUN / "STOP"
+    if _is_linked(stop):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    return stop.is_file()
+
+
 def _unavailable_note() -> str:
     """The saved reason this run stopped, or '' when that file is missing or a link."""
     if not _session_unavailable():
@@ -138,7 +146,7 @@ def pytest_runtest_setup(item):
 
 @pytest.fixture(scope="session")
 def appium_driver():
-    if (RUN / "STOP").exists():
+    if _user_stopped():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = create_session(CONFIG)
     session_file = RUN / ".private" / "active_appium_session.json"
@@ -172,7 +180,7 @@ def appium_driver():
 def mobile(request, appium_driver):
     case = next(c for c in CASES if "test_" + c["id"] == request.node.name)
     _append("android_attempts.jsonl", {"id": case["id"], "state": "started"})
-    if (RUN / "STOP").exists():
+    if _user_stopped():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = appium_driver
     activity = CONFIG.get("app_activity")

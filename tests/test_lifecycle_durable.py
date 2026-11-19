@@ -604,3 +604,41 @@ def test_a_saved_role_list_does_not_follow_a_link_into_another_folder(tmp_path):
     assert loaded["clerk"]["note"] == "home-own"
     assert secret not in json.dumps(loaded)
     assert secret in (nested / "roles.json").read_text(encoding="utf-8")
+
+
+def test_an_android_stop_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    import ast
+    from pathlib import Path
+
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-stop"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "STOP").write_text(secret, encoding="utf-8")
+    (nested / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/android_conftest.py").read_text(encoding="utf-8"))
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in {"_is_linked", "_user_stopped"}]
+    ns = {"Path": Path, "AndroidEnvironmentError": AndroidEnvironmentError}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "android_conftest.py", "exec"), ns)
+    ns["RUN"] = linked / "run"
+    with pytest.raises(AndroidEnvironmentError, match="link") as caught:
+        ns["_user_stopped"]()
+    assert secret not in str(caught.value)
+    assert (nested / "STOP").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    ns["RUN"] = real
+    assert ns["_user_stopped"]() is False
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    assert ns["_user_stopped"]() is True
+    assert (nested / "STOP").read_text(encoding="utf-8") == secret
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
