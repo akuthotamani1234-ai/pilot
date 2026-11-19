@@ -10,6 +10,15 @@ from backend.blueprint_progress import progress
 def test_an_appium_matrix_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.android_appium_product_matrix_drill as mod
 
+    calls = {"n": 0}
+
+    def _env(*_args, **_kwargs):
+        calls["n"] += 1
+        return {"devices": []}
+
+    monkeypatch.setattr(mod, "android_environment", _env)
+    monkeypatch.setattr(mod, "_appium_ready", lambda *_args, **_kwargs: False)
+
     secret = "tenant-b-appium"
     other = tmp_path / "other"
     other.mkdir()
@@ -23,6 +32,7 @@ def test_an_appium_matrix_does_not_follow_a_link_into_another_folder(tmp_path, m
     assert "link" in refused["reason"]
     assert refused["ok"] is False
     assert refused["gate_d_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
@@ -38,13 +48,24 @@ def test_an_appium_matrix_does_not_follow_a_link_into_another_folder(tmp_path, m
     rows_original = secret_rows.read_bytes()
     live = evidence_dir / "android_live_matrix_rows.json"
     live.symlink_to(secret_rows)
+    real = tmp_path / "real"
+    real.mkdir()
+    planted = real / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_android_appium_product_matrix_drill(ops_dir=real)
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
     monkeypatch.setattr(mod, "ROOT", install)
     monkeypatch.setattr(mod, "EVIDENCE", evidence_dir / kept.name)
-    monkeypatch.setattr(mod, "android_environment", lambda *_args, **_kwargs: {"devices": []})
-    monkeypatch.setattr(mod, "_appium_ready", lambda *_args, **_kwargs: False)
     skipped = run_android_appium_product_matrix_drill()
     written = (evidence_dir / kept.name).read_text(encoding="utf-8")
     assert skipped["gate_d_complete"] is False
+    assert calls["n"] == 1
     assert secret not in written
     assert secret not in str(skipped)
     assert secret_rows.read_bytes() == rows_original
@@ -59,6 +80,7 @@ def test_an_appium_matrix_does_not_follow_a_link_into_another_folder(tmp_path, m
     saved = run_android_appium_product_matrix_drill()
     saved_rows = live.read_text(encoding="utf-8")
     assert saved["gate_d_complete"] is False
+    assert calls["n"] == 2
     assert token in saved_rows
     assert secret not in saved_rows
     assert secret not in (evidence_dir / kept.name).read_text(encoding="utf-8")

@@ -161,7 +161,9 @@ def run_android_appium_product_matrix_drill(
 ) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+    name = "android_appium_product_matrix_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_matrix()
 
     env = android_environment(appium_url)
@@ -311,8 +313,6 @@ def run_android_appium_product_matrix_drill(
             }
 
     text = json.dumps(evidence, indent=2)
-    name = "android_appium_product_matrix_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
