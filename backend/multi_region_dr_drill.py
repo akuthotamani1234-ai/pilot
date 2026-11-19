@@ -138,7 +138,8 @@ def run_multi_region_dr_drill(*, ops_dir: Path | None = None) -> dict:
                 f"Multi-region DR rehearsal failed (marker={marker!r}); "
                 "hosted multi-region DR still open"
             )
-        except (OSError, ValueError, subprocess.TimeoutExpired, RuntimeError) as exc:
+        except Exception as exc:
+            # Include FileNotFoundError when psql/pg_dump is absent (e.g. Windows CI).
             ok = False
             reason = f"Multi-region DR rehearsal failed: {exc}; hosted DR still open"
             steps.append({"step": "error", "detail": str(exc)[:300]})
