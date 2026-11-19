@@ -72,6 +72,14 @@ def _mask(text: str) -> str:
     return re.sub(r"//[^/@\s]+@github\.com", "//***@github.com", text)
 
 
+def _contains_symlink(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def _path_is_linked(path: Path) -> bool:
     """True when this path, or a folder on the way to it, is a link."""
     path = Path(path)
@@ -281,11 +289,15 @@ def setup_agent(state: QAState) -> QAState:
 
     run_dir = Path(state["run_dir"])
     log_file = run_dir / "setup.log"
+    source_path = Path(source).expanduser()
+    if is_local_project(source) and _contains_symlink(source_path):
+        msg = "Setup: the project folder is a link, so it was not started."
+        return {"setup_error": msg, "log": state.get("log", []) + [msg]}
     if _path_is_linked(log_file):
         msg = "Setup: the setup log is a link, so the project was not started."
         return {"setup_error": msg, "log": state.get("log", []) + [msg]}
     try:
-        root = _clone(source, log_file) if is_github(source) else Path(source).expanduser().resolve()
+        root = _clone(source, log_file) if is_github(source) else source_path.resolve()
         port = settings.app_port or _free_port()
         info = detect_project(root, port)
         print(f"  [setup] project: {root}  type: {info['type']}")

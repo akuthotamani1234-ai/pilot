@@ -181,6 +181,8 @@ def progress() -> dict:
         {"id": "G-db-link", "label": "A tenant database does not follow a link into another file", "status": "done"},
         {"id": "G-setup-link", "label": "Project setup does not follow a link into another folder", "status": "done"},
         {"id": "G-suite-path-link", "label": "A test suite does not follow a traces, video, or login link", "status": "done"},
+        {"id": "G-project-link", "label": "A local project that is a link is not installed or started", "status": "done"},
+        {"id": "G-oracle-db-link", "label": "A database check does not follow a link into another file", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

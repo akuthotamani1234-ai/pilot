@@ -206,6 +206,34 @@ def test_sqlite_oracle_is_read_only_and_denies_attachment_and_file_functions(tmp
         assert connection.execute("SELECT value FROM evidence").fetchone() == (3,)
 
 
+def test_a_database_check_does_not_follow_a_link(tmp_path):
+    secret = b"tenant-b-only-oracle"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "data.sqlite"
+    victim.write_bytes(secret)
+    check = BackendCheck(
+        id="db", title="Read-only evidence", kind="sqlite", database_ref="BLOWAI_DB_TEST",
+        query="SELECT value FROM evidence", expected=3,
+    )
+    linked = tmp_path / "linked.sqlite"
+    linked.symlink_to(victim)
+    with pytest.raises(ValueError, match="link"):
+        check_sqlite(check, {"BLOWAI_DB_TEST": str(linked)})
+    folder = tmp_path / "folder"
+    folder.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        check_sqlite(check, {"BLOWAI_DB_TEST": str(folder / "data.sqlite")})
+    assert victim.read_bytes() == secret
+
+    path = tmp_path / "mine.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute("CREATE TABLE evidence(value INTEGER)")
+        connection.execute("INSERT INTO evidence VALUES (3)")
+    assert check_sqlite(check, {"BLOWAI_DB_TEST": str(path)})["read_only"] is True
+    assert secret not in path.read_bytes()
+
+
 def test_a_contract_does_not_follow_a_redirect_into_checkout(tmp_path):
     with ContractFixture(tmp_path / "pay.sqlite") as fixture:
         contract = {

@@ -281,3 +281,39 @@ def test_a_project_setup_does_not_follow_a_link_into_another_folder(tmp_path, mo
     saved = log.read_text(encoding="utf-8")
     assert "123" in saved and secret not in saved
     assert log.is_file() and not log.is_symlink()
+
+
+def test_a_linked_local_project_is_not_started(tmp_path, monkeypatch):
+    from backend.agents import setup_agent as setup
+
+    secret = "tenant-b-only-project"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    (other / "index.html").write_text("<title>Other</title>", encoding="utf-8")
+    linked = tmp_path / "linked-app"
+    linked.symlink_to(other, target_is_directory=True)
+    run = tmp_path / "run"
+    run.mkdir()
+    calls = []
+    monkeypatch.setattr(setup, "_run", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(setup, "_start_server", lambda *args, **kwargs: calls.append("start"))
+    refused = setup.setup_agent({"source": str(linked), "url": str(linked), "run_dir": str(run), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real-app"
+    real.mkdir()
+    (real / "index.html").write_text("<title>Mine</title>", encoding="utf-8")
+
+    class _Proc:
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(setup, "_start_server", lambda *args, **kwargs: _Proc())
+    monkeypatch.setattr(setup, "_wait_until_up", lambda *args, **kwargs: "http://127.0.0.1:9/")
+    started = setup.setup_agent({"source": str(real), "url": str(real), "run_dir": str(run), "log": []})
+    assert started.get("url") == "http://127.0.0.1:9/"
+    assert secret not in json.dumps(started)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
