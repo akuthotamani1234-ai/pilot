@@ -21,11 +21,28 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "lifecycle_cleanup_drill.json"
 
 
+def _linked_lifecycle() -> dict:
+    return {
+        "gate_c_complete": False,
+        "ok": False,
+        "drill": "offline_lifecycle_cleanup",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_lifecycle_cleanup_drill(*, ops_dir: Path | None = None, work_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "lifecycle_cleanup_drill.json"
     base = Path(work_dir) if work_dir else (ROOT / "artifacts" / "ops" / "lifecycle_cleanup_work")
+    if (folder_is_linked(dest) or folder_is_linked(dest / out_name) or folder_is_linked(base)):
+        return _linked_lifecycle()
     base.mkdir(parents=True, exist_ok=True)
     run_dir = base / f"run_{int(time.time())}"
     run_dir.mkdir(parents=True, exist_ok=True)
+    if folder_is_linked(run_dir) or folder_is_linked(run_dir / "created.jsonl"):
+        return _linked_lifecycle()
 
     life = Lifecycle(run_id=run_dir.name, environment="test")
     prepared = life.prepare(1)
@@ -67,12 +84,15 @@ def run_lifecycle_cleanup_drill(*, ops_dir: Path | None = None, work_dir: Path |
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name) or folder_is_linked(base):
+        return _linked_lifecycle()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "lifecycle_cleanup_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_lifecycle()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "lifecycle_cleanup_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
