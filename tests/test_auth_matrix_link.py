@@ -3,7 +3,18 @@ from backend.blueprint_progress import progress
 from backend.dashboard_auth_matrix_drill import run_dashboard_auth_matrix_drill
 
 
-def test_a_dashboard_auth_drill_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_dashboard_auth_drill_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import backend.dashboard_auth as auth
+
+    calls = {"n": 0}
+    real_authorize = auth.authorize
+
+    def _authorize(*args, **kwargs):
+        calls["n"] += 1
+        return real_authorize(*args, **kwargs)
+
+    monkeypatch.setattr(auth, "authorize", _authorize)
+
     secret = "tenant-b-only-auth"
     other = tmp_path / "other"
     other.mkdir()
@@ -17,15 +28,28 @@ def test_a_dashboard_auth_drill_does_not_follow_a_link_into_another_folder(tmp_p
     assert "link" in evidence["reason"]
     assert evidence["ok"] is False
     assert evidence["gate_i_complete"] is False
+    assert calls["n"] == 0
     assert kept.read_bytes() == original
     assert secret not in evidence["reason"]
     assert not (other / "dashboard_auth_work").exists()
     assert not (other / "dashboard_auth_matrix_drill.json").exists()
 
-    real = tmp_path / "real"
-    real.mkdir()
-    saved = run_dashboard_auth_matrix_drill(ops_dir=real)
-    written = (real / "dashboard_auth_matrix_drill.json").read_text(encoding="utf-8")
+    folder = tmp_path / "real"
+    folder.mkdir()
+    planted = folder / "dashboard_auth_matrix_drill.json"
+    planted.symlink_to(kept)
+    skipped = run_dashboard_auth_matrix_drill(ops_dir=folder)
+    assert skipped["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    assert not (folder / "dashboard_auth_work").exists()
+    planted.unlink()
+
+    saved = run_dashboard_auth_matrix_drill(ops_dir=folder)
+    written = (folder / "dashboard_auth_matrix_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] == 12
     assert saved["ok"] is True
     assert saved["gate_i_complete"] is False
     assert set(saved["modes_covered"]) == {"none", "bearer", "webhook", "principal", "oidc"}
