@@ -155,6 +155,9 @@ def _uiautomator_installation() -> str | None:
     package = home / "node_modules" / "appium-uiautomator2-driver"
     manifest = home / "node_modules" / ".cache" / "appium" / "extensions.yaml"
     try:
+        from .finalization import folder_is_linked
+        if folder_is_linked(manifest) or folder_is_linked(package):
+            return None
         if manifest.stat().st_size > 262144:
             return None
         drivers = manifest.read_text(encoding="utf-8").split("\nplugins:", 1)[0]
