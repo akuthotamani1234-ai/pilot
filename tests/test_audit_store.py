@@ -569,6 +569,39 @@ def test_deleting_a_run_removes_only_that_tenants_baseline(monkeypatch, tmp_path
     assert (plain / "keep.txt").read_text(encoding="utf-8") == "shared"
 
 
+def test_saved_answers_do_not_follow_a_link_into_another_folder(monkeypatch, tmp_path):
+    from backend import my_tests
+    from backend.config import settings
+    from backend.review import load_expectations, save_expectations
+
+    secret = b"tenant-b-only-answers"
+    other = tmp_path / "other"
+    nested = other / "baseline"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "baseline_dir", linked / "baseline")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    assert my_tests.save("shop.test", ["See the shop heading"]) == []
+    save_expectations("shop.test", {"TC-1": {"answer": "correct"}})
+    assert my_tests.load("shop.test") == []
+    assert load_expectations("shop.test") == {}
+    assert not (nested / "shop.test").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real-baseline"
+    monkeypatch.setattr(settings, "baseline_dir", real)
+    saved = my_tests.save("shop.test", ["See the shop heading"])
+    assert saved[0]["text"] == "See the shop heading"
+    text = (real / "shop.test" / "my_tests.json").read_bytes()
+    assert b"See the shop heading" in text and secret not in text
+    save_expectations("shop.test", {"TC-1": {"answer": "correct"}})
+    assert load_expectations("shop.test")["TC-1"]["answer"] == "correct"
+    assert secret not in (real / "shop.test" / "expectations.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tmp_path):
     from backend import my_tests
     from backend.config import settings
