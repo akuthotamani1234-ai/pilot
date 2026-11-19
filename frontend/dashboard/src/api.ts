@@ -114,6 +114,9 @@ export async function decideApproval(id: string, answer: string): Promise<Approv
 export async function exchangeSsoCode(code: string, state = ""): Promise<{
   ok: boolean;
   access_token?: string;
+  role?: string;
+  principal_bound?: boolean;
+  principal_reason?: string;
   reason?: string;
   gate_i_complete?: boolean;
 }> {

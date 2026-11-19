@@ -266,6 +266,13 @@ def exchange_code(
     if validated.get("ok"):
         from .dashboard_auth import bind_login_principal
         bound = bind_login_principal(claims, db_path=db_path)
+    bound_ok = bool(validated.get("ok") and bound.get("principal_bound"))
+    if not validated.get("ok"):
+        reason = validated.get("reason") or "JWT validation failed after token exchange"
+    elif not bound_ok:
+        reason = bound.get("reason") or "OIDC token validated but no principal was stored"
+    else:
+        reason = "Studio OIDC callback exchanged code + validated JWT; hosted IdP SSO still open"
     return {
         "ok": bool(validated.get("ok")),
         "gate_i_complete": False,
@@ -273,6 +280,7 @@ def exchange_code(
         "expires_in": body.get("expires_in"),
         "has_access_token": bool(body.get("access_token")),
         "has_id_token": bool(body.get("id_token")),
+        "access_token": token if bound_ok else "",
         "claims": claims,
         "nonce_enforced": bool(nonce_check.get("nonce_enforced")),
         "nonce_ok": nonce_check.get("nonce_ok"),
@@ -282,9 +290,5 @@ def exchange_code(
         "role": bound.get("role"),
         "tenant_id": bound.get("tenant_id"),
         "principal_reason": bound.get("reason"),
-        "reason": (
-            "Studio OIDC callback exchanged code + validated JWT; hosted IdP SSO still open"
-            if validated.get("ok") else
-            (validated.get("reason") or "JWT validation failed after token exchange")
-        ),
+        "reason": reason,
     }
