@@ -919,6 +919,51 @@ def test_a_normal_login_page_is_still_opened():
     assert res["logged_in"] is False
 
 
+def test_a_person_who_finishes_on_checkout_is_not_sent_back():
+    from backend.auth import wait_for_person
+
+    opened = []
+    pay = "https://shop.example/checkout"
+
+    class Loc:
+        def is_visible(self):
+            return False
+
+        @property
+        def first(self):
+            return self
+
+    class Tab:
+        url = pay
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                raise AssertionError(url)
+
+        def wait_for_timeout(self, *args, **kwargs):
+            return None
+
+        def evaluate(self, script):
+            text = str(script).lower()
+            return "log ?out" in text or "sign ?out" in text
+
+        def content(self):
+            return "<html><h1>Account</h1></html>"
+
+        def locator(self, selector):
+            return Loc()
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+
+    done = wait_for_person(Tab(), {"user": "#u", "password": "#p"}, seconds=3)
+    assert done["logged_in"] is True
+    assert opened == []
+    assert "checkout was not opened again" in done["evidence"]
+    assert "still logged in after opening the page again" not in done["evidence"]
+
+
 def test_a_checkout_landing_is_not_opened_again():
     from backend.auth import reopen_if_safe
 

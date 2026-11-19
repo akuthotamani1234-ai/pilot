@@ -232,7 +232,9 @@ def wait_for_person(tab, form: dict, seconds: int) -> dict | None:
             evidence = ["a person completed the one-time code / CAPTCHA in the browser window", "the password box is gone"]
             evidence += [f"the address changed to {tab.url.split('?')[0]}"] if moved else []
             evidence += ["a log-out control is shown"] if has_logout else []
-            tab.goto(tab.url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)  # the login must hold
+            landing = tab.url
+            if reopen_if_safe(tab, landing, evidence, settings.page_timeout_ms):
+                return {"outcome": "success", "logged_in": True, "evidence": evidence, "final_url": landing}
             _settle(tab)
             if looks_logged_out(tab, form):
                 continue
