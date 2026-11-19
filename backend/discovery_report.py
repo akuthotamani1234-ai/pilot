@@ -12,6 +12,10 @@ from .state import QAState
 
 def discovery_report(state: QAState) -> dict:
     run_dir = Path(state["run_dir"])
+    if run_dir.is_symlink():
+        note = "This run's folder is a link, so the discovery report was not written."
+        return {"verdict": "Insufficient Evidence", "report_path": "",
+                "log": state.get("log", []) + [note]}
     run_dir.mkdir(parents=True, exist_ok=True)
     pages = state.get("app_map", [])
     crawl = dict(state.get("crawl") or {})
@@ -50,7 +54,8 @@ def discovery_report(state: QAState) -> dict:
         "gates": [{"id": "functional_tests", "name": "Functional tests ran", "status": "missing",
                    "mandatory": True, "detail": note}],
     }
-    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(run_dir, "summary.json", json.dumps(summary, indent=2))
     def esc(value):
         return html.escape(str(value or ""), quote=True)
     rows = "".join("<tr><td>" + esc(p.get("title")) + "</td><td>" + esc(p.get("url"))
@@ -85,6 +90,6 @@ def discovery_report(state: QAState) -> dict:
            '<a href="components.json">Inventory JSON</a> ? <a href="crawl.json">Crawl limits and gaps</a></p>'
            '<table><tr><th>Page</th><th>URL</th><th>Load result</th></tr>' + rows + '</table></main></html>')
     report = run_dir / "report.html"
-    report.write_text(doc, encoding="utf-8")
+    write_text_unless_linked(run_dir, "report.html", doc)
     return {"verdict": "Insufficient Evidence", "report_path": str(report),
             "log": state.get("log", []) + [note]}

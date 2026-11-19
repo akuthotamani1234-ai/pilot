@@ -170,6 +170,7 @@ def progress() -> dict:
         {"id": "G-mobile-report-link", "label": "An Android report does not follow a link into another run", "status": "done"},
         {"id": "G-fix-link", "label": "A reviewed source fix does not follow a link into another run", "status": "done"},
         {"id": "G-android-evidence-link", "label": "Android evidence does not follow a link into another run", "status": "done"},
+        {"id": "G-handoff-link", "label": "A discovery report or defect handoff does not follow a link into another run", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
