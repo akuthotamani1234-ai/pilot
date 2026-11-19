@@ -342,7 +342,7 @@ def test_scheduled_runs_start_when_due_and_skip_what_was_missed(tmp_path, monkey
     (tmp_path / "r1" / "run_args.json").write_text(json.dumps({"source": "https://shop.test/", "settings": {
         "llm_provider": "none", "environment": "test", "max_pages": 5}}))
     started = []
-    monkeypatch.setattr(server, "start_run", lambda req: started.append(req) or {"id": len(started)})
+    monkeypatch.setattr(server, "_launch_run", lambda req, _caller=None: started.append(req) or {"id": len(started)})
     client = TestClient(server.app, base_url="http://127.0.0.1:8000")
     h = {"X-Agentic-QA": "1"}
     assert client.post("/api/schedules", json={"run": "r1", "every": "daily", "at": "25:00"}, headers=h).status_code == 400

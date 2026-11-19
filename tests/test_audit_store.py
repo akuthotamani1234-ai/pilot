@@ -457,6 +457,72 @@ def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tm
     assert saved.read_text(encoding="utf-8") == secret
 
 
+def test_a_due_schedule_starts_while_a_principal_must_be_signed_in(monkeypatch, tmp_path):
+    import json
+    from datetime import datetime
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    (runs / "run-a").mkdir(parents=True)
+    (runs / "run-a" / "run_args.json").write_text(
+        '{"source": "https://shop.test/", "settings": {"llm_provider": "none", "environment": "test", "max_pages": 1}}',
+        encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    monkeypatch.setattr(server, "SCHEDULES", tmp_path / "schedules.json")
+    monkeypatch.setattr(server, "check_target", lambda url, resolve=True: url)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    captured = {}
+
+    class Proc:
+        pid = 123
+        stdout = iter(())
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    def fake_popen(_cmd, **kwargs):
+        captured["tenant"] = kwargs["env"].get("QPILOT_TENANT_ID")
+        return Proc()
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"}
+    created = client.post("/api/schedules", headers=header, json={"run": "run-a", "every": "daily", "at": "07:00"})
+    assert created.status_code == 200
+    assert created.json()["principal_id"] == "admin-1"
+    saved = json.loads((tmp_path / "schedules.json").read_text(encoding="utf-8"))
+    saved[0]["next"] = "2020-01-01T00:00"
+    (tmp_path / "schedules.json").write_text(json.dumps(saved), encoding="utf-8")
+    kept = dict(server.jobs)
+    server.jobs.clear()
+    try:
+        started = server.run_due_schedules(datetime(2020, 1, 1, 0, 10))
+        assert started == [created.json()["id"]]
+        assert captured["tenant"] == "t1"
+        job = next(iter(server.jobs.values()))
+        assert job["principal_id"] == "admin-1"
+        refused = client.post(
+            "/api/runs", headers={"X-Agentic-QA": "1"},
+            json={"source": "https://shop.test/", "authorized": True},
+        )
+        assert refused.status_code == 401
+    finally:
+        server.jobs.clear()
+        server.jobs.update(kept)
+
+
 def test_a_scheduled_run_and_an_approved_look_stay_in_that_tenants_baseline(monkeypatch, tmp_path):
     import json
     from datetime import datetime
@@ -503,11 +569,11 @@ def test_a_scheduled_run_and_an_approved_look_stay_in_that_tenants_baseline(monk
     (tmp_path / "schedules.json").write_text(json.dumps(saved), encoding="utf-8")
     seen = []
 
-    def fake_start(_req):
+    def fake_start(_req, _caller=None):
         seen.append(my_tests.baseline_folder("shop.test"))
         return {"id": 7}
 
-    monkeypatch.setattr(server, "start_run", fake_start)
+    monkeypatch.setattr(server, "_launch_run", fake_start)
     assert server.run_due_schedules(datetime(2020, 1, 1, 0, 10)) == [created.json()["id"]]
     assert seen == [tmp_path / "baseline" / "t1" / "shop.test"]
     assert my_tests.current_baseline_tenant() == ""

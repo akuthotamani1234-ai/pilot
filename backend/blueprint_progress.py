@@ -130,6 +130,7 @@ def progress() -> dict:
         {"id": "G-run-write", "label": "A viewer cannot re-check or otherwise change a run", "status": "done"},
         {"id": "G-schedule", "label": "A schedule cannot repeat another tenant's run", "status": "done"},
         {"id": "G-schedule-slot", "label": "Scheduling the same website does not erase another tenant's repeat", "status": "done"},
+        {"id": "G-schedule-due", "label": "A due schedule still starts when a principal must be signed in", "status": "done"},
         {"id": "G-job", "label": "A signed-in principal cannot stop or read another tenant's live test", "status": "done"},
         {"id": "G-approval", "label": "An approval stays in its tenant and cannot rewrite another tenant's test", "status": "done"},
         {"id": "G-heal-path", "label": "A heal can write only inside that tenant's run folder", "status": "done"},
