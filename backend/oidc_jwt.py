@@ -95,8 +95,9 @@ def _fetch_jwks(issuer: str) -> dict:
 def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
     """Validate bearer JWT structure + configured iss/aud/exp.
 
-    Returns ``{ok, reason, gate_i_complete: False, ...}``. Signature verification
-    is best-effort when PyJWT is installed and an issuer is configured.
+    Returns ``{ok, reason, gate_i_complete: False, ...}``. When signature
+    verification is requested, a missing issuer, a missing verifier, or a
+    failed signature check is refused. Hosted IdP SSO stays open.
     """
     cfg = configured_claims()
     out = {
@@ -164,6 +165,13 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
             out["reason"] = "jti replay rejected"
             return out
 
+    if verify_signature and not cfg["issuer"]:
+        out["reason"] = (
+            "QPILOT_OIDC_ISSUER is required before a signature can be checked; "
+            "live SSO still open"
+        )
+        return out
+
     if verify_signature and cfg["issuer"]:
         try:
             import jwt  # PyJWT optional
@@ -192,16 +200,14 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
             out["signature_verified"] = True
         except ImportError:
             out["reason"] = (
-                "claims ok (iss/aud/exp); PyJWT not installed — signature not verified; "
+                "PyJWT is not installed, so the signature was not verified; "
                 "live SSO still open"
             )
-            out["ok"] = True
             return out
         except (urllib.error.URLError, TimeoutError, ValueError, Exception) as exc:
             out["reason"] = (
-                f"claims ok but signature/JWKS verification failed: {exc}; live SSO still open"
+                f"signature verification failed: {exc}; live SSO still open"
             )
-            out["ok"] = True  # structural claims passed; signature path incomplete
             return out
 
     out["ok"] = True

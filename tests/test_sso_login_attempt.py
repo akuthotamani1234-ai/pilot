@@ -96,6 +96,68 @@ def test_a_callback_nonce_must_match_the_login_it_started(monkeypatch, tmp_path)
     reset_sso_logins()
 
 
+def test_a_forged_token_does_not_bind_a_principal(monkeypatch, tmp_path):
+    db = tmp_path / "tenancy.sqlite"
+    upsert_tenant("t1", "Tenant", db_path=db)
+    monkeypatch.setenv("QPILOT_OIDC_TOKEN_URL", "http://127.0.0.1:9/token")
+    monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
+    monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
+    monkeypatch.delenv("QPILOT_OIDC_PKCE_REQUIRED", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_STATE", raising=False)
+    monkeypatch.delenv("QPILOT_OIDC_REDIRECT_ALLOWLIST", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_NONCE", raising=False)
+    import time
+
+    import backend.tenancy_store as tenancy
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    reset_sso_logins()
+    reset_used_authorization_codes()
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    started = client.post("/api/sso/login", headers={"X-Agentic-QA": "1"}).json()
+
+    def enc(obj: dict) -> str:
+        raw = json.dumps(obj, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    forged = ".".join((
+        enc({"alg": "none", "typ": "JWT"}),
+        enc({
+            "iss": "https://idp.example",
+            "aud": "qpilot-dashboard",
+            "sub": "forged-1",
+            "tid": "t1",
+            "email": "forged@ex.test",
+            "nonce": started["nonce"],
+            "exp": int(time.time()) + 3600,
+        }),
+        "sig",
+    ))
+
+    class _Body:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"id_token": forged, "token_type": "Bearer"}).encode()
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_a, **_k: _Body())
+    body = client.get(
+        "/api/sso/callback",
+        params={"code": "code-forged-signature", "state": started["state"]},
+    ).json()
+    assert body["ok"] is False
+    assert body["gate_i_complete"] is False
+    assert body["signature_verified"] is False
+    assert body["access_token"] == ""
+    assert body["principal_bound"] is False
+    assert body["nonce_ok"] is True
+    assert get_principal("forged-1", db_path=db) is None
+    reset_sso_logins()
+
+
 def test_the_pkce_verifier_stays_on_the_server(monkeypatch):
     monkeypatch.setenv("QPILOT_OIDC_TOKEN_URL", "http://127.0.0.1:9/token")
     monkeypatch.delenv("QPILOT_OIDC_PKCE_REQUIRED", raising=False)
