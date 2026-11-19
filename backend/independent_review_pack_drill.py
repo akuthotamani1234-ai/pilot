@@ -48,11 +48,15 @@ def run_independent_review_pack_drill(*, ops_dir: Path | None = None) -> dict:
         "drill": "independent_review_pack",
         "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
-        "checklist_present": CHECKLIST.is_file(),
+        "checklist_present": (not folder_is_linked(CHECKLIST)) and CHECKLIST.is_file(),
         "signed_off": False,
         "artifact_count": len(files),
         "artifacts": files,
-        "ok": CHECKLIST.is_file() and len(files) > 0,
+        "ok": (
+            (not folder_is_linked(CHECKLIST))
+            and CHECKLIST.is_file()
+            and len(files) > 0
+        ),
         "reason": (
             f"Evidence pack ready ({len(files)} artifacts hashed); "
             "independent human/reviewer sign-off still pending"
