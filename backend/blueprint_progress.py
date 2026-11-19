@@ -382,6 +382,7 @@ def progress() -> dict:
         {"id": "B-live-formaction", "label": "A click uses the button's own checkout address, not the form's", "status": "done"},
         {"id": "B-swarm-redirect", "label": "A swarm worker does not follow a redirect into checkout", "status": "done"},
         {"id": "I-pkce-stays", "label": "The PKCE verifier stays on the server and is not taken from the callback URL", "status": "done"},
+        {"id": "B-checkpoint-landing", "label": "A retry does not keep a checkout landing behind a safe URL", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

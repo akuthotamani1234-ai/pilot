@@ -112,6 +112,38 @@ def test_a_retry_does_not_resume_on_checkout(tmp_path):
     q.close()
 
 
+def test_a_retry_does_not_keep_a_checkout_landing(tmp_path):
+    q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30, max_attempts=3)
+    q.enqueue(
+        run_id="run-land", role="worker",
+        payload={"url": "https://shop.example/cart"},
+        idempotency_key="cart",
+    )
+    seen = []
+
+    def work(task):
+        seen.append(task.get("checkpoint"))
+        if len(seen) == 1:
+            return {
+                "error_class": "worker_crash",
+                "detail": "cart redirected",
+                "checkpoint": {
+                    "step": 1,
+                    "url": "https://shop.example/cart",
+                    "final_url": "https://shop.example/index.php?rt=checkout/confirm",
+                },
+            }
+        return {"ok": True}
+
+    summary = drain(q, run_id="run-land", worker_id="w1", work=work)
+    assert seen == [None, None]
+    row = summary["tasks"][0]
+    assert row["status"] == "succeeded"
+    assert row["checkpoint"] is None
+    assert summary["gate_b_complete"] is False
+    q.close()
+
+
 def test_drain_stops_when_the_lease_expires_during_work(tmp_path):
     q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30)
     q.enqueue(run_id="run-c", role="worker", payload={"url": "/slow"}, idempotency_key="slow")
