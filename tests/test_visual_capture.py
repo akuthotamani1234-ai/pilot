@@ -108,6 +108,36 @@ def test_a_saved_look_does_not_follow_a_link_into_another_folder(tmp_path, monke
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_an_approved_look_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.finalization import copy_unless_linked
+
+    secret = b"tenant-b-only-look"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "visual").mkdir()
+    (nested / "visual" / "home_desktop_approved.png").write_bytes(secret)
+    src = tmp_path / "ours.png"
+    src.write_bytes(b"our-shop-look")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert copy_unless_linked(src, linked / "run" / "visual" / "home_desktop_approved.png") is False
+    assert copy_unless_linked(src, linked / "fresh" / "visual" / "home_desktop_approved.png") is False
+    assert not (other / "fresh").exists()
+    assert (nested / "visual" / "home_desktop_approved.png").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    assert copy_unless_linked(src, real / "visual" / "home_desktop_approved.png") is True
+    saved = real / "visual" / "home_desktop_approved.png"
+    assert saved.is_file() and not saved.is_symlink()
+    assert saved.read_bytes() == b"our-shop-look"
+    assert secret not in saved.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_visual_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.finalization import copy_unless_linked, write_bytes_unless_linked
