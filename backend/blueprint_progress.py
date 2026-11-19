@@ -386,6 +386,7 @@ def progress() -> dict:
         {"id": "B-explore-redirect", "label": "An action reload does not follow a redirect into checkout", "status": "done"},
         {"id": "B-test-redirect", "label": "A generated test does not follow a redirect into checkout", "status": "done"},
         {"id": "B-contract-redirect", "label": "A contract does not follow a redirect into checkout", "status": "done"},
+        {"id": "C-ai-eyes", "label": "An AI-written failure stays a question when the model's eyes agree", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

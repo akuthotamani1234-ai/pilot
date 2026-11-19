@@ -131,6 +131,11 @@ def test_what_the_ai_saw_may_clear_a_failure_or_ask_a_person_never_more():
     assert classify(_failed("test_learned_6", learned, "test_learned.py", vision=bug))[0] == "suspect"  # not a bug
     cat, _, confidence = classify(_failed("test_check_1", "E   assert 'limited' in 'sorry'", vision=bug))
     assert (cat, confidence) == ("product_defect", "high")  # a failed check the AI saw too: confirmed
+    ai_said = "E   AssertionError: the website said 'nope'"
+    ai_cat, _, ai_conf = classify(_failed("test_flow_1", ai_said, "test_flows_ai.py", vision=bug))
+    assert (ai_cat, ai_conf) == ("suspect", "medium")
+    labeled = _failed("test_check_1", "E   assert 'limited' in 'sorry'", vision=bug, expected_source="ai")
+    assert classify(labeled)[0] == "suspect"
     script = "E   NameError: name 'x' is not defined"
     r = _failed("test_x", script, vision=mistake, error_type="NameError")
     assert classify(r)[0] == "test_defect"  # a broken script stays one
