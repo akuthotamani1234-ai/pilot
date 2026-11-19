@@ -470,9 +470,20 @@ def covered_result_nodeids(failures: list[dict]) -> set[str]:
 
 
 def _gone_items(run_dir) -> set[str]:
-    """The item addresses the tests found gone (the website rebuilt its data): from pytest's own output."""
+    """The item addresses the tests found gone (the website rebuilt its data): from pytest's own output.
+
+    A pytest output file reached through a link is not this run's output.
+    """
     out = set()
-    for f in Path(run_dir).glob("*_pytest_output.txt") if run_dir else []:
+    if not run_dir:
+        return out
+    run_dir = Path(run_dir)
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        return out
+    for f in run_dir.glob("*_pytest_output.txt"):
+        if folder_is_linked(f) or not f.is_file():
+            continue
         try:
             out.update(DATA_CHANGED.findall(f.read_text(encoding="utf-8", errors="replace")))
         except OSError:

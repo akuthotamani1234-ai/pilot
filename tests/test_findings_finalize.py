@@ -296,3 +296,33 @@ def test_a_rebuilt_report_does_not_follow_a_link_into_another_run(tmp_path, monk
     else:
         raise AssertionError("rebuild wrote through a linked folder")
     assert json.loads((other / "rebuild_comparison.json").read_text(encoding="utf-8"))["secret"] == secret
+
+
+def test_a_pytest_output_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.failure_analysis import _gone_items
+
+    secret = "https://other.example/tenant-b-only-gone"
+    own = "https://home.example/own-item"
+    other = tmp_path / "other"
+    other.mkdir()
+    output = other / "results_pytest_output.txt"
+    output.write_text(f"[data changed] {secret} no longer exists\n", encoding="utf-8")
+    before = sorted(p.name for p in other.iterdir())
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "results_pytest_output.txt").symlink_to(output)
+    linked_run = tmp_path / "linked-run"
+    linked_run.symlink_to(other, target_is_directory=True)
+
+    assert _gone_items(run) == set()
+    assert _gone_items(linked_run) == set()
+    assert secret not in _gone_items(run)
+    assert output.read_text(encoding="utf-8") == f"[data changed] {secret} no longer exists\n"
+    assert sorted(p.name for p in other.iterdir()) == before
+
+    (run / "results_pytest_output.txt").unlink()
+    (run / "results_pytest_output.txt").write_text(
+        f"[data changed] {own} no longer exists\n", encoding="utf-8")
+    found = _gone_items(run)
+    assert found == {own}
+    assert secret not in found
