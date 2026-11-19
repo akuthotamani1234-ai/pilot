@@ -147,6 +147,41 @@ def test_benchmark_records_environment_and_refuses_overall_accuracy(tmp_path):
     assert "overall_accuracy_percent remains unset" in html.lower()
 
 
+def test_a_showcase_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    secret = b"tenant-b-only-showcase"
+    other = tmp_path / "other"
+    nested = other / "showcase"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "benchmark.json").write_bytes(secret)
+    (nested / "report.html").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, {"groups": []}, linked / "showcase")
+    assert sorted(path.name for path in nested.iterdir()) == ["benchmark.json", "keep.txt", "report.html"]
+    assert (nested / "benchmark.json").read_bytes() == secret
+    assert (nested / "report.html").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real_root = tmp_path / "real"
+    run = real_root / "clean_run"
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(json.dumps([
+        {"id": "login", "test": "test_login", "outcome": "passed"},
+    ]), encoding="utf-8")
+    (run / "report.html").write_text("<html></html>", encoding="utf-8")
+    manifest = {"groups": [{"name": "clean", "runs": ["clean_run"], "expected": {"login": "passed"}}]}
+    out = real_root / "showcase"
+    save_showcase(real_root, manifest, out)
+    saved = (out / "benchmark.json").read_bytes()
+    assert b"login" in saved and secret not in saved
+    assert (out / "report.html").is_file() and not (out / "report.html").is_symlink()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_published_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import datetime as dt
 
