@@ -2,11 +2,11 @@
   "gate_h_complete": false,
   "gate_b_complete": false,
   "drill": "redis_dual_db_failover",
-  "ran_at": "2026-11-19T03:53:18Z",
+  "ran_at": "2026-11-19T04:22:14Z",
   "ok": true,
   "region_a_db": 0,
   "region_b_db": 1,
-  "key": "qpilot:drill:mr:1795060398",
+  "key": "qpilot:drill:mr:1795062134",
   "steps": [
     {
       "step": "ping_a",

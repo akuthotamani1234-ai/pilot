@@ -32,6 +32,7 @@ BLOCKERS = (
             "hosted_oncall_readiness_pack_drill.json",
             "multi_region_dr_readiness_pack_drill.json",
             "dual_region_store_health_probe_drill.json",
+            "hosted_dr_cutover_checklist_drill.json",
         ],
     },
     {
@@ -72,6 +73,7 @@ BLOCKERS = (
             "production_healing_readiness_drill.json",
             "production_healing_suite_pack_drill.json",
             "production_healing_third_party_sla_drill.json",
+            "production_healing_acceptance_gate_drill.json",
             "healing_regression_drill.json",
         ],
     },

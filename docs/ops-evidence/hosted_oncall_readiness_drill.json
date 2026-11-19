@@ -1,10 +1,10 @@
 {
   "gate_h_complete": false,
   "drill": "hosted_oncall_readiness",
-  "ran_at": "2026-11-19T03:53:18Z",
+  "ran_at": "2026-11-19T04:22:14Z",
   "kind": "readiness_score_only",
-  "score": 10,
-  "score_of": 10,
+  "score": 13,
+  "score_of": 13,
   "checks": [
     {
       "artifact": "multi_region_dr_drill.json",
@@ -55,9 +55,24 @@
       "artifact": "hosted_oncall_contract_drill.json",
       "label": "Hosted on-call contract snapshot",
       "ready": true
+    },
+    {
+      "artifact": "dual_region_store_health_probe_drill.json",
+      "label": "Dual-region store health probe",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_dr_cutover_checklist_drill.json",
+      "label": "Hosted DR cutover checklist",
+      "ready": true
+    },
+    {
+      "artifact": "multi_region_dr_readiness_pack_drill.json",
+      "label": "Multi-region DR readiness pack",
+      "ready": true
     }
   ],
   "live_hosted_paging": false,
   "ok": true,
-  "reason": "Hosted DR/on-call readiness 10/10; live hosted multi-region DR / on-call paging still open"
+  "reason": "Hosted DR/on-call readiness 13/13; live hosted multi-region DR / on-call paging still open"
 }

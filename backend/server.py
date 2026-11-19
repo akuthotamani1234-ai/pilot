@@ -1732,6 +1732,22 @@ def ops_production_healing_third_party_sla():
     return {"gate_e_complete": False, "production_healing_third_party_sla": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-acceptance-gate")
+def ops_production_healing_acceptance_gate():
+    """Gate E: acceptance criteria gate (production suite still open / not accepted)."""
+    from backend.production_healing_acceptance_gate_drill import (
+        run_production_healing_acceptance_gate_drill,
+    )
+    evidence = run_production_healing_acceptance_gate_drill()
+    _audit(
+        "ops_production_healing_acceptance_gate",
+        ok=bool(evidence.get("ok")),
+        accepted=bool(evidence.get("accepted")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_acceptance_gate": evidence}
+
+
 @app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
 def ops_hosted_dispatch_payload_rehearsal():
     """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""
@@ -2005,6 +2021,22 @@ def ops_dual_region_store_health_probe():
         live=bool(evidence.get("live_hosted_dr")),
     )
     return {"gate_h_complete": False, "dual_region_store_health_probe": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-cutover-checklist")
+def ops_hosted_dr_cutover_checklist():
+    """Gate H: hosted DR cutover checklist (hosted DR still open)."""
+    from backend.hosted_dr_cutover_checklist_drill import (
+        run_hosted_dr_cutover_checklist_drill,
+    )
+    evidence = run_hosted_dr_cutover_checklist_drill()
+    _audit(
+        "ops_hosted_dr_cutover_checklist",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_cutover_checklist": evidence}
 
 
 @app.post("/api/ops/drills/hosted-ci-artifact-gate-pack")
