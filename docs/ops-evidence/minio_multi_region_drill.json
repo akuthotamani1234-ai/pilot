@@ -1,11 +1,11 @@
 {
   "gate_h_complete": false,
   "drill": "minio_dual_bucket_failover",
-  "ran_at": "2026-11-19T02:22:38Z",
+  "ran_at": "2026-11-19T02:33:50Z",
   "ok": true,
   "region_a": "qpilot-region-a",
   "region_b": "qpilot-region-b",
-  "key": "dr/multi-region/1795054958.bin",
+  "key": "dr/multi-region/1795055630.bin",
   "open_a": {
     "ready": true,
     "backend": "minio",

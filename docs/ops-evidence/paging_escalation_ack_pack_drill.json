@@ -1,0 +1,11 @@
+{
+  "gate_h_complete": false,
+  "drill": "paging_escalation_ack_pack",
+  "ran_at": "2026-11-19T02:33:41Z",
+  "kind": "loopback_ops_pack",
+  "escalation_ok": true,
+  "ack_ok": true,
+  "elapsed_ms": 1008,
+  "ok": true,
+  "reason": "Paging escalation+ack pack ok in 1008ms; live hosted on-call paging still open"
+}

@@ -1620,6 +1620,37 @@ def ops_paging_ack():
     return {"gate_h_complete": False, "paging_ack": evidence}
 
 
+@app.post("/api/ops/drills/paging-escalation-ack-pack")
+def ops_paging_escalation_ack_pack():
+    """Gate H: escalation + ack pack (hosted on-call still open)."""
+    from backend.paging_escalation_ack_pack_drill import (
+        run_paging_escalation_ack_pack_drill,
+    )
+    evidence = run_paging_escalation_ack_pack_drill()
+    _audit(
+        "ops_paging_escalation_ack_pack",
+        ok=bool(evidence.get("ok")),
+        escalation_ok=bool(evidence.get("escalation_ok")),
+        ack_ok=bool(evidence.get("ack_ok")),
+    )
+    return {"gate_h_complete": False, "paging_escalation_ack_pack": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-principal-bootstrap")
+def ops_studio_sso_principal_bootstrap():
+    """Gate I: first-login principal bootstrap from OIDC claims (hosted IdP still open)."""
+    from backend.studio_sso_principal_bootstrap_drill import (
+        run_studio_sso_principal_bootstrap_drill,
+    )
+    evidence = run_studio_sso_principal_bootstrap_drill()
+    _audit(
+        "ops_studio_sso_principal_bootstrap",
+        ok=bool(evidence.get("ok")),
+        bootstrapped=bool((evidence.get("bootstrapped") or {}).get("present_after")),
+    )
+    return {"gate_i_complete": False, "studio_sso_principal_bootstrap": evidence}
+
+
 @app.post("/api/ops/drills/ci-artifact-upload-rehearsal")
 def ops_ci_artifact_upload_rehearsal():
     """Gates D/F: local CI artifact staging rehearsal (hosted runners still open)."""

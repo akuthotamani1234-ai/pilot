@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T02:22:38Z",
+  "ran_at": "2026-11-19T02:33:50Z",
   "ok": true,
   "blockers": [
     {
@@ -17,6 +17,7 @@
         "multi_region_cutover_rehearsal_drill.json",
         "paging_escalation_drill.json",
         "paging_ack_drill.json",
+        "paging_escalation_ack_pack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json"
       ],
@@ -30,6 +31,7 @@
         "multi_region_cutover_rehearsal_drill.json",
         "paging_escalation_drill.json",
         "paging_ack_drill.json",
+        "paging_escalation_ack_pack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json"
       ],
@@ -48,6 +50,7 @@
         "dual_tenant_oidc_acl_drill.json",
         "oidc_groups_role_acl_drill.json",
         "oidc_tid_tenant_acl_drill.json",
+        "studio_sso_principal_bootstrap_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json"
       ],
@@ -61,6 +64,7 @@
         "dual_tenant_oidc_acl_drill.json",
         "oidc_groups_role_acl_drill.json",
         "oidc_tid_tenant_acl_drill.json",
+        "studio_sso_principal_bootstrap_drill.json",
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json"
       ],
