@@ -182,6 +182,36 @@ FAILURES = [
 ]
 
 
+def test_a_slack_report_path_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.integrations import slack_message
+
+    secret = "tenant-b-only-slack"
+    other = tmp_path / "other"
+    mine = other / "mine"
+    mine.mkdir(parents=True)
+    (mine / "report.html").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    run = parent / "mine"
+    text = slack_message({"run_dir": str(run), "url": "https://shop.example", "verdict": "home-own"}, [])
+    assert "home-own" in text
+    assert secret not in text
+    assert str(other.resolve()) not in text
+    assert (mine / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "report.html").write_text("<p>home-own</p>\n", encoding="utf-8")
+    real_text = slack_message({"run_dir": str(real), "url": "https://shop.example", "verdict": "Ready"}, [])
+    assert str((real / "report.html").resolve()) in real_text
+    assert secret not in real_text
+    assert (mine / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_slack_and_jira_get_only_application_defects_once(tmp_path, monkeypatch):
     from backend.integrations import integrations_agent
     from backend.privacy import PrivacyPolicy

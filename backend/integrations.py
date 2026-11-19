@@ -82,7 +82,8 @@ def slack_message(state: QAState, found: list[dict]) -> str:
         lines.append(f"... and {len(found) - 5} more")
     link = _ci_link()
     report = run_dir / "report.html"
-    shown = str(report) if run_dir.is_symlink() or report.is_symlink() else str(report.resolve())
+    from .finalization import folder_is_linked
+    shown = str(report) if folder_is_linked(report) else str(report.resolve())
     lines.append(f"Report: {link}" if link else f"Report: {shown} (on the PC that ran it)")
     return redact("\n".join(lines))
 
