@@ -8,6 +8,20 @@ from backend.device_matrix_drill import run_device_matrix_drill
 def test_a_device_matrix_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.device_matrix_drill as mod
 
+    calls = {"n": 0}
+
+    def _probe():
+        calls["n"] += 1
+        return {
+            "ok": False,
+            "adb_present": False,
+            "devices_online": 0,
+            "api_levels": [],
+            "reason": "probe skipped",
+        }
+
+    monkeypatch.setattr(mod, "run_adb_probe", _probe)
+
     secret = "tenant-b-device-row"
     other = tmp_path / "other"
     other.mkdir()
@@ -21,6 +35,7 @@ def test_a_device_matrix_does_not_follow_a_link_into_another_folder(tmp_path, mo
     assert "link" in refused["reason"]
     assert refused["ok"] is False
     assert refused["gate_d_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
@@ -47,12 +62,23 @@ def test_a_device_matrix_does_not_follow_a_link_into_another_folder(tmp_path, mo
     monkeypatch.setattr(mod, "ROOT", install)
     real = tmp_path / "real"
     real.mkdir()
+    planted = real / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_device_matrix_drill(ops_dir=real)
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
     skipped = run_device_matrix_drill(ops_dir=real)
     written = (real / kept.name).read_text(encoding="utf-8")
     assert skipped["gate_d_complete"] is False
     assert skipped["ok"] is True
     assert skipped["web_rows"] == 1
     assert skipped["android_live_rows"] == 0
+    assert calls["n"] == 1
     assert secret not in written
     assert kept.read_bytes() == original
 
@@ -72,6 +98,7 @@ def test_a_device_matrix_does_not_follow_a_link_into_another_folder(tmp_path, mo
     assert saved["ok"] is True
     assert saved["web_rows"] == 1
     assert saved["android_live_rows"] == 1
+    assert calls["n"] == 2
     assert '"android_live_rows": 1' in saved_text
     assert secret not in saved_text
     assert kept.read_bytes() == original
