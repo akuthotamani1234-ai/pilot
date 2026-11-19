@@ -78,7 +78,28 @@ def _signals_from(payload: dict) -> dict[str, bool]:
     return out
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_a_complete": False,
+        "ok": False,
+        "drill": "discovery_surface_matrix",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def _load_surface(path: Path) -> dict:
+    from .finalization import folder_is_linked
+    if folder_is_linked(path) or not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .surface_evidence_drill import (
         run_admin_portal_surface_drill,
         run_classic_shop_surface_drill,
@@ -86,6 +107,8 @@ def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         run_travel_site_surface_drill,
     )
 
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_matrix()
     # Refresh inventories so the matrix reflects current fixtures.
     run_admin_portal_surface_drill(ops_dir=ops_dir)
     run_demo_store_surface_drill(ops_dir=ops_dir)
@@ -96,16 +119,11 @@ def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     rows = []
     for fixture, name in FIXTURE_FILES:
         path = ops / name
-        if not path.is_file():
-            # Fall back to docs/ops-evidence when ops_dir isolation skipped writes
+        if folder_is_linked(path) or not path.is_file():
+            # Fall back to this install's evidence when the isolated file is missing or linked.
             path = ROOT / "docs" / "ops-evidence" / name
-        payload = {}
-        if path.is_file():
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                payload = {}
-        signals = _signals_from(payload if isinstance(payload, dict) else {})
+        payload = _load_surface(path)
+        signals = _signals_from(payload)
         hit = sum(1 for v in signals.values() if v)
         # Fixture inventory ok when pages walked; rich signals vary by demo.
         rows.append({
@@ -138,14 +156,18 @@ def run_discovery_surface_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "discovery_surface_matrix_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_matrix()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_matrix()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "discovery_surface_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
