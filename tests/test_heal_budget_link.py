@@ -1,0 +1,78 @@
+"""A healing budget stays in this install. A link is left unread and unwritten."""
+from backend.blueprint_progress import progress
+from backend.production_healing_budget_contract_drill import (
+    LOCAL_PARTIAL,
+    run_production_healing_budget_contract_drill,
+)
+
+
+def test_a_healing_budget_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import backend.production_healing_budget_contract_drill as mod
+
+    secret = "tenant-b-budget"
+    other = tmp_path / "other"
+    other.mkdir()
+    kept = other / "production_healing_budget_contract_drill.json"
+    kept.write_text(secret, encoding="utf-8")
+    original = kept.read_bytes()
+    linked = tmp_path / "ops"
+    linked.symlink_to(other, target_is_directory=True)
+
+    refused = run_production_healing_budget_contract_drill(ops_dir=linked)
+    assert "link" in refused["reason"]
+    assert refused["ok"] is False
+    assert refused["gate_e_complete"] is False
+    assert secret not in str(refused)
+    assert kept.read_bytes() == original
+    assert [path.name for path in other.iterdir()] == [kept.name]
+
+    real = tmp_path / "real"
+    real.mkdir()
+    planted = real / kept.name
+    planted.symlink_to(kept)
+    skipped = run_production_healing_budget_contract_drill(ops_dir=real)
+    assert skipped["ok"] is False
+    assert secret not in str(skipped)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
+    foreign = tmp_path / "foreign"
+    foreign.mkdir()
+    (foreign / LOCAL_PARTIAL[0]).write_text(secret, encoding="utf-8")
+    linked_root = tmp_path / "linked-root"
+    (linked_root / "docs").mkdir(parents=True)
+    (linked_root / "docs" / "ops-evidence").symlink_to(foreign, target_is_directory=True)
+    monkeypatch.setattr(mod, "ROOT", linked_root)
+    unread = run_production_healing_budget_contract_drill(ops_dir=real)
+    assert unread["ok"] is False
+    assert unread["local_partial_present"] == []
+    assert secret not in str(unread)
+    assert secret not in planted.read_text(encoding="utf-8")
+    assert (foreign / LOCAL_PARTIAL[0]).read_text(encoding="utf-8") == secret
+
+    real_root = tmp_path / "real-root"
+    ops = real_root / "docs" / "ops-evidence"
+    ops.mkdir(parents=True)
+    for name in LOCAL_PARTIAL:
+        (ops / name).write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(mod, "ROOT", real_root)
+    saved = run_production_healing_budget_contract_drill(ops_dir=real)
+    saved_text = planted.read_text(encoding="utf-8")
+    assert saved["gate_e_complete"] is False
+    assert saved["production_suite_executed"] is False
+    assert saved["ok"] is True
+    assert saved["budget"]["max_wall_minutes"] == 90
+    assert "budget contract recorded" in saved_text
+    assert secret not in saved_text
+    assert kept.read_bytes() == original
+
+
+def test_heal_budget_link_stays_on_the_sidebar():
+    snap = progress()
+    ids = [item["id"] for item in snap["upcoming"]]
+    assert ids.count("G-heal-budget-link") == 1
+    row = next(item for item in snap["upcoming"] if item["id"] == "G-heal-budget-link")
+    assert row["status"] == "done"
+    assert next(gate for gate in snap["gates"] if gate["id"] == "E")["status"] != "done"
+    assert snap["complete"] is False
