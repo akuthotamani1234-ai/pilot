@@ -1,4 +1,5 @@
 """Phase 3: durable swarm queue leases, retries, checkpoints, duplicate acks."""
+import threading
 import time
 
 from backend.swarm_queue import DurableQueue
@@ -11,6 +12,30 @@ def test_duplicate_enqueue_is_idempotent(tmp_path):
     assert first["task_id"] == second["task_id"]
     assert len(q.list_run("run-1")) == 1
     q.close()
+
+
+def test_concurrent_enqueue_returns_one_task(tmp_path):
+    path = tmp_path / "swarm.db"
+    queues = [DurableQueue(path) for _ in range(8)]
+    barrier = threading.Barrier(8)
+    found: list[str] = []
+
+    def go(queue):
+        barrier.wait()
+        row = queue.enqueue(
+            run_id="run-1", role="worker", payload={"url": "/a"}, idempotency_key="k1",
+        )
+        found.append(row["task_id"])
+
+    threads = [threading.Thread(target=go, args=(queue,)) for queue in queues]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(set(found)) == 1
+    assert len(queues[0].list_run("run-1")) == 1
+    for queue in queues:
+        queue.close()
 
 
 def test_lease_heartbeat_and_exclusive_claim(tmp_path):

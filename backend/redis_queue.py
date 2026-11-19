@@ -10,6 +10,13 @@ import time
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from .redis_queue_scripts import (
+    CLAIM_WAITING,
+    ENQUEUE_ONCE,
+    HOLD_LEASE,
+    RECOVER_LEASE,
+    SET_TERMINAL,
+)
 from .swarm_queue import SCHEMA_VERSION, TRANSIENT
 
 try:
@@ -20,93 +27,6 @@ except ImportError:  # pragma: no cover
 
 def _now() -> float:
     return time.time()
-
-
-# Apply a hash update only while this worker still holds an unexpired lease.
-_HOLD_LEASE = """
-local status = redis.call('HGET', KEYS[1], 'status')
-local owner = redis.call('HGET', KEYS[1], 'lease_owner')
-local until_s = redis.call('HGET', KEYS[1], 'lease_until')
-if status ~= 'leased' or owner ~= ARGV[1] then
-  return 0
-end
-local until_n = tonumber(until_s)
-local now = tonumber(ARGV[2])
-if until_n == nil or until_n < now then
-  return 0
-end
-local i = 5
-while i <= #ARGV do
-  redis.call('HSET', KEYS[1], ARGV[i], ARGV[i + 1])
-  i = i + 2
-end
-if ARGV[4] == '1' then
-  redis.call('ZADD', KEYS[2], now, ARGV[3])
-end
-return 1
-"""
-
-# Requeue only while the task is still leased and the lease is already expired.
-# A worker that claimed it again after this process read the hash keeps the task.
-_RECOVER_LEASE = """
-local status = redis.call('HGET', KEYS[1], 'status')
-if status ~= 'leased' then
-  return 0
-end
-local until_n = tonumber(redis.call('HGET', KEYS[1], 'lease_until'))
-local now = tonumber(ARGV[1])
-if until_n ~= nil and until_n >= now then
-  return 0
-end
-redis.call('HSET', KEYS[1],
-  'status', ARGV[2],
-  'lease_owner', '',
-  'lease_until', '',
-  'error_class', 'lease_expired',
-  'updated_at', ARGV[1])
-if ARGV[2] == 'retry_wait' then
-  redis.call('ZADD', KEYS[2], now, ARGV[3])
-end
-return 1
-"""
-
-# Lease a popped task only while it is still waiting.
-_CLAIM_WAITING = """
-local status = redis.call('HGET', KEYS[1], 'status')
-if status ~= 'pending' and status ~= 'retry_wait' then
-  return 0
-end
-redis.call('HSET', KEYS[1],
-  'status', 'leased',
-  'attempt', ARGV[2],
-  'lease_owner', ARGV[3],
-  'lease_until', ARGV[4],
-  'updated_at', ARGV[1])
-return 1
-"""
-
-_SET_TERMINAL = """
-local status = redis.call('HGET', KEYS[1], 'status')
-local allowed = false
-local i = 5
-while i <= #ARGV do
-  if status == ARGV[i] then
-    allowed = true
-  end
-  i = i + 1
-end
-if not allowed then
-  return 0
-end
-redis.call('HSET', KEYS[1],
-  'status', ARGV[2],
-  'error_class', ARGV[3],
-  'lease_owner', '',
-  'lease_until', '',
-  'updated_at', ARGV[1])
-redis.call('ZREM', KEYS[2], ARGV[4])
-return 1
-"""
 
 
 class RedisDurableQueue:
@@ -189,7 +109,7 @@ class RedisDurableQueue:
         """Write ``mapping`` only if ``worker_id`` still holds an unexpired lease."""
         script = getattr(self, "_hold_script", None)
         if script is None:
-            script = self._r.register_script(_HOLD_LEASE)
+            script = self._r.register_script(HOLD_LEASE)
             self._hold_script = script
         now = _now()
         args = [worker_id, str(now), task_id, "1" if pending_key else "0"]
@@ -203,11 +123,6 @@ class RedisDurableQueue:
     def enqueue(self, *, run_id: str, role: str, payload: dict,
                 idempotency_key: str | None = None, max_attempts: int | None = None) -> dict:
         key = idempotency_key or uuid4().hex
-        existing_id = self._r.get(self._idem_key(run_id, key))
-        if existing_id:
-            row = self._load(existing_id)
-            if row:
-                return row
         task_id = uuid4().hex
         now = _now()
         task = {
@@ -227,9 +142,38 @@ class RedisDurableQueue:
             "error_class": None,
             "updated_at": now,
         }
-        self._r.set(self._idem_key(run_id, key), task_id)
-        self._dump(task)
-        self._r.zadd(self._pending_key(run_id), {task_id: now})
+        mapping = {
+            "task_id": task_id,
+            "run_id": run_id,
+            "role": role,
+            "status": "pending",
+            "attempt": "0",
+            "max_attempts": str(task["max_attempts"]),
+            "lease_owner": "",
+            "lease_until": "",
+            "idempotency_key": key,
+            "payload_json": json.dumps(payload),
+            "result_json": "",
+            "checkpoint_json": "",
+            "error_class": "",
+            "updated_at": str(now),
+        }
+        args = [task_id, str(now)]
+        for field, value in mapping.items():
+            args.extend((field, value))
+        stored = self._lua("enqueue", ENQUEUE_ONCE)(
+            keys=[
+                self._idem_key(run_id, key),
+                self._task_key(task_id),
+                self._pending_key(run_id),
+                self._run_index(run_id),
+            ],
+            args=args,
+        )
+        if str(stored) != task_id:
+            existing = self._load(str(stored))
+            if existing:
+                return existing
         return task
 
     def _lua(self, name: str, source: str):
@@ -246,15 +190,12 @@ class RedisDurableQueue:
     def _recover_script(self):
         script = getattr(self, "_recover_lease", None)
         if script is None:
-            script = self._r.register_script(_RECOVER_LEASE)
+            script = self._r.register_script(RECOVER_LEASE)
             self._recover_lease = script
         return script
 
     def recover_expired(self) -> list[str]:
         recovered = []
-        # Scan known runs via pending keys is expensive; recover from listed run indexes
-        # by checking leased tasks referenced in any pending zset members + run sets.
-        # Practical path: iterate run sets discovered from pending key pattern.
         script = self._recover_script()
         for key in self._r.scan_iter(match=f"{self.prefix}:run:*"):
             run_id = key.rsplit(":", 1)[-1]
@@ -294,7 +235,7 @@ class RedisDurableQueue:
             now = _now()
             attempt = int(row["attempt"]) + 1
             until = now + self.lease_seconds
-            ok = self._lua("claim", _CLAIM_WAITING)(
+            ok = self._lua("claim", CLAIM_WAITING)(
                 keys=[self._task_key(task_id)],
                 args=[str(now), str(attempt), worker_id, str(until)],
             )
@@ -371,7 +312,7 @@ class RedisDurableQueue:
         if not row or row["status"] not in allowed:
             return False
         now = _now()
-        result = self._lua("terminal", _SET_TERMINAL)(
+        result = self._lua("terminal", SET_TERMINAL)(
             keys=[self._task_key(task_id), self._pending_key(row["run_id"])],
             args=[str(now), status, error_class, task_id, *allowed],
         )

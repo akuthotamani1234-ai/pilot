@@ -1,5 +1,6 @@
 """Gate B/G Redis DurableQueue adapter (skips when Redis unavailable)."""
 import shutil
+import threading
 import time
 import uuid
 
@@ -46,6 +47,39 @@ def _wipe(queue: RedisDurableQueue, prefix: str) -> None:
     for key in queue._r.scan_iter(match=f"{prefix}:*"):
         queue._r.delete(key)
     queue.close()
+
+
+def test_redis_concurrent_enqueue_is_one_task():
+    prefix = f"qpilot:testonce:{uuid.uuid4().hex}"
+    queues = [_redis_queue(prefix) for _ in range(8)]
+    barrier = threading.Barrier(8)
+    found: list[str] = []
+
+    def go(queue):
+        barrier.wait()
+        row = queue.enqueue(
+            run_id="run-once", role="worker", payload={"url": "/a"},
+            idempotency_key="same",
+        )
+        found.append(row["task_id"])
+
+    threads = [threading.Thread(target=go, args=(queue,)) for queue in queues]
+    try:
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        assert len(set(found)) == 1
+        assert len(queues[0].list_run("run-once")) == 1
+        again = queues[0].enqueue(
+            run_id="run-once", role="worker", payload={"url": "/a"},
+            idempotency_key="same",
+        )
+        assert again["task_id"] == found[0]
+    finally:
+        _wipe(queues[0], prefix)
+        for queue in queues[1:]:
+            queue.close()
 
 
 def test_redis_stale_claim_and_cancel_cannot_overwrite_status():
