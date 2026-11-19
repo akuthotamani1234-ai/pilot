@@ -12,6 +12,7 @@ and tells the other agents what changed in the frontend:
 The baseline lives in   baseline/<site_key>/   and is updated at the end of every run.
 """
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -63,31 +64,61 @@ def baseline_path(site_key: str) -> Path:
     return baseline_folder(site_key)
 
 
+def _reuse_path_is_linked(root: Path, path: Path) -> bool:
+    """True when a path under root follows a symlink, or sits outside root."""
+    try:
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return True
+    cursor = Path(root)
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
 def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
     """The test scripts + test cases for a regression run, or None.
 
     Prefers a specific prior run's generated_tests/ + test_cases.json when `from_run` is set
     (Studio "Run the same tests again"). Falls back to baseline/<site>/tests.
+    A link is not that run: it is not read, and it does not fall through to the baseline.
     """
     from ..config import settings as _settings
     if from_run:
-        run_dir = Path(_settings.runs_dir) / from_run
-        tests_dir = run_dir / "generated_tests"
-        cases_path = run_dir / "test_cases.json"
-        files = sorted(tests_dir.glob("test_*.py")) if tests_dir.is_dir() else []
-        # Include helper modules the suite needs (not conftest — regenerated fresh).
-        helpers = sorted(p for p in tests_dir.glob("*.py")
-                         if p.name not in ("conftest.py",) and not p.name.startswith("test_")) if tests_dir.is_dir() else []
-        if files and cases_path.exists():
-            meta = {"date": from_run, "origin": "", "source_run": from_run}
-            summary = run_dir / "summary.json"
-            if summary.exists():
-                try:
-                    meta["origin"] = (json.loads(summary.read_text(encoding="utf-8")).get("url")
-                                      or json.loads(summary.read_text(encoding="utf-8")).get("source") or "")
-                except Exception:
-                    pass
-            return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
+        name = from_run.strip()
+        root = Path(_settings.runs_dir)
+        if not re.fullmatch(r"[\w.\-]+", name) or name.startswith("."):
+            return None
+        run_dir = root / name
+        if run_dir.is_symlink() or _reuse_path_is_linked(root, run_dir):
+            return None
+        if run_dir.is_dir():
+            tests_dir = run_dir / "generated_tests"
+            cases_path = run_dir / "test_cases.json"
+            if _reuse_path_is_linked(run_dir, tests_dir) or _reuse_path_is_linked(run_dir, cases_path):
+                return None
+            files = sorted(
+                f for f in tests_dir.glob("test_*.py")
+                if not _reuse_path_is_linked(run_dir, f)
+            ) if tests_dir.is_dir() else []
+            # Include helper modules the suite needs (not conftest — regenerated fresh).
+            helpers = sorted(
+                p for p in tests_dir.glob("*.py")
+                if p.name not in ("conftest.py",) and not p.name.startswith("test_")
+                and not _reuse_path_is_linked(run_dir, p)
+            ) if tests_dir.is_dir() else []
+            if files and cases_path.is_file():
+                meta = {"date": name, "origin": "", "source_run": name}
+                summary = run_dir / "summary.json"
+                if summary.is_file() and not _reuse_path_is_linked(run_dir, summary):
+                    try:
+                        loaded = json.loads(summary.read_text(encoding="utf-8"))
+                        meta["origin"] = loaded.get("url") or loaded.get("source") or ""
+                    except Exception:
+                        pass
+                return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
     from ..my_tests import baseline_is_linked
     b = baseline_path(site_key)
     if baseline_is_linked(b):
