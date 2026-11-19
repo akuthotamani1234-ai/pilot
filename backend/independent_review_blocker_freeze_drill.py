@@ -14,7 +14,20 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "independent_review_blocker_freeze_drill.json"
 
 
+def _linked_blocker_freeze() -> dict:
+    return {
+        "gate_g_complete": False,
+        "signed_off": False,
+        "ok": False,
+        "drill": "independent_review_blocker_freeze",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_independent_review_blocker_freeze_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_blocker_freeze()
     from .remaining_blockers_drill import run_remaining_blockers_drill
 
     blockers = run_remaining_blockers_drill(ops_dir=ops_dir)
@@ -49,15 +62,17 @@ def run_independent_review_blocker_freeze_drill(*, ops_dir: Path | None = None) 
             f"({blockers.get('open_count')} open); external sign-off still open"
         ),
     }
+    text = json.dumps(evidence, indent=2)
+    name = "independent_review_blocker_freeze_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_blocker_freeze()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "independent_review_blocker_freeze_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_blocker_freeze()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "independent_review_blocker_freeze_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
