@@ -15,9 +15,11 @@ WORST = ["Ready", "Ready with Risks", "Insufficient Evidence", "Not Ready"]
 
 
 def _read(p: Path, default):
+    p = Path(p)
+    from .finalization import folder_is_linked
+    if p.is_symlink() or folder_is_linked(p.parent):
+        return default
     try:
-        if Path(p).is_symlink():
-            return default
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default

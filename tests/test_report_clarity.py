@@ -284,6 +284,46 @@ def test_a_merged_report_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_a_merged_summary_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.merge import _read, merge_runs
+
+    secret = "tenant-b-only-verdict"
+    other = tmp_path / "other"
+    nested = other / "runs" / "runb"
+    nested.mkdir(parents=True)
+    summary = nested / "summary.json"
+    summary.write_text(json.dumps({
+        "verdict": secret, "pages": 1, "reasons": [secret],
+        "coverage_card": {"pages": {}, "features": {}, "frames": {}, "tests": {}, "data": {}},
+    }), encoding="utf-8")
+    (nested / "crawl.json").write_text(json.dumps({"section": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _read(linked / "runs" / "runb" / "summary.json", None) is None
+    refused_root = tmp_path / "refused"
+    refused_root.mkdir()
+    refused = merge_runs([linked / "runs" / "runb"], refused_root)
+    assert secret not in (refused / "summary.json").read_text(encoding="utf-8")
+    assert secret in summary.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    folder = real / "runa"
+    folder.mkdir(parents=True)
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["home-own"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}},
+    }), encoding="utf-8")
+    (folder / "crawl.json").write_text("{}", encoding="utf-8")
+    loaded = _read(folder / "summary.json", None)
+    assert loaded["reasons"][0] == "home-own"
+    published = merge_runs([folder], real)
+    text = (published / "summary.json").read_text(encoding="utf-8")
+    assert "home-own" in text
+    assert secret not in text
+    assert secret in summary.read_text(encoding="utf-8")
+
+
 def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.integrations import create_jira_issues, integrations_agent
