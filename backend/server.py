@@ -171,7 +171,7 @@ async def local_only(request: Request, call_next):
     if host.lower() not in UI_HOSTS:
         return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
     blocked = _principal_run_block(
-        path, request.headers.get("authorization"), request.headers.get("x-qa-token"))
+        path, request.headers.get("authorization"), request.headers.get("x-qa-token"), request.method)
     if blocked is not None:
         return blocked
     # (a webhook proves itself with its own token instead - /api/hooks/run)
@@ -296,12 +296,12 @@ KEY_ENV = {p["id"]: p["key_env"] for p in PROVIDERS}
 
 # ------------------------------------------------------------------ helpers
 
-def _signed_in_reader(authorization: str | None, x_qa_token: str | None):
+def _signed_in_reader(authorization: str | None, x_qa_token: str | None, action: str = "run.read"):
     """None when the studio is open. Otherwise the principal id, or a JSON refusal."""
     from backend.dashboard_auth import auth_mode, authorize
     if auth_mode() not in ("principal", "oidc"):
         return None
-    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action=action)
     if not verdict.get("ok"):
         reason = verdict.get("reason") or "unauthorized"
         return JSONResponse({"detail": reason}, status_code=403 if verdict.get("role") else 401)
@@ -311,15 +311,19 @@ def _signed_in_reader(authorization: str | None, x_qa_token: str | None):
     return principal
 
 
-def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None):
-    """When a principal is signed in, a run read stays inside that principal's tenant."""
+def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None, method: str = "GET"):
+    """When a principal is signed in, a run read or delete stays inside that principal's tenant."""
     match = _SCOPED_RUN.search(path or "")
-    if not match:
+    run = next((part for part in match.groups() if part), "") if match else ""
+    if not run and method == "DELETE":
+        deleted = re.fullmatch(r"/api/runs/([^/]+)", path or "")
+        run = deleted.group(1) if deleted else ""
+    if not run:
         return None
-    reader = _signed_in_reader(authorization, x_qa_token)
+    reader = _signed_in_reader(
+        authorization, x_qa_token, "run.write" if method == "DELETE" else "run.read")
     if reader is None or not isinstance(reader, str):
         return reader
-    run = next(part for part in match.groups() if part)
     from backend.tenancy_store import assert_run_access
     access = assert_run_access(principal_id=reader, run_id=run)
     if not access.get("allowed"):

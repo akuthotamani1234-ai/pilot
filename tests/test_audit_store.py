@@ -116,6 +116,40 @@ def test_the_run_list_hides_another_tenants_runs(monkeypatch, tmp_path):
     assert {row["run"] for row in other.json()} == {"run-b"}
 
 
+def test_a_signed_in_principal_cannot_delete_another_tenants_run(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.audit_store as audit_store
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    (runs / "run-a").mkdir(parents=True)
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(audit_store, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1"}
+    stolen = client.delete("/api/runs/run-a", headers={**header, "Authorization": "Bearer admin-2"})
+    assert stolen.status_code == 403
+    assert (runs / "run-a").is_dir()
+    viewer = client.delete("/api/runs/run-a", headers={**header, "Authorization": "Bearer view-1"})
+    assert viewer.status_code == 403
+    assert (runs / "run-a").is_dir()
+    own = client.delete("/api/runs/run-a", headers={**header, "Authorization": "Bearer admin-1"})
+    assert own.status_code == 200
+    assert own.json()["removed"] == "run-a"
+    assert not (runs / "run-a").is_dir()
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)
