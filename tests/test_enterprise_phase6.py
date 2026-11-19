@@ -7,6 +7,15 @@ from backend.object_store import ObjectStoreError, open_object_store, reset_loca
 from backend.rbac import allow, audit_event
 
 
+def test_a_missing_tenant_does_not_cross_the_boundary():
+    actor_only = allow(role="admin", action="run.read", tenant_id="a")
+    resource_only = allow(role="admin", action="run.read", resource_tenant="b")
+    assert actor_only["allowed"] is False and resource_only["allowed"] is False
+    assert "tenant" in actor_only["reason"] and "tenant" in resource_only["reason"]
+    assert allow(role="operator", action="run.write")["allowed"] is True
+    assert allow(role="operator", action="run.write", tenant_id="a", resource_tenant="a")["allowed"] is True
+
+
 def test_rbac_denies_unknown_role_and_cross_tenant():
     assert allow(role="viewer", action="run.write")["allowed"] is False
     assert allow(role="operator", action="run.write", tenant_id="a", resource_tenant="a")["allowed"] is True
