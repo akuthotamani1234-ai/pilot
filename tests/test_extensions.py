@@ -145,6 +145,49 @@ def test_a_designed_case_does_not_follow_a_link_into_another_run(tmp_path, monke
     assert saved and saved[0].get("tc_id") == saved_cases[0].get("tc_id")
 
 
+def test_a_review_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend import review
+
+    secret = b"tenant-b-only-review"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "review_request.json").write_bytes(secret)
+    (nested / "review_answers.json").write_text(json.dumps(
+        {"answers": {"TC-1": {"answer": "should be", "text": "tenant-b-only-review"}}}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.setattr(settings, "review", "on")
+    monkeypatch.setattr(settings, "review_timeout_s", 30)
+    cases = [{"tc_id": "TC-1", "kind": "learned", "oracle": "observed", "title": "Load totals",
+              "spec": {"name": "Load totals", "action": "click", "added": ["Total sales: 4560"]}}]
+    refused = review.review_gate_agent({
+        "site_key": "shop", "run_dir": str(linked / "run"), "test_cases": cases, "log": [],
+    })
+    assert "link" in refused["log"][-1]
+    assert refused["test_cases"][0]["oracle"] == "observed"
+    assert (nested / "review_request.json").read_bytes() == secret
+    assert "tenant-b-only-review" in (nested / "review_answers.json").read_text(encoding="utf-8")
+    assert not (tmp_path / "baseline").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    monkeypatch.setattr(settings, "review_timeout_s", 0)
+    saved = review.review_gate_agent({
+        "site_key": "shop", "run_dir": str(real), "test_cases": cases, "log": [],
+    })
+    request = real / "review_request.json"
+    assert request.is_file() and not request.is_symlink()
+    asked = json.loads(request.read_text(encoding="utf-8"))["questions"]
+    assert asked[0]["question"].startswith("Clicking 'Load totals'")
+    assert secret not in request.read_bytes()
+    assert "no answers" in saved["log"][-1]
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_more_ways_to_find_pages(tmp_path, monkeypatch):
     from backend.agents.discovery import discovery_agent
     srv, url = _serve({
