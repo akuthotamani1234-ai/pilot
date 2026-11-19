@@ -353,6 +353,7 @@ def progress() -> dict:
         {"id": "G-summary-link", "label": "A review summary does not follow a link into another folder", "status": "done"},
         {"id": "G-pack-link", "label": "A review pack does not follow a link into another folder", "status": "done"},
         {"id": "G-readiness-link", "label": "A readiness score does not follow a link into another folder", "status": "done"},
+        {"id": "G-blockers-link", "label": "A blocker inventory does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
