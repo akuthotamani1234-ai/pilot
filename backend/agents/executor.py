@@ -474,10 +474,11 @@ def _repair_verdict(result: dict | None, broke: list[str]) -> tuple[str, str]:
 def _related(results: list[dict], file: str, test_dir: Path) -> list[str]:
     """The tests that use a repaired file: every test of a repaired test file, and the tests (test_checks.py, an
     older run's test_flows.py) that call a repaired steps module."""
+    from ..finalization import folder_is_linked
     callers = set()
-    if file.startswith("steps_"):
+    if file.startswith("steps_") and not folder_is_linked(test_dir):
         for f in test_dir.glob("test_*.py"):
-            if f.is_symlink():
+            if folder_is_linked(f):
                 continue
             current = None
             for line in f.read_text(encoding="utf-8").splitlines():

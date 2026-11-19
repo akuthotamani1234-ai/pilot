@@ -507,3 +507,47 @@ def test_an_accuracy_count_does_not_follow_a_link_into_another_folder(tmp_path):
     assert counted["truth"]["questions"][0]["tc_id"] == "home-own"
     assert secret not in json.dumps(counted)
     assert secret in (nested / "failures.json").read_text(encoding="utf-8")
+
+
+def test_a_repaired_steps_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _related
+
+    secret = "tenant-b-only-related"
+    other = tmp_path / "other"
+    other.mkdir()
+    leaked = other / "test_checks.py"
+    leaked.write_text(
+        f"# {secret}\ndef test_tenant_b():\n    steps_home.step_secret()\n",
+        encoding="utf-8",
+    )
+    before = sorted(path.name for path in other.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    results = [{
+        "nodeid": "test_checks.py::test_tenant_b",
+        "file": "test_checks.py",
+        "test": "test_tenant_b",
+    }]
+    assert _related(results, "steps_home.py", linked) == []
+    leaf = tmp_path / "leaf"
+    leaf.mkdir()
+    (leaf / "test_checks.py").symlink_to(leaked)
+    assert _related(results, "steps_home.py", leaf) == []
+    assert secret in leaked.read_text(encoding="utf-8")
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_checks.py").write_text(
+        "def test_home_own():\n    steps_home.step_ok()\n",
+        encoding="utf-8",
+    )
+    own = [{
+        "nodeid": "test_checks.py::test_home_own",
+        "file": "test_checks.py",
+        "test": "test_home_own",
+    }]
+    found = _related(own, "steps_home.py", real)
+    assert found == ["test_checks.py::test_home_own"]
+    assert secret not in json.dumps(found)
+    assert secret in leaked.read_text(encoding="utf-8")
