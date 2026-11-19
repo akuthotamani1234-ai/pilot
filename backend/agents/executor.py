@@ -239,6 +239,12 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     recording traces for every test makes a long run much slower). headless=True: hidden browsers, also while
     you watch the other tests in Chrome."""
     sandbox = "own process, clean environment, network + file guard, per-test time limit"
+    junit = results_file.with_name(results_file.stem + "_junit.xml")
+    log_path = results_file.with_name(results_file.stem + "_pytest_output.txt")
+    if (test_dir.is_symlink() or (test_dir / "pytest.ini").is_symlink() or results_file.parent.is_symlink()
+            or results_file.is_symlink() or junit.is_symlink() or log_path.is_symlink() or shot_dir.is_symlink()):
+        print("  [execution] the test results are a link, so the suite was not started", flush=True)
+        return {"timed_out": False, "stopped": True, "returncode": -1, "sandbox": sandbox}
     # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
     # Measure phase durations before raising ANALYSIS_RESERVE_S / REPORT_RESERVE_S / SUITE_TIMEOUT_S.
     suite_s = settings.suite_timeout_s
@@ -263,9 +269,8 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     env["QA_TRACES"] = "true" if traces else "false"
     if headless:
         env["HEADLESS"], env["SLOW_MO_MS"] = "true", "0"
-    junit = results_file.with_name(results_file.stem + "_junit.xml")  # machine-readable results (CI tools)
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", "--continue-on-collection-errors",
-           "--rootdir", str(test_dir.resolve()), f"--junitxml={junit.resolve()}"]
+           "--rootdir", str(test_dir.resolve()), f"--junitxml={junit.absolute()}"]
     if (test_dir / "pytest.ini").exists():
         cmd += ["-c", str((test_dir / "pytest.ini").resolve())]
     if state.get("resuming") and select is None:
@@ -336,7 +341,8 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         if job:
             job.close()  # every browser the tests started ends with it
     log = results_file.with_name(results_file.stem + "_pytest_output.txt")  # pytest's own output, kept as evidence
-    log.write_text(redact(out or ""), encoding="utf-8")
+    if not log.is_symlink() and not log.parent.is_symlink():
+        log.write_text(redact(out or ""), encoding="utf-8")
     return {"timed_out": timed_out, "stopped": stopped, "returncode": proc.returncode, "sandbox": sandbox}
 
 
