@@ -58,9 +58,26 @@ def test_a_readiness_score_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert planted.is_symlink()
     planted.unlink()
 
+    import backend.independent_review_readiness_drill as ready
+
+    origin = ready.CHECKLIST
+    note = other / "secret-checklist.md"
+    note.write_text(secret, encoding="utf-8")
+    linked_list = tmp_path / "checklist.md"
+    linked_list.symlink_to(note)
+    monkeypatch.setattr(ready, "CHECKLIST", linked_list)
+    unread = run_independent_review_readiness_drill(ops_dir=folder)
+    assert unread["checks"]["checklist_present"] is False
+    assert unread["ok"] is False
+    assert unread["signed_off"] is False
+    assert secret not in str(unread)
+    assert note.read_text(encoding="utf-8") == secret
+    assert calls["n"] == 2
+    monkeypatch.setattr(ready, "CHECKLIST", origin)
+
     saved = run_independent_review_readiness_drill(ops_dir=folder)
     written = (folder / "independent_review_readiness_drill.json").read_text(encoding="utf-8")
-    assert calls["n"] == 2
+    assert calls["n"] == 4
     assert saved["ok"] is True
     assert saved["gate_g_complete"] is False
     assert saved["signed_off"] is False
