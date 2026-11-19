@@ -25,6 +25,17 @@ class ContractFixture:
                 if path == "/api/state":
                     body = json.dumps({"total": 7 if fixture.broken else 0}).encode()
                     content_type = "application/json"
+                elif path == "/to-checkout":
+                    self.send_response(302)
+                    self.send_header("Location", "/checkout")
+                    self.end_headers()
+                    return
+                elif path == "/checkout":
+                    body = (
+                        b'<!doctype html><title>Pay</title><h1 id="heading">Paid</h1>'
+                        b'<button id="go">Continue</button>'
+                    )
+                    content_type = "text/html; charset=utf-8"
                 elif path == "/redirect":
                     self.send_response(302)
                     self.send_header("Location", "http://169.254.169.254/latest/meta-data/")

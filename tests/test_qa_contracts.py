@@ -206,6 +206,31 @@ def test_sqlite_oracle_is_read_only_and_denies_attachment_and_file_functions(tmp
         assert connection.execute("SELECT value FROM evidence").fetchone() == (3,)
 
 
+def test_a_contract_does_not_follow_a_redirect_into_checkout(tmp_path):
+    with ContractFixture(tmp_path / "pay.sqlite") as fixture:
+        contract = {
+            "version": 1,
+            "test_environment": True,
+            "allowed_origins": [fixture.url],
+            "flows": [{
+                "id": "redirected_pay",
+                "title": "A redirect into checkout is not opened",
+                "approved": True,
+                "steps": [
+                    {"action": "open", "value": fixture.url + "/to-checkout"},
+                    {"action": "tap", "locator": loc("#go")},
+                    {"action": "assert_text", "locator": loc("#heading"), "value": "Paid"},
+                ],
+            }],
+        }
+        result = run_contracts(tmp_path, fixture.url, contract)
+    row = result["results"][0]
+    assert row["outcome"] == "error"
+    assert "never tested" in row["error"]
+    assert "/to-checkout" in fixture.requests
+    assert "/checkout" not in fixture.requests
+
+
 def test_http_oracle_never_follows_redirects_and_rejects_unapproved_origins(tmp_path):
     with ContractFixture(tmp_path / "api.sqlite") as fixture:
         check = BackendCheck(id="api", title="Read API", kind="http", url=fixture.url + "/redirect", expected=0)

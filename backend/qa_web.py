@@ -68,10 +68,16 @@ class BrowserContractAdapter:
         element.click(timeout=10000)
 
     def open(self, url):
-        """Open a page inside the approved origins (an `open` flow step)."""
+        """Open a page inside the approved origins (an `open` flow step).
+
+        A checkout document, including one reached by a redirect, is not loaded.
+        """
         if origin(url) not in self.origins:
             raise ValueError("The browser contract may open only pages of its approved origins")
-        self.page.goto(url, timeout=30000)
+        from .swarm import open_guarded
+        _response, blocked = open_guarded(self.page, url, timeout=30000)
+        if blocked:
+            raise ValueError("checkout, payment and placing an order are never tested")
         self.guard()
 
     @staticmethod
@@ -180,7 +186,10 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None, s
                         BrowserContractAdapter(page, url, contract, stop_path=Path(run_dir) / "STOP"), contract.model_dump(), private
                     )
                     try:
-                        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                        from .swarm import open_guarded
+                        _response, blocked = open_guarded(page, url, timeout=20000)
+                        if blocked:
+                            raise ValueError("checkout, payment and placing an order are never tested")
                         runtime.execute(case["contract_id"])
                     except Exception as error:
                         record.update(
