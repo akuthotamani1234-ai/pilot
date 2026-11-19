@@ -2557,6 +2557,19 @@ def ops_independent_review_evidence_retention():
     }
 
 
+@app.post("/api/ops/drills/studio-sso-code-reuse")
+def ops_studio_sso_code_reuse():
+    """Gate I: authorization-code single use (hosted IdP still open)."""
+    from backend.studio_sso_code_reuse_drill import run_studio_sso_code_reuse_drill
+    evidence = run_studio_sso_code_reuse_drill()
+    _audit(
+        "ops_studio_sso_code_reuse",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_code_reuse": evidence}
+
+
 @app.post("/api/ops/drills/studio-sso-redirect-allowlist-enforcement")
 def ops_studio_sso_redirect_allowlist_enforcement():
     """Gate I: redirect URI allowlist enforcement (hosted IdP still open)."""

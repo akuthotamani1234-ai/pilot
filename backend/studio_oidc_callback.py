@@ -21,6 +21,29 @@ def _env(*names: str, default: str = "") -> str:
     return default
 
 
+_USED_CODES: set[str] = set()
+_USED_CODES_MAX = 256
+
+
+def reset_used_authorization_codes() -> None:
+    """Clear the process-local single-use authorization-code set."""
+    _USED_CODES.clear()
+
+
+def note_authorization_code_used(code: str) -> None:
+    """Remember a code that already produced a valid token exchange."""
+    cleaned = (code or "").strip()
+    if not cleaned:
+        return
+    _USED_CODES.add(cleaned)
+    while len(_USED_CODES) > _USED_CODES_MAX:
+        _USED_CODES.pop()
+
+
+def authorization_code_used(code: str) -> bool:
+    return (code or "").strip() in _USED_CODES
+
+
 def token_endpoint() -> str:
     explicit = _env("QPILOT_OIDC_TOKEN_URL", "OIDC_TOKEN_URL")
     if explicit:
@@ -136,6 +159,20 @@ def exchange_code(
     """POST authorization_code grant; validate access/id token when present."""
     from .oidc_jwt import validate_bearer
 
+    if not (code or "").strip():
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "reason": "authorization code required",
+        }
+    if authorization_code_used(code):
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "code_reused": True,
+            "reason": "authorization code already used",
+        }
+
     state_check = validate_sso_state(state)
     if state_check.get("state_enforced") and not state_check.get("ok"):
         return state_check
@@ -146,12 +183,6 @@ def exchange_code(
             "ok": False,
             "gate_i_complete": False,
             "reason": "QPILOT_OIDC_ISSUER / QPILOT_OIDC_TOKEN_URL not configured",
-        }
-    if not (code or "").strip():
-        return {
-            "ok": False,
-            "gate_i_complete": False,
-            "reason": "authorization code required",
         }
     cid = client_id or _env(
         "QPILOT_OIDC_CLIENT_ID", "BLOWAI_OIDC_CLIENT_ID", "OIDC_CLIENT_ID",
@@ -190,6 +221,8 @@ def exchange_code(
         "ok": False, "reason": "no access_token/id_token in token response",
     }
     claims = validated.get("claims") if isinstance(validated.get("claims"), dict) else {}
+    if validated.get("ok"):
+        note_authorization_code_used(code)
     nonce_check = validate_sso_nonce(str(claims.get("nonce") or ""))
     if nonce_check.get("nonce_enforced") and not nonce_check.get("ok"):
         return nonce_check
