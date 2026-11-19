@@ -787,6 +787,8 @@ def created_records(run_dir: Path) -> dict:
     / deleted / left for manual cleanup. Saved as created.json."""
     f = run_dir / "created.jsonl"
     latest = {}
+    if run_dir.is_symlink() or f.is_symlink():
+        return {"created": 0, "deleted": 0, "left": [], "records": []}
     if f.exists():
         for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
@@ -798,8 +800,9 @@ def created_records(run_dir: Path) -> dict:
     records = list(latest.values())
     out = {"created": len(records), "deleted": sum(1 for r in records if r["status"] == "deleted"),
            "left": [r for r in records if r["status"] != "deleted"], "records": records}
-    if records:
-        (run_dir / "created.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    dest = run_dir / "created.json"
+    if records and not dest.is_symlink():
+        dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
     return out
 
 

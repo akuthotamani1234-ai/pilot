@@ -237,8 +237,16 @@ def from_state(payload: dict) -> Lifecycle:
     return life
 
 
+def _run_path_is_linked(run_dir: str | Path, name: str) -> bool:
+    """True when the run folder, or one file in it, is a symlink."""
+    root = Path(run_dir)
+    return root.is_symlink() or (root / name).is_symlink()
+
+
 def save_lifecycle(run_dir: str | Path, life: Lifecycle) -> Path:
     path = Path(run_dir) / LIFECYCLE_FILE
+    if _run_path_is_linked(run_dir, LIFECYCLE_FILE):
+        return path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(to_state(life), indent=2), encoding="utf-8")
     return path
@@ -246,6 +254,8 @@ def save_lifecycle(run_dir: str | Path, life: Lifecycle) -> Path:
 
 def load_lifecycle(run_dir: str | Path, *, run_id: str = "", environment: str = "test") -> Lifecycle:
     path = Path(run_dir) / LIFECYCLE_FILE
+    if _run_path_is_linked(run_dir, LIFECYCLE_FILE):
+        return Lifecycle(run_id or Path(run_dir).name, environment)
     if path.is_file():
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -260,7 +270,7 @@ def latest_created(run_dir: str | Path) -> dict[str, dict]:
     """Newest status per tag from staging ``created.jsonl``."""
     path = Path(run_dir) / "created.jsonl"
     latest: dict[str, dict] = {}
-    if not path.is_file():
+    if _run_path_is_linked(run_dir, "created.jsonl") or not path.is_file():
         return latest
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:

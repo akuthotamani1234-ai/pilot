@@ -1689,8 +1689,11 @@ def track_created():
     """record(what, tag, where, status) - everything a staging test created (runs/<run>/created.jsonl): the report
     says what was cleaned up, and what is left for manual cleanup."""
     def record(what: str, tag: str, where: str, status: str = "created"):
+        path = RUN_DIR / "created.jsonl"
+        if RUN_DIR.is_symlink() or path.is_symlink():
+            return
         line = json.dumps({"what": what, "tag": tag, "where": where, "status": status, "time": time.time()})
-        with (RUN_DIR / "created.jsonl").open("a", encoding="utf-8") as f:
+        with path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
     return record
 
@@ -1699,7 +1702,7 @@ def track_created():
 def created_so_far():
     """Everything the run created so far (for the cleanup at the end)."""
     f = RUN_DIR / "created.jsonl"
-    if not f.exists():
+    if RUN_DIR.is_symlink() or f.is_symlink() or not f.exists():
         return []
     out = []
     for line in f.read_text(encoding="utf-8").splitlines():
