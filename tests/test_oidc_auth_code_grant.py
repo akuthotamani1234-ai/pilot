@@ -1,5 +1,8 @@
 """Loopback authorization-code grant checks."""
-from backend.oidc_auth_code_grant import authorization_code_grant_error
+from backend.oidc_auth_code_grant import (
+    authorization_code_grant_error,
+    redirect_uri_registered,
+)
 
 
 def _entry(**extra):
@@ -10,6 +13,12 @@ def _entry(**extra):
     }
     row.update(extra)
     return row
+
+
+def test_authorize_redirect_must_be_registered():
+    assert redirect_uri_registered("http://127.0.0.1/studio/callback") is True
+    assert redirect_uri_registered("http://127.0.0.1/evil/callback") is False
+    assert redirect_uri_registered("") is False
 
 
 def test_matching_grant_is_allowed():

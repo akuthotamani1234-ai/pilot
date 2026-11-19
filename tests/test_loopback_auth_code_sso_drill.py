@@ -15,5 +15,6 @@ def test_loopback_auth_code_sso_reports_honestly(tmp_path: Path):
     assert evidence.get("ok") is True
     assert all(s.get("ok") for s in (evidence.get("steps") or []))
     steps = {s["step"]: s for s in evidence.get("steps") or []}
+    assert steps["reject_unregistered_redirect"]["ok"] is True
     assert steps["reject_redirect_mismatch"]["ok"] is True
     assert steps["reject_client_mismatch"]["ok"] is True

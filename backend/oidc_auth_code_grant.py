@@ -6,6 +6,15 @@ Hosted IdP Studio SSO stays open — this module does not set ``gate_i_complete`
 from __future__ import annotations
 
 CODE_MAX_AGE_S = 120
+REGISTERED_REDIRECTS = frozenset({
+    "http://127.0.0.1/studio/callback",
+    "http://127.0.0.1/callback",
+})
+
+
+def redirect_uri_registered(redirect_uri: str) -> bool:
+    """True when the loopback IdP may send a code to this callback."""
+    return (redirect_uri or "").strip() in REGISTERED_REDIRECTS
 
 
 def authorization_code_grant_error(
