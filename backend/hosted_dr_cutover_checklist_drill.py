@@ -24,11 +24,28 @@ CHECKLIST = (
 )
 
 
+def _linked_checklist() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "hosted_dr_cutover_checklist",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_dr_cutover_checklist_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_dr_cutover_checklist_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_checklist()
+
     ops = ROOT / "docs" / "ops-evidence"
     rows = []
     for key, artifact, label in CHECKLIST:
-        ready = (ops / artifact).is_file()
+        path = ops / artifact
+        ready = (not folder_is_linked(path)) and path.is_file()
         rows.append({
             "id": key,
             "artifact": artifact,
@@ -52,15 +69,15 @@ def run_hosted_dr_cutover_checklist_drill(*, ops_dir: Path | None = None) -> dic
             "live hosted multi-region DR / on-call still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_checklist()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_dr_cutover_checklist_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_checklist()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_dr_cutover_checklist_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
