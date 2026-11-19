@@ -14,7 +14,8 @@ def _dynamic_report(run_dir: Path, state: dict) -> dict:
     """Progress a stopped or failed run can be diagnosed from, without credentials."""
     events = list((state.get("dynamic") or {}).get("events") or [])
     path = Path(run_dir) / "dynamic.json"
-    if not Path(run_dir).is_symlink() and not path.is_symlink() and path.is_file():
+    from .finalization import folder_is_linked
+    if not folder_is_linked(Path(run_dir)) and not path.is_symlink() and path.is_file():
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
