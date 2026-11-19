@@ -31,6 +31,7 @@ BLOCKERS = (
             "hosted_oncall_readiness_drill.json",
             "hosted_oncall_readiness_pack_drill.json",
             "multi_region_dr_readiness_pack_drill.json",
+            "dual_region_store_health_probe_drill.json",
         ],
     },
     {
@@ -69,6 +70,7 @@ BLOCKERS = (
             "production_healing_flaky_policy_drill.json",
             "production_healing_readiness_drill.json",
             "production_healing_suite_pack_drill.json",
+            "production_healing_third_party_sla_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -123,6 +125,7 @@ BLOCKERS = (
             "independent_review_evidence_catalog_drill.json",
             "independent_review_attestation_drill.json",
             "independent_review_signoff_pack_drill.json",
+            "independent_review_handoff_pack_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
         ],

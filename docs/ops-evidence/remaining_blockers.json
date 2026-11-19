@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T03:53:43Z",
+  "ran_at": "2026-11-19T04:02:48Z",
   "ok": true,
   "blockers": [
     {
@@ -21,7 +21,8 @@
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json",
         "hosted_oncall_readiness_pack_drill.json",
-        "multi_region_dr_readiness_pack_drill.json"
+        "multi_region_dr_readiness_pack_drill.json",
+        "dual_region_store_health_probe_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -37,7 +38,8 @@
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json",
         "hosted_oncall_readiness_pack_drill.json",
-        "multi_region_dr_readiness_pack_drill.json"
+        "multi_region_dr_readiness_pack_drill.json",
+        "dual_region_store_health_probe_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -96,6 +98,7 @@
         "production_healing_flaky_policy_drill.json",
         "production_healing_readiness_drill.json",
         "production_healing_suite_pack_drill.json",
+        "production_healing_third_party_sla_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
@@ -109,6 +112,7 @@
         "production_healing_flaky_policy_drill.json",
         "production_healing_readiness_drill.json",
         "production_healing_suite_pack_drill.json",
+        "production_healing_third_party_sla_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []
@@ -195,6 +199,7 @@
         "independent_review_evidence_catalog_drill.json",
         "independent_review_attestation_drill.json",
         "independent_review_signoff_pack_drill.json",
+        "independent_review_handoff_pack_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md"
       ],
@@ -209,6 +214,7 @@
         "independent_review_evidence_catalog_drill.json",
         "independent_review_attestation_drill.json",
         "independent_review_signoff_pack_drill.json",
+        "independent_review_handoff_pack_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md",
         "INDEPENDENT_REVIEW_ATTESTATION.md"
       ],

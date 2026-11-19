@@ -1,16 +1,16 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T03:40:22Z",
+  "ran_at": "2026-11-19T04:02:48Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 117,
+  "artifact_count": 123,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
       "bytes": 464,
-      "sha256": "6076fb98d583c9fea2bd5311dafe3af868c7ac9279f4ae08ce171feb62b72d5f"
+      "sha256": "a2c5703a97dcf1687b0d617dcdc27a73cbe971e0a1e4114e53b2e8ae1aa6c549"
     },
     {
       "name": "admin_portal_lifecycle_drill.json",
@@ -36,6 +36,11 @@
       "name": "android_appium_product_matrix_drill.json",
       "bytes": 2724,
       "sha256": "83e59bbd23f176a781cf92347c1d15460a3a97493021552d80e0541c8aeb9bb1"
+    },
+    {
+      "name": "android_device_ci_readiness_pack_drill.json",
+      "bytes": 1415,
+      "sha256": "d26290df5d06a7e0e09cde92bd104e08e78be6a68f459f6bcacaa1117247c945"
     },
     {
       "name": "android_emulator_smoke_api24_drill.json",
@@ -78,6 +83,11 @@
       "sha256": "91670d03e429ab68afb4548cfe30107173908699df0a78db23349d35ec10ec6a"
     },
     {
+      "name": "browser_portfolio_ci_readiness_pack_drill.json",
+      "bytes": 1570,
+      "sha256": "43c5ac002b14ad133c5fe077ca89a414d775cad3c35e73f9e871f033b475ecab"
+    },
+    {
       "name": "ci_artifact_upload_rehearsal_drill.json",
       "bytes": 3196,
       "sha256": "101a91e629eb840d0702fb1556733bf4273f9b3087f5e3cdc0947476bc99fddc"
@@ -105,7 +115,7 @@
     {
       "name": "compatibility_portfolio_drill.json",
       "bytes": 792,
-      "sha256": "2d764f53b93261c12cd3dfd43c6e55cddd068697a84d2024c18f3dc462d915c4"
+      "sha256": "8e6d913034c53b5e4247e668d13dd8e3181a968a24f0744cf1602a283397f044"
     },
     {
       "name": "controlled_soak_drill.json",
@@ -158,6 +168,11 @@
       "sha256": "6dbdf5d3262d713c3a86c0992fcc59121009b9350566abdf69ffac2a398dd528"
     },
     {
+      "name": "dual_region_store_health_probe_drill.json",
+      "bytes": 525,
+      "sha256": "ae5511541c2df1be4f98f0a5bd54a49335c2449902e11cefcdb63173899f5fe1"
+    },
+    {
       "name": "dual_tenant_oidc_acl_drill.json",
       "bytes": 705,
       "sha256": "58c966ab03afb0eb95b8cdde47dec3afaebaf429f4cc05704105e4d4dea67f50"
@@ -165,7 +180,7 @@
     {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
-      "sha256": "ffaacf4efba34eb7477c42d5f9fc7a237bd9ea152bbbee9dad2147660873ac76"
+      "sha256": "21ffda8466467e0c494996df6a96c80d87528422466ab24d920c56ebbeb46334"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -199,33 +214,33 @@
     },
     {
       "name": "hosted_idp_contract_drill.json",
-      "bytes": 1121,
-      "sha256": "fe689dc3c664d1bbc0b89173fef380ce44faeba5b0602309795662a26f39a2b6"
+      "bytes": 1442,
+      "sha256": "630b684ef9853b2acacaf8ffbea63c8c6ced32bf61abefb9a2ad9e79d481679f"
     },
     {
       "name": "hosted_idp_readiness_drill.json",
-      "bytes": 1474,
-      "sha256": "3e0ec3f604037ab49f62a1f834689dbb802a296a3a6281841602710a0c7c992d"
+      "bytes": 1880,
+      "sha256": "c43f21663c2bb960272fd38d8e2f7b261bbb6ec8872c0e12d8fdd0ebfac24625"
     },
     {
       "name": "hosted_idp_sso_readiness_pack_drill.json",
-      "bytes": 424,
-      "sha256": "ee853a18f24985228926b86921bc156a42fabf4a659f4aecf22de278920a8b2e"
+      "bytes": 448,
+      "sha256": "0474b5ef955e93134c2b661648008b187b0c9c954f5f9ead7331c8ddb2467ea6"
     },
     {
       "name": "hosted_oncall_contract_drill.json",
       "bytes": 1156,
-      "sha256": "f75af000c00260b1d7200399e5e0abeb648ba4427f624a582e501092939aa2ad"
+      "sha256": "f755b2418e16df927e770ce8f3af0a2be71c2043955e7f53ef478f35ddc4dd0b"
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
       "bytes": 1676,
-      "sha256": "5ea1cb05dff5717e0d06a996bbac750a71233c69e0e70468e59dd3c3865f65a2"
+      "sha256": "80a28445e988d8928092d5e4f00288512e39615a57b0e8008f8acd406cb11ca5"
     },
     {
       "name": "hosted_oncall_readiness_pack_drill.json",
-      "bytes": 392,
-      "sha256": "d5dc7c68c5c3d9c962ecc3765fc22d394243f4f3c86ba3c973618be7f0fd116a"
+      "bytes": 390,
+      "sha256": "8659a75fe3bde7c9a83f3af9d2b9396dd0ab378b2e1e7d387a520da476e4e0aa"
     },
     {
       "name": "hosted_runner_readiness_drill.json",
@@ -245,7 +260,7 @@
     {
       "name": "independent_review_attestation_drill.json",
       "bytes": 799,
-      "sha256": "28b198b50b45b3a4a552fe5d4631c8132113448f203467983ce7e48d81d04ff7"
+      "sha256": "09c96adb8dd8d2fe44852dc1c00aaa25d73c67fc9933956ccb92df9c90529dee"
     },
     {
       "name": "independent_review_checklist.json",
@@ -254,28 +269,33 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 15661,
-      "sha256": "37940140a3d5b8602ae267636690c04e6080bd5a5db35cdf6f9446c93c32a970"
+      "bytes": 16473,
+      "sha256": "b99546908450cbd1fb02ee2453ac892604bb966355656e181fa03e594a44bbaa"
     },
     {
       "name": "independent_review_integrity_drill.json",
       "bytes": 1668,
-      "sha256": "c97bf948cb13c1a480c30776ef8b6f212356c828952ad9e685ce1895e42d9cf7"
+      "sha256": "908c7bc4f7fb60c4ce37e98d709c48f520fef9ab64960492ecd782697925ec82"
     },
     {
       "name": "independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "34c9610159e99a32e3179e0d94020fd98f238284c213438eafca231a00b46fac"
+      "sha256": "be5a43b08196bfa4fcd5d3c7567107f97f9105d0ed5efffae3ca59cf618e7a3d"
     },
     {
       "name": "independent_review_request_drill.json",
       "bytes": 1454,
-      "sha256": "71aa9a07c0002ea18deb2120e6f80824182ad3054d931a20dd034dac79b8d3a6"
+      "sha256": "654dd651dbc04d4e3a1490f92fb6c7589693a965e071b75aba082a9859974716"
+    },
+    {
+      "name": "independent_review_signoff_pack_drill.json",
+      "bytes": 386,
+      "sha256": "32970b05564be3f820bc92ab3a4d25124fc988941a296e70c5e5511b01799d8a"
     },
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
-      "sha256": "fb19a941e73655ceb09877fef90b499c27d721d23c74906bca6e5bcc50c97d71"
+      "sha256": "f2cdf570ee067d1fc10bc74aba6a1cc815a015658ce3cce2398364245a274ab1"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -300,7 +320,7 @@
     {
       "name": "locale_portfolio_drill.json",
       "bytes": 639,
-      "sha256": "90f4a2d58c4cc32575f055b3640f3983740a8f234d645e04d12b17df9f3c1f07"
+      "sha256": "47ad4132c072908b5234e7a41b2756f3452b992b2e1baeb2de84e44a18fd2bdb"
     },
     {
       "name": "loopback_auth_code_sso_drill.json",
@@ -325,7 +345,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "5d2d802c4dbfa4de2f24b960b024042c6f9d6d3cc8333c47181616e232a7c516"
+      "sha256": "42baa8502ba6d455902eb55d975bbaed81ff2bc9ffb7d2130bd04162f94e2f69"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -350,7 +370,7 @@
     {
       "name": "multi_browser_portfolio_suite_drill.json",
       "bytes": 520,
-      "sha256": "46fa32b8962478324a3e03612f78479d4aa3af61903bfa90c331bf16b72313a3"
+      "sha256": "e1a36a5a8e12b709343471bd5a09fbf2d1f562010c99116a096a93a1d44e6cc7"
     },
     {
       "name": "multi_device_ci_contract.json",
@@ -365,22 +385,22 @@
     {
       "name": "multi_region_cutover_rehearsal_drill.json",
       "bytes": 499,
-      "sha256": "c948e77b07e72e07c7b3fe51ac0e0f1501eb1415fb3b751bdff04461bf23cb23"
+      "sha256": "20bcf51d46f7e3727b95b704673b628f2c85d94c02389541504cba841eb5e3bd"
     },
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "5eeeffccaee9e1791a2810b1eb527de9d5a76121546c5dfda770919cc10926c9"
+      "sha256": "e2c1cba0f9ff6950cc23cebfd2f0776eb58ec9d371d8d17ab8262e952f9c4125"
     },
     {
       "name": "multi_region_dr_readiness_pack_drill.json",
       "bytes": 425,
-      "sha256": "34b137ebd87a4619f04a53f44b0e44a3ccffcf654f05624abff1de81aab17b15"
+      "sha256": "4d429645e7e9fda88768e02f5d49c0aea0476420cc6ba24731e3efcb55ecf809"
     },
     {
       "name": "multi_store_dr_drill.json",
       "bytes": 1003,
-      "sha256": "4a2f4e5256b25269d15914caddb66dc3e80cf1c43836fa240bc1524ae5ce7a6b"
+      "sha256": "afc32d09d548923bb63bfc55daf9119588b354c977be4873f0a63be74d1aeefb"
     },
     {
       "name": "mutation_score_drill.json",
@@ -393,24 +413,29 @@
       "sha256": "c9010cdc884f85d8ec1884e1ad940079e9af342b9198366f3dc766b3414c2fbb"
     },
     {
+      "name": "oidc_acl_matrix_pack_drill.json",
+      "bytes": 387,
+      "sha256": "ac791f2fc416e8bae8058174badac52cb391b8adfdbd159b295e673ddc711881"
+    },
+    {
       "name": "oidc_email_domain_tenant_acl_drill.json",
       "bytes": 889,
-      "sha256": "33bed5dc0c8e886572e21d210728329667c0cf136ec8ce06e0150da79166ea30"
+      "sha256": "0e3ab3df44860e61a90dc525b938e4f21df6211779dc3f987e35ef0536889478"
     },
     {
       "name": "oidc_groups_role_acl_drill.json",
       "bytes": 979,
-      "sha256": "7e28760d3493a66ca88e1d998cd9e7ab552d264379218921e2a89d7c84514099"
+      "sha256": "e91bcf20054c22fde4ddb2993568368f872e238593c9ea9859b6738613947f5c"
     },
     {
       "name": "oidc_org_tenant_acl_drill.json",
       "bytes": 908,
-      "sha256": "f453f9108f439f1a81fca9d83308bb38998e68ccd49d8948f96a1fa6fd7302d6"
+      "sha256": "da9cba944ddbb6c07f5330af6c2134b761d296df6e5d12d604ffd1defb809a13"
     },
     {
       "name": "oidc_tid_tenant_acl_drill.json",
       "bytes": 689,
-      "sha256": "30ac439b9f4bc45083655a88627000e1531e22ee4be58af8a67a4bcb6df43cb6"
+      "sha256": "038da261af4587b9fc50d42224e8fe134f7a5881913d8c4d9f25a88f8fd2aa4a"
     },
     {
       "name": "oracle_spec_drill.json",
@@ -420,17 +445,17 @@
     {
       "name": "paging_ack_drill.json",
       "bytes": 365,
-      "sha256": "e364806fb5531d543401402df9641b06761e6130b233b8004a8e00677571a491"
+      "sha256": "c35119a9e160a8a089da5fe8cb69a5b4cbe77945789416ab275e15fdfbc24e86"
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 311,
-      "sha256": "ffbcaad05a9fa154711bac5c9d39e8f2f6a84c24bfd4dcff8d793bf00dec57d2"
+      "bytes": 309,
+      "sha256": "00f9e5e6c6d91fd4663e5082abff569f231fdd3f1704302f217f595b536cffc2"
     },
     {
       "name": "paging_escalation_drill.json",
       "bytes": 463,
-      "sha256": "a2d267c358d6c2f04f8473172b1e25d4242691771b8922ea579440f72e29e74f"
+      "sha256": "ae4d45656e0ed9094463e5e2f10642f6f5569d0e71d8d3e3ef22b34e35e6100b"
     },
     {
       "name": "paging_rehearsal.json",
@@ -439,8 +464,8 @@
     },
     {
       "name": "perf_portfolio_drill.json",
-      "bytes": 773,
-      "sha256": "1837ab8083532679631a3b692bc87fd153c973cfbea0bdb77d984741445566f7"
+      "bytes": 774,
+      "sha256": "ad52e86b5aa1b614960457b2a9b0869de4a5b580e6029a4458d50ff18fe4a4f2"
     },
     {
       "name": "pg_tenancy_drill.json",
@@ -498,6 +523,11 @@
       "sha256": "ebc97210c749d6c81d88a7c5546a3ea35a5935432b5d1e8be10500d7a7b8a62a"
     },
     {
+      "name": "production_healing_third_party_sla_drill.json",
+      "bytes": 1458,
+      "sha256": "b93710c9d648bfe2ff60b56a3804ca6efa3a8cf65ff5b28fb42b2528e8adb98c"
+    },
+    {
       "name": "qx_capabilities_drill.json",
       "bytes": 3349,
       "sha256": "c05b3013b8a7bc11d9ea0eed4bf76174f76861b11439ae992a6643588e594bce"
@@ -520,7 +550,7 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "1b0ce264a460702ea616a6d5a0d3bd51fa8c76eaf863461cad602262b579e506"
+      "sha256": "0276870bf2034399fb0c4a71971699671f0c5f4809cf40631c5a17aa95405c36"
     },
     {
       "name": "redis_swarm_contention_drill.json",
@@ -529,13 +559,13 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 8271,
-      "sha256": "0c8ad7edacdc9920ef5094e7fb872e6bf1c89da2652e50620b6ade72561f7010"
+      "bytes": 8911,
+      "sha256": "edb05258eba240846b5eb8d91d9224d7fa6ad8cf2d51b9518fd2fc68e57362aa"
     },
     {
       "name": "security_portfolio_drill.json",
       "bytes": 939,
-      "sha256": "fe926c115b1a628bc367e2f50a21898a5bae1500254cdbcb0d411d6050153106"
+      "sha256": "3fa2de1b362afa49a989fee339cd7872949842f62b67a5b3ac2d598fa882fe25"
     },
     {
       "name": "sso_contract_drill.json",
@@ -555,7 +585,7 @@
     {
       "name": "studio_sso_principal_bootstrap_drill.json",
       "bytes": 472,
-      "sha256": "c79cdb37d9101c44f8d8d7492edc174dc3793aa814992555f6bb10060e68dc8f"
+      "sha256": "bc92562a9f3de25dd8d47da974f0d66918a294df9c2e785cc9ab2f4d407a0fd0"
     },
     {
       "name": "swarm_control_drill.json",
@@ -585,7 +615,7 @@
     {
       "name": "visual_portfolio_drill.json",
       "bytes": 476,
-      "sha256": "e4838216f930b1c9bf099848789911ec52969781c1cac6f0b625addd303be418"
+      "sha256": "d37559e7de2c826b77efaafeeda5bbde93362074799fc88ac2ba17892d6b41f2"
     },
     {
       "name": "workflow_dispatch_contract_drill.json",
@@ -594,5 +624,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (117 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (123 artifacts hashed); independent human/reviewer sign-off still pending"
 }
