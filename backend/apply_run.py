@@ -315,7 +315,8 @@ def _heals(healing_log: list[dict], answers: dict) -> list[dict]:
 def apply_run(state: dict, *, root: Path | None = None) -> dict:
     """Run every blueprint rule against this run and return the decisions."""
     run_dir = Path(state.get("run_dir") or ".")
-    if run_dir.is_symlink():
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir):
         verdict = str(state.get("verdict") or "")
         return {"sample_unchanged": True, "sample": 0, "replay": [], "oracle": [],
                 "trends": {"verdict": verdict}, "portfolios": {}, "surfaces": {},
@@ -465,8 +466,9 @@ def _index_run_for_tenant(run_dir: Path, state: dict, verdict: str) -> dict | No
 def write_applied(state: dict, *, root: Path | None = None) -> dict:
     """Apply the rules and store them beside the report. The verdict is kept."""
     run_dir = Path(state.get("run_dir") or ".")
+    from .finalization import folder_is_linked
     applied = apply_run(state, root=root)
-    if run_dir.is_symlink():
+    if folder_is_linked(run_dir):
         return applied
     if not run_dir.exists():
         run_dir.mkdir(parents=True, exist_ok=True)
