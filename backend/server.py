@@ -2245,6 +2245,38 @@ def ops_production_healing_fixture_coverage():
     return {"gate_e_complete": False, "production_healing_fixture_coverage": evidence}
 
 
+@app.post("/api/ops/drills/studio-sso-token-expiry")
+def ops_studio_sso_token_expiry():
+    """Gate I: expired token rejection (hosted IdP SSO still open)."""
+    from backend.studio_sso_token_expiry_drill import run_studio_sso_token_expiry_drill
+    evidence = run_studio_sso_token_expiry_drill()
+    _audit(
+        "ops_studio_sso_token_expiry",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_token_expiry": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-permissions-contract")
+def ops_hosted_ci_permissions_contract():
+    """Gates D/F: workflow permissions contract (hosted runners still open)."""
+    from backend.hosted_ci_permissions_contract_drill import (
+        run_hosted_ci_permissions_contract_drill,
+    )
+    evidence = run_hosted_ci_permissions_contract_drill()
+    _audit(
+        "ops_hosted_ci_permissions_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_permissions_contract": evidence,
+    }
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

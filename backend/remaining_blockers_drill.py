@@ -61,6 +61,7 @@ BLOCKERS = (
             "studio_sso_login_path_drill.json",
             "studio_sso_session_rebind_drill.json",
             "studio_sso_audience_binding_drill.json",
+            "studio_sso_token_expiry_drill.json",
         ],
     },
     {
@@ -104,6 +105,7 @@ BLOCKERS = (
             "android_device_ci_readiness_pack_drill.json",
             "hosted_workflow_runner_audit_drill.json",
             "hosted_ci_artifact_retention_contract_drill.json",
+            "hosted_ci_permissions_contract_drill.json",
         ],
     },
     {
@@ -123,6 +125,7 @@ BLOCKERS = (
             "browser_portfolio_ci_readiness_pack_drill.json",
             "hosted_workflow_runner_audit_drill.json",
             "hosted_ci_artifact_retention_contract_drill.json",
+            "hosted_ci_permissions_contract_drill.json",
         ],
     },
     {

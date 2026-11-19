@@ -49,8 +49,13 @@ def loopback_oidc_session(
     email: str = "loopback@example.test",
     audience: str = "qpilot-loopback",
     extra_claims: dict | None = None,
+    exp_offset_seconds: int = 600,
 ):
-    """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live."""
+    """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live.
+
+    ``exp_offset_seconds`` is added to ``iat`` for ``exp`` (use a negative value
+    to mint an already-expired token).
+    """
     import jwt
 
     private_pem, public_key = _mint_rsa_material()
@@ -108,7 +113,7 @@ def loopback_oidc_session(
             "aud": audience,
             "sub": sub,
             "email": email,
-            "exp": now + 600,
+            "exp": now + int(exp_offset_seconds),
             "iat": now,
         }
         if extra_claims:

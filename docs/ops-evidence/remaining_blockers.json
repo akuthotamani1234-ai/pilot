@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T05:33:41Z",
+  "ran_at": "2026-11-19T05:36:15Z",
   "ok": true,
   "blockers": [
     {
@@ -72,7 +72,8 @@
         "hosted_idp_claim_map_completeness_drill.json",
         "studio_sso_login_path_drill.json",
         "studio_sso_session_rebind_drill.json",
-        "studio_sso_audience_binding_drill.json"
+        "studio_sso_audience_binding_drill.json",
+        "studio_sso_token_expiry_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -94,7 +95,8 @@
         "hosted_idp_claim_map_completeness_drill.json",
         "studio_sso_login_path_drill.json",
         "studio_sso_session_rebind_drill.json",
-        "studio_sso_audience_binding_drill.json"
+        "studio_sso_audience_binding_drill.json",
+        "studio_sso_token_expiry_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -156,7 +158,8 @@
         "hosted_ci_artifact_gate_pack_drill.json",
         "android_device_ci_readiness_pack_drill.json",
         "hosted_workflow_runner_audit_drill.json",
-        "hosted_ci_artifact_retention_contract_drill.json"
+        "hosted_ci_artifact_retention_contract_drill.json",
+        "hosted_ci_permissions_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -174,7 +177,8 @@
         "hosted_ci_artifact_gate_pack_drill.json",
         "android_device_ci_readiness_pack_drill.json",
         "hosted_workflow_runner_audit_drill.json",
-        "hosted_ci_artifact_retention_contract_drill.json"
+        "hosted_ci_artifact_retention_contract_drill.json",
+        "hosted_ci_permissions_contract_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -194,7 +198,8 @@
         "hosted_ci_artifact_gate_pack_drill.json",
         "browser_portfolio_ci_readiness_pack_drill.json",
         "hosted_workflow_runner_audit_drill.json",
-        "hosted_ci_artifact_retention_contract_drill.json"
+        "hosted_ci_artifact_retention_contract_drill.json",
+        "hosted_ci_permissions_contract_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -209,7 +214,8 @@
         "hosted_ci_artifact_gate_pack_drill.json",
         "browser_portfolio_ci_readiness_pack_drill.json",
         "hosted_workflow_runner_audit_drill.json",
-        "hosted_ci_artifact_retention_contract_drill.json"
+        "hosted_ci_artifact_retention_contract_drill.json",
+        "hosted_ci_permissions_contract_drill.json"
       ],
       "local_partial_missing": []
     },

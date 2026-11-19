@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_integrity",
-  "ran_at": "2026-11-19T05:00:31Z",
+  "ran_at": "2026-11-19T05:36:15Z",
   "signed_off": false,
   "artifacts": [
     {
@@ -11,37 +11,37 @@
     },
     {
       "path": "docs/ops-evidence/independent_review_pack.json",
-      "bytes": 22574,
-      "sha256": "749517b572528a3f80c673af702c154cf89b1e09652a65a3ee39d98c3621ae19"
+      "bytes": 24145,
+      "sha256": "7de5f28fbd4de9c49810ddb3ccc2c35737e14914f9fd33f3749d8e4086aa5fff"
     },
     {
       "path": "docs/ops-evidence/independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "c61353bbcd1cd9208cb2dbb559f6ce37037c7181e609b67aef10d059b41d2f0e"
+      "sha256": "976505aa8da51f817dd4bf875d187187616d767091669feeb0fa8a9a5807b6b1"
     },
     {
       "path": "docs/ops-evidence/independent_review_summary_drill.json",
       "bytes": 392,
-      "sha256": "72052f4f2750be5add64427a228336cf480e9a5cfae26d04673ed59ca15efb55"
+      "sha256": "804d1e2ea5d6dfe55c539f32aa748fbe5f27b088719b32a497b501d24734cfb2"
     },
     {
       "path": "docs/ops-evidence/INDEPENDENT_REVIEW_SUMMARY.md",
       "bytes": 1206,
-      "sha256": "c729f41bc320754001ee0b5b5615bf977a3b0ba5e22ca19442a40cb887eccfbb"
+      "sha256": "6b4e5ca88523afd47a664ac75cdd395fb46c258381dde11a1e1590acb014167c"
     },
     {
       "path": "docs/ops-evidence/independent_review_request_drill.json",
       "bytes": 1454,
-      "sha256": "c975d11790982a92f34ce34c393e2b883c3759952d8e49cc530e550ee6a6314f"
+      "sha256": "ac0358eb6a4c83837b29c64183aa6d6d507cf366da6b5de736bf09057794d0a1"
     },
     {
       "path": "docs/ops-evidence/remaining_blockers.json",
-      "bytes": 10045,
-      "sha256": "54bddc6bd86d7d6c791256f585f137f1f4038c6c0384820cb9d5610783e56aa3"
+      "bytes": 11207,
+      "sha256": "28edc46e5e859b23ba0f54e630b51884e64de1c8b23a7beead9c3f55c7575b78"
     }
   ],
   "missing": [],
-  "integrity_sha256": "e05d5588790ee5592bc415fa4cef8ae768b05ea0fef84b33687ea5eebe77343f",
+  "integrity_sha256": "815fcb42b503be82336b559e83de8e3cff8337f19fc8f66dbb1cc42cbf5e4327",
   "request_ok": true,
   "ok": true,
   "reason": "Independent review integrity over 7 artifacts; human sign-off still pending"

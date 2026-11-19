@@ -28,6 +28,7 @@ CHECKS = (
     ("studio_sso_login_path_drill.json", "Studio SSO login-path contract"),
     ("studio_sso_session_rebind_drill.json", "Studio SSO session rebind"),
     ("studio_sso_audience_binding_drill.json", "Studio SSO audience binding"),
+    ("studio_sso_token_expiry_drill.json", "Studio SSO token expiry rejection"),
 )
 
 

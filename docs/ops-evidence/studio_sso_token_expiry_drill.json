@@ -1,0 +1,12 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_token_expiry",
+  "ran_at": "2026-11-19T05:36:15Z",
+  "kind": "loopback_token_expiry",
+  "fresh_ok": true,
+  "expired_rejected": true,
+  "expired_reason": "token expired",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO token expiry ok (fresh accepted, expired rejected); live hosted IdP Studio SSO still open"
+}
