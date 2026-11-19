@@ -9,6 +9,7 @@ import json
 import time
 from pathlib import Path
 
+from .finalization import folder_is_linked, write_text_unless_linked
 from .mutation_score import score_planted
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -28,8 +29,15 @@ SUITES = (
 )
 
 
+def _source(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def _planted_ids(truth_path: Path) -> list[str]:
-    if not truth_path.is_file():
+    if folder_is_linked(truth_path) or not truth_path.is_file():
         return []
     truth = json.loads(truth_path.read_text(encoding="utf-8"))
     bugs = truth.get("bugs") or {}
@@ -41,17 +49,28 @@ def _planted_ids(truth_path: Path) -> list[str]:
 
 
 def _reported(summary_path: Path) -> tuple[list[str], str | None]:
-    if not summary_path.is_file():
+    if folder_is_linked(summary_path) or not summary_path.is_file():
         return [], None
     try:
         payload = json.loads(summary_path.read_text(encoding="utf-8"))
         bugs = ((payload.get("buggy") or {}).get("bugs") or {})
-        return list(bugs.get("caught") or []), str(summary_path.relative_to(ROOT))
+        return list(bugs.get("caught") or []), _source(summary_path)
     except (OSError, ValueError):
-        return [], str(summary_path.relative_to(ROOT))
+        return [], _source(summary_path)
+
+
+def _linked_drill() -> dict:
+    return {
+        "gate_j_complete": False,
+        "ok": False,
+        "drill": "fixture_mutation_suite",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
 
 
 def run_fixture_mutation_suite_drill(*, ops_dir: Path | None = None) -> dict:
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
     rows = []
     for suite in SUITES:
         planted_ids = _planted_ids(suite["truth"])
@@ -86,11 +105,15 @@ def run_fixture_mutation_suite_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "fixture_mutation_suite_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "fixture_mutation_suite_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
