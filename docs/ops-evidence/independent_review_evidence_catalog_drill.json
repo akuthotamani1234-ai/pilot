@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T02:39:45Z",
+  "ran_at": "2026-11-19T02:44:51Z",
   "signed_off": false,
   "entries": [
     {
@@ -269,6 +269,13 @@
       ]
     },
     {
+      "name": "hosted_dispatch_payload_rehearsal_drill.json",
+      "bytes": 1035,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
       "name": "hosted_idp_contract_drill.json",
       "bytes": 1121,
       "gates": [
@@ -325,6 +332,13 @@
       ]
     },
     {
+      "name": "independent_review_evidence_catalog_drill.json",
+      "bytes": 14067,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
       "name": "independent_review_integrity_drill.json",
       "bytes": 1668,
       "gates": [
@@ -333,7 +347,7 @@
     },
     {
       "name": "independent_review_pack.json",
-      "bytes": 17843,
+      "bytes": 18025,
       "gates": [
         "gate_g"
       ]
@@ -619,6 +633,13 @@
       ]
     },
     {
+      "name": "production_healing_readiness_drill.json",
+      "bytes": 1444,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "production_healing_replay_pack_drill.json",
       "bytes": 1749,
       "gates": [
@@ -678,7 +699,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 6713,
+      "bytes": 6829,
       "gates": [
         "gate_g"
       ]
@@ -769,20 +790,20 @@
       ]
     }
   ],
-  "entry_count": 108,
+  "entry_count": 111,
   "by_gate": {
-    "gate_g": 9,
+    "gate_g": 10,
     "gate_f": 9,
     "gate_c": 6,
     "gate_d": 12,
-    "untagged": 22,
+    "untagged": 23,
     "gate_j": 4,
     "gate_b": 6,
     "gate_i": 13,
-    "gate_e": 10,
+    "gate_e": 11,
     "gate_h": 19,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 108 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 111 files; signed_off remains False until external review"
 }

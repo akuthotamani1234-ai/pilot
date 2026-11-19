@@ -1686,6 +1686,42 @@ def ops_production_healing_flaky_policy():
     return {"gate_e_complete": False, "production_healing_flaky_policy": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-readiness")
+def ops_production_healing_readiness():
+    """Gate E: production healing readiness score (third-party suite still open)."""
+    from backend.production_healing_readiness_drill import (
+        run_production_healing_readiness_drill,
+    )
+    evidence = run_production_healing_readiness_drill()
+    _audit(
+        "ops_production_healing_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_readiness": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
+def ops_hosted_dispatch_payload_rehearsal():
+    """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""
+    from backend.hosted_dispatch_payload_rehearsal_drill import (
+        run_hosted_dispatch_payload_rehearsal_drill,
+    )
+    evidence = run_hosted_dispatch_payload_rehearsal_drill()
+    _audit(
+        "ops_hosted_dispatch_payload_rehearsal",
+        ok=bool(evidence.get("ok")),
+        android=bool((evidence.get("android") or {}).get("ok")),
+        browsers=bool((evidence.get("browsers") or {}).get("ok")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_dispatch_payload_rehearsal": evidence,
+    }
+
+
 @app.post("/api/ops/drills/independent-review-integrity")
 def ops_independent_review_integrity():
     """Gate G: unsigned integrity checksum over review artifacts."""

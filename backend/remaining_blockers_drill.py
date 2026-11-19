@@ -61,6 +61,7 @@ BLOCKERS = (
             "production_healing_contract_drill.json",
             "production_healing_replay_pack_drill.json",
             "production_healing_flaky_policy_drill.json",
+            "production_healing_readiness_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -79,6 +80,7 @@ BLOCKERS = (
             "hosted_ci_runner_matrix_drill.json",
             "ci_artifact_upload_rehearsal_drill.json",
             "hosted_runner_readiness_drill.json",
+            "hosted_dispatch_payload_rehearsal_drill.json",
         ],
     },
     {
@@ -93,6 +95,7 @@ BLOCKERS = (
             "hosted_ci_runner_matrix_drill.json",
             "ci_artifact_upload_rehearsal_drill.json",
             "hosted_runner_readiness_drill.json",
+            "hosted_dispatch_payload_rehearsal_drill.json",
         ],
     },
     {
