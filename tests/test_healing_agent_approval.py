@@ -134,3 +134,49 @@ def test_the_same_selector_in_another_file_is_repaired_there(tmp_path, monkeypat
     assert set(out["rerun_only"]) == {
         "test_flows_ai.py::test_ai_flow_6", "test_flows_b.py::test_ai_flow_7",
     }
+
+
+def test_a_repair_does_not_follow_a_link_into_another_script(tmp_path, monkeypatch):
+    from backend.agents import self_healing
+    monkeypatch.setattr(self_healing, "llm_enabled", lambda: False)
+    secret = CODE + "\n# tenant-b-only-script\n"
+    other = tmp_path / "other.py"
+    other.write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_flows_ai.py").symlink_to(other)
+    log = tmp_path / "their-log.json"
+    log.write_text('{"secret": "tenant-b-only-script"}', encoding="utf-8")
+    (run / "healing_log.json").symlink_to(log)
+    out = self_healing_agent({
+        "run_dir": str(run), "app_map": [], "failures": [{
+            "source": "test", "category": "test_defect",
+            "nodeid": "test_flows_ai.py::test_ai_flow_6",
+            "file": "test_flows_ai.py", "test": "test_ai_flow_6", "error": ERR,
+        }],
+    })
+    assert other.read_text(encoding="utf-8") == secret
+    assert log.read_text(encoding="utf-8") == '{"secret": "tenant-b-only-script"}'
+    assert out["rerun_only"] == []
+    assert out["healing_log"][0]["change"] == "the script is a link"
+
+    own = tmp_path / "own"
+    own_tests = own / "generated_tests"
+    own_tests.mkdir(parents=True)
+    (own_tests / "test_flows_ai.py").write_text(CODE, encoding="utf-8")
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "keep.txt").write_text("tenant-b-only-backup", encoding="utf-8")
+    (own / "healing").symlink_to(vault, target_is_directory=True)
+    out = self_healing_agent({
+        "run_dir": str(own), "app_map": [], "failures": [{
+            "source": "test", "category": "test_defect",
+            "nodeid": "test_flows_ai.py::test_ai_flow_6",
+            "file": "test_flows_ai.py", "test": "test_ai_flow_6", "error": ERR,
+        }],
+    })
+    assert "visible=true" in (own_tests / "test_flows_ai.py").read_text(encoding="utf-8")
+    assert list(vault.iterdir()) == [vault / "keep.txt"]
+    assert (vault / "keep.txt").read_text(encoding="utf-8") == "tenant-b-only-backup"
+    assert out["rerun_only"] == ["test_flows_ai.py::test_ai_flow_6"]

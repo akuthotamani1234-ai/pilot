@@ -150,6 +150,7 @@ def progress() -> dict:
         {"id": "G-baseline-save", "label": "Saving a baseline does not delete or overwrite another tenant's files through a link", "status": "done"},
         {"id": "G-object-link", "label": "An evidence object does not follow a link into another tenant's store", "status": "done"},
         {"id": "C-lifecycle-link", "label": "A cleanup record does not follow a link into another run", "status": "done"},
+        {"id": "G-heal-link", "label": "A repair does not follow a link into another script", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
