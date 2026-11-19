@@ -114,12 +114,34 @@ body {
   cursor: not-allowed;
 }
 
+.roadmap {
+  display: grid;
+  gap: 18px;
+  margin: 16px 0 8px;
+}
+
+.roadmap-section h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.roadmap-landed h3 { color: var(--accent); }
+.roadmap-now h3 { color: #1d4ed8; }
+.roadmap-next h3 { color: var(--warn); }
+
 .gates {
   list-style: none;
   margin: 18px 0 8px;
   padding: 0;
   display: grid;
   gap: 10px;
+}
+
+.roadmap-section .gates {
+  margin-top: 6px;
 }
 
 .gates li {

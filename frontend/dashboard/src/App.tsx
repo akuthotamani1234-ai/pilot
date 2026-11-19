@@ -132,7 +132,34 @@ export function App() {
               </li>
             ))}
           </ol>
-          {(blueprint.blockers || []).length ? (
+          {blueprint.roadmap ? (
+            <div className="roadmap">
+              {(
+                [
+                  ["landed", "Implemented", blueprint.roadmap.landed || []],
+                  ["now", "Where we are", blueprint.roadmap.now || []],
+                  ["next", "Where we are going", blueprint.roadmap.next || []],
+                ] as const
+              ).map(([id, title, rows]) =>
+                rows.length ? (
+                  <div key={id} className={`roadmap-section roadmap-${id}`}>
+                    <h3>{title}</h3>
+                    <ol className="gates">
+                      {rows.map((row) => (
+                        <li key={row.id} className={badge(row.status)}>
+                          <span className="pill">{badge(row.status)}</span>
+                          <span>
+                            <strong>{row.label}</strong>
+                            <small>{row.note || (id === "next" ? "Blocker" : "")}</small>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          ) : (blueprint.blockers || []).length ? (
             <>
               <p className="now">
                 Hard-open blockers: {blueprint.counts.blockers_open ?? blueprint.blockers?.length}
