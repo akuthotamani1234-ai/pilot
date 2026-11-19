@@ -196,3 +196,55 @@ def test_an_approval_stays_in_its_tenant_and_cannot_rewrite_another_test(monkeyp
     assert refused.json()["status"] == "rejected"
     assert refused.json()["reason"] == "tenant isolation"
     assert script.read_text(encoding="utf-8") == _OLD
+
+
+def test_a_heal_can_write_only_inside_that_tenants_run_folder(monkeypatch, tmp_path: Path):
+    from fastapi.testclient import TestClient
+
+    import backend.approvals as approvals
+    import backend.tenancy_store as tenancy
+    from backend import server
+    from backend.config import settings
+    from backend.healing_policy import reset_healing_approvals
+
+    studio = tmp_path / "studio"
+    owned = studio / "run-a" / "generated_tests" / "test_x.py"
+    evil = tmp_path / "evil" / "run-a" / "generated_tests" / "test_x.py"
+    owned.parent.mkdir(parents=True)
+    evil.parent.mkdir(parents=True)
+    owned.write_text(_OLD, encoding="utf-8")
+    evil.write_text(_OLD, encoding="utf-8")
+    db = tmp_path / "approvals.sqlite"
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(settings, "runs_dir", studio)
+    monkeypatch.setattr(approvals, "DEFAULT_DB", db)
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", tmp_path / "tenancy.sqlite")
+    reset_healing_approvals()
+    tenancy.upsert_tenant("t1", "One")
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin")
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready")
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"}
+
+    def decide(run_dir: Path, subject: str):
+        detail = json.dumps({
+            "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+            "run_dir": str(run_dir), "file": "test_x.py",
+        })
+        made = client.post(
+            "/api/approvals", headers=header,
+            json={"kind": "heal", "subject": subject, "detail": detail},
+        )
+        assert made.status_code == 200
+        return client.post(f"/api/approvals/{made.json()['id']}/decide", headers=header, json={"answer": "yes"})
+
+    refused = decide(evil.parent.parent, "outside the studio")
+    assert refused.status_code == 200
+    assert refused.json()["status"] == "rejected"
+    assert refused.json()["reason"] == "tenant isolation"
+    assert evil.read_text(encoding="utf-8") == _OLD
+    accepted = decide(owned.parent.parent, "inside the studio")
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "accepted"
+    assert owned.read_text(encoding="utf-8") == _GOOD
+    assert evil.read_text(encoding="utf-8") == _OLD

@@ -107,8 +107,17 @@ def _heal_run_in_tenant(detail: str, tenant_id: str) -> bool:
     run_raw = str(payload.get("run_dir") or "").strip()
     if not run_raw:
         return True
+    from .config import settings
     from .tenancy_store import get_run_tenant
-    return get_run_tenant(Path(run_raw).name) == tenant_id
+    run_name = Path(run_raw).name
+    if get_run_tenant(run_name) != tenant_id:
+        return False
+    try:
+        resolved = Path(run_raw).resolve()
+        studio = (Path(settings.runs_dir) / run_name).resolve()
+    except OSError:
+        return False
+    return resolved == studio
 
 
 def heal_detail_allowed(detail: str) -> dict:
