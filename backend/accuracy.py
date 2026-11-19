@@ -260,6 +260,15 @@ def write_report(path: Path, payload: dict) -> bool:
     return True
 
 
+def load_truth(path: str | Path) -> dict:
+    """The known-truth manifest. A link is not this run's practice website."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if folder_is_linked(path):
+        raise ValueError("The known-truth file is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Accuracy of a finished test run")
     ap.add_argument("run_dir")
@@ -267,7 +276,7 @@ def main() -> None:
     ap.add_argument("--bugs", action="store_true", help="the website had its planted bugs switched on")
     ap.add_argument("--out", help="write the numbers to this JSON file (else they are printed)")
     a = ap.parse_args()
-    truth = json.loads(Path(a.truth).read_text(encoding="utf-8")) if a.truth else None
+    truth = load_truth(a.truth) if a.truth else None
     m = measure(a.run_dir, truth, a.bugs)
     if a.out and not write_report(Path(a.out), m):
         raise ValueError("The accuracy file is a link.")
