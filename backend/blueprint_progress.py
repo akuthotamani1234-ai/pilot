@@ -333,6 +333,7 @@ def progress() -> dict:
         {"id": "I-login-binds-groups", "label": "SSO login creates a principal from groups and cannot raise one", "status": "done"},
         {"id": "E-mistake-needs-approval", "label": "A test-mistake repair is not written without a one-time approval", "status": "done"},
         {"id": "E-approval-writes-once", "label": "An accepted heal approval writes the script once, inside the run", "status": "done"},
+        {"id": "C-result-ai-oracle", "label": "A contract result that names an AI oracle is not a product defect", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
