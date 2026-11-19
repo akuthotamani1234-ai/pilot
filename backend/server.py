@@ -2514,6 +2514,24 @@ def ops_hosted_runner_os_matrix_contract():
     }
 
 
+@app.post("/api/ops/drills/production-healing-approval-gate")
+def ops_production_healing_approval_gate():
+    """Gate E: level-3 repairs require a single-use approval token."""
+    from backend.production_healing_approval_gate_drill import (
+        run_production_healing_approval_gate_drill,
+    )
+    evidence = run_production_healing_approval_gate_drill()
+    _audit(
+        "ops_production_healing_approval_gate",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {
+        "gate_e_complete": False,
+        "production_healing_approval_gate": evidence,
+    }
+
+
 @app.post("/api/ops/drills/production-healing-escalation-enforcement")
 def ops_production_healing_escalation_enforcement():
     """Gate E: escalation ladder enforced on the repair path."""

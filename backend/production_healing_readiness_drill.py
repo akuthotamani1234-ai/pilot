@@ -31,6 +31,7 @@ CHECKS = (
     ("production_healing_budget_contract_drill.json", "Suite budget contract"),
     ("production_healing_escalation_ladder_drill.json", "Escalation ladder contract"),
     ("production_healing_escalation_enforcement_drill.json", "Escalation enforced on repair path"),
+    ("production_healing_approval_gate_drill.json", "Single-use human approval gate"),
 )
 
 
