@@ -33,10 +33,33 @@ BROWSER_ARTIFACTS = (
 )
 
 
+def _linked_retention() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "hosted_ci_artifact_retention_contract",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_ci_artifact_retention_contract_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_ci_artifact_retention_contract_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_retention()
+
     ops = ROOT / "docs" / "ops-evidence"
-    android_present = [n for n in ANDROID_ARTIFACTS if (ops / n).is_file()]
-    browser_present = [n for n in BROWSER_ARTIFACTS if (ops / n).is_file()]
+    android_present = [
+        n for n in ANDROID_ARTIFACTS
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
+    browser_present = [
+        n for n in BROWSER_ARTIFACTS
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
     contract = {
         "retention_days": 14,
         "compression": "zip",
@@ -75,17 +98,15 @@ def run_hosted_ci_artifact_retention_contract_drill(*, ops_dir: Path | None = No
             "broad hosted multi-device/browser runners still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_retention()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_ci_artifact_retention_contract_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_retention()
     if ops_dir is None:
-        art = (
-            ROOT / "artifacts" / "ops" / "hosted_ci_artifact_retention_contract_drill.json"
-        )
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
