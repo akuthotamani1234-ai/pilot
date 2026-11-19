@@ -25,13 +25,25 @@ REQUIRED = (
 )
 
 
+def _linked_manifest() -> dict:
+    return {
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "portfolio_artifact_manifest",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_portfolio_artifact_manifest_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_manifest()
     ops = ROOT / "docs" / "ops-evidence"
     artifacts: list[dict] = []
     missing: list[str] = []
     for name in REQUIRED:
         path = ops / name
-        if not path.is_file():
+        if folder_is_linked(path) or not path.is_file():
             missing.append(name)
             continue
         artifacts.append({
@@ -63,14 +75,18 @@ def run_portfolio_artifact_manifest_drill(*, ops_dir: Path | None = None) -> dic
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "portfolio_artifact_manifest_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_manifest()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_manifest()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "portfolio_artifact_manifest_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
