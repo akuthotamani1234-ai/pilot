@@ -50,16 +50,36 @@ BROWSER_CHECKS = (
 )
 
 
+def _linked_runner() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "hosted_runner_readiness",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def _score(checks: tuple[tuple[str, str], ...]) -> tuple[list[dict], int]:
+    from .finalization import folder_is_linked
+
     ops = ROOT / "docs" / "ops-evidence"
     rows = []
     for name, label in checks:
-        ready = (ops / name).is_file()
+        path = ops / name
+        ready = (not folder_is_linked(path)) and path.is_file()
         rows.append({"artifact": name, "label": label, "ready": ready})
     return rows, sum(1 for row in rows if row["ready"])
 
 
 def run_hosted_runner_readiness_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_runner_readiness_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_runner()
+
     device_rows, device_score = _score(DEVICE_CHECKS)
     browser_rows, browser_score = _score(BROWSER_CHECKS)
     evidence = {
@@ -90,15 +110,15 @@ def run_hosted_runner_readiness_drill(*, ops_dir: Path | None = None) -> dict:
             "broad hosted CI runner execution still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_runner()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_runner_readiness_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_runner()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_runner_readiness_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
