@@ -444,6 +444,7 @@ def progress() -> dict:
         {"id": "G-oncall-rota-link", "label": "An on-call rota contract does not follow a link into another folder", "status": "done"},
         {"id": "G-review-scope-link", "label": "A review scope matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-store-health-link", "label": "A store health probe does not follow a link into another folder", "status": "done"},
+        {"id": "G-signoff-pack-link", "label": "A sign-off pack does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
