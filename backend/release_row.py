@@ -377,6 +377,22 @@ def run_row(*, url: str, scope: str, page_budget: int, time_budget_s: int, autho
     }
 
 
+def planted_marker(run_dir: Path) -> str:
+    """The seeded defect id stored for this run. A link is not that id."""
+    path = Path(run_dir) / "planted.json"
+    if _folder_is_linked(path) or not path.is_file():
+        return ""
+    try:
+        planted = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if isinstance(planted, list) and planted and isinstance(planted[0], dict):
+        return str(planted[0].get("id") or "")
+    if isinstance(planted, dict):
+        return str(planted.get("id") or "")
+    return ""
+
+
 def from_run(state: dict) -> dict:
     """Build the release row from a finished run. The listing sample is not changed."""
     run_dir = Path(state.get("run_dir") or ".")
@@ -391,19 +407,14 @@ def from_run(state: dict) -> dict:
         })
     results = [{"url": row.get("url") or row.get("page_url") or "", "status": row.get("status") or ""}
                for row in state.get("results") or []]
-    planted = ""
-    planted_file = run_dir / "planted.json"
-    if planted_file.is_file():
-        try:
-            rows = json.loads(planted_file.read_text(encoding="utf-8"))
-            planted = str(rows[0].get("id") or "") if isinstance(rows, list) and rows else ""
-        except (OSError, ValueError):
-            planted = ""
+    planted = planted_marker(run_dir)
     backup = ""
     for name in (".private/checkpoint.sqlite", "app_map.json", "crawl.json"):
-        if (run_dir / name).is_file():
-            backup = name
-            break
+        path = run_dir / name
+        if _folder_is_linked(path) or not path.is_file():
+            continue
+        backup = name
+        break
     return run_row(
         url=str(state.get("url") or ""),
         scope=str(crawl.get("section") or crawl.get("mode") or "site"),

@@ -898,19 +898,9 @@ def failure_analysis_agent(state: QAState) -> QAState:
             print(f"  [failure-analysis] LLM explanation skipped: {e}")
 
     _save_failures(Path(state["run_dir"]), failures)
-    from ..release_row import record_step, seeded_defect
+    from ..release_row import planted_marker, record_step, seeded_defect
     run_dir = Path(state["run_dir"])
-    planted_id = ""
-    planted_path = run_dir / "planted.json"
-    if not run_dir.is_symlink() and not planted_path.is_symlink() and planted_path.is_file():
-        try:
-            planted = json.loads(planted_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            planted = None
-        if isinstance(planted, list) and planted and isinstance(planted[0], dict):
-            planted_id = str(planted[0].get("id") or "")
-        elif isinstance(planted, dict):
-            planted_id = str(planted.get("id") or "")
+    planted_id = planted_marker(run_dir)
     seed = seeded_defect(planted_id, failures) if planted_id else {
         "caught": False, "reason": "no seeded defect", "replay": {"ran": False}}
     seed["ok"] = True
