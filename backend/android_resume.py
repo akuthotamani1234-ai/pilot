@@ -6,9 +6,12 @@ from .android_runtime import read_only_case
 
 
 def records(path: Path) -> list[dict]:
+    path = Path(path)
+    from .finalization import folder_is_linked
     rows = []
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
+    if path.is_symlink() or folder_is_linked(path.parent) or not path.is_file():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 row = json.loads(line)
             except ValueError:
