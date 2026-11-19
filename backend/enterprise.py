@@ -36,8 +36,10 @@ def readiness() -> dict:
     redis_queue = open_durable_queue(redis) if redis else {"ready": False, "backend": "redis", "reason": "not configured"}
     queue = redis_queue if redis_queue.get("ready") else sqlite_queue
     migrations = migration_status(postgres or None)
-    dashboard_configured = DASHBOARD_PKG.is_file()
-    dashboard_built = DASHBOARD_DIST.is_file()
+    from .finalization import folder_is_linked
+
+    dashboard_configured = (not folder_is_linked(DASHBOARD_PKG)) and DASHBOARD_PKG.is_file()
+    dashboard_built = (not folder_is_linked(DASHBOARD_DIST)) and DASHBOARD_DIST.is_file()
     pg_evidence = ROOT / "docs" / "ops-evidence" / "postgres_isolation_drill.json"
     pg_tenancy_evidence = ROOT / "docs" / "ops-evidence" / "pg_tenancy_drill.json"
     redis_evidence = ROOT / "docs" / "ops-evidence" / "redis_lease_drill.json"
@@ -49,7 +51,7 @@ def readiness() -> dict:
 
     def _evidence_file(path: Path) -> bool:
         from .finalization import folder_is_linked
-        return path.is_file() and not folder_is_linked(path)
+        return (not folder_is_linked(path)) and path.is_file()
 
     def _evidence_ok(path: Path) -> bool:
         if not _evidence_file(path):

@@ -18,7 +18,9 @@ def list_migrations() -> list[Path]:
     from .finalization import folder_is_linked
     if folder_is_linked(MIGRATIONS) or not MIGRATIONS.is_dir():
         return []
-    return sorted(p for p in MIGRATIONS.glob("*.sql") if p.is_file() and not folder_is_linked(p))
+    return sorted(
+        p for p in MIGRATIONS.glob("*.sql") if (not folder_is_linked(p)) and p.is_file()
+    )
 
 
 def sqlite_path_is_linked(path: str | Path) -> bool:
@@ -150,7 +152,7 @@ def migration_status(uri: str | None = None) -> dict:
         evidence = ROOT / "docs" / "ops-evidence" / "postgres_isolation_drill.json"
         live_ok = False
         from .finalization import folder_is_linked
-        if evidence.is_file() and not folder_is_linked(evidence):
+        if (not folder_is_linked(evidence)) and evidence.is_file():
             try:
                 import json
                 live_ok = bool(json.loads(evidence.read_text(encoding="utf-8")).get("ok"))

@@ -25,6 +25,17 @@ def test_a_readiness_drill_does_not_follow_a_link_into_another_folder(tmp_path, 
     (evidence / "swarm_control_drill.json").symlink_to(other / "swarm_control_drill.json")
     monkeypatch.setattr(enterprise, "ROOT", root)
     monkeypatch.setattr(migrate, "ROOT", root)
+    secret_page = other / "index.html"
+    secret_page.write_text(secret, encoding="utf-8")
+    dist_link = tmp_path / "index.html"
+    dist_link.symlink_to(secret_page)
+    monkeypatch.setattr(enterprise, "DASHBOARD_DIST", dist_link)
+    sql_dir = tmp_path / "migrations"
+    sql_dir.mkdir()
+    (other / "010_secret.sql").write_text(f"-- {secret}\n", encoding="utf-8")
+    (sql_dir / "010_secret.sql").symlink_to(other / "010_secret.sql")
+    (sql_dir / "001_home.sql").write_text("-- home\n", encoding="utf-8")
+    monkeypatch.setattr(migrate, "MIGRATIONS", sql_dir)
     monkeypatch.setenv("POSTGRES_URL", "postgresql://example.invalid/qpilot")
     for name in ("DATABASE_URL", "QPILOT_DB_URL", "REDIS_URL", "QPILOT_REDIS_URL", "OBJECT_STORE_URI", "MINIO_URL"):
         monkeypatch.delenv(name, raising=False)
@@ -34,7 +45,10 @@ def test_a_readiness_drill_does_not_follow_a_link_into_another_folder(tmp_path, 
     dumped = json.dumps({"readiness": refused, "migration": status})
     assert refused["components"]["postgres"]["ready"] is False
     assert refused["components"]["swarm_control"]["ready"] is False
+    assert refused["components"]["react_dashboard"]["ready"] is False
     assert status["ready"] is False
+    assert "010_secret.sql" not in status["versions"]
+    assert "001_home.sql" in status["versions"]
     assert secret not in dumped
     assert (other / "keep.txt").read_text(encoding="utf-8") == secret
     assert json.loads((other / "postgres_isolation_drill.json").read_text(encoding="utf-8"))["secret"] == secret
