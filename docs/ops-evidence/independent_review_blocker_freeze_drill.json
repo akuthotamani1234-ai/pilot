@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:33:41Z",
+  "ran_at": "2026-11-19T05:36:15Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -19,7 +19,7 @@
         "gate": "I",
         "label": "Live hosted IdP Studio SSO login + multi-tenant ACLs",
         "status": "open",
-        "local_partial_count": 19,
+        "local_partial_count": 20,
         "local_partial_missing": []
       },
       {
@@ -35,7 +35,7 @@
         "gate": "D",
         "label": "Broad multi-device CI Appium product-matrix artifacts",
         "status": "open",
-        "local_partial_count": 15,
+        "local_partial_count": 16,
         "local_partial_missing": []
       },
       {
@@ -43,7 +43,7 @@
         "gate": "F",
         "label": "Broad hosted multi-browser portfolio CI artifacts",
         "status": "open",
-        "local_partial_count": 12,
+        "local_partial_count": 13,
         "local_partial_missing": []
       },
       {
@@ -56,8 +56,8 @@
       }
     ]
   },
-  "freeze_sha256": "2ed821a3ba915f2d8168804a367ac546723efa71aaac34be7abb70f7e916d14b",
+  "freeze_sha256": "2a77d6e743a4f1ec77d065021b1cb4a41fe925c62f4776fe73f998814b01d63d",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze 2ed821a3ba91\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze 2a77d6e743a4\u2026 (6 open); external sign-off still open"
 }

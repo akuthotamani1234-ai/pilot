@@ -1,10 +1,10 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_readiness",
-  "ran_at": "2026-11-19T05:33:41Z",
+  "ran_at": "2026-11-19T05:36:15Z",
   "kind": "readiness_score_only",
-  "score": 15,
-  "score_of": 15,
+  "score": 16,
+  "score_of": 16,
   "checks": [
     {
       "artifact": "loopback_sso_drill.json",
@@ -80,9 +80,14 @@
       "artifact": "studio_sso_audience_binding_drill.json",
       "label": "Studio SSO audience binding",
       "ready": true
+    },
+    {
+      "artifact": "studio_sso_token_expiry_drill.json",
+      "label": "Studio SSO token expiry rejection",
+      "ready": true
     }
   ],
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Hosted IdP readiness 15/15; live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP readiness 16/16; live hosted IdP Studio SSO login still open"
 }

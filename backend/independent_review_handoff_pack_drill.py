@@ -18,6 +18,9 @@ def run_independent_review_handoff_pack_drill(*, ops_dir: Path | None = None) ->
         run_independent_review_blocker_freeze_drill,
     )
     from .independent_review_request_drill import run_independent_review_request_drill
+    from .independent_review_response_sla_drill import (
+        run_independent_review_response_sla_drill,
+    )
     from .independent_review_scope_matrix_drill import (
         run_independent_review_scope_matrix_drill,
     )
@@ -34,6 +37,7 @@ def run_independent_review_handoff_pack_drill(*, ops_dir: Path | None = None) ->
         ("summary", run_independent_review_summary_drill),
         ("scope_matrix", run_independent_review_scope_matrix_drill),
         ("blocker_freeze", run_independent_review_blocker_freeze_drill),
+        ("response_sla", run_independent_review_response_sla_drill),
     ):
         try:
             parts[key] = fn(ops_dir=ops_dir)
