@@ -24,6 +24,8 @@ def test_the_crawl_tests_a_page_that_shows_while_one_file_never_comes(tmp_path, 
     class Site(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             path = self.path.split("?")[0]
+            if path == "/":
+                release.wait(2)  # the first try times out; the retry still receives the page
             if path == "/stuck.js":
                 release.wait(60)  # (the busy server: it never comes while the page is read)
             body = pages.get(path)
