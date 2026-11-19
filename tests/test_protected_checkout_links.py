@@ -349,6 +349,67 @@ def test_a_generated_read_does_not_fetch_checkout():
     assert opened == [product]
 
 
+def test_a_form_that_posts_to_checkout_is_not_filled():
+    from backend.form_rules import pair_cases
+    from backend.forms import data_forms, form_cases
+    stay = {
+        "selector": "#in", "type": "date", "label": "Start date", "name": "start", "required": True,
+    }
+    leave = {
+        "selector": "#out", "type": "date", "label": "End date", "name": "end", "required": True,
+    }
+    note = {
+        "selector": "#note", "type": "text", "label": "Note", "name": "note", "required": True,
+    }
+    page = {
+        "url": "https://shop.example/guest",
+        "slug": "guest",
+        "title": "Guest",
+        "auth": False,
+        "page_type": "content",
+        "inputs": [stay, leave, note],
+        "forms": [
+            {
+                "selector": "#pay",
+                "method": "post",
+                "action": "index.php?rt=checkout/confirm",
+                "submit": {"text": "Continue", "selector": "#go"},
+                "fields": [stay, leave],
+            },
+            {
+                "selector": "#msg",
+                "method": "post",
+                "action": "/contact",
+                "submit": {"text": "Send", "selector": "#send"},
+                "fields": [note],
+            },
+        ],
+    }
+    forms = data_forms([page])
+    assert [f["form"]["selector"] for f in forms] == ["#msg"]
+    titles = [c["title"] for c in form_cases([page])]
+    assert any("Send" in t for t in titles)
+    assert not any("Continue" in t for t in titles)
+    book = {
+        "url": "https://shop.example/book",
+        "slug": "book",
+        "title": "Book",
+        "auth": False,
+        "page_type": "content",
+        "inputs": [stay, leave],
+        "forms": [{
+            "selector": "#stay",
+            "method": "post",
+            "action": "/book",
+            "submit": {"text": "Continue", "selector": "#book"},
+            "fields": [stay, leave],
+        }],
+    }
+    pairs = pair_cases([page, book])
+    assert any(c.get("url") == book["url"] for c in pairs)
+    assert not any(c.get("url") == page["url"] for c in pairs)
+
+
 def test_extra_pages_of_one_kind_do_not_include_checkout():
     from backend.items import item_cases
     pay = "https://shop.example/index.php?rt=checkout/confirm"
