@@ -305,6 +305,35 @@ def test_an_android_screenshot_does_not_follow_a_link_into_another_folder(tmp_pa
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_an_android_progress_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_reporting import _dynamic_report
+
+    secret = "tenant-b-only-progress"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    progress = nested / "dynamic.json"
+    progress.write_text(json.dumps({
+        "events": [{"kind": "note", "text": secret}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = _dynamic_report(linked / "runs" / "run", {})
+    assert secret not in json.dumps(refused)
+    assert secret in progress.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "dynamic.json").write_text(json.dumps({
+        "events": [{"kind": "note", "text": "home-own"}],
+    }), encoding="utf-8")
+    kept = _dynamic_report(real, {})
+    assert kept["events"][0]["text"] == "home-own"
+    assert secret not in json.dumps(kept)
+    assert secret in progress.read_text(encoding="utf-8")
+
+
 def test_screenshots_do_not_capture_external_apps(tmp_path):
     class External:
         current_package = "com.android.settings"
