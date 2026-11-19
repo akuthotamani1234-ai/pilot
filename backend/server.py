@@ -4493,12 +4493,23 @@ def run_due_schedules(now=None) -> list[str]:
             if not s.get("waiting"):  # (it was due while the UI was open: it waits for the running test)
                 s["waiting"], changed = True, True
             continue
+        owner = str(s.get("principal_id") or "")
+        tenant = str(s.get("tenant_id") or "")
+        if owner or tenant:
+            from backend.tenancy_store import get_principal
+            row = get_principal(owner) if owner else None
+            # A removed person, or a person who is no longer in this tenant, must not start
+            # into the shared baseline or another tenant's folder.
+            if not row or str(row.get("tenant_id") or "") != tenant:
+                s["last_error"] = "the person who scheduled this test is no longer in that tenant"
+                s["waiting"] = False
+                s["next"], changed = _next_time(s, now).isoformat(timespec="minutes"), True
+                continue
         try:
             from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
-            token = push_baseline_tenant(str(s.get("tenant_id") or ""))
+            token = push_baseline_tenant(tenant)
             try:
-                owner = str(s.get("principal_id") or "") or None
-                job = _launch_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})), owner)
+                job = _launch_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})), owner or None)
             finally:
                 pop_baseline_tenant(token)
             s.update(last=now.isoformat(timespec="minutes"), last_job=job["id"], last_error="", waiting=False)
