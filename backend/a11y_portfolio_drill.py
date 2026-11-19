@@ -17,7 +17,24 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "a11y_portfolio_drill.json"
 PATHS = ("/", "/about", "/lab", "/signin")
 
 
+def _linked_a11y() -> dict:
+    return {
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "demo_store_a11y_portfolio",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_a11y_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "a11y_portfolio_drill.json"
+    work = Path(ops_dir) if ops_dir else (ROOT / "artifacts" / "ops" / "a11y_portfolio_work")
+    if (folder_is_linked(dest) or folder_is_linked(dest / out_name) or folder_is_linked(work)):
+        return _linked_a11y()
+
     from playwright.sync_api import sync_playwright
 
     from tests.demo_store import DemoStore
@@ -59,7 +76,8 @@ def run_a11y_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
         except Exception:
             pass
 
-    work = Path(ops_dir) if ops_dir else (ROOT / "artifacts" / "ops" / "a11y_portfolio_work")
+    if folder_is_linked(work):
+        return _linked_a11y()
     work.mkdir(parents=True, exist_ok=True)
     captured = capture_portfolios(work, pages, source_url=store.url)
     a11y_page = captured.get("a11y_page") or {}
@@ -77,12 +95,15 @@ def run_a11y_portfolio_drill(*, ops_dir: Path | None = None) -> dict:
             "broad live multi-browser CI still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name) or folder_is_linked(work):
+        return _linked_a11y()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "a11y_portfolio_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_a11y()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "a11y_portfolio_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
