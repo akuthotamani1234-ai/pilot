@@ -84,6 +84,34 @@ def test_a_test_mistake_does_not_inherit_an_automatic_repair(tmp_path, monkeypat
     assert "already repaired" not in (mistake.get("change") or "")
 
 
+def test_a_second_test_mistake_does_not_inherit_an_approved_repair(tmp_path, monkeypatch):
+    from backend.agents import self_healing
+    monkeypatch.setattr(self_healing, "llm_enabled", lambda: False)
+    reset_healing_approvals()
+    tests = tmp_path / "generated_tests"
+    tests.mkdir()
+    (tests / "test_flows_ai.py").write_text(CODE, encoding="utf-8")
+    new = _replace_selector(CODE, BAD, GOOD)
+    token = issue_healing_approval(CODE, new, "test_mistake")["token"]
+    failures = []
+    for test, approved in (("test_ai_flow_6", token), ("test_ai_flow_7", "")):
+        row = {
+            "source": "test", "category": "test_mistake",
+            "nodeid": f"test_flows_ai.py::{test}",
+            "file": "test_flows_ai.py", "test": test, "error": ERR,
+        }
+        if approved:
+            row["approval_token"] = approved
+        failures.append(row)
+    out = self_healing_agent({"run_dir": str(tmp_path), "app_map": [], "failures": failures})
+    text = (tests / "test_flows_ai.py").read_text(encoding="utf-8")
+    assert "visible=true" in text and "to_be_hidden()" in text
+    assert out["rerun_only"] == ["test_flows_ai.py::test_ai_flow_6"]
+    second = next(h for h in out["healing_log"] if h["nodeid"].endswith("test_ai_flow_7"))
+    assert second["status"] == "could not heal"
+    assert "already repaired" not in (second.get("change") or "")
+
+
 def test_the_same_selector_in_another_file_is_repaired_there(tmp_path, monkeypatch):
     from backend.agents import self_healing
     monkeypatch.setattr(self_healing, "llm_enabled", lambda: False)
