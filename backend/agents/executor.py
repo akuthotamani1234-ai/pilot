@@ -53,10 +53,15 @@ def _result_count(results_file: Path) -> int:
 
 
 def _running_status(results_file: Path) -> str:
-    try:
-        data = json.loads((results_file.parent / f"running.{results_file.stem}.main.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        data = {}
+    path = results_file.parent / f"running.{results_file.stem}.main.json"
+    from ..finalization import folder_is_linked
+    data = {}
+    if not path.is_symlink() and not folder_is_linked(path.parent):
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            data = loaded if isinstance(loaded, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            data = {}
     if not data:
         return "between tests"
     since = max(0, int(time.time() - float(data.get("since") or time.time())))
@@ -456,7 +461,7 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
         backup = run_dir / (undo[0].get("backup") or "")
         backup_name = Path(undo[0].get("backup") or "")
         if (undo[0].get("backup") and not backup_name.is_absolute() and ".." not in backup_name.parts
-                and not backup.is_symlink() and backup.exists()):
+                and not backup.is_symlink() and not folder_is_linked(backup.parent) and backup.is_file()):
             shutil.copy(backup, path)
         for h in kept:  # (their test ran with the file that is now taken back)
             h["status"], h["why"] = "reverted", "undone together with the other repairs of this file"

@@ -1,3 +1,6 @@
+import json
+import time
+
 import pytest
 
 
@@ -129,6 +132,81 @@ def test_an_undone_repair_does_not_follow_a_link_into_another_folder(tmp_path):
     assert written == "click('old')\n"
     assert b"SECRET-TENANT-B" not in written.encode()
     assert (nested / "test_home.py").read_bytes() == secret
+
+
+def test_an_undone_repair_does_not_restore_a_backup_through_a_link(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"tenant-b-only-backup"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "test_home.round1.before.py"
+    target.write_bytes(secret)
+    run = tmp_path / "linked-backup"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    script = tests / "test_home.py"
+    script.write_text("click('ours')\n", encoding="utf-8")
+    (run / "healing").symlink_to(other, target_is_directory=True)
+    entries = [{"status": "reverted", "method": "llm", "backup": "healing/test_home.round1.before.py", "why": "broke"}]
+    _undo(tests, run, "test_home.py", entries)
+    file_run = tmp_path / "file-link"
+    file_tests = file_run / "generated_tests"
+    file_tests.mkdir(parents=True)
+    file_script = file_tests / "test_home.py"
+    file_script.write_text("click('ours')\n", encoding="utf-8")
+    (file_run / "healing").mkdir()
+    (file_run / "healing" / "test_home.round1.before.py").symlink_to(target)
+    _undo(file_tests, file_run, "test_home.py", entries)
+    assert script.read_text(encoding="utf-8") == "click('ours')\n"
+    assert file_script.read_text(encoding="utf-8") == "click('ours')\n"
+    assert target.read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_tests = real / "generated_tests"
+    real_tests.mkdir(parents=True)
+    real_script = real_tests / "test_home.py"
+    real_script.write_text("click('changed')\n", encoding="utf-8")
+    (real / "healing").mkdir()
+    (real / "healing" / "test_home.round1.before.py").write_text("click('home-own')\n", encoding="utf-8")
+    _undo(real_tests, real, "test_home.py", entries)
+    restored = real_script.read_bytes()
+    assert restored == b"click('home-own')\n"
+    assert secret not in restored
+    assert target.read_bytes() == secret
+
+
+def test_a_live_test_status_does_not_follow_a_link_into_another_file(tmp_path):
+    from backend.agents.executor import _running_status
+
+    secret = "tenant-b-only-step"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "running.results.main.json"
+    target.write_text(json.dumps({
+        "file": "secret.py", "test": secret, "since": 1, "steps": [{"text": secret}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _running_status(linked / "results.jsonl") == "between tests"
+    real = tmp_path / "file-link"
+    real.mkdir()
+    (real / "running.results.main.json").symlink_to(target)
+    assert _running_status(real / "results.jsonl") == "between tests"
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / "running.results.main.json").write_text(json.dumps({
+        "file": "home.py", "test": "home-own", "since": time.time(), "steps": [{"text": "home-own"}],
+    }), encoding="utf-8")
+    status = _running_status(own / "results.jsonl")
+    assert "home.py::home-own" in status
+    assert "home-own" in status
+    assert secret not in status
+    assert secret in target.read_text(encoding="utf-8")
 
 
 def test_a_failure_screenshot_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
