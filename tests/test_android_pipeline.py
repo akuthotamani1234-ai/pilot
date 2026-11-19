@@ -170,6 +170,37 @@ def test_junit_results_keep_pass_skip_and_failure_outcomes(tmp_path):
     ]
 
 
+def test_an_android_record_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-android"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "app_map.json").write_bytes(secret)
+    (nested / "android_results.jsonl").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    android_pipeline._save_json(linked / "run" / "app_map.json", [{"url": "https://stolen.test"}])
+    android_pipeline._save_json(linked / "fresh" / "app_map.json", [{"url": "https://stolen.test"}])
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline._execute_mobile({"run_dir": str(linked / "run"), "test_cases": [{"id": "home"}]})
+    assert not (other / "fresh").exists()
+    assert (nested / "app_map.json").read_bytes() == secret
+    assert (nested / "android_results.jsonl").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    android_pipeline._save_json(real / "app_map.json", [{"url": "https://shop.test/home", "title": "Home"}])
+    written = (real / "app_map.json").read_bytes()
+    assert b"https://shop.test/home" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_android_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import pytest
 
