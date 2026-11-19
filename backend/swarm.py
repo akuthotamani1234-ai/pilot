@@ -94,7 +94,7 @@ def stored_control_opens_payment(page_url: str, control: dict | None) -> bool:
     item = control or {}
     return control_opens_payment(
         page_url,
-        str(item.get("href") or ""),
+        str(item.get("href") or item.get("to") or ""),
         str(item.get("form_action") or item.get("formaction") or item.get("action") or ""),
         str(item.get("onclick") or ""),
     )

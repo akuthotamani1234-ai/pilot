@@ -73,7 +73,7 @@ def build(app_map: list[dict], crawl: dict) -> dict:
     from .agents.test_design import features as basic_features
     from .auth import login_form
     from .features import page_features
-    from .swarm import is_payment_url, stored_control_opens_payment
+    from .swarm import control_opens_payment, is_payment_url, stored_control_opens_payment
 
     pages, features, edges, by_url = {}, {}, [], {}
     seen_on = Counter()  # control key -> on how many page patterns (shared header / footer controls: one feature)
@@ -192,7 +192,8 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             extra = {}
             if x in p.get("buttons", []) and (
                     action_risk(x.get("text") or name, x["selector"]) == "protected"
-                    or stored_control_opens_payment(page_url, x)):
+                    or stored_control_opens_payment(page_url, x)
+                    or (isinstance(ev, dict) and is_payment_url(str(ev.get("to") or "")))):
                 extra = {"status": "blocked", "why": "protected action: never performed without explicit approval in "
                                                      "a test environment"}
             pg["features"].append(add(dict({
@@ -204,10 +205,11 @@ def build(app_map: list[dict], crawl: dict) -> dict:
                 "frame": x.get("frame", ""), "shadow": " > ".join(x.get("shadow_path") or [])}, **extra)))
         # edges: links and actions that lead to other pages
         for l in p.get("links", []):
-            if not l.get("external"):
-                edges.append({"from": pid, "to_url": l["href"], "via": "link", "label": (l.get("text") or "")[:40]})
+            if l.get("external") or control_opens_payment(page_url, str(l.get("href") or "")):
+                continue
+            edges.append({"from": pid, "to_url": l["href"], "via": "link", "label": (l.get("text") or "")[:40]})
         for b in p.get("behaviour", []):
-            if b.get("to"):
+            if b.get("to") and not is_payment_url(str(b.get("to") or "")):
                 edges.append({"from": pid, "to_url": b["to"], "via": "action", "label": b.get("control")})
     for pg in pages.values():
         pg["features"] = sorted(set(pg["features"]))

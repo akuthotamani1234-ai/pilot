@@ -4,6 +4,7 @@ import json
 from backend.release_row import (
     from_run,
     inventory_pages,
+    link_graph,
     load_saved_crawl,
     open_target,
     page_record,
@@ -89,6 +90,12 @@ def test_a_continue_button_that_opens_checkout_is_not_safe_work():
     assert [item["safe"] for item in record["actions"] if item["name"] == "Continue"] == [False, False]
     assert [item["safe"] for item in record["actions"] if item["name"] == "Add"] == [True]
     assert [item["safe"] for item in record["actions"] if item["name"] == "Cart"] == [True]
+    graph = link_graph([page_record({
+        "url": "https://shop.example/saree", "page_type": "product",
+        "buttons": [{"text": "Add"}],
+        "links": [{"text": "Pay", "href": "/checkout"}, {"text": "Cart", "href": "/cart"}],
+    })])
+    assert [item["to"] for item in graph["transitions"]] == ["/cart"]
     found = inventory_pages([record], done=[], page_budget=5)
     assert [item["action"] for item in found["safe_states"]] == ["Add", "Cart"]
 

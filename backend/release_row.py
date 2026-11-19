@@ -185,7 +185,7 @@ def link_graph(pages: list[dict]) -> dict:
             graph["elements"].append({"template": template, "name": element})
         for action in page.get("actions") or []:
             graph["actions"].append({"template": template, "name": action.get("name") or "", "safe": bool(action.get("safe"))})
-            if action.get("to"):
+            if action.get("to") and not is_payment_url(str(action.get("to") or "")):
                 graph["transitions"].append({"from": page.get("url") or "", "to": action.get("to"), "by": action.get("name") or ""})
         for item in page.get("evidence") or []:
             graph["evidence"].append({"url": page.get("url") or "", "item": item})
