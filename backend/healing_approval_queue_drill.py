@@ -38,13 +38,30 @@ def _detail(new_code: str, failure_class: str) -> str:
     })
 
 
+def _linked_drill() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "healing_approval_queue",
+        "production_suite_executed": False,
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_healing_approval_queue_drill(*, ops_dir: Path | None = None) -> dict:
     from .approvals import create, decide_approval
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .healing_policy import reset_healing_approvals
 
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
     work = Path(ops_dir) if ops_dir else (ROOT / "artifacts" / "ops")
+    if folder_is_linked(work):
+        return _linked_drill()
     work.mkdir(parents=True, exist_ok=True)
     db = work / "healing_approval_queue.sqlite"
+    if folder_is_linked(db):
+        return _linked_drill()
     if db.exists():
         db.unlink()
     reset_healing_approvals()
@@ -104,11 +121,15 @@ def run_healing_approval_queue_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "healing_approval_queue_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "healing_approval_queue_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
