@@ -177,6 +177,38 @@ def test_a_reviewed_fix_does_not_follow_a_link_into_another_run(tmp_path, monkey
     assert json.loads((other / "repo_fix_status.json").read_text(encoding="utf-8"))["secret"] == secret
 
 
+def test_a_proposal_status_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend import repo_jobs
+    from backend.repo_fix import RepoFixError
+
+    secret = b"tenant-b-only-proposal"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / ".private").mkdir()
+    (nested / ".private" / "repo_fix_status.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked / "run", {"status": "ready", "stage": "ours"})
+    monkeypatch.setattr(repo_jobs.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("started"))
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs.start(linked / "run", "https://github.com/fixture/app", "token", ["finding-age"])
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked / "fresh", {"status": "ready"})
+    assert not (other / "fresh").exists()
+    assert (nested / ".private" / "repo_fix_status.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    repo_jobs._write(real, {"status": "ready", "stage": "Review the shop"})
+    written = (real / ".private" / "repo_fix_status.json").read_bytes()
+    assert b"Review the shop" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_source_snapshot_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import io
     import zipfile
