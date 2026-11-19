@@ -1,0 +1,28 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_tid_tenant_acl",
+  "ran_at": "2026-11-19T02:10:00Z",
+  "cases": [
+    {
+      "sub": "tid-user-a",
+      "tid_claim": "tenant-tid-a",
+      "tid_expected": "tenant-tid-a",
+      "tid_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    },
+    {
+      "sub": "tid-user-b",
+      "tid_claim": "tenant-tid-b",
+      "tid_expected": "tenant-tid-b",
+      "tid_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    }
+  ],
+  "passed": 2,
+  "ok": true,
+  "reason": "OIDC tid\u2192tenant ACL 2/2; live hosted IdP Studio SSO still open"
+}

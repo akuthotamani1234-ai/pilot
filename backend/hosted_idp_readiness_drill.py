@@ -20,6 +20,7 @@ CHECKS = (
     ("sso_tenant_acl_drill.json", "OIDC JWT + tenant ACL"),
     ("dual_tenant_oidc_acl_drill.json", "Dual-tenant OIDC ACL"),
     ("oidc_groups_role_acl_drill.json", "OIDC groups→role ACL"),
+    ("oidc_tid_tenant_acl_drill.json", "OIDC tid→tenant ACL"),
     ("hosted_idp_contract_drill.json", "Hosted IdP contract snapshot"),
 )
 

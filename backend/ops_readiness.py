@@ -690,6 +690,22 @@ def readiness() -> dict:
                 else "No OIDC groups→role ACL evidence"
             ),
         },
+        "oidc_tid_tenant_acl_drill": {
+            "ready": _ops_evidence("oidc_tid_tenant_acl_drill.json"),
+            "reason": (
+                "OIDC tid→tenant ACL present; live hosted IdP SSO still open"
+                if _ops_evidence("oidc_tid_tenant_acl_drill.json")
+                else "No OIDC tid→tenant ACL evidence"
+            ),
+        },
+        "multi_region_cutover_rehearsal_drill": {
+            "ready": _ops_evidence("multi_region_cutover_rehearsal_drill.json"),
+            "reason": (
+                "Local multi-region cutover pack present; hosted DR/on-call still open"
+                if _ops_evidence("multi_region_cutover_rehearsal_drill.json")
+                else "No multi-region cutover rehearsal"
+            ),
+        },
         "paging_ack_drill": {
             "ready": _ops_evidence("paging_ack_drill.json"),
             "reason": (
