@@ -525,6 +525,41 @@ def test_a_recording_is_written_only_as_failure_evidence(tmp_path):
     assert (tmp_path / "videos" / "case_bad.mp4").read_bytes() == b"mp4-bytes"
 
 
+def test_a_device_log_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import base64
+
+    from backend.android_evidence import save_log, stop_recording
+
+    monkeypatch.setattr("backend.android_evidence._adb", lambda: None)
+    secret = b"tenant-b-only-log"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "logcat").mkdir()
+    (nested / "logcat" / "case.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_log(linked / "run", "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    assert save_log(linked / "fresh", "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    driver = SimpleNamespace(stop_recording_screen=lambda: base64.b64encode(b"ours-video").decode())
+    assert stop_recording(driver, linked / "run", "case", keep=True) is None
+    assert not (other / "fresh").exists()
+    assert (nested / "logcat" / "case.txt").read_bytes() == secret
+    assert not (nested / "videos").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = save_log(real, "case", CRASH_LOG, PACKAGE, "emulator-5554")
+    text = (real / saved).read_bytes()
+    assert b"Cart is null" in text and secret not in text
+    assert stop_recording(driver, real, "case", keep=True) == "videos/case.mp4"
+    video = (real / "videos" / "case.mp4").read_bytes()
+    assert video == b"ours-video" and secret not in video
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_android_evidence_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import base64
 

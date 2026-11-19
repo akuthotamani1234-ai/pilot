@@ -219,6 +219,7 @@ def progress() -> dict:
         {"id": "G-android-record-folder-link", "label": "An Android record does not follow a link into another folder", "status": "done"},
         {"id": "G-recheck-folder-link", "label": "A re-check does not follow a link into another folder", "status": "done"},
         {"id": "G-result-folder-link", "label": "A test result does not follow a link into another folder", "status": "done"},
+        {"id": "G-device-log-folder-link", "label": "A device log does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
