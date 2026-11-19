@@ -2120,8 +2120,8 @@ def test_design_agent(state: QAState) -> QAState:
         from ..qa_contracts import contract_cases, parse_contract
 
         contract_path = Path(state["run_dir"]) / ".private" / "qa_contract.json"
-        run = Path(state["run_dir"])
-        if run.is_symlink() or (run / ".private").is_symlink() or contract_path.is_symlink():
+        from ..finalization import folder_is_linked
+        if folder_is_linked(contract_path):
             note = "Contract-only design: the contract file is a link, so no cases were written."
             print("  [test-design] " + note)
             return {"test_cases": [], "log": state.get("log", []) + [note]}
