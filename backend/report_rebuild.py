@@ -10,12 +10,12 @@ METADATA = ("app_map.json", "results.json", "test_cases.json", "crawl.json", "co
 
 
 def rebuild(source: Path, destination: Path) -> dict:
-    from .agents.change_detection import run_path_is_linked, run_read_block
+    from .agents.change_detection import relative_path_is_linked, run_read_block
     source_path, dest_path = Path(source), Path(destination)
     blocked = run_read_block(source_path)
     if blocked:
         raise ValueError(blocked)
-    if dest_path.is_symlink():
+    if dest_path.is_symlink() or (dest_path.parent.exists() and dest_path.parent.is_symlink()):
         raise ValueError("This run's folder is a link.")
     source, destination = source_path.resolve(), dest_path.resolve()
     if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
@@ -32,7 +32,7 @@ def rebuild(source: Path, destination: Path) -> dict:
         folder_path = source / folder
         if folder_path.is_symlink() or not folder_path.is_dir():
             continue
-        shutil.copytree(folder_path, destination / folder, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+        shutil.copytree(folder_path, destination / folder, ignore=_ignore_linked)
     for path in source.glob("results*.jsonl"):
         if path.is_symlink():
             continue
@@ -40,10 +40,10 @@ def rebuild(source: Path, destination: Path) -> dict:
     pages, results = read_json(source / "app_map.json", []), read_json(source / "results.json", [])
     evidence = {r[key] for r in pages + results for key in ("screenshot", "trace") if r.get(key)}
     for name in evidence:
-        if run_path_is_linked(source, *Path(str(name)).parts):
+        if relative_path_is_linked(source_path, str(name)):
             continue
         original = (source / name).resolve()
-        if original.is_relative_to(source) and original.is_file():
+        if original.is_relative_to(source) and original.is_file() and not (source_path / name).is_symlink():
             target = destination / original.relative_to(source)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(original, target)
@@ -64,8 +64,20 @@ def rebuild(source: Path, destination: Path) -> dict:
         "findings": old.get("findings"), "consistent": old.get("metrics", {}).get("consistent")},
         "after": {"single_tests": new["metrics"]["single_tests"], "cases": new["metrics"]["test_cases"],
                   "findings": new.get("findings"), "consistent": new["metrics"]["consistent"]}}
-    (destination / "rebuild_comparison.json").write_text(json.dumps(comparison, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(destination, "rebuild_comparison.json", json.dumps(comparison, indent=2)):
+        raise ValueError("This run's folder is a link.")
     return comparison
+
+
+def _ignore_linked(folder, names):
+    """Leave cache folders and links out of a rebuilt copy."""
+    skip = {"__pycache__", ".pytest_cache"}
+    base = Path(folder)
+    for name in names:
+        if (base / name).is_symlink():
+            skip.add(name)
+    return skip
 
 
 if __name__ == "__main__":
