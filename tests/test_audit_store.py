@@ -150,6 +150,38 @@ def test_a_signed_in_principal_cannot_delete_another_tenants_run(monkeypatch, tm
     assert not (runs / "run-a").is_dir()
 
 
+def test_a_viewer_cannot_recheck_a_run(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.audit_store as audit_store
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    (runs / "run-a").mkdir(parents=True)
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(audit_store, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1"}
+    body = {"failure_ids": [1]}
+    viewer = client.post("/api/runs/run-a/recheck", headers={**header, "Authorization": "Bearer view-1"}, json=body)
+    assert viewer.status_code == 403
+    other = client.post("/api/runs/run-a/recheck", headers={**header, "Authorization": "Bearer admin-2"}, json=body)
+    assert other.status_code == 403
+    owner = client.post("/api/runs/run-a/recheck", headers={**header, "Authorization": "Bearer admin-1"}, json=body)
+    assert owner.status_code == 400
+    assert "Nothing to re-check" in owner.json()["detail"]
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)
