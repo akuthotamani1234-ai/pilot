@@ -198,6 +198,9 @@ def _passive_mixed_only(err: str) -> bool:
             continue
         if re.search(r"JavaScript errors on ", line):
             continue
+        if APP_JS_EXCEPTION.search(line):
+            kept.append(line)
+            continue
         if PASSIVE_MIXED.search(line) or RESOURCE_LOAD_FAIL.search(line):
             continue
         kept.append(line)

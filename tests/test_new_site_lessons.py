@@ -41,6 +41,13 @@ def test_one_console_message_on_many_pages_is_one_finding(tmp_path):
     again = [f for f in _analyse(tmp_path, results + [other]) if f["source"] == "test"]
     assert len(again) == 2  # another error
     assert next(f for f in again if "boom" in f["error"])["category"] == "product_defect"
+    hidden = dict(results[0], nodeid="test_site.py::test_no_console_errors[hidden]",
+                  test="test_no_console_errors[hidden]",
+                  error=("E   AssertionError: JavaScript errors on https://shop.test/hidden:\nE     "
+                         + MIXED.format(page="https://shop.test/hidden")
+                         + " Uncaught TypeError: Cannot read properties of null"))
+    filed = [f for f in _analyse(tmp_path, [hidden]) if f["source"] == "test"]
+    assert len(filed) == 1 and filed[0]["category"] == "product_defect"
 
 
 def test_an_api_address_and_a_busy_server_are_no_broken_pages(tmp_path):

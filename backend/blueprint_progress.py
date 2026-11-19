@@ -409,6 +409,7 @@ def progress() -> dict:
         {"id": "C-mixed-content", "label": "An insecure font or picture is not filed as an application defect", "status": "done"},
         {"id": "C-mixed-test", "label": "A console check that only reports an insecure font is not an application defect", "status": "done"},
         {"id": "C-mixed-hides-bug", "label": "An insecure font does not hide an application error in the same message", "status": "done"},
+        {"id": "C-mixed-hides-test", "label": "A console check that also reports an application error stays an application defect", "status": "done"},
         {"id": "C-cancelled-load", "label": "A generated test retries a cancelled page load and still does not open checkout", "status": "done"},
         {"id": "I-signature-closed", "label": "A token whose signature cannot be checked is refused", "status": "done"},
         {"id": "I-dashboard-signed", "label": "Dashboard OIDC accepts a signed token and refuses an unsigned one", "status": "done"},
