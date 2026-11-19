@@ -4812,12 +4812,22 @@ CONTRACT_EXAMPLES = {
 WEB_CONTRACT_EXAMPLE_IDS = {'chrome-dropdown', 'ecommerce-web'}
 
 
+def _demo_contract_file(filename: str) -> Path | None:
+    """A real demo contract. A link, or a name that leaves demo-apps, is refused."""
+    from .finalization import folder_is_linked
+    path = ROOT / "demo-apps" / filename
+    if (not filename or Path(filename).is_absolute() or ".." in Path(filename).parts
+            or folder_is_linked(path) or not path.is_file()):
+        return None
+    return path
+
+
 @app.get('/api/contracts/examples')
 def contract_examples():
     return {'examples': [{'id': key, 'name': name,
                           'app_mode': 'web' if key in WEB_CONTRACT_EXAMPLE_IDS else 'native'}
                          for key, (name, filename) in CONTRACT_EXAMPLES.items()
-                         if (ROOT / 'demo-apps' / filename).is_file()]}
+                         if _demo_contract_file(filename) is not None]}
 
 
 @app.get('/api/contracts/examples/{example_id}')
@@ -4826,8 +4836,8 @@ def contract_example(example_id: str):
     if example_id not in CONTRACT_EXAMPLES:
         raise HTTPException(404, 'Unknown test-flow example')
     name, filename = CONTRACT_EXAMPLES[example_id]
-    path = ROOT / 'demo-apps' / filename
-    if not path.is_file():
+    path = _demo_contract_file(filename)
+    if path is None:
         raise HTTPException(404, 'This test-flow example is unavailable')
     contract = parse_contract(path.read_text(encoding='utf-8'))
     return {'name': name, 'contract': contract.model_dump(mode='json', exclude_defaults=True, exclude_none=True),
