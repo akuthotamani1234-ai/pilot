@@ -618,6 +618,14 @@ def readiness() -> dict:
                 else "No independent review summary evidence"
             ),
         },
+        "independent_review_request_drill": {
+            "ready": _ops_evidence("independent_review_request_drill.json"),
+            "reason": (
+                "Independent review request receipt present; human sign-off still pending"
+                if _ops_evidence("independent_review_request_drill.json")
+                else "No independent review request receipt"
+            ),
+        },
         "sso_tenant_acl_drill": {
             "ready": _ops_evidence("sso_tenant_acl_drill.json"),
             "reason": (

@@ -12,6 +12,14 @@ def test_blueprint_progress_lists_gates_and_stays_incomplete():
     assert all(g["status"] != "done" for g in snap["gates"])  # gates stay open/partial/strong/active
     assert snap["counts"]["gates_total"] == 10
     assert any(u["id"] == "sidebar" for u in snap["upcoming"])
+    assert "roadmap" in snap
+    assert snap["roadmap"]["landed"]
+    assert snap["roadmap"]["now"]
+    assert snap["roadmap"]["next"]
+    assert snap["counts"]["blockers_open"] >= 1
+    assert all(row.get("status") == "open" for row in snap["roadmap"]["next"] if row.get("id") in {
+        "H-drills", "I-auth", "E-live-matrix", "D-android", "F-live-ci", "G-review",
+    })
 
 
 def test_enterprise_readiness_includes_blueprint_todos(monkeypatch):

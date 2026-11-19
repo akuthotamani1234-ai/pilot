@@ -165,7 +165,7 @@ def progress() -> dict:
         {"id": "H-oncall-contract", "label": "Hosted DR/on-call contract snapshot (not live)", "status": "done"},
         {"id": "G-live-drills-refresh6", "label": "Re-verify live Postgres/Redis/MinIO after DR work", "status": "done"},
         {"id": "G-live-drills-refresh7", "label": "Re-verify live Postgres/Redis/MinIO after B/C/D drills", "status": "done"},
-        {"id": "H-drills", "label": "Live hosted multi-region DR / on-call paging", "status": "open"},
+        {"id": "H-drills", "gate": "H", "label": "Live hosted multi-region DR / on-call paging", "status": "open"},
         {"id": "D-emulator-smoke", "label": "Live API24 emulator adb smoke (profiles verified)", "status": "done"},
         {"id": "D-appium-system-apps", "label": "Live Appium Settings/Contacts/Chrome on API30+", "status": "done"},
         {"id": "D-appium-apk", "label": "Live Appium third-party ApiDemos APK on API30+", "status": "done"},
@@ -176,7 +176,7 @@ def progress() -> dict:
         {"id": "D-multi-device-contract", "label": "Offline multi-device CI runner contract", "status": "done"},
         {"id": "D-device-manifest", "label": "Device/Appium CI artifact manifest (hashed upload shape)", "status": "done"},
         {"id": "DF-workflow-contracts", "label": "workflow_dispatch YAML contracts (Appium + portfolios)", "status": "done"},
-        {"id": "D-android", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
+        {"id": "D-android", "gate": "D", "label": "Broad multi-device CI Appium product-matrix artifacts", "status": "open"},
         {"id": "J-mutation-score", "label": "DemoStore planted-defect mutation score 6/6", "status": "done"},
         {"id": "J-classic-mutation", "label": "ClassicShop planted-defect mutation score 3/3", "status": "done"},
         {"id": "J-admin-travel-mutation", "label": "AdminPortal 7/7 + TravelSite 6/6 mutation scores", "status": "done"},
@@ -189,7 +189,7 @@ def progress() -> dict:
         {"id": "I-pkce-sso", "label": "Loopback OIDC PKCE S256 authorization-code", "status": "done"},
         {"id": "I-hosted-idp-contract", "label": "Hosted IdP SSO contract snapshot (not live)", "status": "done"},
         {"id": "I-dual-tenant-acl", "label": "Dual-tenant loopback OIDC ACL roundtrip", "status": "done"},
-        {"id": "I-auth", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
+        {"id": "I-auth", "gate": "I", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
         {"id": "E-demo-healing-live", "label": "Live DemoStore missing-locator + healing policy drill", "status": "done"},
         {"id": "E-live-failure-matrix", "label": "Live DemoStore provoked failure matrix + healing", "status": "done"},
         {"id": "E-multi-app-healing", "label": "Multi-app fixture healing suite (4 demos)", "status": "done"},
@@ -199,24 +199,43 @@ def progress() -> dict:
         {"id": "E-prod-healing-contract", "label": "Production healing suite contract (not third-party)", "status": "done"},
         {"id": "D-android-refresh", "label": "Live Appium product-matrix refresh (API30 emulator)", "status": "done"},
         {"id": "D-apidemos-deep", "label": "Live ApiDemos deep interaction (Accessibility+tap)", "status": "done"},
+        {"id": "D-android-refresh2", "label": "Re-verify live Appium matrix + ApiDemos after G/I work", "status": "done"},
         {"id": "D-cross-journey-refresh", "label": "Cross-platform journey refresh (web+Android)", "status": "done"},
-        {"id": "E-live-matrix", "label": "Production failure matrix / healing suite", "status": "open"},
+        {"id": "E-healing-suite-refresh", "label": "Re-run multi-app healing suite (4/4 fixtures)", "status": "done"},
+        {"id": "H-failover-rto-refresh", "label": "Re-measure local multi-store failover RTO", "status": "done"},
+        {"id": "E-live-matrix", "gate": "E", "label": "Production failure matrix / healing suite", "status": "open"},
         {"id": "F-multi-browser-suite", "label": "Live Chromium/Firefox/WebKit DemoStore portfolio suite", "status": "done"},
         {"id": "F-multi-browser-workflow", "label": "workflow_dispatch multi-browser portfolio job", "status": "done"},
         {"id": "F-multi-browser-contract", "label": "Offline multi-browser CI runner contract", "status": "done"},
         {"id": "F-portfolio-manifest", "label": "Portfolio CI artifact manifest (hashed upload shape)", "status": "done"},
-        {"id": "F-live-ci", "label": "Broad hosted multi-browser portfolio CI artifacts", "status": "open"},
+        {"id": "F-live-ci", "gate": "F", "label": "Broad hosted multi-browser portfolio CI artifacts", "status": "open"},
         {"id": "G-review-checklist", "label": "Independent review checklist documented", "status": "done"},
         {"id": "G-review-pack", "label": "Independent review evidence pack (hashed, unsigned)", "status": "done"},
         {"id": "G-review-readiness", "label": "Independent review readiness score (unsigned)", "status": "done"},
         {"id": "G-review-summary", "label": "Independent review Markdown summary (unsigned)", "status": "done"},
+        {"id": "G-review-request", "label": "Independent review request receipt (unsigned)", "status": "done"},
         {"id": "blockers-inventory", "label": "Remaining hard-open blockers inventory published", "status": "done"},
         {"id": "sidebar-blockers", "label": "Studio sidebar lists hard-open blockers explicitly", "status": "done"},
         {"id": "I-dashboard-sso-helper", "label": "React dashboard SSO code/token helper panel", "status": "done"},
         {"id": "A-surface-top-level", "label": "Promote lazy/metadata/viewport signals to top-level", "status": "done"},
-        {"id": "G-review", "label": "Independent security/reliability review sign-off", "status": "open"},
+        {"id": "sidebar-roadmap", "label": "Sidebar roadmap sections (landed / now / next)", "status": "done"},
+        {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = [u for u in upcoming if u.get("status") == "open"]
+    landed = (
+        [{"id": f"phase-{p['id']}", "label": p["label"], "note": p.get("note") or "", "status": p["status"]}
+         for p in phases if p["status"] in {"done", "strong"}]
+        + [u for u in upcoming if u.get("status") == "done"][-6:]
+    )
+    now = (
+        [g for g in gates if g["status"] in {"active", "partial", "strong"}]
+    )
+    next_items = blockers + [u for u in upcoming if u.get("status") == "active"]
+    roadmap = {
+        "landed": landed,
+        "now": now,
+        "next": next_items,
+    }
     return {
         "complete": False,
         "rule": "Gates A–J stay Partial/open until controlled live evidence + independent review",
@@ -225,6 +244,7 @@ def progress() -> dict:
         "gates": gates,
         "upcoming": upcoming,
         "blockers": blockers,
+        "roadmap": roadmap,
         "counts": {
             "phases_done": sum(1 for p in phases if p["status"] in {"done", "strong"}),
             "phases_total": len(phases),
@@ -233,5 +253,8 @@ def progress() -> dict:
             "gates_open": sum(1 for g in gates if g["status"] in {"open", "active"}),
             "gates_total": len(gates),
             "blockers_open": len(blockers),
+            "landed": len(landed),
+            "now": len(now),
+            "next": len(next_items),
         },
     }
