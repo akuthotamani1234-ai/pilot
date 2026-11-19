@@ -67,9 +67,31 @@ def _file(site_key: str, tenant_id: str | None = None) -> Path:
     return baseline_folder(site_key, tenant_id) / FILE
 
 
-def load(site_key: str, tenant_id: str | None = None) -> list[dict]:
+def baseline_is_linked(path: Path) -> bool:
+    """True when a baseline path follows a symlink.
+
+    A tenant folder that is a link can point at another tenant. Reading or
+    writing that path would use the other tenant's files.
+    """
+    root = Path(settings.baseline_dir)
     try:
-        return json.loads(_file(site_key, tenant_id).read_text(encoding="utf-8"))
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return True
+    cursor = root
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
+def load(site_key: str, tenant_id: str | None = None) -> list[dict]:
+    path = _file(site_key, tenant_id)
+    if baseline_is_linked(path):
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -90,9 +112,11 @@ def _entry(text: str, old: dict | None = None) -> dict:
 
 def save(site_key: str, texts, tenant_id: str | None = None) -> list[dict]:
     """The list becomes exactly these tests (the chat's box: what is in it is the list; empty = none)."""
+    f = _file(site_key, tenant_id)
+    if baseline_is_linked(f):
+        return []
     known = {t["text"].lower(): t for t in load(site_key, tenant_id)}
     tests = [_entry(t, known.get(t.lower())) for t in _clean(texts)]
-    f = _file(site_key, tenant_id)
     if tests or f.exists():
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(tests, indent=1), encoding="utf-8")

@@ -199,15 +199,22 @@ def _vkey(p: dict) -> str:
 
 
 def load_index(site_key: str) -> dict:
+    from .my_tests import baseline_is_linked
+    path = baseline_path(site_key) / "visual" / INDEX
+    if baseline_is_linked(path):
+        return {"pages": {}}
     try:
-        return json.loads((baseline_path(site_key) / "visual" / INDEX).read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"pages": {}}
 
 
 def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title: str, run_id: str) -> None:
     """This run's look of one page becomes its approved look (pictures copied into the baseline)."""
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
+    if baseline_is_linked(vdir):
+        return
     vdir.mkdir(parents=True, exist_ok=True)
     widths = {}
     for w in WIDTHS:
@@ -223,7 +230,10 @@ def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title
 
 
 def _save_index(site_key: str, index: dict) -> None:
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
+    if baseline_is_linked(vdir):
+        return
     vdir.mkdir(parents=True, exist_ok=True)
     (vdir / INDEX).write_text(json.dumps(index, indent=1), encoding="utf-8")
 
@@ -281,6 +291,7 @@ def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
     if not old:  # nothing to compare with: this look becomes its baseline when the run finishes
         r["status"] = "new"
         return r
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site) / "visual"
     for w in WIDTHS:
         now, then = cap.get(w), old["widths"].get(w)
@@ -288,9 +299,11 @@ def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
             continue
         changes = compare_layout(then, now, settings.visual_move_px)
         res = {"changes": changes, "shot": now.get("shot")}
-        if now.get("shot") and (run_dir / now["shot"]).exists() and (vdir / then["shot"]).exists():
+        approved_file = vdir / then["shot"]
+        if (now.get("shot") and (run_dir / now["shot"]).exists() and approved_file.is_file()
+                and not baseline_is_linked(approved_file)):
             approved = run_dir / "visual" / f"{p['slug']}_{w}_approved.png"  # (the report shows it next to the new one)
-            shutil.copyfile(vdir / then["shot"], approved)
+            shutil.copyfile(approved_file, approved)
             res["approved_shot"] = approved.relative_to(run_dir).as_posix()
             diff = run_dir / "visual" / f"{p['slug']}_{w}_diff.png"
             try:

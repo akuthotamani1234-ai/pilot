@@ -429,6 +429,34 @@ def test_a_tenants_saved_tests_stay_off_another_tenants_website(monkeypatch, tmp
     assert "QPILOT_TENANT_ID" not in env
 
 
+def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tmp_path):
+    from backend import my_tests
+    from backend.config import settings
+    from backend.review import load_expectations, save_expectations
+
+    root = tmp_path / "baseline"
+    monkeypatch.setattr(settings, "baseline_dir", root)
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    my_tests.save("shop.test", ["See the shop heading"], tenant_id="t1")
+    saved = root / "t1" / "shop.test" / "my_tests.json"
+    secret = saved.read_text(encoding="utf-8")
+    (root / "t2").symlink_to(root / "t1", target_is_directory=True)
+    assert my_tests.load("shop.test", tenant_id="t2") == []
+    assert my_tests.save("shop.test", ["Overwrite the other tenant"], tenant_id="t2") == []
+    assert saved.read_text(encoding="utf-8") == secret
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t2")
+    save_expectations("shop.test", {"TC-1": "stolen"})
+    assert load_expectations("shop.test") == {}
+    assert not (root / "t1" / "shop.test" / "expectations.json").exists()
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    linked = root / "t3" / "shop.test"
+    linked.mkdir(parents=True)
+    (linked / "my_tests.json").symlink_to(saved)
+    assert my_tests.load("shop.test", tenant_id="t3") == []
+    assert my_tests.save("shop.test", ["Overwrite the file"], tenant_id="t3") == []
+    assert saved.read_text(encoding="utf-8") == secret
+
+
 def test_a_scheduled_run_and_an_approved_look_stay_in_that_tenants_baseline(monkeypatch, tmp_path):
     import json
     from datetime import datetime
