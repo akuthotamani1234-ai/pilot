@@ -37,10 +37,13 @@ def _linked_drill() -> dict:
 
 def run_independent_review_integrity_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
+
+    out_name = "independent_review_integrity_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_drill()
     from .independent_review_request_drill import run_independent_review_request_drill
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
-        return _linked_drill()
     # Refresh request/pack/readiness/summary chain first.
     request = run_independent_review_request_drill(ops_dir=ops_dir)
     rows = []
@@ -79,15 +82,10 @@ def run_independent_review_integrity_drill(*, ops_dir: Path | None = None) -> di
             "human sign-off still pending"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (
-        (Path(ops_dir) / "independent_review_integrity_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_integrity_drill.json"
