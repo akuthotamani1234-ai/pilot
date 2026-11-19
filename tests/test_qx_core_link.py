@@ -45,11 +45,26 @@ def test_a_core_capability_drill_does_not_follow_a_link(tmp_path, monkeypatch):
     assert planted.is_symlink()
     planted.unlink()
 
+    origin = mod.ROOT
+    fake = tmp_path / "evidence-root"
+    ops = fake / "docs" / "ops-evidence"
+    ops.mkdir(parents=True)
+    secret_note = other / "secret-redis.json"
+    secret_note.write_text(secret, encoding="utf-8")
+    (ops / "redis_durable_queue_drill.json").symlink_to(secret_note)
+    monkeypatch.setattr(mod, "ROOT", fake)
+    scanned = run_qx_core_capabilities_drill(ops_dir=real)
+    assert scanned["checks"]["A01_redis_evidence"] is False
+    assert secret not in str(scanned)
+    assert secret_note.read_text(encoding="utf-8") == secret
+    assert calls["n"] == 1
+    monkeypatch.setattr(mod, "ROOT", origin)
+
     saved = run_qx_core_capabilities_drill(ops_dir=real)
     saved_text = planted.read_text(encoding="utf-8")
     assert saved["gate_complete"] is False
     assert saved["ok"] is True
-    assert calls["n"] == 1
+    assert calls["n"] == 2
     assert "QX core capabilities" in saved_text
     assert secret not in saved_text
     assert kept.read_bytes() == original
