@@ -42,9 +42,14 @@ def test_callback_ignores_redirect_when_allowlist_unset(monkeypatch):
     monkeypatch.delenv("BLOWAI_OIDC_ISSUER", raising=False)
     monkeypatch.delenv("OIDC_ISSUER", raising=False)
     client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    started = client.post("/api/sso/login", headers={"X-Agentic-QA": "1"}).json()
     response = client.get(
         "/api/sso/callback",
-        params={"code": "abc", "redirect_uri": "https://evil.example/cb"},
+        params={
+            "code": "abc",
+            "state": started["state"],
+            "redirect_uri": "https://evil.example/cb",
+        },
     )
     body = response.json()
     assert body["reason"] != "redirect_uri not allowlisted"

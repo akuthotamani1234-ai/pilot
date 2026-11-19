@@ -563,6 +563,16 @@ def sso_validate_bearer(authorization: str | None = Header(default=None)):
     return verdict
 
 
+@app.post("/api/sso/login")
+def sso_login():
+    """Gate I: start one Studio login. Hosted IdP SSO stays open."""
+    from backend.studio_oidc_callback import issue_sso_login
+
+    started = issue_sso_login()
+    _audit("sso_login", ok=bool(started.get("ok")))
+    return started
+
+
 @app.get("/api/sso/callback")
 def sso_callback(
     code: str = "",
@@ -579,7 +589,11 @@ def sso_callback(
     ``QPILOT_OIDC_PKCE_REQUIRED`` is set, a missing verifier is rejected
     before the token endpoint.
     """
-    from backend.studio_oidc_callback import exchange_code, validate_redirect_uri
+    from backend.studio_oidc_callback import (
+        consume_sso_login,
+        exchange_code,
+        validate_redirect_uri,
+    )
 
     forwarded = None
     if (redirect_uri or "").strip():
@@ -596,9 +610,19 @@ def sso_callback(
             return check
         else:
             forwarded = redirect_uri.strip()
+    login = consume_sso_login(state)
+    if not login.get("ok"):
+        _audit(
+            "sso_callback",
+            ok=False,
+            state_ok=False,
+            reason=str(login.get("reason") or "")[:80],
+        )
+        return login
     verdict = exchange_code(
         code=code,
         state=state,
+        nonce=str(login.get("nonce") or ""),
         code_verifier=code_verifier,
         **({"redirect_uri": forwarded} if forwarded else {}),
     )

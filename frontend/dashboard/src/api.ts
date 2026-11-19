@@ -125,6 +125,22 @@ export function ssoCallbackQuery(fields: {
   return qs.toString();
 }
 
+/** Start one Studio login. The callback must send this state back once. */
+export async function startSsoLogin(): Promise<{
+  ok: boolean;
+  state?: string;
+  nonce?: string;
+  reason?: string;
+  gate_i_complete?: boolean;
+}> {
+  const res = await fetch("/api/sso/login", {
+    method: "POST",
+    headers: { "X-Agentic-QA": "1" },
+  });
+  const body = await res.json().catch(() => ({}));
+  return body;
+}
+
 /** Exchange an OIDC authorization code via Studio callback helper. */
 export async function exchangeSsoCode(fields: {
   code: string;

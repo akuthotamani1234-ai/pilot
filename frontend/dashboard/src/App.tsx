@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   decideApproval,
   exchangeSsoCode,
+  startSsoLogin,
   loadApprovals,
   loadBlueprint,
   loadDashboardToken,
@@ -29,6 +30,7 @@ export function App() {
   const [token, setToken] = useState(() => loadDashboardToken());
   const [ssoCode, setSsoCode] = useState("");
   const [ssoState, setSsoState] = useState("");
+  const [ssoNonce, setSsoNonce] = useState("");
   const [ssoVerifier, setSsoVerifier] = useState("");
   const [ssoRedirect, setSsoRedirect] = useState("");
   const [ssoNote, setSsoNote] = useState("");
@@ -41,6 +43,22 @@ export function App() {
   function onSaveToken() {
     saveDashboardToken(token);
     setSsoNote(token.trim() ? "Bearer token saved for approvals" : "Token cleared");
+  }
+
+  async function onStartLogin() {
+    setSsoNote("Starting login…");
+    try {
+      const started = await startSsoLogin();
+      if (!started.ok || !started.state) {
+        setSsoNote(started.reason || "Could not start a login");
+        return;
+      }
+      setSsoState(started.state);
+      setSsoNonce(started.nonce || "");
+      setSsoNote("Login started. Put this state and nonce on the authorize request. Hosted IdP still open.");
+    } catch (err) {
+      setSsoNote(err instanceof Error ? err.message : "Could not start a login");
+    }
   }
 
   async function onExchangeCode() {
@@ -219,6 +237,14 @@ export function App() {
             Save token
           </button>
         </div>
+        <div className="actions">
+          <button type="button" onClick={onStartLogin}>
+            Start login
+          </button>
+        </div>
+        {ssoNonce ? (
+          <p className="muted">Nonce for the authorize request: {ssoNonce}</p>
+        ) : null}
         <label className="field">
           Authorization code
           <input
