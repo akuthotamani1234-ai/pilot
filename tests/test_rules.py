@@ -355,3 +355,85 @@ def test_regression_comparison_by_stable_id(tmp_path):
     cmp = compare_with_previous({"site_key": "x.test"}, now, cases)
     assert cmp["previous_run"] == old.name
     assert cmp["counts"] == {"newly failing": 1, "fixed": 1, "new test case": 1, "removed": 1}
+
+
+def test_regression_comparison_does_not_read_another_tenants_run(tmp_path, monkeypatch):
+    import json
+
+    import backend.tenancy_store as tenancy
+    from backend.agents.reporter import _write_run_text, compare_with_previous
+    from backend.cost import write_report
+    from backend.registry import load, save
+
+    secret = "tenant-b-only-verdict"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "summary.json").write_text(json.dumps({"verdict": secret, "finished": "2026-01-01"}), encoding="utf-8")
+    (other / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-9", "title": secret, "execution_status": "Failed"}]), encoding="utf-8")
+    (other / "registry.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "cost.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "summary-link.json").write_text(json.dumps({"verdict": secret}), encoding="utf-8")
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    linked = runs / "shop.test_20260101_090000"
+    linked.symlink_to(other, target_is_directory=True)
+    own_open = runs / "shop.test_20260101_100000"
+    own_open.mkdir()
+    (own_open / "summary.json").write_text(json.dumps({"verdict": "Ready", "finished": "2026-01-01"}), encoding="utf-8")
+    (own_open / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-1", "title": "mine", "execution_status": "Passed"}]), encoding="utf-8")
+    now_open = runs / "shop.test_20260102_100000"
+    now_open.mkdir()
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    cases = [{"tc_id": "TC-1", "title": "mine", "execution_status": "Failed"}]
+    opened = compare_with_previous({"site_key": "shop.test"}, now_open, cases)
+    assert secret not in json.dumps(opened)
+    assert opened["previous_run"] == own_open.name
+    assert opened["previous_verdict"] == "Ready"
+
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    theirs = runs / "shop.test_20260101_110000"
+    theirs.mkdir()
+    (theirs / "summary.json").write_text(json.dumps({"verdict": secret, "finished": "2026-01-01"}), encoding="utf-8")
+    (theirs / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-8", "title": secret, "execution_status": "Failed"}]), encoding="utf-8")
+    mixed = runs / "shop.test_20260101_120000"
+    mixed.mkdir()
+    (mixed / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-1", "title": "ok", "execution_status": "Passed"}]), encoding="utf-8")
+    (mixed / "summary.json").symlink_to(other / "summary.json")
+    owned = runs / "shop.test_20260101_130000"
+    owned.mkdir()
+    (owned / "summary.json").write_text(json.dumps({"verdict": "Ready", "finished": "2026-01-01"}), encoding="utf-8")
+    (owned / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-1", "title": "mine", "execution_status": "Passed"}]), encoding="utf-8")
+    now = runs / "shop.test_20260102_110000"
+    now.mkdir()
+    for name, tenant in (
+        (own_open.name, "t1"), (theirs.name, "t2"), (mixed.name, "t1"),
+        (owned.name, "t1"), (now.name, "t1"),
+    ):
+        tenancy.index_run(name, tenant, source="https://shop.test", verdict="Ready", db_path=db)
+    compared = compare_with_previous({"site_key": "shop.test"}, now, cases)
+    assert secret not in json.dumps(compared)
+    assert compared["previous_run"] == owned.name
+    assert compared["previous_verdict"] == "Ready"
+
+    run = tmp_path / "run-a"
+    run.mkdir()
+    (run / "summary.json").symlink_to(other / "summary-link.json")
+    (run / "registry.json").symlink_to(other / "registry.json")
+    (run / "cost.json").symlink_to(other / "cost.json")
+    _write_run_text(run, "summary.json", json.dumps({"verdict": "Ready"}))
+    save({"counts": {}}, run)
+    write_report(run, [], [])
+    assert json.loads((other / "summary-link.json").read_text(encoding="utf-8"))["verdict"] == secret
+    assert load(run) is None
+    assert json.loads((other / "registry.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "cost.json").read_text(encoding="utf-8"))["secret"] == secret
