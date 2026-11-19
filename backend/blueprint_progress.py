@@ -245,6 +245,7 @@ def progress() -> dict:
         {"id": "G-android-shot-folder-link", "label": "An Android screenshot does not follow a link into another folder", "status": "done"},
         {"id": "G-coverage-folder-link", "label": "An Android coverage view does not follow a link into another folder", "status": "done"},
         {"id": "G-android-session-link", "label": "An Android session file does not follow a link into another folder", "status": "done"},
+        {"id": "G-android-journal-link", "label": "An Android journal does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
