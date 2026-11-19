@@ -4195,13 +4195,44 @@ def _save_schedules(items: list[dict]) -> None:
     SCHEDULES.write_text(json.dumps(items, indent=1), encoding="utf-8")
 
 
+def _require_run_change(authorization: str | None, x_qa_token: str | None, run: str, action: str = "run.write"):
+    """None when the change may proceed. A signed-in principal must own the run."""
+    reader = _signed_in_reader(authorization, x_qa_token, action)
+    if reader is None or not isinstance(reader, str):
+        return reader
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=reader, run_id=run, audit=action == "run.write")
+    if not access.get("allowed"):
+        return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return None
+
+
 @app.get("/api/schedules")
-def list_schedules():
-    return _schedules()
+def list_schedules(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(reader, JSONResponse):
+        return reader
+    items = _schedules()
+    if not reader:
+        return items
+    from backend.tenancy_store import assert_run_access
+    return [item for item in items
+            if assert_run_access(
+                principal_id=reader, run_id=str(item.get("from_run") or ""), audit=False).get("allowed")]
 
 
 @app.post("/api/schedules")
-def add_schedule(req: ScheduleRequest):
+def add_schedule(
+    req: ScheduleRequest,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    refused = _require_run_change(authorization, x_qa_token, req.run)
+    if refused is not None:
+        return refused
     from datetime import datetime
     d = _run_dir(req.run)
     if req.every not in EVERY or not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", req.at) or not 0 <= req.day <= 6:
@@ -4228,8 +4259,17 @@ def add_schedule(req: ScheduleRequest):
 
 
 @app.delete("/api/schedules/{sid}")
-def delete_schedule(sid: str):
+def delete_schedule(
+    sid: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     items = _schedules()
+    target = next((item for item in items if item.get("id") == sid), None)
+    if target is not None:
+        refused = _require_run_change(authorization, x_qa_token, str(target.get("from_run") or ""))
+        if refused is not None:
+            return refused
     _save_schedules([x for x in items if x["id"] != sid])
     _audit("delete_schedule", schedule=sid)
     return {"ok": True, "deleted": len(items) - len(_schedules())}

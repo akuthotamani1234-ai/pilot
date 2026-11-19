@@ -128,6 +128,7 @@ def progress() -> dict:
         {"id": "G-history", "label": "The run list hides another tenant's runs", "status": "done"},
         {"id": "G-delete", "label": "A signed-in principal cannot delete another tenant's run", "status": "done"},
         {"id": "G-run-write", "label": "A viewer cannot re-check or otherwise change a run", "status": "done"},
+        {"id": "G-schedule", "label": "A schedule cannot repeat another tenant's run", "status": "done"},
         {"id": "I-api-version-contract", "label": "API version contract drill (legacy→v1, reject v99)", "status": "done"},
         {"id": "G-live-drills-refresh3", "label": "Re-verify live Postgres/Redis/MinIO after audit/API work", "status": "done"},
         {"id": "C-lifecycle-cleanup-drill", "label": "Offline lifecycle + created.jsonl cleanup drill", "status": "done"},
