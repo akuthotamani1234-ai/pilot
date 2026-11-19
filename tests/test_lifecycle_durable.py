@@ -545,3 +545,35 @@ def test_an_android_case_list_is_not_read_through_a_link_into_another_folder(tmp
     assert loaded[0]["id"] == "home-own"
     assert secret not in json.dumps(loaded)
     assert secret in cases.read_text(encoding="utf-8")
+
+
+def test_an_android_stop_note_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import ast
+    from pathlib import Path
+
+    secret = "tenant-b-only-stop"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    note = nested / "android_execution_unavailable.json"
+    note.write_text(json.dumps({"error": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/android_conftest.py").read_text(encoding="utf-8"))
+    want = {"_is_linked", "_session_unavailable", "_unavailable_note"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    ns = {"Path": Path, "json": json, "UNAVAILABLE": linked / "runs" / "run" / "android_execution_unavailable.json"}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "android_conftest.py", "exec"), ns)
+    assert ns["_session_unavailable"]() is False
+    assert ns["_unavailable_note"]() == ""
+    assert secret in note.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "android_execution_unavailable.json").write_text(json.dumps({"error": "home-own"}), encoding="utf-8")
+    ns["UNAVAILABLE"] = real / "android_execution_unavailable.json"
+    assert ns["_session_unavailable"]() is True
+    assert ns["_unavailable_note"]() == "home-own"
+    assert secret not in ns["_unavailable_note"]()
+    assert secret in note.read_text(encoding="utf-8")

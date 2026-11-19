@@ -58,6 +58,24 @@ def _is_linked(path):
     return any(parent.is_symlink() for parent in path.parents)
 
 
+def _session_unavailable() -> bool:
+    """True when this run recorded that the device session can no longer be used."""
+    return UNAVAILABLE.is_file() and not _is_linked(UNAVAILABLE)
+
+
+def _unavailable_note() -> str:
+    """The saved reason this run stopped, or '' when that file is missing or a link."""
+    if not _session_unavailable():
+        return ""
+    try:
+        loaded = json.loads(UNAVAILABLE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(loaded, dict):
+        return ""
+    return str(loaded.get("error") or "")
+
+
 def _append(name, record):
     if not name or name in {".", ".."} or "/" in str(name) or "\\" in str(name):
         return
@@ -103,16 +121,18 @@ def pytest_runtest_makereport(item, call):
         record = _result(item, report)
         record["outcome"] = "error"
         _append("android_results.jsonl", record)
-    elif report.when == "setup" and report.skipped and UNAVAILABLE.exists():
-        record = _result(item, report)
-        record.update(outcome="blocked", error="Not executed after Android/device session became unavailable: "
-                      + json.loads(UNAVAILABLE.read_text(encoding="utf-8"))["error"])
-        _append("android_results.jsonl", record)
+    elif report.when == "setup" and report.skipped:
+        note = _unavailable_note()
+        if note:
+            record = _result(item, report)
+            record.update(outcome="blocked", error="Not executed after Android/device session became unavailable: "
+                          + note)
+            _append("android_results.jsonl", record)
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item):
-    if UNAVAILABLE.exists():
+    if _session_unavailable():
         pytest.skip("Android device/session is unavailable; remaining tests were not attempted.")
 
 
