@@ -200,6 +200,18 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
                     status = "rejected"
                     reason = str(applied.get("reason") or "approved repair was not written")
                     heal_token = ""
+                elif heal_token and not heal_applied:
+                    from .healing_policy import review_repair
+                    payload = json.loads(current["detail"])
+                    spent = review_repair(
+                        payload["old_code"], payload["new_code"],
+                        failure_class=str(payload.get("failure_class") or ""),
+                        approval_token=heal_token, consume=True,
+                    )
+                    if not spent.get("allowed"):
+                        status = "rejected"
+                        reason = str(spent.get("reason") or "healing approval already used")
+                        heal_token = ""
         decided_at = time.time()
         conn.execute(
             "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ? WHERE id = ?",

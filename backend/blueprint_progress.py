@@ -333,6 +333,7 @@ def progress() -> dict:
         {"id": "I-login-binds-groups", "label": "SSO login creates a principal from groups and cannot raise one", "status": "done"},
         {"id": "E-mistake-needs-approval", "label": "A test-mistake repair is not written without a one-time approval", "status": "done"},
         {"id": "E-approval-writes-once", "label": "An accepted heal approval writes the script once, inside the run", "status": "done"},
+        {"id": "E-approval-once", "label": "The same heal diff is accepted once, including when no file is written", "status": "done"},
         {"id": "C-result-ai-oracle", "label": "A contract result that names an AI oracle is not a product defect", "status": "done"},
         {"id": "B-browser-paypal", "label": "The test browser refuses PayPal hosts and checkout files", "status": "done"},
         {"id": "B-click-paypal", "label": "A generated test cannot click a link to PayPal or a checkout file", "status": "done"},
