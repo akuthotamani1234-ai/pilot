@@ -2102,6 +2102,15 @@ def blocked_cases(pages: list[dict]) -> list[dict]:
     return out
 
 
+def _write_cases(run_dir, cases: list[dict]) -> bool:
+    """Save this run's cases. A linked file is left untouched."""
+    from ..finalization import write_text_unless_linked
+    folder = Path(run_dir)
+    if folder.is_symlink():
+        return False
+    return write_text_unless_linked(folder, "test_cases.json", json.dumps(cases, indent=2))
+
+
 def test_design_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_design import design_cases
@@ -2111,13 +2120,18 @@ def test_design_agent(state: QAState) -> QAState:
         from ..qa_contracts import contract_cases, parse_contract
 
         contract_path = Path(state["run_dir"]) / ".private" / "qa_contract.json"
+        run = Path(state["run_dir"])
+        if run.is_symlink() or (run / ".private").is_symlink() or contract_path.is_symlink():
+            note = "Contract-only design: the contract file is a link, so no cases were written."
+            print("  [test-design] " + note)
+            return {"test_cases": [], "log": state.get("log", []) + [note]}
         contract = parse_contract(contract_path.read_text(encoding="utf-8"))
         cases = [normalize_case(case) for case in contract_cases(contract)]
         for case in cases:
             case.update(target_type="web", platform="web", url=state["url"], page="contract",
                         pages=["contract"], files=["qa_contracts.json"], tests=["test_" + case["id"]],
                         script_source="contract")
-        Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+        _write_cases(state["run_dir"], cases)
         write_workbook(Path(state["run_dir"]), cases)
         note = f"Contract-only design: {len(cases)} explicitly approved flow case(s); built-in site checks were not added."
         print("  [test-design] " + note)
@@ -2135,7 +2149,7 @@ def test_design_agent(state: QAState) -> QAState:
             _link_registry(state, cases)
             src = saved["meta"].get("source_run") or saved["meta"].get("date", "?")
             print(f"  [test-design] regression run: re-using the {len(cases)} test cases of {src}")
-            Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+            _write_cases(state["run_dir"], cases)
             write_workbook(Path(state["run_dir"]), cases)
             return {"test_cases": cases, "log": state.get("log", []) + [
                 f"Test design: regression run - the {len(cases)} test cases of {src} "
@@ -2234,7 +2248,7 @@ def test_design_agent(state: QAState) -> QAState:
     if extra:
         cases = finalize_cases(cases + extra, state)
         print(f"  [test-design] {len(extra)} accepted plugin assertion(s) added")
-    Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+    _write_cases(state["run_dir"], cases)
     write_workbook(Path(state["run_dir"]), cases)  # Excel copy; results are added by the Report step
     return {"test_cases": cases, "app_map": state["app_map"], "cases_left_out": max(0, len(designed) - room),
             "log": state.get("log", []) + [f"Test design: {summary}."]}
