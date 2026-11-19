@@ -162,3 +162,26 @@ def test_android_coverage_api_returns_reasons_without_private_files(tmp_path, mo
     assert response.json()["cases"][0]["reason"] == "Missing test account"
     assert "never-publish-this" not in response.text
     assert client.get('/api/android/runs/..%5Coutside/coverage').status_code != 200
+
+
+def test_an_android_journal_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-journal"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    journal = nested / "android_results.jsonl"
+    journal.write_text(json.dumps({"id": secret, "outcome": "failed"}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert android_pipeline.read_jsonl(linked / "runs" / "run" / "android_results.jsonl") == []
+    assert secret in journal.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "android_results.jsonl").write_text(
+        json.dumps({"id": "home-own", "outcome": "passed"}) + "\n", encoding="utf-8")
+    rows = android_pipeline.read_jsonl(real / "android_results.jsonl")
+    assert rows == [{"id": "home-own", "outcome": "passed"}]
+    assert secret not in json.dumps(rows)
+    assert secret in journal.read_text(encoding="utf-8")

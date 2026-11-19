@@ -1293,13 +1293,15 @@ def _execute_mobile(state):
 
 
 def read_jsonl(path):
+    path = Path(path)
     rows = []
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                rows.append(json.loads(line))
-            except ValueError:
-                continue
+    if path.is_symlink() or _folder_is_linked(path.parent) or not path.is_file():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
     return rows
 
 
