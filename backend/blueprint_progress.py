@@ -285,6 +285,7 @@ def progress() -> dict:
         {"id": "G-publish-ancestor-link", "label": "A published proposal does not follow a link into another folder", "status": "done"},
         {"id": "G-saved-baseline-link", "label": "A saved baseline does not follow a link into another folder", "status": "done"},
         {"id": "G-page-html-link", "label": "A page fix does not follow a link into another folder", "status": "done"},
+        {"id": "G-contract-status-link", "label": "A contract automation check does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

@@ -449,6 +449,38 @@ def test_an_automation_check_does_not_follow_a_link_into_another_folder(tmp_path
     assert secret in script.read_text(encoding="utf-8")
 
 
+def test_a_contract_status_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.excel import automation_status
+
+    secret = "tenant-b-only-contract"
+    other = tmp_path / "other"
+    other.mkdir()
+    secret_text = json.dumps({"id": secret})
+    (other / "qa_contracts.json").write_text(secret_text, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (run / "qa_contracts.json").symlink_to(other / "qa_contracts.json")
+    case = {"id": "contract_home", "kind": "contract", "files": [], "tests": ["test_contract_home"]}
+    status, how = automation_status(case, tests)
+    assert status != "Automated"
+    assert secret not in f"{status} {how}"
+    assert (other / "qa_contracts.json").read_text(encoding="utf-8") == secret_text
+    assert not (other / "fresh").exists()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    (run / "qa_contracts.json").unlink()
+    (run / "qa_contracts.json").write_text(json.dumps({"id": "home-own"}), encoding="utf-8")
+    status, how = automation_status(case, tests)
+    assert (status, how) == ("Automated", "Trusted QA contract runtime")
+    assert secret not in f"{status} {how}"
+    assert (other / "qa_contracts.json").read_text(encoding="utf-8") == secret_text
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_a_coverage_sheet_does_not_follow_a_link_into_another_folder(tmp_path):
     from openpyxl import Workbook
 
