@@ -105,7 +105,8 @@ def run_qx_core_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
     )
     sample = keep_sample(3, 100)
 
-    redis_evidence = (ROOT / "docs" / "ops-evidence" / "redis_durable_queue_drill.json").is_file()
+    redis_path = ROOT / "docs" / "ops-evidence" / "redis_durable_queue_drill.json"
+    redis_evidence = (not folder_is_linked(redis_path)) and redis_path.is_file()
 
     checks = {
         "A01_swarm_listing": len(chosen) == 2 and any("checkout" in s[0] for s in skipped),
