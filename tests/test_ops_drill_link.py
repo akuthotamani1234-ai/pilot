@@ -58,6 +58,37 @@ def test_a_backup_drill_does_not_follow_a_link_into_another_folder(tmp_path, mon
     assert calls["n"] == 1
     assert secret not in (folder / "local_load_probe.json").read_text(encoding="utf-8")
 
+    metrics_link = folder / "local_metrics_snapshot.json"
+    metrics_link.symlink_to(kept)
+    refused_metrics = write_local_metrics_snapshot(ops_dir=folder)
+    assert "link" in refused_metrics["reason"]
+    assert refused_metrics["ok"] is False
+    assert secret not in str(refused_metrics)
+    assert kept.read_bytes() == original
+    assert metrics_link.is_symlink()
+    metrics_link.unlink()
+
+    import backend.ops_drill as ops
+
+    origin = ops.ROOT
+    install = tmp_path / "install"
+    (install / "artifacts").mkdir(parents=True)
+    secret_db = other / "approvals.sqlite"
+    secret_db.write_bytes(b"tenant-b-approvals-bytes")
+    (install / "artifacts" / "approvals.sqlite").symlink_to(secret_db)
+    workflow = install / ".github" / "workflows"
+    workflow.mkdir(parents=True)
+    (workflow / "blow-ai.yml").write_text("name: home\n", encoding="utf-8")
+    monkeypatch.setattr(ops, "ROOT", install)
+    recorded = write_local_metrics_snapshot(ops_dir=folder)
+    recorded_text = metrics_link.read_text(encoding="utf-8")
+    assert recorded["metrics"]["approvals_db_present"] is False
+    assert recorded["metrics"]["ci_workflow_present"] is True
+    assert "tenant-b-approvals-bytes" not in recorded_text
+    assert secret not in recorded_text
+    assert secret_db.read_bytes() == b"tenant-b-approvals-bytes"
+    monkeypatch.setattr(ops, "ROOT", origin)
+
     saved = run_backup_restore_drill(ops_dir=folder)
     written = (folder / "backup_restore_drill.json").read_text(encoding="utf-8")
     assert saved["ok"] is True
