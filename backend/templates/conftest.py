@@ -1418,6 +1418,33 @@ DIALOG_JS = r"""(() => {
 })();"""
 
 
+def _login_file(path: str) -> str:
+    """A real saved login. A link is not this run's cookies."""
+    saved = Path(path or "")
+    if not path or _output_is_linked(saved) or not saved.is_file():
+        return ""
+    return str(saved)
+
+
+def _context_options(kind: str) -> dict:
+    """Browser options for one kind of window. A linked login is not loaded."""
+    opts = {"viewport": {"width": 1366, "height": 900}, "ignore_https_errors": True, "accept_downloads": True}
+    if BASE_URL:
+        opts["base_url"] = BASE_URL
+    state = ""
+    if kind == "user":
+        state = _login_file(AUTH_STATE)
+    elif kind.startswith("role:"):  # (another user role: its own saved login - never its password)
+        state = _login_file(str(ROLE_STATES.get(kind[5:], "") or ""))
+    if state:
+        opts["storage_state"] = state
+        if kind == "user":
+            _SESSION["loaded"] = Path(state).stat().st_mtime
+    if VIDEO_DIR:  # (the video is complete when the window closes at the end of the run)
+        opts.update(record_video_dir=VIDEO_DIR, record_video_size={"width": 1366, "height": 900})
+    return opts
+
+
 @pytest.fixture(scope="session")
 def _shared(browser):
     """ONE browser window per session for the whole test run (it doesn't open/close for every test):
@@ -1427,16 +1454,7 @@ def _shared(browser):
     def make(kind):
         # (downloads are accepted so a download link can be checked: the browser keeps them in its own temporary
         # folder, deleted with the window - a test never saves a file anywhere)
-        opts = {"viewport": {"width": 1366, "height": 900}, "ignore_https_errors": True, "accept_downloads": True}
-        if BASE_URL:
-            opts["base_url"] = BASE_URL
-        if kind == "user":
-            opts["storage_state"] = AUTH_STATE
-            _SESSION["loaded"] = Path(AUTH_STATE).stat().st_mtime
-        elif kind.startswith("role:"):  # (another user role: its own saved login - never its password)
-            opts["storage_state"] = ROLE_STATES[kind[5:]]
-        if VIDEO_DIR:  # (the video is complete when the window closes at the end of the run)
-            opts.update(record_video_dir=VIDEO_DIR, record_video_size={"width": 1366, "height": 900})
+        opts = _context_options(kind)
         context = browser.new_context(**opts)
         context.set_default_timeout(10000)
         context.set_default_navigation_timeout(NAV_TIMEOUT_MS)
@@ -1499,7 +1517,7 @@ def _redact_zip(path: Path) -> None:
 def page(_shared, request):
     """The shared tab, cleaned before each test so every test still starts fresh.
     Logged in with the test account when the website has a login, except for tests marked 'guest'."""
-    kind = "user" if AUTH_STATE and Path(AUTH_STATE).exists() and not request.node.get_closest_marker("guest") \
+    kind = "user" if _login_file(AUTH_STATE) and not request.node.get_closest_marker("guest") \
         else "guest"
     _shared["only"](kind)
     tab = _shared.get(kind) or _shared["make"](kind)
@@ -1632,7 +1650,7 @@ def as_role(_shared):
     """as_role('viewer') -> a fresh tab signed in as that role (its saved login). Skipped when the role could not sign
     in while exploring."""
     def open_as(role: str):
-        if role not in ROLE_STATES or not Path(ROLE_STATES[role]).exists():
+        if role not in ROLE_STATES or not _login_file(str(ROLE_STATES[role])):
             pytest.skip(f"the role '{role}' has no saved login (it could not sign in while exploring)")
         tab = _shared.get(f"role:{role}") or _shared["make"](f"role:{role}")
         if tab["page"].is_closed():
