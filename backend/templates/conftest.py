@@ -1479,6 +1479,9 @@ def _name(item) -> str:
 
 def _redact_zip(path: Path) -> None:
     """A trace records what was typed and sent (also the test password): replace it with [REDACTED]."""
+    path = Path(path)
+    if _output_is_linked(path):
+        return
     secrets = [s.encode("utf-8") for s in _secrets()]
     if not secrets or not path.exists():
         return
