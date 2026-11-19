@@ -55,8 +55,12 @@ def token_request_fields(
     client_id: str,
     redirect_uri: str,
     code_verifier: str = "",
+    state: str = "",
 ) -> dict:
-    """Authorization-code token form. Includes ``code_verifier`` when present."""
+    """Authorization-code token form.
+
+    Includes ``code_verifier`` and the login ``state`` when the caller has them.
+    """
     fields = {
         "grant_type": "authorization_code",
         "code": (code or "").strip(),
@@ -66,6 +70,9 @@ def token_request_fields(
     verifier = (code_verifier or "").strip()
     if verifier:
         fields["code_verifier"] = verifier
+    posted_state = (state or "").strip()
+    if posted_state:
+        fields["state"] = posted_state
     return fields
 
 
@@ -181,6 +188,7 @@ def exchange_code(
     client_id: str | None = None,
     state: str = "",
     code_verifier: str = "",
+    nonce: str = "",
     db_path=None,
 ) -> dict:
     """POST authorization_code grant; validate access/id token when present."""
@@ -236,6 +244,7 @@ def exchange_code(
         client_id=cid,
         redirect_uri=redirect,
         code_verifier=verifier,
+        state=state,
     )).encode()
     req = urllib.request.Request(  # noqa: S310
         endpoint,
@@ -259,7 +268,11 @@ def exchange_code(
     claims = validated.get("claims") if isinstance(validated.get("claims"), dict) else {}
     if validated.get("ok"):
         note_authorization_code_used(code)
-    nonce_check = validate_sso_nonce(str(claims.get("nonce") or ""))
+    started = (nonce or "").strip()
+    nonce_check = validate_sso_nonce(
+        str(claims.get("nonce") or ""),
+        expected=started if started else None,
+    )
     if nonce_check.get("nonce_enforced") and not nonce_check.get("ok"):
         return nonce_check
     bound: dict = {}
