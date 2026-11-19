@@ -343,6 +343,7 @@ def progress() -> dict:
         {"id": "I-dashboard-pkce-fields", "label": "Studio sends state, PKCE verifier, and redirect URI on code exchange", "status": "done"},
         {"id": "B-claim-atomic", "label": "A Redis claim pops and leases a task in one step", "status": "done"},
         {"id": "B-click-destination", "label": "A Continue control is not clicked when it opens checkout or PayPal", "status": "done"},
+        {"id": "B-form-destination", "label": "A checkout form is not filled, even when the button says Continue", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

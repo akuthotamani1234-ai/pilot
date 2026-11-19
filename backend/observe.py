@@ -812,10 +812,21 @@ class Explorer:
             return []
         from .actions import DELETE, action_class
         from .forms import SEARCHY, is_login_form, keep_form_field
+        from .swarm import control_opens_payment
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
+            if control_opens_payment(url, form_action=str(f.get("action") or "")):
+                fills.append({
+                    "form": f.get("selector"),
+                    "name": said or "the form",
+                    "page": url,
+                    "sent": False,
+                    "filled": [],
+                    "not_sent": "checkout, payment and placing an order are never filled",
+                })
+                continue
             fields = [x for x in f.get("fields", []) if keep_form_field(x)]
             submit_sel = ((f.get("submit") or {}).get("selector") or "")
             submit_cls = action_class(said, submit_sel, role="button", kind="button", tag="button")
