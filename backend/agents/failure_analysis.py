@@ -768,7 +768,7 @@ def failure_analysis_agent(state: QAState) -> QAState:
             i["type"] == "failed_request" and not OWN_HTTP_STATUS.match(detail.strip()))
         console_resource = i["type"] == "console_error" and bool(RESOURCE_LOAD_FAIL.search(detail))
         resource_fail = load_fail or console_resource
-        app_js = i["type"] == "console_error" and bool(APP_JS_EXCEPTION.search(detail)) and not console_resource
+        app_js = i["type"] == "console_error" and bool(APP_JS_EXCEPTION.search(detail))
         own_http = i["type"] in ("failed_request", "http_status", "page_failed") and bool(
             OWN_HTTP_STATUS.match(detail.strip())) and not third_party
         # a page that did not answer in time is no error page: slow website, network or a busy test machine
@@ -781,23 +781,26 @@ def failure_analysis_agent(state: QAState) -> QAState:
         # (and what its error page shows - /api/createAccount's own styles and scripts: no page a visitor uses)
         api_page = not api and (pages.get(i["url"]) or {}).get("status") == 405
         busy = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP (503|429)\b", detail))
-        # an insecure (http) style / font / picture on an https page: real, but cosmetic - the page still works
-        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(detail))
+        # an insecure (http) style / font / picture on an https page: real, but cosmetic - the page still works.
+        # It does not hide an application exception in the same message.
+        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(detail)) and not app_js
         # another website's resource (ERR_BLOCKED_BY_ORB, a blocked tracker / ad): never this website's bug
-        if stale or api or api_page or busy or (resource_fail and not third_party and not own_http):
+        if stale or api or api_page or busy:
             cat = "infrastructure"
+        elif app_js or own_http:
+            cat = "product_defect"
+        elif mixed:
+            cat = "mixed_content"
         elif third_party:
             cat = "third_party"
         elif slow or still_loading:
             cat = "timeout"
-        elif mixed:
-            cat = "mixed_content"
-        elif own_http or app_js:
-            cat = "product_defect"
+        elif resource_fail and not third_party:
+            cat = "infrastructure"
         else:
             cat = "product_defect"
         sev = "low" if third_party or stale or api or api_page or busy or mixed or (
-            resource_fail and not own_http) else SEVERITY["timeout" if slow or still_loading else i["type"]]
+            resource_fail and not own_http and not app_js) else SEVERITY["timeout" if slow or still_loading else i["type"]]
         if stale:
             explain = GONE_WHY
         elif still_loading:
@@ -835,7 +838,8 @@ def failure_analysis_agent(state: QAState) -> QAState:
                 "layout": "At phone width (390 px) the page does not fit: it scrolls sideways, or a control is cut "
                           "off or covered.",
             }[i["type"]]
-        note_kind = ("resource_request" if resource_fail and not own_http else "app_js_exception" if app_js else
+        note_kind = ("app_js_exception" if app_js else "mixed_content" if mixed else
+                     "resource_request" if resource_fail and not own_http else
                      "readiness_timeout" if still_loading or slow else i["type"])
         failures.append({
             "id": len(failures), "source": "crawler", "test": i["type"], "file": None,
