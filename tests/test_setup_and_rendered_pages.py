@@ -185,3 +185,34 @@ def test_a_python_app_check_does_not_follow_a_link_into_another_folder(tmp_path)
     assert "home-own" in text
     assert secret not in text
     assert (other / "app.py").read_text(encoding="utf-8") == f"FastAPI()\n# {secret}\n"
+
+
+def test_a_project_check_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import json
+
+    from backend.agents.setup_agent import detect_project
+
+    monkeypatch.setattr("backend.config.settings.start_cmd", "")
+    secret = "tenant-b-only-project"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "package.json").write_text(json.dumps({"scripts": {"start": secret}}), encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="link"):
+        detect_project(linked, 9)
+    assert (other / "package.json").read_text(encoding="utf-8").count(secret) == 1
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "package.json").write_text(
+        json.dumps({"scripts": {"dev": "vite home-own"}}), encoding="utf-8")
+    found = detect_project(real, 9)
+    assert found["type"] == "node (npm run dev)"
+    assert "npm run dev" in found["start"]
+    assert secret not in json.dumps(found)
+    assert "home-own" in (real / "package.json").read_text(encoding="utf-8")
+    assert (other / "package.json").read_text(encoding="utf-8").count(secret) == 1
