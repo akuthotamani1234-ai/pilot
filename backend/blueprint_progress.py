@@ -48,9 +48,9 @@ def progress() -> dict:
         {"id": "G", "label": "Gate G — Tenancy / audit / store", "status": "active",
          "note": "Tenancy + OIDC ACL + review pack + readiness score; independent sign-off still open"},
         {"id": "H", "label": "Gate H — Ops / DR / load", "status": "active",
-         "note": "Multi-store DR + failover RTO pack + paging; hosted multi-region DR/on-call still open"},
+         "note": "DR + RTO + paging ack/resolve + readiness 9/9; hosted multi-region on-call still open"},
         {"id": "I", "label": "Gate I — React/TS dashboard", "status": "active",
-         "note": "React SSO helper + PKCE/dual-tenant ACL; hosted IdP Studio SSO still open"},
+         "note": "PKCE + groups→role ACL + readiness 8/8; hosted IdP Studio SSO still open"},
         {"id": "J", "label": "Gate J — Seeded-defect benchmark", "status": "strong",
          "note": "Demo 6/6 + Classic 3/3 + Admin 7/7 + Travel 6/6 mutations; third-party still open"},
     ]
