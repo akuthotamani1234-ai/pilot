@@ -376,6 +376,7 @@ def progress() -> dict:
         {"id": "C-result-hides", "label": "A stored contract assertion cannot hide an AI label on the result", "status": "done"},
         {"id": "B-form-post", "label": "A form that posts to checkout is not filled", "status": "done"},
         {"id": "B-formaction", "label": "A submit button's own checkout address is not filled or clicked", "status": "done"},
+        {"id": "I-code-state", "label": "A loopback code is refused when the token state does not match", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

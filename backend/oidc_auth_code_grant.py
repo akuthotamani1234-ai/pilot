@@ -25,9 +25,14 @@ def authorization_code_grant_error(
     redirect_uri: str,
     now: float,
     verifier_ok: bool = True,
+    state: str = "",
     max_age_s: float = CODE_MAX_AGE_S,
 ) -> str:
-    """Return ``invalid_grant`` when the token request must be refused, else ``""``."""
+    """Return ``invalid_grant`` when the token request must be refused, else ``""``.
+
+    A code minted with a non-empty ``state`` is refused unless the token request
+    repeats that same value. Hosted IdP Studio SSO stays open.
+    """
     if (grant or "") != "authorization_code" or not entry:
         return "invalid_grant"
     if (client_id or "") != (entry.get("client_id") or ""):
@@ -40,5 +45,8 @@ def authorization_code_grant_error(
     if float(now) - float(issued) > max_age_s:
         return "invalid_grant"
     if not verifier_ok:
+        return "invalid_grant"
+    bound = entry.get("state")
+    if isinstance(bound, str) and bound and bound != (state or ""):
         return "invalid_grant"
     return ""
