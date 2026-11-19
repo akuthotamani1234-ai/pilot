@@ -106,6 +106,7 @@ def progress() -> dict:
         {"id": "G-tenant-run-acl", "label": "Principal-scoped /api/tenancy/runs + audited denials", "status": "done"},
         {"id": "G-tenant-index-env", "label": "Optional QPILOT_TENANT_ID indexes finished runs", "status": "done"},
         {"id": "G-run-owner", "label": "Indexing a run again cannot move it to another tenant", "status": "done"},
+        {"id": "G-principal-kept", "label": "A second write cannot move or raise a stored principal", "status": "done"},
         {"id": "A-dialog-download", "label": "Surface coverage counts dialogs + download links", "status": "done"},
         {"id": "H-controlled-soak", "label": "Controlled AdminPortal soak drill evidence", "status": "done"},
         {"id": "G-live-drills-refresh2", "label": "Re-verify live Postgres/Redis/MinIO after soak work", "status": "done"},

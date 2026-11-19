@@ -37,18 +37,35 @@ def upsert_tenant(tenant_id: str, name: str, *, db_path: str | Path | None = Non
 
 def upsert_principal(principal_id: str, tenant_id: str, email: str, role: str,
                      *, db_path: str | Path | None = None) -> dict:
+    """Create a principal. A second write cannot move the tenant or change the role."""
     path = Path(db_path) if db_path else DEFAULT_DB
     stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT tenant_id, email, role FROM principals WHERE principal_id=?",
+            (principal_id,),
+        ).fetchone()
+        if row is not None and (str(row["tenant_id"]) != tenant_id or str(row["role"]) != role):
+            return {
+                "principal_id": principal_id,
+                "tenant_id": str(row["tenant_id"]),
+                "email": str(row["email"] or ""),
+                "role": str(row["role"]),
+                "ok": False,
+                "reason": "existing principal kept",
+                "gate_g_complete": False,
+            }
         conn.execute(
             "INSERT INTO principals(principal_id, tenant_id, email, role, created_at) "
             "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(principal_id) DO UPDATE SET email=excluded.email, role=excluded.role, "
-            "tenant_id=excluded.tenant_id",
+            "ON CONFLICT(principal_id) DO UPDATE SET email=excluded.email",
             (principal_id, tenant_id, email, role, stamp),
         )
         conn.commit()
-    return {"principal_id": principal_id, "tenant_id": tenant_id, "email": email, "role": role}
+    return {
+        "principal_id": principal_id, "tenant_id": tenant_id, "email": email, "role": role,
+        "ok": True, "gate_g_complete": False,
+    }
 
 
 def index_run(run_id: str, tenant_id: str, *, source: str = "", verdict: str = "",

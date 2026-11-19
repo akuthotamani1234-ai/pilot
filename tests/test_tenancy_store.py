@@ -14,6 +14,21 @@ from backend.tenancy_store import (
 )
 
 
+def test_a_second_write_cannot_move_or_raise_a_principal(tmp_path: Path):
+    db = tmp_path / "tenancy.sqlite"
+    upsert_tenant("t-a", "A", db_path=db)
+    upsert_tenant("t-b", "B", db_path=db)
+    upsert_principal("p-a", "t-a", "a@ex.test", "viewer", db_path=db)
+    moved = upsert_principal("p-a", "t-b", "a@ex.test", "admin", db_path=db)
+    assert moved["ok"] is False and moved["tenant_id"] == "t-a" and moved["role"] == "viewer"
+    raised = upsert_principal("p-a", "t-a", "a@ex.test", "admin", db_path=db)
+    assert raised["ok"] is False
+    assert get_principal("p-a", db_path=db)["role"] == "viewer"
+    mail = upsert_principal("p-a", "t-a", "new@ex.test", "viewer", db_path=db)
+    assert mail["ok"] is True
+    assert get_principal("p-a", db_path=db)["email"] == "new@ex.test"
+
+
 def test_tenancy_crud_and_isolation(tmp_path: Path):
     db = tmp_path / "tenancy.sqlite"
     upsert_tenant("t-a", "A", db_path=db)
