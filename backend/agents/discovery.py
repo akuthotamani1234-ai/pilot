@@ -919,14 +919,10 @@ def _create_account(browser, signup_url: str) -> tuple[dict | None, str]:
     context = browser.new_context(viewport={"width": 1366, "height": 900}, ignore_https_errors=True)
     tab = context.new_page()
     try:
-        from ..payment_nav import opens_checkout
-        try:
-            blocked = opens_checkout(tab.request.get, signup_url, timeout=settings.page_timeout_ms)
-        except Exception:
-            blocked = ""
+        from ..payment_nav import open_refusing_checkout
+        blocked = open_refusing_checkout(tab, signup_url, timeout=settings.page_timeout_ms)
         if blocked:
             return None, "checkout, payment and placing an order are never tested"
-        tab.goto(signup_url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
         _settle(tab)
         tab.wait_for_timeout(1000)
         close_consent(tab)
@@ -1462,18 +1458,12 @@ def resume_session(page, landing: str, timeout: int) -> str:
     """Re-open the page after login, unless that GET would enter checkout.
 
     Returns the checkout address when the open was refused, otherwise ''.
-    A landing that is already checkout is not opened again.
+    A landing that is already checkout is not opened again. A navigation the
+    browser cancels is tried once more.
     """
-    from ..payment_nav import opens_checkout
+    from ..payment_nav import open_refusing_checkout
 
-    try:
-        blocked = opens_checkout(page.request.get, landing, timeout=timeout)
-    except Exception:
-        blocked = ""
-    if blocked:
-        return blocked
-    page.goto(landing, wait_until="domcontentloaded", timeout=timeout)
-    return ""
+    return open_refusing_checkout(page, landing, timeout=timeout)
 
 
 def click_page(requested: str, final: str = "") -> str:
