@@ -296,6 +296,7 @@ def progress() -> dict:
         {"id": "G-site-stop-link", "label": "A website test does not follow a stop link into another folder", "status": "done"},
         {"id": "G-interact-stop-link", "label": "User-like testing does not follow a stop link into another folder", "status": "done"},
         {"id": "G-bot-stop-link", "label": "A bot-check wait does not follow a stop link into another folder", "status": "done"},
+        {"id": "G-watch-stop-link", "label": "A stop watcher does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

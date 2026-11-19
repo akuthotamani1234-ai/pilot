@@ -33,6 +33,59 @@ def run(tmp_path, monkeypatch):
     runctl.reset()
 
 
+def test_a_stop_watcher_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-watch"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    runctl.reset()
+    try:
+        runctl.start_watchers(run, 0)
+        deadline = time.time() + 2
+        while not runctl.stopping() and time.time() < deadline:
+            time.sleep(0.01)
+        assert runctl.kind() == "link"
+        assert secret not in runctl.reason()
+        assert "you stopped" not in runctl.reason()
+    finally:
+        runctl.reset()
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    runctl.reset()
+    try:
+        runctl.start_watchers(real, 0)
+        deadline = time.time() + 2
+        while not runctl.stopping() and time.time() < deadline:
+            time.sleep(0.01)
+        assert runctl.kind() == "user_stop"
+        assert runctl.reason() == "you stopped the test"
+        assert secret not in runctl.reason()
+    finally:
+        runctl.reset()
+
+    quiet = tmp_path / "quiet"
+    quiet.mkdir()
+    runctl.reset()
+    try:
+        runctl.start_watchers(quiet, 0)
+        time.sleep(0.05)
+        assert not runctl.stopping()
+        assert runctl.kind() == ""
+    finally:
+        runctl.reset()
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def _start(run_dir: Path) -> dict:
     return {"source": PAGE["url"], "url": PAGE["url"], "site_key": "site", "run_id": run_dir.name,
             "run_dir": str(run_dir), "log": [], "heal_round": 0}
