@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -42,6 +44,73 @@ def note_authorization_code_used(code: str) -> None:
 
 def authorization_code_used(code: str) -> bool:
     return (code or "").strip() in _USED_CODES
+
+
+_LOGINS: dict[str, dict] = {}
+_LOGIN_MAX = 64
+_LOGIN_MAX_AGE_S = 600
+
+
+def reset_sso_logins() -> None:
+    """Clear process-local Studio login attempts."""
+    _LOGINS.clear()
+
+
+def issue_sso_login() -> dict:
+    """Start one Studio login. The callback must send this state back once.
+
+    The nonce stays on the server and is compared with the ID token.
+    Hosted IdP Studio SSO stays open.
+    """
+    state = secrets.token_urlsafe(18)
+    nonce = secrets.token_urlsafe(18)
+    _LOGINS[state] = {"nonce": nonce, "issued_at": time.time()}
+    while len(_LOGINS) > _LOGIN_MAX:
+        _LOGINS.pop(next(iter(_LOGINS)))
+    return {
+        "ok": True,
+        "gate_i_complete": False,
+        "state": state,
+        "nonce": nonce,
+        "reason": "Studio login started; hosted IdP SSO still open",
+    }
+
+
+def consume_sso_login(state: str, *, now: float | None = None) -> dict:
+    """Take a login attempt. A missing, unknown, or expired state is refused."""
+    got = (state or "").strip()
+    row = _LOGINS.pop(got, None) if got else None
+    if not row:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "state_ok": False,
+            "reason": "SSO login state was not issued",
+        }
+    issued = row.get("issued_at")
+    current = time.time() if now is None else now
+    if isinstance(issued, bool) or not isinstance(issued, (int, float)):
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "state_ok": False,
+            "reason": "SSO login state expired",
+        }
+    if float(current) - float(issued) > _LOGIN_MAX_AGE_S:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "state_ok": False,
+            "reason": "SSO login state expired",
+        }
+    return {
+        "ok": True,
+        "gate_i_complete": False,
+        "state": got,
+        "nonce": str(row.get("nonce") or ""),
+        "state_ok": True,
+        "reason": "SSO login state matched the login Studio started",
+    }
 
 
 def pkce_required() -> bool:

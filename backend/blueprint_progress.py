@@ -378,6 +378,7 @@ def progress() -> dict:
         {"id": "B-formaction", "label": "A submit button's own checkout address is not filled or clicked", "status": "done"},
         {"id": "I-code-state", "label": "A loopback code is refused when the token state does not match", "status": "done"},
         {"id": "I-login-nonce", "label": "A login nonce that does not match the ID token is refused", "status": "done"},
+        {"id": "I-login-issued", "label": "A Studio callback without the login it started is refused", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
