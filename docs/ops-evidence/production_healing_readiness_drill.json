@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_readiness",
-  "ran_at": "2026-11-19T03:29:53Z",
+  "ran_at": "2026-11-19T04:22:00Z",
   "kind": "readiness_score_only",
-  "score": 8,
-  "score_of": 8,
+  "score": 10,
+  "score_of": 10,
   "checks": [
     {
       "artifact": "live_failure_matrix_drill.json",
@@ -45,9 +45,19 @@
       "artifact": "healing_regression_drill.json",
       "label": "Locator-only healing regression",
       "ready": true
+    },
+    {
+      "artifact": "production_healing_third_party_sla_drill.json",
+      "label": "Third-party healing SLA",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_acceptance_gate_drill.json",
+      "label": "Acceptance gate (local)",
+      "ready": true
     }
   ],
   "production_suite_executed": false,
   "ok": true,
-  "reason": "Production healing readiness 8/8; production / third-party healing suite still open"
+  "reason": "Production healing readiness 10/10; production / third-party healing suite still open"
 }

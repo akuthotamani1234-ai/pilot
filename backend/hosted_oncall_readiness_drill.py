@@ -23,6 +23,9 @@ CHECKS = (
     ("paging_ack_drill.json", "Loopback paging ack→resolve"),
     ("observability_probe_drill.json", "Local observability probe"),
     ("hosted_oncall_contract_drill.json", "Hosted on-call contract snapshot"),
+    ("dual_region_store_health_probe_drill.json", "Dual-region store health probe"),
+    ("hosted_dr_cutover_checklist_drill.json", "Hosted DR cutover checklist"),
+    ("multi_region_dr_readiness_pack_drill.json", "Multi-region DR readiness pack"),
 )
 
 

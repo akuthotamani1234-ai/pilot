@@ -22,6 +22,8 @@ CHECKS = (
     ("production_healing_replay_pack_drill.json", "Before/after replay pack"),
     ("production_healing_flaky_policy_drill.json", "Flaky/auth/infra no-auto-apply"),
     ("healing_regression_drill.json", "Locator-only healing regression"),
+    ("production_healing_third_party_sla_drill.json", "Third-party healing SLA"),
+    ("production_healing_acceptance_gate_drill.json", "Acceptance gate (local)"),
 )
 
 
