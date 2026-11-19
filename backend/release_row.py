@@ -11,7 +11,7 @@ from pathlib import Path
 from .env_controls import action_still_blocked
 from .oracle import accept_expected
 from .replay_pack import make_package, replay
-from .swarm import is_payment_url
+from .swarm import control_opens_payment, is_payment_url
 
 DASHBOARD = ("discovered", "tested", "passed", "failed", "blocked", "unknown")
 ROW = ("register", "inventory", "graph", "workers", "seed", "dashboard", "operations")
@@ -84,6 +84,18 @@ def read_target(run_dir: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _control_safe(page_url: str, item: dict) -> bool:
+    """A control on a normal page is still unsafe when it opens checkout or payment."""
+    if is_payment_url(page_url):
+        return False
+    return not control_opens_payment(
+        page_url,
+        str(item.get("href") or item.get("to") or ""),
+        str(item.get("form_action") or item.get("action") or ""),
+        str(item.get("onclick") or ""),
+    )
+
+
 def page_record(page: dict) -> dict:
     """One crawled page in the shape the inventory and the graph understand."""
     url = str(page.get("url") or "")
@@ -92,10 +104,10 @@ def page_record(page: dict) -> dict:
     links = [item for item in (page.get("links") or []) if isinstance(item, dict)]
     elements = [str(item.get("text") or item.get("selector")) for item in buttons if item.get("text") or item.get("selector")]
     elements += [str(item.get("name") or item.get("label") or item.get("selector") or "input") for item in fields]
-    actions = [{"name": str(item.get("text") or item.get("selector") or "button"), "safe": not is_payment_url(url)}
+    actions = [{"name": str(item.get("text") or item.get("selector") or "button"), "safe": _control_safe(url, item)}
                for item in buttons]
     actions += [{"name": str(item.get("text") or "link"), "to": item.get("href") or "",
-                 "safe": not is_payment_url(str(item.get("href") or ""))} for item in links if item.get("href")]
+                 "safe": _control_safe(url, item)} for item in links if item.get("href")]
     evidence = [page["screenshot"]] if page.get("screenshot") else []
     return {
         "url": url,
