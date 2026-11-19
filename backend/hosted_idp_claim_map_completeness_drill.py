@@ -24,11 +24,28 @@ CLAIM_MAP = (
 )
 
 
+def _linked_claims() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "hosted_idp_claim_map_completeness",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_idp_claim_map_completeness_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "hosted_idp_claim_map_completeness_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_claims()
+
     ops = ROOT / "docs" / "ops-evidence"
     rows = []
     for claim, artifact, label in CLAIM_MAP:
-        ready = (ops / artifact).is_file()
+        path = ops / artifact
+        ready = (not folder_is_linked(path)) and path.is_file()
         rows.append({
             "claim": claim,
             "artifact": artifact,
@@ -51,15 +68,15 @@ def run_hosted_idp_claim_map_completeness_drill(*, ops_dir: Path | None = None) 
             "live hosted IdP Studio SSO still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_claims()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_idp_claim_map_completeness_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_claims()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_idp_claim_map_completeness_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
