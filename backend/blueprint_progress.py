@@ -154,6 +154,7 @@ def progress() -> dict:
         {"id": "G-compare-link", "label": "A regression comparison does not read another tenant's run", "status": "done"},
         {"id": "G-findings-link", "label": "A finding does not follow a link into another run", "status": "done"},
         {"id": "G-result-link", "label": "A test result does not follow a link into another run", "status": "done"},
+        {"id": "G-script-link", "label": "A generated script does not follow a link into another run", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

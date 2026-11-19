@@ -122,14 +122,14 @@ def case_hits(case: dict, results: list[dict]) -> list[dict]:
 
 def automation_status(case: dict, test_dir: Path | None) -> tuple[str, str]:
     """('Automated' | 'Not automated' | 'Pending', how) - looks for the case's test function in the scripts."""
-    if not test_dir or not test_dir.is_dir():
+    if not test_dir or test_dir.is_symlink() or not test_dir.is_dir():
         return "Pending", ""
     if case.get("kind") == "contract" and not case.get("blocked") and (test_dir.parent / "qa_contracts.json").exists():
         return "Automated", "Trusted QA contract runtime"
     names = _case_names(case)
     for name in _case_files(case):
         f = test_dir / name
-        if not f.exists():
+        if f.is_symlink() or not f.exists():
             continue
         code = f.read_text(encoding="utf-8", errors="replace")
         if any(re.search(def_pattern(n), code, re.M) for n in names):
@@ -238,13 +238,14 @@ def _coverage_sheet(wb, run_dir: Path):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "coverage.json"
-    if not f.exists():
+    if Path(run_dir).is_symlink() or f.is_symlink() or not f.is_file():
         return
     data = json.loads(f.read_text(encoding="utf-8-sig"))
     # after the run, each control's own result (registry.json): planned -> executed -> its verdict, how strong its proof
     # is (a state / value checked, or only "no errors" = smoke) and the test cases that decided it
     try:
-        reg = json.loads((Path(run_dir) / "registry.json").read_text(encoding="utf-8-sig"))
+        reg_path = Path(run_dir) / "registry.json"
+        reg = {} if reg_path.is_symlink() else json.loads(reg_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         reg = {}
     from .registry import STATUS_TEXT
@@ -328,7 +329,7 @@ def _registry_sheet(wb, run_dir: Path, cases: list[dict] | None = None):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "registry.json"
-    if not f.exists():
+    if Path(run_dir).is_symlink() or f.is_symlink() or not f.is_file():
         return
     reg = json.loads(f.read_text(encoding="utf-8-sig"))
     ws = wb.create_sheet("Features")
@@ -417,10 +418,14 @@ def write_workbook(run_dir: Path, cases: list[dict], results: list[dict] | None 
         _summary_sheet(wb, metrics)
 
     path = run_dir / "test_cases.xlsx"
+    if Path(run_dir).is_symlink() or path.is_symlink():
+        return None
     try:
         wb.save(path)
     except PermissionError:  # the file is open in Excel right now
         path = run_dir / "test_cases_results.xlsx"
+        if path.is_symlink():
+            return None
         wb.save(path)
         print(f"  [excel] test_cases.xlsx is open in Excel - saved as {path.name} instead")
     print(f"  [excel] wrote {path}")
