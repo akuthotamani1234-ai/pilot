@@ -29,7 +29,7 @@ def path_unless_linked(folder: Path, name: str) -> Path | None:
 def write_bytes_unless_linked(path: Path, data: bytes) -> bool:
     """Write bytes at this path. A linked file or folder is left untouched."""
     path = Path(path)
-    if path.is_symlink() or path.parent.is_symlink():
+    if path.is_symlink() or folder_is_linked(path.parent):
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
