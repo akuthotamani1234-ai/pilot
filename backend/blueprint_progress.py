@@ -421,6 +421,7 @@ def progress() -> dict:
         {"id": "G-heal-seed-link", "label": "A seed catalog does not follow a link into another folder", "status": "done"},
         {"id": "G-heal-sla-link", "label": "A healing service level does not follow a link into another folder", "status": "done"},
         {"id": "G-heal-pack-link", "label": "A healing pack does not follow a link into another folder", "status": "done"},
+        {"id": "G-heal-ladder-link", "label": "A healing ladder does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
