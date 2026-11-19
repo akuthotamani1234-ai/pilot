@@ -176,6 +176,38 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
     return [row for part in parts for row in part]
 
 
+class WorkerBrowser:
+    """One worker's browser. After a login is saved, later pages use that session."""
+
+    def __init__(self, browser, login_state: dict):
+        self.browser = browser
+        self.login_state = login_state if isinstance(login_state, dict) else {}
+        self.context = None
+        self.authed = False
+
+    def page(self):
+        state = self.login_state.get("state")
+        if self.context is None or (state and not self.authed):
+            if self.context is not None:
+                self.context.close()
+            if state:
+                self.context = self.browser.new_context(storage_state=state)
+                self.authed = True
+            else:
+                self.context = self.browser.new_context()
+                self.authed = False
+        return self.context.new_page()
+
+    def close(self) -> None:
+        if self.context is None:
+            return
+        try:
+            self.context.close()
+        except Exception:
+            pass
+        self.context = None
+
+
 class SiteSwarm:
     """Workers that stay up for the whole crawl.
 

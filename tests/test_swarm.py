@@ -1,6 +1,7 @@
 """The large-shop swarm keeps two or three products and leaves the rest of the list."""
 from backend.swarm import (
     SiteSwarm,
+    WorkerBrowser,
     assign_workers,
     choose_listing,
     control_opens_payment,
@@ -43,6 +44,40 @@ def test_checkout_is_never_given_to_a_worker():
     assert not is_payment_url("https://shop.example/product/buy-saree")
     assert not is_payment_url("https://shop.example/product/checkout-guide")
     assert not is_payment_url("https://notpaypal.com/shop")
+
+
+def test_a_worker_uses_the_saved_login_for_later_pages():
+    class _Context:
+        def __init__(self, state):
+            self.state = state
+            self.closed = False
+
+        def new_page(self):
+            return {"state": self.state}
+
+        def close(self):
+            self.closed = True
+
+    class _Browser:
+        def __init__(self):
+            self.contexts = []
+
+        def new_context(self, storage_state=None):
+            context = _Context(storage_state)
+            self.contexts.append(context)
+            return context
+
+    browser = _Browser()
+    login = {"state": None}
+    worker = WorkerBrowser(browser, login)
+    assert worker.page()["state"] is None
+    login["state"] = {"cookies": [{"name": "sid", "value": "1"}]}
+    assert worker.page()["state"]["cookies"][0]["name"] == "sid"
+    assert browser.contexts[0].closed is True
+    assert worker.page()["state"]["cookies"][0]["name"] == "sid"
+    assert len(browser.contexts) == 2
+    worker.close()
+    assert browser.contexts[1].closed is True
 
 
 def test_a_continue_control_that_opens_checkout_is_payment():
