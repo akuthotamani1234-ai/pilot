@@ -322,6 +322,7 @@ def progress() -> dict:
         {"id": "G-fixes-link", "label": "Fix advice does not follow a link into another folder", "status": "done"},
         {"id": "G-prompt-link", "label": "An AI prompt does not follow a link into another folder", "status": "done"},
         {"id": "G-studio-link", "label": "A Studio page does not follow a link into another folder", "status": "done"},
+        {"id": "G-contract-example-link", "label": "A demo test flow does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
