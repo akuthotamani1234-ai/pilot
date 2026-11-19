@@ -28,11 +28,13 @@ def _write(root: Path, value: dict) -> None:
     root = Path(root)
     dest = root / ".private" / "repo_fix_status.json"
     temp = dest.with_suffix(".tmp")
-    if folder_is_linked(root) or dest.is_symlink() or temp.is_symlink():
+    if folder_is_linked(root) or folder_is_linked(dest) or folder_is_linked(temp):
         raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if folder_is_linked(dest) or folder_is_linked(temp):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     temp.write_text(json.dumps(value), encoding="utf-8")
-    if dest.is_symlink() or temp.is_symlink():
+    if folder_is_linked(dest) or folder_is_linked(temp):
         raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     os.replace(temp, dest)
 
