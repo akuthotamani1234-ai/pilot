@@ -125,6 +125,37 @@ def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypa
     assert secret.decode() not in env["QA_RUN_DIR"]
 
 
+def test_a_screenshot_path_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _relative
+
+    secret = "tenant-b-only-shot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "secret-shot.png").write_bytes(secret.encode())
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    rows = [{"screenshot": str(other / "secret-shot.png"), "trace": str(other / "keep.txt")}]
+    _relative(rows, linked)
+    assert rows[0]["screenshot"] == ""
+    assert rows[0]["trace"] == ""
+    assert "secret-shot" not in json.dumps(rows)
+    assert secret not in json.dumps(rows)
+    assert (other / "secret-shot.png").read_bytes() == secret.encode()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / "screenshots").mkdir(parents=True)
+    shot = real / "screenshots" / "home-own.png"
+    shot.write_bytes(b"home-own")
+    real_rows = [{"screenshot": str(shot)}]
+    _relative(real_rows, real)
+    assert real_rows[0]["screenshot"] == "screenshots/home-own.png"
+    assert secret not in json.dumps(real_rows)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_a_test_environment_does_not_follow_a_run_link_into_another_folder(tmp_path):
     from backend.agents.executor import _env
 
