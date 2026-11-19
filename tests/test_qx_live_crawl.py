@@ -63,6 +63,8 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
     assert click_actions_allowed("https://shop.example/checkout") is False
     assert click_actions_allowed("https://www.paypal.com/cgi-bin/webscr") is False
     assert click_actions_allowed("https://shop.example/index.php?rt=checkout/cart") is True
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/checkout") is False
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/confirm") is False
     assert click_page(
         "https://shop.example/product/saree-1", "https://shop.example/checkout",
     ) == "https://shop.example/checkout"

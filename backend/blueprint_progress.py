@@ -364,6 +364,7 @@ def progress() -> dict:
         {"id": "B-resume-browser", "label": "A page put back after the browser closes is still waiting on resume", "status": "done"},
         {"id": "B-plan-continue", "label": "A Continue control that opens checkout is not planned as a click", "status": "done"},
         {"id": "B-link-checkout", "label": "A checkout address is not opened by the link checks", "status": "done"},
+        {"id": "B-query-checkout", "label": "A checkout step in the query is not opened, and the cart route still is", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

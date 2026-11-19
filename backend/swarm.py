@@ -13,6 +13,10 @@ _PAYMENT_PATH = re.compile(
     re.I,
 )
 _PAYMENT_HOST = re.compile(r"(?:^|\.)paypal\.com$", re.I)
+# A one-script shop picks the page in the query: index.php?rt=checkout/cart is the cart.
+_ROUTE_KEY = re.compile(r"^(?:rt|route|r|controller|ctrl|action|act|task|cmd|do)$", re.I)
+_PAY_STEP = re.compile(r"^(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)$", re.I)
+_CART_STEP = re.compile(r"^(?:cart|basket|bag|trolley)$", re.I)
 
 
 def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
@@ -22,6 +26,23 @@ def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
     return max(0, pattern_samples)
 
 
+def _query_route_is_payment(query: str) -> bool:
+    """True when the query picks a checkout or payment step, and not the cart."""
+    from urllib.parse import parse_qsl
+
+    for key, value in parse_qsl(query or "", keep_blank_values=True):
+        if not _ROUTE_KEY.match(key):
+            continue
+        bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
+        if not bits or not any(_PAY_STEP.fullmatch(bit) for bit in bits):
+            continue
+        cart = bool(_CART_STEP.fullmatch(bits[-1])) and any(
+            re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+        if not cart:
+            return True
+    return False
+
+
 def is_payment_url(url: str) -> bool:
     """True when the address itself is a checkout or payment step."""
     parts = urlsplit(url or "")
@@ -29,7 +50,9 @@ def is_payment_url(url: str) -> bool:
     if _PAYMENT_HOST.search(host):
         return True
     path = unquote(parts.path).replace("_", "-")
-    return bool(_PAYMENT_PATH.search(path))
+    if _PAYMENT_PATH.search(path):
+        return True
+    return _query_route_is_payment(parts.query)
 
 
 _QUOTED = re.compile(r"""['"]([^'"]+)['"]""")

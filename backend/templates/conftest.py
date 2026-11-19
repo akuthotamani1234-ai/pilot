@@ -794,12 +794,34 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
 
 
 def _payment_target(raw: str) -> bool:
-    """True when this address is checkout or payment, including a page the browser already opened."""
+    """True when this address is checkout or payment, including a page the browser already opened.
+
+    A cart route (index.php?rt=checkout/cart) stays open. The checkout step
+    (index.php?rt=checkout/checkout or checkout/confirm) does not.
+    """
+    from urllib.parse import unquote
     text = raw or ""
     path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
-    return bool(re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
+    if re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
         r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
-        path, re.I))
+        path, re.I):
+        return True
+    query = text.split("?", 1)[1].split("#", 1)[0] if "?" in text else ""
+    for piece in query.split("&"):
+        if "=" not in piece:
+            continue
+        key, value = piece.split("=", 1)
+        if not re.fullmatch(r"rt|route|r|controller|ctrl|action|act|task|cmd|do", key, re.I):
+            continue
+        bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
+        if not bits or not any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+                               for bit in bits):
+            continue
+        cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
+            re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+        if not cart:
+            return True
+    return False
 
 
 def _risky(names: list) -> bool:
