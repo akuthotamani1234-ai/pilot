@@ -249,6 +249,12 @@ def test_a_role_check_does_not_open_checkout_again(tmp_path, monkeypatch):
         def __init__(self):
             self.url = "https://shop.example/account"
 
+        def route(self, *args, **kwargs):
+            return None
+
+        def unroute(self, *args, **kwargs):
+            return None
+
         def goto(self, url, **kwargs):
             opened.append(url)
             self.url = url
@@ -610,71 +616,73 @@ def _hop(status, location=""):
     return type("Resp", (), {"status": status, "headers": {"location": location} if location else {}})()
 
 
-def test_a_role_check_does_not_follow_a_safe_address_into_checkout(tmp_path, monkeypatch):
+def test_a_role_check_retries_a_cancelled_page_and_does_not_open_checkout(tmp_path, monkeypatch):
+    import http.server
+    import threading
+
+    from playwright.sync_api import sync_playwright
+
     from backend.agents.discovery import _explore_roles
     from backend.config import settings
 
-    opened = []
-    product = "https://shop.example/product"
-    pay = "https://shop.example/checkout"
-    home = "https://shop.example/account"
+    hits = {}
 
-    class Request:
-        def get(self, url, **kwargs):
-            if url == product:
-                return _hop(302, pay)
-            return _hop(200)
+    class Site(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits[self.path] = hits.get(self.path, 0) + 1
+            if self.path == "/product":
+                self.send_response(302)
+                self.send_header("Location", "/checkout")
+                self.end_headers()
+                return
+            if self.path == "/account" and hits[self.path] == 1:
+                self.send_response(204)
+                self.end_headers()
+                return
+            body = b"<title>Account</title><h1>Account</h1>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
-    class Loc:
-        def inner_text(self, timeout=5000):
-            return "Account"
+        def log_message(self, *a):
+            pass
 
-        def count(self):
-            return 0
-
-    class Tab:
-        def __init__(self):
-            self.url = home
-            self.request = Request()
-
-        def goto(self, url, **kwargs):
-            opened.append(url)
-            self.url = url
-            return type("Resp", (), {"status": 200})()
-
-        def wait_for_load_state(self, *args, **kwargs):
-            return None
-
-        def locator(self, selector):
-            return Loc()
-
-    class Ctx:
-        def storage_state(self, path):
-            from pathlib import Path
-            Path(path).write_text("{}", encoding="utf-8")
-
-        def close(self):
-            return None
-
-    monkeypatch.setattr(
-        "backend.agents.discovery.log_in",
-        lambda *args, **kwargs: (Tab(), {"logged_in": True, "outcome": "ok"}),
-    )
-    monkeypatch.setattr("backend.agents.discovery.looks_logged_out", lambda *args, **kwargs: False)
-    monkeypatch.setattr(settings, "test_accounts", [
-        {"role": "admin", "username": "admin@x.test", "password": "x"},
-        {"role": "viewer", "username": "viewer@x.test", "password": "x"},
-    ])
-    app = [
-        {"url": home, "auth": True, "final_url": home},
-        {"url": product, "auth": True, "final_url": product},
-    ]
-    session = {"user": "admin@x.test", "form": {"user": "#email"}, "login_page": "https://shop.example/login"}
-    roles = _explore_roles(lambda: Ctx(), session, app, tmp_path)
-    assert product not in opened and pay not in opened
-    assert home in opened
-    assert roles["roles"]["viewer"]["pages"][product]["access"] == "blocked"
-    assert roles["roles"]["viewer"]["pages"][product]["to"] == pay
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context()
+            page = ctx.new_page()
+            monkeypatch.setattr(
+                "backend.agents.discovery.log_in",
+                lambda *args, **kwargs: (page, {"logged_in": True, "outcome": "ok"}),
+            )
+            monkeypatch.setattr("backend.agents.discovery.looks_logged_out", lambda *args, **kwargs: False)
+            monkeypatch.setattr(settings, "test_accounts", [
+                {"role": "admin", "username": "admin@x.test", "password": "x"},
+                {"role": "viewer", "username": "viewer@x.test", "password": "x"},
+            ])
+            home = base + "/account"
+            product = base + "/product"
+            app = [
+                {"url": home, "auth": True, "final_url": home},
+                {"url": product, "auth": True, "final_url": product},
+            ]
+            session = {"user": "admin@x.test", "form": {"user": "#email"}, "login_page": base + "/login"}
+            roles = _explore_roles(lambda: ctx, session, app, tmp_path)
+            browser.close()
+    finally:
+        srv.shutdown()
+    viewer = roles["roles"]["viewer"]["pages"]
+    assert viewer[product]["access"] == "blocked"
+    assert viewer[product]["to"].endswith("/checkout")
+    assert hits.get("/checkout", 0) == 0
+    assert viewer[home]["access"] == "ok"
+    assert hits.get("/account", 0) >= 2
 
 
 def test_sign_up_does_not_open_a_redirect_into_checkout():

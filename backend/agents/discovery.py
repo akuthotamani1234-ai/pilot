@@ -3277,14 +3277,21 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
             for p in blocked:
                 seen[p["url"]] = {"access": "blocked", "status": None, "to": ""}
                 p.setdefault("roles", {})[a["role"]] = "blocked"
+            from ..payment_nav import navigate_for_crawl
             for p in pages:
                 try:
-                    pay_to = refuse_checkout_redirect(tab, p["url"], settings.page_timeout_ms)
+                    try:
+                        resp, pay_to = navigate_for_crawl(
+                            tab, p["url"], timeout=settings.page_timeout_ms)
+                    except Exception as first:
+                        if not CANCELLED.search(str(first)):
+                            raise
+                        resp, pay_to = navigate_for_crawl(
+                            tab, p["url"], timeout=settings.page_timeout_ms)
                     if pay_to:
                         seen[p["url"]] = {"access": "blocked", "status": None, "to": pay_to}
                         p.setdefault("roles", {})[a["role"]] = "blocked"
                         continue
-                    resp = tab.goto(p["url"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
                     _settle(tab)
                     status = resp.status if resp else None
                     text = tab.locator("body").inner_text(timeout=5000)[:4000]
