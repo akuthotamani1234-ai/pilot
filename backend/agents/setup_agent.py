@@ -164,7 +164,12 @@ def _clone(source: str, log_file: Path) -> Path:
 
 
 def _find_python_app(root: Path, marker: str) -> str | None:
+    from ..finalization import folder_is_linked
+    if folder_is_linked(root):
+        return None
     for f in sorted(root.glob("*.py")) + sorted(root.glob("app/*.py")) + sorted(root.glob("src/*.py")):
+        if folder_is_linked(f):
+            continue
         try:
             if marker in f.read_text(encoding="utf-8", errors="ignore"):
                 return ".".join(f.relative_to(root).with_suffix("").parts)
