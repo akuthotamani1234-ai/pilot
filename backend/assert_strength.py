@@ -153,14 +153,24 @@ def analyse(test_dir: Path) -> dict[str, str]:
 
 
 def save(run_dir: Path) -> dict[str, str]:
-    data = analyse(Path(run_dir) / "generated_tests")
-    (Path(run_dir) / "strength.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
+    run_dir = Path(run_dir)
+    from .finalization import folder_is_linked
+    dest = run_dir / "strength.json"
+    if folder_is_linked(run_dir) or dest.is_symlink():
+        return {}
+    data = analyse(run_dir / "generated_tests")
+    dest.write_text(json.dumps(data, indent=1), encoding="utf-8")
     return data
 
 
 def load(run_dir: Path) -> dict[str, str]:
+    run_dir = Path(run_dir)
+    path = run_dir / "strength.json"
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or path.is_symlink() or not path.is_file():
+        return {}
     try:
-        return json.loads((Path(run_dir) / "strength.json").read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
