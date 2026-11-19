@@ -365,16 +365,36 @@ def _principal_run_block(path: str, authorization: str | None, x_qa_token: str |
     return None
 
 
+def _plain_run_dir(run: str) -> Path | None:
+    """The run folder when it is a real directory inside runs/. A link is not that folder."""
+    if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
+        return None
+    d = RUNS / run
+    try:
+        if d.is_symlink() or not d.is_dir() or _run_path_is_linked(RUNS, d):
+            return None
+        if d.resolve().parent != RUNS.resolve():
+            return None
+    except OSError:
+        return None
+    return d
+
+
 def _run_dir(run: str) -> Path:
     """runs/<run>, refusing anything that is not a plain folder name."""
     if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
         raise HTTPException(400, "bad run name")
-    d = RUNS / run
-    if d.is_symlink() or _run_path_is_linked(RUNS, d):
-        raise HTTPException(400, "Run directory must stay inside runs.")
-    if d.resolve().parent != RUNS.resolve():
-        raise HTTPException(400, "Run directory must stay inside runs.")
-    if not d.is_dir():
+    d = _plain_run_dir(run)
+    if d is None:
+        linked = RUNS / run
+        try:
+            if linked.is_symlink() or _run_path_is_linked(RUNS, linked) or (
+                    linked.is_dir() and linked.resolve().parent != RUNS.resolve()):
+                raise HTTPException(400, "Run directory must stay inside runs.")
+        except HTTPException:
+            raise
+        except OSError:
+            raise HTTPException(400, "Run directory must stay inside runs.") from None
         raise HTTPException(404, "run not found")
     return d
 
@@ -470,15 +490,18 @@ def _reader(job: dict) -> None:
     job["status"] = "stopped" if job.get("stopping") else ("done" if proc.returncode == 0 else "failed")
     job["current"] = None
     job["ended"] = time.time()
-    if job.get("run") and (RUNS / job["run"]).is_dir():  # keep the console output with the run
-        (RUNS / job["run"] / "console.log").write_text("\n".join(job["lines"]), encoding="utf-8")
+    d = _plain_run_dir(str(job.get("run") or ""))
+    log = d / "console.log" if d is not None else None
+    if log is not None and not _run_path_is_linked(RUNS, log):
+        log.write_text("\n".join(job["lines"]), encoding="utf-8")
 
 
 def _live_cost(d: Path | None) -> dict:
     """Cost so far, from the LLM calls logged while the run is going."""
     calls = []
-    if d and (d / "llm_usage.jsonl").exists():
-        for line in (d / "llm_usage.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
+    usage = d / "llm_usage.jsonl" if d is not None else None
+    if usage is not None and usage.is_file() and not _run_path_is_linked(RUNS, usage):
+        for line in usage.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 calls.append(json.loads(line))
             except ValueError:
@@ -590,8 +613,9 @@ def _count(path: Path) -> int | None:
 
 def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
     run = job.get("run")
-    d = RUNS / run if run else None
-    excel = _excel_file(d) if d and d.is_dir() else None
+    d = _plain_run_dir(str(run)) if run else None
+    excel = _excel_file(d) if d is not None else None
+    scripts = d / "generated_tests" if d is not None else None
     return {
         "target_type": job.get("target_type", "web"),
         "workflow": job.get("workflow", "standard"), "privacy_mode": job.get("privacy_mode", "local"),
@@ -601,7 +625,8 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "cost": _live_cost(d),
         "pages": _count(d / "app_map.json") if d else None,
         "cases": _count(d / "test_cases.json") if d else None,
-        "scripts": len(list((d / "generated_tests").glob("test_*.py"))) if d and (d / "generated_tests").is_dir() else None,
+        "scripts": len(list(scripts.glob("test_*.py"))) if scripts is not None and scripts.is_dir()
+                       and not _run_path_is_linked(RUNS, scripts) else None,
         "id": job["id"], "source": job["source"], "status": job["status"], "run": run,
         # exit_code is set when the worker process ends (None while still running)
         "exit_code": job.get("exit_code"),
@@ -610,9 +635,9 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "lines": job["lines"][since:], "next": len(job["lines"]),
         "live_pages": job.get("pages", [])[psince:], "pnext": len(job.get("pages", [])),
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
-        "report_ready": bool(d and (d / "summary.json").exists()),
+        "report_ready": bool(d and _run_file(d / "summary.json")),
         # the run asks you something (backend/review.py) and waits for the answers
-        "review": bool(d and (d / "review_request.json").exists() and not (d / "review_answers.json").exists()
+        "review": bool(d and _run_file(d / "review_request.json") and not _run_file(d / "review_answers.json")
                        and job["status"] == "running"),
         "elapsed": int((job.get("ended") or time.time()) - job["started"]),
     }
@@ -3954,10 +3979,13 @@ def get_review(
         return refused
     if not job or not job.get("run"):
         raise HTTPException(404, "no such test")
-    req = _read_json(RUNS / job["run"] / "review_request.json", None)
+    d = _plain_run_dir(str(job["run"]))
+    if d is None and _run_path_is_linked(RUNS, RUNS / str(job["run"])):
+        raise HTTPException(400, "Run directory must stay inside runs.")
+    req = _read_json(d / "review_request.json", None) if d is not None else None
     if not req:
         return {"questions": [], "answered": False}
-    return dict(req, answered=(RUNS / job["run"] / "review_answers.json").exists())
+    return dict(req, answered=_run_file(d / "review_answers.json"))
 
 
 @app.post("/api/runs/{job_id}/review")
@@ -3981,7 +4009,11 @@ def post_review(
              for k, v in body.answers.items() if isinstance(v, dict) and v.get("answer") in allowed}
     leave_out = [str(x)[:20] for x in body.leave_out[:500]]
     add_tests = [str(x)[:300] for x in body.add_tests[:30] if str(x).strip()]
-    (RUNS / job["run"] / "review_answers.json").write_text(json.dumps(
+    d = _plain_run_dir(str(job["run"]))
+    dest = d / "review_answers.json" if d is not None else None
+    if dest is None or _run_path_is_linked(RUNS, dest):
+        raise HTTPException(400, "Run directory must stay inside runs.")
+    dest.write_text(json.dumps(
         {"answers": clean, "leave_out": leave_out, "add_tests": add_tests}, indent=2), encoding="utf-8")
     _audit("review_answers", job=job_id, run=job["run"], answers=len(clean), left_out=len(leave_out),
            added=len(add_tests))
@@ -4007,10 +4039,12 @@ def stop_run(
     job["current"] = "stopping"
     _audit("stop_test", job=job_id, run=job.get("run"))
     run = job.get("run")
-    if run and (RUNS / run).is_dir():
+    d = _plain_run_dir(str(run)) if run else None
+    stop = d / "STOP" if d is not None else None
+    if stop is not None and not _run_path_is_linked(RUNS, stop):
         # Preserve the stop marker for diagnostics, then stop main.py and its browser/pytest/Appium children now.
         try:
-            (RUNS / run / "STOP").write_text("stopped from the web UI", encoding="utf-8")
+            stop.write_text("stopped from the web UI", encoding="utf-8")
         except OSError:
             pass  # termination must not wait on a run folder that is being removed or is read-only
     _kill(job)

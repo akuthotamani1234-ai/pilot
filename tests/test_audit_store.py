@@ -150,6 +150,92 @@ def test_a_linked_run_does_not_open_another_tenants_report(monkeypatch, tmp_path
                 shutil.rmtree(folder, ignore_errors=True)
 
 
+def test_a_live_review_stop_or_console_log_does_not_follow_a_run_link(monkeypatch, tmp_path):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    real = runs / "run-b"
+    real.mkdir(parents=True)
+    (real / "llm_usage.jsonl").write_text(
+        '{"tokens_in": 3, "tokens_out": 4, "cost_usd": 1.5}\n', encoding="utf-8")
+    (real / "generated_tests").mkdir()
+    (real / "generated_tests" / "test_secret.py").write_text("secret", encoding="utf-8")
+    (real / "review_request.json").write_text(
+        json.dumps({"questions": [{"id": "q1", "text": "secret question"}]}), encoding="utf-8")
+    link = runs / "run-a"
+    link.symlink_to(real, target_is_directory=True)
+    own = runs / "run-own"
+    own.mkdir()
+    (own / "review_request.json").write_text(
+        json.dumps({"questions": [{"id": "q1"}]}), encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-own", "t1", source="https://own.test", verdict="Ready", db_path=db)
+
+    class Proc:
+        returncode = 0
+        stdout = iter(())
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    def job(job_id, run):
+        return {
+            "id": job_id, "source": "https://a.test", "status": "running", "proc": Proc(),
+            "lines": ["tenant log"], "stages": {}, "current": None, "run": run, "started": 1.0,
+            "principal_id": "admin-1", "target_type": "web", "workflow": "standard",
+        }
+
+    kept = dict(server.jobs)
+    server.jobs.clear()
+    server.jobs[1] = job(1, "run-a")
+    server.jobs[2] = job(2, "run-own")
+    try:
+        shown = server._public(server.jobs[1])
+        assert shown["cost"]["calls"] == 0
+        assert shown["scripts"] is None
+        assert shown["review"] is False
+        client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+        header = {"X-Agentic-QA": "1", "Authorization": "Bearer admin-1"}
+        asked = client.get("/api/runs/1/review", headers=header)
+        assert asked.status_code == 400
+        assert "secret question" not in asked.text
+        answered = client.post(
+            "/api/runs/1/review", headers=header,
+            json={"answers": {"q1": {"answer": "correct", "text": "yes"}}},
+        )
+        assert answered.status_code == 400
+        assert not (real / "review_answers.json").exists()
+        stopped = client.post("/api/runs/1/stop", headers=header)
+        assert stopped.status_code == 200
+        assert not (real / "STOP").exists()
+        server._reader(server.jobs[1])
+        assert not (real / "console.log").exists()
+        own_answer = client.post(
+            "/api/runs/2/review", headers=header,
+            json={"answers": {"q1": {"answer": "correct", "text": "yes"}}},
+        )
+        assert own_answer.status_code == 200
+        assert (own / "review_answers.json").is_file()
+        assert not (own / "review_answers.json").is_symlink()
+    finally:
+        server.jobs.clear()
+        server.jobs.update(kept)
+
+
 def test_the_run_list_hides_another_tenants_runs(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
