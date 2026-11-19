@@ -8,6 +8,15 @@ from backend.qx_capabilities_drill import run_qx_capabilities_drill
 def test_a_capability_drill_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.qx_capabilities_drill as mod
 
+    calls = {"n": 0}
+    real_rank = mod.rank_candidates
+
+    def _rank(*args, **kwargs):
+        calls["n"] += 1
+        return real_rank(*args, **kwargs)
+
+    monkeypatch.setattr(mod, "rank_candidates", _rank)
+
     secret = "tenant-b-only-page"
     other = tmp_path / "other"
     other.mkdir()
@@ -21,9 +30,22 @@ def test_a_capability_drill_does_not_follow_a_link_into_another_folder(tmp_path,
     assert "link" in refused["reason"]
     assert refused["ok"] is False
     assert refused["gate_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
+
+    folder = tmp_path / "planted"
+    folder.mkdir()
+    planted = folder / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_qx_capabilities_drill(ops_dir=folder)
+    assert "link" in skipped_file["reason"]
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
 
     install = tmp_path / "install"
     coverage = install / "docs" / "ops-evidence" / "demo_store_surface_coverage.json"
@@ -39,6 +61,7 @@ def test_a_capability_drill_does_not_follow_a_link_into_another_folder(tmp_path,
     real.mkdir()
     skipped = run_qx_capabilities_drill(ops_dir=real)
     written = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 1
     assert skipped["gate_complete"] is False
     assert secret not in written
     assert f"/{secret}" not in written
@@ -52,6 +75,7 @@ def test_a_capability_drill_does_not_follow_a_link_into_another_folder(tmp_path,
     )
     saved = run_qx_capabilities_drill(ops_dir=real)
     saved_text = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 2
     assert saved["gate_complete"] is False
     assert saved["ok"] is True
     assert f"/{token}" in saved_text

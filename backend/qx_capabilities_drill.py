@@ -56,7 +56,10 @@ def _linked_capabilities() -> dict:
 
 def run_qx_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    name = "qx_capabilities_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_capabilities()
     ranked = rank_candidates([
         {"url": "https://shop.example/known", "new_template": False, "journey_distance": 9},
@@ -164,8 +167,6 @@ def run_qx_capabilities_drill(*, ops_dir: Path | None = None) -> dict:
     }
 
     text = json.dumps(evidence, indent=2)
-    name = "qx_capabilities_drill.json"
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
     if folder_is_linked(dest) or folder_is_linked(dest / name):
         return _linked_capabilities()
     dest.mkdir(parents=True, exist_ok=True)
