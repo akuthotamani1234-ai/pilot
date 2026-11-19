@@ -1902,6 +1902,37 @@ def ops_independent_review_handoff_pack():
     return {"gate_g_complete": False, "independent_review_handoff_pack": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-findings-template")
+def ops_independent_review_findings_template():
+    """Gate G: reviewer findings Markdown template (unsigned)."""
+    from backend.independent_review_findings_template_drill import (
+        run_independent_review_findings_template_drill,
+    )
+    evidence = run_independent_review_findings_template_drill()
+    _audit(
+        "ops_independent_review_findings_template",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_findings_template": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-claim-map-completeness")
+def ops_hosted_idp_claim_map_completeness():
+    """Gate I: OIDC claim-map completeness score (hosted IdP still open)."""
+    from backend.hosted_idp_claim_map_completeness_drill import (
+        run_hosted_idp_claim_map_completeness_drill,
+    )
+    evidence = run_hosted_idp_claim_map_completeness_drill()
+    _audit(
+        "ops_hosted_idp_claim_map_completeness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_claim_map_completeness": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""

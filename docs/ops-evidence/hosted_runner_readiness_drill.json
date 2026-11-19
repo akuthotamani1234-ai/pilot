@@ -2,11 +2,11 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "hosted_runner_readiness",
-  "ran_at": "2026-11-19T03:19:21Z",
+  "ran_at": "2026-11-19T04:16:55Z",
   "kind": "readiness_score_only",
   "multi_device": {
-    "score": 8,
-    "score_of": 8,
+    "score": 9,
+    "score_of": 9,
     "checks": [
       {
         "artifact": "android_appium_product_matrix_drill.json",
@@ -47,13 +47,18 @@
         "artifact": "ci_artifact_upload_rehearsal_drill.json",
         "label": "CI upload rehearsal",
         "ready": true
+      },
+      {
+        "artifact": "android_device_ci_readiness_pack_drill.json",
+        "label": "Android device CI readiness pack",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "multi_browser": {
-    "score": 6,
-    "score_of": 6,
+    "score": 7,
+    "score_of": 7,
     "checks": [
       {
         "artifact": "multi_browser_portfolio_suite_drill.json",
@@ -84,10 +89,15 @@
         "artifact": "ci_artifact_upload_rehearsal_drill.json",
         "label": "CI upload rehearsal",
         "ready": true
+      },
+      {
+        "artifact": "browser_portfolio_ci_readiness_pack_drill.json",
+        "label": "Browser portfolio CI readiness pack",
+        "ready": true
       }
     ],
     "live_hosted_runners": false
   },
   "ok": true,
-  "reason": "Hosted runner readiness device 8/8 + browser 6/6; broad hosted CI runner execution still open"
+  "reason": "Hosted runner readiness device 9/9 + browser 7/7; broad hosted CI runner execution still open"
 }
