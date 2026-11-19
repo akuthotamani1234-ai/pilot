@@ -633,6 +633,11 @@ def execution_agent(state: QAState) -> QAState:
         return {"results": results, "test_cases": cases, "log": state.get("log", []) + [note]}
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir) or folder_is_linked(run_dir / "failure_screenshots"):
+        note = "The failure screenshots folder is a link, so the suite was not started."
+        return {"results": list(state.get("results") or []), "test_cases": list(state.get("test_cases") or []),
+                "log": list(state.get("log") or []) + [note]}
     from ..release_row import isolated_work, record_step
     assigned = isolated_work([
         {"id": case.get("tc_id") or case.get("id") or "",

@@ -129,3 +129,48 @@ def test_an_undone_repair_does_not_follow_a_link_into_another_folder(tmp_path):
     assert written == "click('old')\n"
     assert b"SECRET-TENANT-B" not in written.encode()
     assert (nested / "test_home.py").read_bytes() == secret
+
+
+def test_a_failure_screenshot_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import execution_agent
+
+    secret = b"tenant-b-only-shots"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    names = sorted(path.name for path in nested.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+
+    def refuse_suite(*_args, **_kwargs):
+        started.append(True)
+        raise AssertionError("the suite must not start through a link")
+
+    monkeypatch.setattr("backend.agents.executor._run_pytest", refuse_suite)
+    out = execution_agent({"run_dir": str(linked / "run"), "test_cases": [], "results": [], "log": []})
+    assert started == []
+    assert "failure screenshots folder is a link" in out["log"][-1]
+    assert sorted(path.name for path in nested.iterdir()) == names
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert not (nested / "failure_screenshots").exists()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+
+    def keep_suite(*_args, **_kwargs):
+        return {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "test"}
+
+    monkeypatch.setattr("backend.agents.executor._run_pytest", keep_suite)
+    execution_agent({
+        "run_dir": str(real),
+        "test_cases": [{"tc_id": "home-own", "expected_source": "The home page loads for this shop."}],
+        "results": [],
+        "log": [],
+    })
+    assert (real / "failure_screenshots").is_dir()
+    assert secret not in (real / "row.json").read_bytes()
+    assert b"home-own" in (real / "row.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
