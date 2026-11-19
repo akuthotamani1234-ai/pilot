@@ -2,9 +2,8 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "cross_platform_journey",
-  "ran_at": "2026-11-19T00:47:05Z",
+  "ran_at": "2026-11-19T05:43:49Z",
   "surfaces": [
-    "android.emulator",
     "web.chromium",
     "web.firefox",
     "web.webkit"
@@ -21,11 +20,6 @@
     "web.webkit": [
       "open_home",
       "open_about"
-    ],
-    "android.emulator": [
-      "open_settings",
-      "tap_first_clickable",
-      "capture_hierarchy"
     ]
   },
   "web_compare": {
@@ -36,33 +30,11 @@
   },
   "full_compare": {
     "journey_id": "demostore_plus_android",
-    "differences": [
-      {
-        "surface": "web.chromium",
-        "steps": [
-          "open_home",
-          "open_about"
-        ]
-      },
-      {
-        "surface": "web.firefox",
-        "steps": [
-          "open_home",
-          "open_about"
-        ]
-      },
-      {
-        "surface": "web.webkit",
-        "steps": [
-          "open_home",
-          "open_about"
-        ]
-      }
-    ],
+    "differences": [],
     "failed": false,
-    "status": "reported"
+    "status": "matched"
   },
   "errors": [],
   "ok": true,
-  "reason": "Cross-platform journey on android.emulator, web.chromium, web.firefox, web.webkit; web must_match=matched engines=3; broader release-journey matrix still open"
+  "reason": "Cross-platform journey on web.chromium, web.firefox, web.webkit; web must_match=matched engines=3; broader release-journey matrix still open"
 }

@@ -2381,6 +2381,36 @@ def ops_independent_review_findings_freeze():
     return {"gate_g_complete": False, "independent_review_findings_freeze": evidence}
 
 
+@app.post("/api/ops/drills/hosted-idp-metadata-contract")
+def ops_hosted_idp_metadata_contract():
+    """Gate I: IdP discovery metadata contract (hosted SSO still open)."""
+    from backend.hosted_idp_metadata_contract_drill import (
+        run_hosted_idp_metadata_contract_drill,
+    )
+    evidence = run_hosted_idp_metadata_contract_drill()
+    _audit(
+        "ops_hosted_idp_metadata_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_metadata_contract": evidence}
+
+
+@app.post("/api/ops/drills/paging-severity-routing-contract")
+def ops_paging_severity_routing_contract():
+    """Gate H: severity→rota routing contract (hosted paging still open)."""
+    from backend.paging_severity_routing_contract_drill import (
+        run_paging_severity_routing_contract_drill,
+    )
+    evidence = run_paging_severity_routing_contract_drill()
+    _audit(
+        "ops_paging_severity_routing_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "paging_severity_routing_contract": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

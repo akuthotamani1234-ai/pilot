@@ -1,0 +1,38 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_metadata_contract",
+  "ran_at": "2026-11-19T05:44:28Z",
+  "kind": "contract_only",
+  "contract": {
+    "discovery_path": "/.well-known/openid-configuration",
+    "required_fields": [
+      "issuer",
+      "authorization_endpoint",
+      "token_endpoint",
+      "jwks_uri",
+      "response_types_supported",
+      "id_token_signing_alg_values_supported",
+      "code_challenge_methods_supported"
+    ],
+    "expected_algs": [
+      "RS256"
+    ],
+    "expected_code_challenge_methods": [
+      "S256"
+    ],
+    "note": "Metadata contract only; live hosted IdP Studio SSO still required"
+  },
+  "live_hosted_sso": false,
+  "local_partial_present": [
+    "loopback_sso_drill.json",
+    "loopback_auth_code_sso_drill.json",
+    "loopback_pkce_sso_drill.json",
+    "studio_oidc_callback_drill.json",
+    "hosted_idp_contract_drill.json",
+    "hosted_idp_claim_map_completeness_drill.json",
+    "studio_sso_login_path_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted IdP metadata contract recorded (7/7 local partials); live hosted IdP Studio SSO still open"
+}

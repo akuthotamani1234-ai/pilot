@@ -1,0 +1,44 @@
+{
+  "gate_h_complete": false,
+  "drill": "paging_severity_routing_contract",
+  "ran_at": "2026-11-19T05:44:28Z",
+  "kind": "contract_only",
+  "routes": [
+    {
+      "severity": "SEV1",
+      "tier": "primary",
+      "ack_sla_minutes": 5,
+      "page_secondary": true
+    },
+    {
+      "severity": "SEV2",
+      "tier": "primary",
+      "ack_sla_minutes": 15,
+      "page_secondary": true
+    },
+    {
+      "severity": "SEV3",
+      "tier": "secondary",
+      "ack_sla_minutes": 60,
+      "page_secondary": false
+    },
+    {
+      "severity": "SEV4",
+      "tier": "ticket_only",
+      "ack_sla_minutes": 240,
+      "page_secondary": false
+    }
+  ],
+  "live_hosted_paging": false,
+  "local_partial_present": [
+    "paging_escalation_drill.json",
+    "paging_ack_drill.json",
+    "paging_escalation_ack_pack_drill.json",
+    "hosted_oncall_rota_contract_drill.json",
+    "hosted_oncall_readiness_drill.json",
+    "hosted_dr_comms_contract_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Paging severity routing contract recorded (6/6 local partials); live hosted multi-region DR / on-call paging still open"
+}
