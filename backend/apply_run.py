@@ -40,7 +40,8 @@ _CART_WORDS = ("cart", "add to cart", "add-to-cart")
 
 def _read_json(path: Path) -> dict | list | None:
     path = Path(path)
-    if path.is_symlink() or path.parent.is_symlink():
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -286,7 +287,8 @@ def _trends(run_dir: Path, verdict: str, failures: list[dict]) -> dict:
     runs = [{"verdict": verdict, "failures": [str(item.get("category") or item.get("page_url") or "")
              for item in failures if item.get("category") or item.get("page_url")], "flaky": []}]
     parent = run_dir.parent
-    if parent.is_dir():
+    from .finalization import folder_is_linked
+    if parent.is_dir() and not folder_is_linked(parent):
         for path in sorted(parent.glob("*/summary.json")):
             if path.parent == run_dir or path.is_symlink() or path.parent.is_symlink():
                 continue

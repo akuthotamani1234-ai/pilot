@@ -206,3 +206,34 @@ def test_a_generated_script_does_not_follow_a_link_into_another_run(tmp_path, mo
     trends = trends_for(
         {"run_dir": str(now), "site_key": ""}, "pass", [], [])
     assert secret not in json.dumps(trends)
+
+
+def test_a_trend_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.run_rules import trends_for
+
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    secret = "tenant-b-only-trend"
+    other = tmp_path / "other"
+    runs = other / "runs"
+    (runs / "victim").mkdir(parents=True)
+    (runs / "mine").mkdir()
+    (runs / "victim" / "summary.json").write_text(json.dumps({
+        "verdict": secret, "qx_areas": [secret],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    trends = trends_for({"run_dir": str(linked / "runs" / "mine"), "site_key": ""}, "pass", [], [])
+    assert secret not in json.dumps(trends)
+    assert secret in (runs / "victim" / "summary.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-runs"
+    (real / "earlier").mkdir(parents=True)
+    (real / "now").mkdir()
+    (real / "earlier" / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "qx_areas": ["home-own"],
+    }), encoding="utf-8")
+    trends = trends_for({"run_dir": str(real / "now"), "site_key": ""}, "pass", [], [])
+    assert trends["next_priority"] == ["home-own"]
+    assert secret not in json.dumps(trends)
+    assert secret in (runs / "victim" / "summary.json").read_text(encoding="utf-8")
