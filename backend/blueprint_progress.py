@@ -289,6 +289,7 @@ def progress() -> dict:
         {"id": "G-planted-marker-link", "label": "A seeded defect id does not follow a link into another folder", "status": "done"},
         {"id": "G-android-stop-link", "label": "An Android stop file does not follow a link into another folder", "status": "done"},
         {"id": "G-android-stage-stop-link", "label": "An Android stage does not follow a stop link into another folder", "status": "done"},
+        {"id": "G-discovery-stop-link", "label": "Android discovery does not follow a stop link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
