@@ -50,6 +50,12 @@ def test_checkout_is_never_given_to_a_worker():
     assert not is_payment_url("https://shop.example/index.php?rt=checkout/cart")
     assert not is_payment_url("https://shop.example/index.php?rt=checkout/cart&remove=1")
     assert not is_payment_url("https://shop.example/index.php?rt=account/login")
+    assert is_payment_url("https://shop.example/index.php?page=checkout")
+    assert is_payment_url("https://shop.example/index.php?step=payment")
+    assert is_payment_url("https://shop.example/index.php?screen=place-order")
+    assert not is_payment_url("https://shop.example/category/shoes?page=2")
+    assert not is_payment_url("https://shop.example/index.php?view=checkout/cart")
+    assert not is_payment_url("https://shop.example/index.php?page=checkout-guide")
 
 
 def test_a_worker_uses_the_saved_login_for_later_pages():

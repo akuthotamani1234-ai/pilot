@@ -137,6 +137,7 @@ def progress() -> dict:
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
         {"id": "C-range", "label": "A range or URI error is not hidden by an insecure font", "status": "done"},
+        {"id": "A-page-query", "label": "A page, step, or screen query that picks checkout is not a next page", "status": "done"},
         {"id": "I-api-version-contract", "label": "API version contract drill (legacy→v1, reject v99)", "status": "done"},
         {"id": "G-live-drills-refresh3", "label": "Re-verify live Postgres/Redis/MinIO after audit/API work", "status": "done"},
         {"id": "C-lifecycle-cleanup-drill", "label": "Offline lifecycle + created.jsonl cleanup drill", "status": "done"},
