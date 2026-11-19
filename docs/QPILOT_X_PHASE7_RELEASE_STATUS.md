@@ -24,7 +24,7 @@ Do **not** mark gates A–J or issue #22 boxes complete without linked commits, 
 
 | Gate | Status | Why not COMPLETE |
 |---|---|---|
-| A | Partial | Surface inventories + multi-fixture discovery score (4 demos); full live surface completeness open |
+| A | Partial | Surface inventories + discovery score + 11/11 surface-signal matrix; full live completeness open |
 | B | Partial | Redis preferred DurableQueue + claim/checkpoint/cancel/retry drills; product-wide review open |
 | C | Partial | Lifecycle + cart drills + multi-portal oracle bind (4 truths); broader live portal paths open |
 | D | Partial | API24 smoke + API30 Appium + multi-device CI contract + device artifact manifest; broad multi-device CI execution open |
