@@ -44,7 +44,7 @@ from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
-from ..swarm import SiteSwarm, assign_workers, choose_listing, is_payment_url, sample_limit
+from ..swarm import SiteSwarm, WorkerBrowser, assign_workers, choose_listing, is_payment_url, sample_limit
 from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
@@ -2061,9 +2061,10 @@ def discovery_agent(state: QAState) -> QAState:
                 from playwright.sync_api import sync_playwright
                 playwright = sync_playwright().start()
                 worker_browser = playwright.chromium.launch(headless=settings.headless)
+                session = WorkerBrowser(worker_browser, saved_login)
 
                 def open_page(address: str) -> dict:
-                    page = worker_browser.new_page()
+                    page = session.page()
                     try:
                         response = page.goto(address, wait_until="domcontentloaded", timeout=20000)
                         data = page.evaluate(EXTRACT_JS) or {}
@@ -2087,6 +2088,7 @@ def discovery_agent(state: QAState) -> QAState:
 
                 def close() -> None:
                     try:
+                        session.close()
                         worker_browser.close()
                     finally:
                         playwright.stop()
