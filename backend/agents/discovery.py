@@ -1519,10 +1519,12 @@ def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
     if operations is None:
         return False
     folder = Path(run_dir)
+    from ..finalization import write_text_unless_linked
+    if folder.is_symlink():
+        return False
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "api_spec.json").write_text(
-        json.dumps({"operations": operations}, indent=2), encoding="utf-8")
-    return True
+    return write_text_unless_linked(
+        folder, "api_spec.json", json.dumps({"operations": operations}, indent=2))
 
 
 # At phone width: does the page scroll sideways, and which controls are cut off (outside the screen) or covered?
@@ -2001,8 +2003,9 @@ def discovery_agent(state: QAState) -> QAState:
         work = [row["work"] for row in rows if isinstance(row.get("work"), dict)]
         if not work:
             return
-        (run_dir / "swarm_work.json").write_text(json.dumps(work, indent=2), encoding="utf-8")
-        print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
+        from ..finalization import write_text_unless_linked
+        if write_text_unless_linked(run_dir, "swarm_work.json", json.dumps(work, indent=2)):
+            print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)

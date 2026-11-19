@@ -173,3 +173,43 @@ def test_a_finished_run_builds_the_same_row(tmp_path):
     assert row["dashboard"]["unknown"] == 1
     assert row["workers"][0]["isolated"] is True
     assert row["operations"]["backup_path"] == "app_map.json"
+
+
+def test_a_crawl_record_does_not_follow_a_link_into_another_run(tmp_path):
+    import json
+    from pathlib import Path
+
+    from backend.agents.discovery import store_api_spec
+    from backend.finalization import write_text_unless_linked
+    from backend.release_row import read_target
+
+    secret = "tenant-b-only-crawl"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app_map.json").write_text(json.dumps([{"url": secret}]), encoding="utf-8")
+    (other / "crawl_progress.json").write_text(json.dumps({"pending": [secret]}), encoding="utf-8")
+    (other / "target.json").write_text(json.dumps({"url": secret, "ok": True}), encoding="utf-8")
+    (other / "api_spec.json").write_text(json.dumps({"operations": [secret]}), encoding="utf-8")
+    (other / "swarm_work.json").write_text(json.dumps([{"secret": secret}]), encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    for name in ("app_map.json", "crawl_progress.json", "target.json", "api_spec.json", "swarm_work.json"):
+        (run / name).symlink_to(other / name)
+
+    save_crawl_progress(run, [{"url": "https://shop.example/ours"}], ["https://shop.example/next"])
+    pages, pending = load_saved_crawl(run)
+    assert pages == [] and pending == []
+    assert read_target(run) is None
+    assert store_api_spec(run, [{"method": "GET", "path": "/ours"}]) is False
+    assert write_text_unless_linked(run, "swarm_work.json", json.dumps([{"work": "ours"}])) is False
+    for name in ("app_map.json", "crawl_progress.json", "target.json", "api_spec.json", "swarm_work.json"):
+        assert secret in (other / name).read_text(encoding="utf-8")
+
+    own = tmp_path / "own"
+    save_crawl_progress(own, [{"url": "https://shop.example/ours"}], ["https://shop.example/next"])
+    pages, pending = load_saved_crawl(own)
+    assert pages[0]["url"].endswith("/ours")
+    assert pending == ["https://shop.example/next"]
+    assert store_api_spec(own, [{"method": "GET", "path": "/ours"}]) is True
+    assert Path(own / "api_spec.json").is_file()

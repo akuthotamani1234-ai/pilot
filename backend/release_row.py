@@ -49,15 +49,23 @@ def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
     """Pages already inventoried, and the addresses still waiting."""
     pages: list[dict] = []
     pending: list[str] = []
-    try:
-        raw = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
-        if isinstance(raw, list):
-            pages = [page for page in raw if isinstance(page, dict) and page.get("url")]
-    except (OSError, ValueError):
-        pages = []
-    for name in ("crawl_progress.json", "crawl.json"):
+    run_dir = Path(run_dir)
+    if run_dir.is_symlink():
+        return pages, pending
+    app_map = run_dir / "app_map.json"
+    if not app_map.is_symlink():
         try:
-            payload = json.loads((run_dir / name).read_text(encoding="utf-8"))
+            raw = json.loads(app_map.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                pages = [page for page in raw if isinstance(page, dict) and page.get("url")]
+        except (OSError, ValueError):
+            pages = []
+    for name in ("crawl_progress.json", "crawl.json"):
+        path = run_dir / name
+        if path.is_symlink():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if isinstance(payload, dict):
@@ -74,15 +82,22 @@ def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
 
 def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list) -> None:
     """Keep the inventory and the remaining queue so a stopped crawl can continue."""
+    from .finalization import write_text_unless_linked
+    run_dir = Path(run_dir)
+    if run_dir.is_symlink():
+        return
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "app_map.json").write_text(json.dumps(pages, indent=2), encoding="utf-8")
-    (run_dir / "crawl_progress.json").write_text(json.dumps({"pending": pending}, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "app_map.json", json.dumps(pages, indent=2))
+    write_text_unless_linked(run_dir, "crawl_progress.json", json.dumps({"pending": pending}, indent=2))
 
 
 def read_target(run_dir: Path) -> dict | None:
     """The stored registration, or None when this run has no target file."""
+    path = Path(run_dir) / "target.json"
+    if Path(run_dir).is_symlink() or path.is_symlink():
+        return None
     try:
-        payload = json.loads((run_dir / "target.json").read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
