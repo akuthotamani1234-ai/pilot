@@ -72,11 +72,17 @@ def enqueue_plan(queue: DurableQueue, run_id: str, tasks: list[dict]) -> list[di
 def _keep_checkpoint(queue: DurableQueue, task: dict, worker_id: str, result) -> None:
     """Store a worker's resume point before the attempt is acked or failed.
 
-    The next claim of a retried task then carries that checkpoint.
+    The next claim of a retried task then carries that checkpoint. A resume
+    point on checkout or payment is not stored, so the retry does not continue
+    there.
     """
     saved = result.get("checkpoint") if isinstance(result, dict) else getattr(result, "checkpoint", None)
-    if isinstance(saved, dict):
-        queue.checkpoint(task["task_id"], worker_id, saved)
+    if not isinstance(saved, dict):
+        return
+    landed = str(saved.get("url") or saved.get("final_url") or "")
+    if landed and is_payment_url(landed):
+        return
+    queue.checkpoint(task["task_id"], worker_id, saved)
 
 
 def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:

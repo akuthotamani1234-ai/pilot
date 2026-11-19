@@ -353,6 +353,7 @@ def progress() -> dict:
         {"id": "B-redirect-checkout", "label": "A page that redirects to checkout is not kept as a read page", "status": "done"},
         {"id": "B-crawl-redirect", "label": "A crawl that lands on checkout does not click that page", "status": "done"},
         {"id": "B-checkpoint-resume", "label": "A retried swarm task resumes from the checkpoint it saved", "status": "done"},
+        {"id": "B-checkpoint-pay", "label": "A retry does not resume from a checkpoint on checkout", "status": "done"},
         {"id": "B-fresh-redirect", "label": "A control is not clicked when its fresh page lands on checkout", "status": "done"},
         {"id": "B-test-page-landing", "label": "A generated test does not click a control on a checkout page", "status": "done"},
         {"id": "B-safe-state", "label": "A Continue button that opens checkout is not safe work", "status": "done"},
