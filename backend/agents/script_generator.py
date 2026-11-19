@@ -2693,22 +2693,40 @@ VALIDATION_JS = r"""(before) => {
 
 def _check_counts(out_dir: Path) -> dict[str, int]:
     """How many single checks each small test case runs, read from the scripts themselves (new or reused)."""
+    from ..finalization import folder_is_linked
+
     def read(name: str) -> str:
         f = out_dir / name
-        return f.read_text(encoding="utf-8") if f.exists() else ""
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.is_file():
+            return ""
+        try:
+            return f.read_text(encoding="utf-8")
+        except OSError:
+            return ""
     site = read("test_site.py")
     n_pages = site.count("'slug':")
+    counted = 0
+    for f in out_dir.glob("test_*_data.py"):
+        if f.is_symlink() or folder_is_linked(f.parent):
+            continue
+        try:
+            counted += len(re.findall(r"^def test_data_", f.read_text(encoding="utf-8"), re.M))
+        except OSError:
+            continue
     return {"site_pages_open": n_pages, "site_no_js_errors": n_pages,
             "site_images": len(re.findall(r"'images': [1-9]", site)),
             "site_links": read("test_all_links.py").count("'id': "),
-            "site_input_values": sum(len(re.findall(r"^def test_data_", f.read_text(encoding="utf-8"), re.M))
-                                     for f in out_dir.glob("test_*_data.py"))}
+            "site_input_values": counted}
 
 
 def _hold_broken_workflows(state: QAState, cases: list[dict]) -> tuple[list[dict], list[dict]]:
     """A workflow whose API changed is not turned into a trusted test."""
+    from ..finalization import folder_is_linked
     try:
-        schema = json.loads((Path(state["run_dir"]) / "qx_schema.json").read_text(encoding="utf-8"))
+        path = Path(state["run_dir"]) / "qx_schema.json"
+        if path.is_symlink() or folder_is_linked(path.parent):
+            return cases, []
+        schema = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, KeyError):
         return cases, []
     if not isinstance(schema, dict) or not schema.get("trust_broken"):
