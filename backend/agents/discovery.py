@@ -2726,6 +2726,9 @@ def discovery_agent(state: QAState) -> QAState:
                     key = _pattern(nxt, auth)
                     folder = _parent_path(nxt)
                     if n_sample > 0 and not key and folder in typed:
+                        if is_payment_url(nxt):
+                            skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
+                            return False
                         # a page of a folder whose pages share one design: its kind is
                         kind = f"{folder}/* (one design)"  # known - a sample is tested, the rest smoke-checked
                         kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
@@ -2747,6 +2750,10 @@ def discovery_agent(state: QAState) -> QAState:
                                                                                         "smoke": []})
                         kinds["found"] += 1
                         if n_sample > 0 and patterns[key] > n_sample:
+                            if is_payment_url(nxt):
+                                kinds["found"] -= 1
+                                skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
+                                return False
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:  # (up to 10 more of the same kind: smoke-checked by a test)
                                 kinds["smoke"].append(nxt)
@@ -3164,9 +3171,20 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
     roles = [a for a in settings.test_accounts if a["username"] != main][:5]
     if not roles or not session.get("form") or not session.get("login_page"):
         return {}
-    pages = [p for p in app_map if p.get("auth") and not p.get("error")][:60]
+    blocked, openable = [], []
+    for p in app_map:
+        if not p.get("auth") or p.get("error"):
+            continue
+        target = p.get("final_url") or p.get("url") or ""
+        if is_payment_url(target) or is_payment_url(p.get("url") or ""):
+            blocked.append(p)
+        else:
+            openable.append(p)
+    pages = openable[:60]
     for p in pages:  # (the main role opened them)
         p.setdefault("roles", {})[_role_name(main)] = "denied" if p.get("needs_permission") else "ok"
+    for p in blocked:  # recorded once by the crawl; a role check does not open checkout again
+        p.setdefault("roles", {})[_role_name(main)] = "blocked"
     out = {}
     for a in roles:
         ctx = new_context()
@@ -3180,6 +3198,9 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
             (run_dir / PRIVATE).mkdir(exist_ok=True)
             ctx.storage_state(path=str(run_dir / PRIVATE / f"auth_{safe}.json"))
             seen = {}
+            for p in blocked:
+                seen[p["url"]] = {"access": "blocked", "status": None, "to": ""}
+                p.setdefault("roles", {})[a["role"]] = "blocked"
             for p in pages:
                 try:
                     resp = tab.goto(p["url"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)

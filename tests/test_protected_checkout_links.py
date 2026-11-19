@@ -194,3 +194,127 @@ def test_checkout_addresses_are_not_opened_by_the_link_checks():
     assert "shop.example/checkout" not in listed
     assert "checkout/checkout" not in listed
     assert "checkout/cart" in code and "product/1" in code
+
+
+def test_a_role_check_does_not_open_checkout_again(tmp_path, monkeypatch):
+    from backend.agents.discovery import _explore_roles
+    from backend.config import settings
+    from backend.roles import role_cases, roles_script
+
+    opened = []
+
+    class Loc:
+        def inner_text(self, timeout=5000):
+            return "Account"
+
+        def count(self):
+            return 0
+
+    class Tab:
+        def __init__(self):
+            self.url = "https://shop.example/account"
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+            return type("Resp", (), {"status": 200})()
+
+        def wait_for_load_state(self, *args, **kwargs):
+            return None
+
+        def locator(self, selector):
+            return Loc()
+
+    class Ctx:
+        def storage_state(self, path):
+            from pathlib import Path
+            Path(path).write_text("{}", encoding="utf-8")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(
+        "backend.agents.discovery.log_in",
+        lambda *args, **kwargs: (Tab(), {"logged_in": True, "outcome": "ok"}),
+    )
+    monkeypatch.setattr("backend.agents.discovery.looks_logged_out", lambda *args, **kwargs: False)
+    monkeypatch.setattr(settings, "test_accounts", [
+        {"role": "admin", "username": "admin@x.test", "password": "x"},
+        {"role": "viewer", "username": "viewer@x.test", "password": "x"},
+    ])
+    home = "https://shop.example/account"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    pay = "https://shop.example/index.php?rt=checkout/checkout"
+    app = [
+        {"url": home, "auth": True, "final_url": home},
+        {"url": pay, "auth": True, "final_url": pay},
+        {"url": cart, "auth": True},
+    ]
+    session = {"user": "admin@x.test", "form": {"user": "#email"}, "login_page": "https://shop.example/login"}
+    roles = _explore_roles(lambda: Ctx(), session, app, tmp_path)
+    assert pay not in opened
+    assert home in opened and cart in opened
+    viewer = roles["roles"]["viewer"]["pages"]
+    assert viewer[pay]["access"] == "blocked"
+    assert viewer[cart]["access"] == "ok"
+    cases = role_cases({"roles": roles})
+    assert all(c["url"] != pay for c in cases)
+    assert any(c["url"] == cart for c in cases)
+    code = roles_script(
+        [
+            {"id": "role_1", "url": cart, "title": "Role viewer can open cart",
+             "spec": {"role": "viewer", "url": cart, "expect": "open"}},
+            {"id": "role_9", "url": pay, "title": "Role viewer can open checkout",
+             "spec": {"role": "viewer", "url": pay, "expect": "open"}},
+        ],
+        ["import re"],
+    )
+    assert "def test_role_1" in code
+    assert "def test_role_9" not in code
+    assert pay not in code
+
+
+def test_a_generated_open_does_not_start_checkout():
+    import ast
+    import re
+    from pathlib import Path
+
+    import pytest
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    code = "\n\n".join(
+        ast.get_source_segment(src, node)
+        for node in ast.parse(src).body
+        if getattr(node, "name", None) in {"_payment_target", "_patched_goto"}
+    )
+    ns = {"re": re, "pytest": pytest, "NAV_TIMEOUT_MS": 30000,
+          "_pw": type("Pw", (), {"Error": type("Error", (Exception,), {})})()}
+    exec(code, ns)
+    opened = []
+
+    def real(self, url, **kwargs):
+        opened.append(url)
+        raise RuntimeError("opened")
+
+    goto = ns["_patched_goto"](real)
+    pay = "https://shop.example/index.php?rt=checkout/checkout"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    with pytest.raises(pytest.skip.Exception):
+        goto(object(), pay)
+    assert opened == []
+    with pytest.raises(RuntimeError, match="opened"):
+        goto(object(), cart, wait_until="commit")
+    assert opened == [cart]
+
+
+def test_extra_pages_of_one_kind_do_not_include_checkout():
+    from backend.items import item_cases
+    pay = "https://shop.example/index.php?rt=checkout/confirm"
+    order = "https://shop.example/order/9"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    cases = item_cases([], {"item_types": {
+        "/order/{id}": {"smoke": [pay, order, cart]},
+        "/checkout/{id}": {"smoke": [pay]},
+    }})
+    urls = [u for c in cases for u in c["spec"]["urls"]]
+    assert urls == [order, cart]
+    assert pay not in urls
