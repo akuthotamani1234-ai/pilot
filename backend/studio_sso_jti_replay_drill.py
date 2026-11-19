@@ -25,8 +25,23 @@ def _jwt(payload: dict) -> str:
     return f"{enc(header)}.{enc(payload)}.sig"
 
 
+def _linked_jti() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "studio_sso_jti_replay",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_studio_sso_jti_replay_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .oidc_jwt import reset_seen_jti, validate_bearer
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "studio_sso_jti_replay_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_jti()
 
     prev_flag = os.environ.get("QPILOT_SSO_REPLAY_JTI")
     prev_iss = os.environ.get("QPILOT_OIDC_ISSUER")
@@ -80,15 +95,15 @@ def run_studio_sso_jti_replay_drill(*, ops_dir: Path | None = None) -> dict:
             "Studio SSO jti replay rejection incomplete; hosted IdP still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_jti()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "studio_sso_jti_replay_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_jti()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "studio_sso_jti_replay_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
