@@ -437,3 +437,47 @@ def test_regression_comparison_does_not_read_another_tenants_run(tmp_path, monke
     assert load(run) is None
     assert json.loads((other / "registry.json").read_text(encoding="utf-8"))["secret"] == secret
     assert json.loads((other / "cost.json").read_text(encoding="utf-8"))["secret"] == secret
+
+
+def test_a_report_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.agents.reporter import _read_run_json, _write_run_text, compare_with_previous
+    from backend.registry import load, save
+
+    secret = b"tenant-b-only-report"
+    other = tmp_path / "other"
+    previous = other / "shop.test_20260101_100000"
+    current = other / "shop.test_20260102_100000"
+    previous.mkdir(parents=True)
+    current.mkdir()
+    (previous / "summary.json").write_bytes(secret)
+    (previous / "test_cases.json").write_text(json.dumps([
+        {"tc_id": "TC-9", "title": "tenant-b-only-report", "execution_status": "Failed"}]), encoding="utf-8")
+    (current / "keep.txt").write_bytes(secret)
+    (current / "summary.json").write_bytes(secret)
+    (current / "registry.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    _write_run_text(linked / current.name, "summary.json", json.dumps({"verdict": "Ready"}))
+    save({"counts": {"verified": 1}}, linked / current.name)
+    assert _read_run_json(linked / current.name, "summary.json") is None
+    assert load(linked / current.name) is None
+    compared = compare_with_previous(
+        {"site_key": "shop.test"}, linked / current.name,
+        [{"tc_id": "TC-1", "title": "mine", "execution_status": "Failed"}])
+    assert compared == {"previous_run": None}
+    assert (current / "summary.json").read_bytes() == secret
+    assert (current / "registry.json").read_bytes() == secret
+    assert (previous / "summary.json").read_bytes() == secret
+    assert (current / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _write_run_text(real, "summary.json", json.dumps({"verdict": "Ready"}))
+    save({"counts": {"verified": 1}}, real)
+    assert _read_run_json(real, "summary.json")["verdict"] == "Ready"
+    assert load(real)["counts"]["verified"] == 1
+    assert secret not in (real / "summary.json").read_bytes()
+    assert secret not in (real / "registry.json").read_bytes()
+    assert (current / "keep.txt").read_bytes() == secret

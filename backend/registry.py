@@ -611,15 +611,17 @@ def counts(reg: dict, crawl: dict | None = None) -> dict:
 
 
 def save(reg: dict, run_dir) -> None:
+    from .finalization import folder_is_linked
     path = Path(run_dir, "registry.json")
-    if Path(run_dir).is_symlink() or path.is_symlink():
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
         return
     path.write_text(json.dumps(reg, indent=2), encoding="utf-8")
 
 
 def load(run_dir) -> dict | None:
+    from .finalization import folder_is_linked
     path = Path(run_dir, "registry.json")
-    if Path(run_dir).is_symlink() or path.is_symlink():
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
