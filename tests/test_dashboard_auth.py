@@ -51,10 +51,9 @@ def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
     import time
 
     import backend.tenancy_store as ts
+    from backend.loopback_sso_drill import loopback_signer
 
     monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "oidc")
-    monkeypatch.setenv("QPILOT_OIDC_ISSUER", "https://idp.example")
-    monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
     db = tmp_path / "auth.sqlite"
     monkeypatch.setattr(ts, "DEFAULT_DB", db)
     upsert_tenant("t1", "Tenant", db_path=db)
@@ -66,36 +65,46 @@ def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
         raw = json.dumps(obj, separators=(",", ":")).encode()
         return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
-    def token(sub: str, tid: str | None = None, groups: list[str] | None = None) -> str:
-        payload = {
-            "iss": "https://idp.example",
+    with loopback_signer(audience="qpilot-dashboard") as signer:
+        monkeypatch.setenv("QPILOT_OIDC_ISSUER", signer["issuer"])
+        monkeypatch.setenv("QPILOT_OIDC_AUDIENCE", "qpilot-dashboard")
+
+        def token(sub: str, tid: str | None = None, groups: list[str] | None = None) -> str:
+            claims: dict = {"sub": sub}
+            if tid:
+                claims["tid"] = tid
+            if groups is not None:
+                claims["groups"] = groups
+            return signer["sign"](claims)
+
+        forged_payload = {
+            "iss": signer["issuer"],
             "aud": "qpilot-dashboard",
-            "sub": sub,
+            "sub": "user-1",
             "exp": int(time.time()) + 3600,
         }
-        if tid:
-            payload["tid"] = tid
-        if groups is not None:
-            payload["groups"] = groups
-        return f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(payload)}.sig"
+        forged = f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(forged_payload)}.sig"
+        unsigned = authorize(f"Bearer {forged}")
+        assert unsigned["ok"] is False
+        assert "signature" in unsigned["reason"]
 
-    missing = authorize(f"Bearer {token('nobody')}")
-    assert missing["ok"] is False
-    assert missing["reason"] == "unknown principal"
-    ok = authorize(f"Bearer {token('user-1')}")
-    assert ok["ok"] is True
-    assert ok["mode"] == "oidc"
-    assert ok["role"] == "operator"
-    assert ok["gate_i_complete"] is False
-    viewer = authorize(f"Bearer {token('viewer-1')}")
-    assert viewer["ok"] is False
-    mismatch = authorize(f"Bearer {token('user-1', 't2')}")
-    assert mismatch["ok"] is False
-    assert mismatch["reason"] == "token tenant does not match principal"
-    bad = authorize("Bearer not-a-jwt")
-    assert bad["ok"] is False
-    upsert_principal("admin-1", "t1", "admin@ex.test", "admin", db_path=db)
-    assert authorize(f"Bearer {token('admin-1', groups=['qpilot-viewers'])}")["ok"] is False
-    assert authorize(f"Bearer {token('admin-1', groups=['qpilot-admins'])}")["ok"] is True
-    assert authorize(f"Bearer {token('admin-1', groups=['other-team'])}")["ok"] is False
-    assert authorize(f"Bearer {token('admin-1')}")["ok"] is True
+        missing = authorize(f"Bearer {token('nobody')}")
+        assert missing["ok"] is False
+        assert missing["reason"] == "unknown principal"
+        ok = authorize(f"Bearer {token('user-1')}")
+        assert ok["ok"] is True
+        assert ok["mode"] == "oidc"
+        assert ok["role"] == "operator"
+        assert ok["gate_i_complete"] is False
+        viewer = authorize(f"Bearer {token('viewer-1')}")
+        assert viewer["ok"] is False
+        mismatch = authorize(f"Bearer {token('user-1', 't2')}")
+        assert mismatch["ok"] is False
+        assert mismatch["reason"] == "token tenant does not match principal"
+        bad = authorize("Bearer not-a-jwt")
+        assert bad["ok"] is False
+        upsert_principal("admin-1", "t1", "admin@ex.test", "admin", db_path=db)
+        assert authorize(f"Bearer {token('admin-1', groups=['qpilot-viewers'])}")["ok"] is False
+        assert authorize(f"Bearer {token('admin-1', groups=['qpilot-admins'])}")["ok"] is True
+        assert authorize(f"Bearer {token('admin-1', groups=['other-team'])}")["ok"] is False
+        assert authorize(f"Bearer {token('admin-1')}")["ok"] is True
