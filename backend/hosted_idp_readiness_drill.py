@@ -32,6 +32,7 @@ CHECKS = (
     ("studio_sso_state_binding_drill.json", "Studio SSO state binding"),
     ("studio_sso_nonce_binding_drill.json", "Studio SSO nonce binding"),
     ("studio_sso_jti_replay_drill.json", "Studio SSO jti replay rejection"),
+    ("studio_sso_nbf_drill.json", "Studio SSO nbf rejection"),
     ("hosted_idp_metadata_contract_drill.json", "Hosted IdP metadata contract"),
     ("hosted_idp_redirect_uri_allowlist_drill.json", "Redirect URI allowlist"),
 )

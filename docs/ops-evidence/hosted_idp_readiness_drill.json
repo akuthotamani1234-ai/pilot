@@ -1,10 +1,10 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_readiness",
-  "ran_at": "2026-11-19T06:25:07Z",
+  "ran_at": "2026-11-19T06:37:13Z",
   "kind": "readiness_score_only",
-  "score": 21,
-  "score_of": 21,
+  "score": 22,
+  "score_of": 22,
   "checks": [
     {
       "artifact": "loopback_sso_drill.json",
@@ -102,6 +102,11 @@
       "ready": true
     },
     {
+      "artifact": "studio_sso_nbf_drill.json",
+      "label": "Studio SSO nbf rejection",
+      "ready": true
+    },
+    {
       "artifact": "hosted_idp_metadata_contract_drill.json",
       "label": "Hosted IdP metadata contract",
       "ready": true
@@ -114,5 +119,5 @@
   ],
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Hosted IdP readiness 21/21; live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP readiness 22/22; live hosted IdP Studio SSO login still open"
 }

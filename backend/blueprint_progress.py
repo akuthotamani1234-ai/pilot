@@ -205,6 +205,7 @@ def progress() -> dict:
         {"id": "I-sso-state-binding", "label": "Studio SSO state binding (mismatch rejected)", "status": "done"},
         {"id": "I-sso-nonce-binding", "label": "Studio SSO nonce binding (mismatch rejected)", "status": "done"},
         {"id": "I-sso-jti-replay", "label": "Studio SSO jti replay rejection (opt-in)", "status": "done"},
+        {"id": "I-sso-nbf", "label": "Studio SSO rejects JWT nbf in the future", "status": "done"},
         {"id": "I-idp-metadata-contract", "label": "Hosted IdP discovery metadata contract (not live)", "status": "done"},
         {"id": "I-idp-redirect-allowlist", "label": "Hosted IdP redirect URI allowlist contract", "status": "done"},
         {"id": "I-sso-principal-bootstrap", "label": "Studio SSO principal bootstrap from OIDC claims", "status": "done"},
