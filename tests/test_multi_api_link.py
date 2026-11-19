@@ -8,6 +8,15 @@ from backend.multi_api_android_matrix_drill import run_multi_api_android_matrix_
 def test_a_multi_api_matrix_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.multi_api_android_matrix_drill as mod
 
+    calls = {"n": 0}
+    real_load = mod._load
+
+    def _load(name):
+        calls["n"] += 1
+        return real_load(name)
+
+    monkeypatch.setattr(mod, "_load", _load)
+
     secret = "tenant-b-api-level"
     other = tmp_path / "other"
     other.mkdir()
@@ -21,6 +30,7 @@ def test_a_multi_api_matrix_does_not_follow_a_link_into_another_folder(tmp_path,
     assert "link" in refused["reason"]
     assert refused["ok"] is False
     assert refused["gate_d_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
@@ -43,11 +53,22 @@ def test_a_multi_api_matrix_does_not_follow_a_link_into_another_folder(tmp_path,
     monkeypatch.setattr(mod, "ROOT", install)
     real = tmp_path / "real"
     real.mkdir()
+    planted = real / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_multi_api_android_matrix_drill(ops_dir=real)
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
     skipped = run_multi_api_android_matrix_drill(ops_dir=real)
     written = (real / kept.name).read_text(encoding="utf-8")
     assert skipped["gate_d_complete"] is False
     assert skipped["ok"] is False
     assert skipped["rows"] == 0
+    assert calls["n"] == 4
     assert 777 not in (skipped["api_levels"] or [])
     assert secret not in written
     assert kept.read_bytes() == original
@@ -65,6 +86,7 @@ def test_a_multi_api_matrix_does_not_follow_a_link_into_another_folder(tmp_path,
     saved_text = (real / kept.name).read_text(encoding="utf-8")
     assert saved["gate_d_complete"] is False
     assert saved["rows"] == 1
+    assert calls["n"] == 8
     assert 24 in saved["api_levels"]
     assert 777 not in saved["api_levels"]
     assert secret not in saved_text
