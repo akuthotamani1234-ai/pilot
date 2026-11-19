@@ -25,6 +25,7 @@ CHECKS = (
     ("production_healing_third_party_sla_drill.json", "Third-party healing SLA"),
     ("production_healing_acceptance_gate_drill.json", "Acceptance gate (local)"),
     ("production_healing_seed_catalog_drill.json", "Seed catalog (local)"),
+    ("production_healing_fixture_coverage_drill.json", "Fixture coverage map"),
 )
 
 

@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_readiness",
-  "ran_at": "2026-11-19T05:11:21Z",
+  "ran_at": "2026-11-19T05:33:41Z",
   "kind": "readiness_score_only",
-  "score": 11,
-  "score_of": 11,
+  "score": 12,
+  "score_of": 12,
   "checks": [
     {
       "artifact": "live_failure_matrix_drill.json",
@@ -60,9 +60,14 @@
       "artifact": "production_healing_seed_catalog_drill.json",
       "label": "Seed catalog (local)",
       "ready": true
+    },
+    {
+      "artifact": "production_healing_fixture_coverage_drill.json",
+      "label": "Fixture coverage map",
+      "ready": true
     }
   ],
   "production_suite_executed": false,
   "ok": true,
-  "reason": "Production healing readiness 11/11; production / third-party healing suite still open"
+  "reason": "Production healing readiness 12/12; production / third-party healing suite still open"
 }

@@ -34,6 +34,7 @@ BLOCKERS = (
             "dual_region_store_health_probe_drill.json",
             "hosted_dr_cutover_checklist_drill.json",
             "hosted_oncall_rota_contract_drill.json",
+            "hosted_dr_rpo_contract_drill.json",
         ],
     },
     {
@@ -59,6 +60,7 @@ BLOCKERS = (
             "hosted_idp_claim_map_completeness_drill.json",
             "studio_sso_login_path_drill.json",
             "studio_sso_session_rebind_drill.json",
+            "studio_sso_audience_binding_drill.json",
         ],
     },
     {
@@ -78,6 +80,7 @@ BLOCKERS = (
             "production_healing_third_party_sla_drill.json",
             "production_healing_acceptance_gate_drill.json",
             "production_healing_seed_catalog_drill.json",
+            "production_healing_fixture_coverage_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -140,6 +143,7 @@ BLOCKERS = (
             "independent_review_findings_template_drill.json",
             "independent_review_scope_matrix_drill.json",
             "independent_review_blocker_freeze_drill.json",
+            "independent_review_response_sla_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
             "INDEPENDENT_REVIEW_FINDINGS.md",

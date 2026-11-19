@@ -1,0 +1,14 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_audience_binding",
+  "ran_at": "2026-11-19T05:33:41Z",
+  "kind": "loopback_audience_binding",
+  "expected_audience": "qpilot-loopback",
+  "wrong_audience": "qpilot-wrong-audience",
+  "good_ok": true,
+  "bad_rejected": true,
+  "bad_reason": "aud mismatch (want qpilot-loopback)",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO audience binding ok (good aud accepted, wrong aud rejected); live hosted IdP Studio SSO still open"
+}
