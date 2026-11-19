@@ -8,14 +8,13 @@ from __future__ import annotations
 import hashlib
 from uuid import uuid4
 
-# Categories the failure classifier actually emits. Levels 3 and 4 never auto-apply.
-# An assertion failure, an inconclusive result, and an untriaged result are not
-# missing locators. A script change for them needs a person.
-_HUMAN = {
-    "flaky", "auth_problem", "product_defect", "suspect",
-    "rule_violation", "test_mistake", "assertion_failure",
-    "inconclusive", "untriaged",
+# Only a lost element is rewritten on its own. A timeout may be retried inside
+# its budget. Every other class, including one this list does not name, needs
+# a person. Levels 3 and 4 never auto-apply.
+_LOCATOR = {
+    "locator", "test_defect", "stale_locator", "missing_text", "layout_shift",
 }
+_RETRY = {"timeout", "transient_timeout", "network_blip"}
 _ABORT = {"infrastructure", "data_corruption", "security"}
 _USED_APPROVALS: set[str] = set()
 _ISSUED_APPROVALS: dict[str, str] = {}
@@ -97,12 +96,12 @@ def escalation_for(category: str) -> dict:
     cat = (category or "").strip().lower()
     if cat in _ABORT:
         level, action, auto = 4, "abort_and_page", False
-    elif cat in _HUMAN:
-        level, action, auto = 3, "human_approval_gate", False
-    elif cat == "timeout":
+    elif cat in _RETRY:
         level, action, auto = 2, "auto_retry_with_budget", True
-    else:
+    elif cat in _LOCATOR:
         level, action, auto = 1, "auto_locator_heal", True
+    else:
+        level, action, auto = 3, "human_approval_gate", False
     return {
         "category": cat,
         "level": level,
