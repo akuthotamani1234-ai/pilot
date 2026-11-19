@@ -1700,6 +1700,26 @@ def ops_multi_region_cutover_rehearsal():
     return {"gate_h_complete": False, "multi_region_cutover_rehearsal": evidence}
 
 
+@app.post("/api/ops/drills/hosted-runner-readiness")
+def ops_hosted_runner_readiness():
+    """Gates D/F: hosted runner readiness scores (execution still open)."""
+    from backend.hosted_runner_readiness_drill import (
+        run_hosted_runner_readiness_drill,
+    )
+    evidence = run_hosted_runner_readiness_drill()
+    _audit(
+        "ops_hosted_runner_readiness",
+        ok=bool(evidence.get("ok")),
+        device_score=int((evidence.get("multi_device") or {}).get("score") or 0),
+        browser_score=int((evidence.get("multi_browser") or {}).get("score") or 0),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_readiness": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
