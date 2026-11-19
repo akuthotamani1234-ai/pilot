@@ -18,7 +18,10 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from .oidc_auth_code_grant import authorization_code_grant_error
+from .oidc_auth_code_grant import (
+    authorization_code_grant_error,
+    redirect_uri_registered,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "loopback_auth_code_sso_drill.json"
@@ -115,6 +118,10 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 qs = urllib.parse.parse_qs(parsed.query)
                 redirect = (qs.get("redirect_uri") or ["http://127.0.0.1/callback"])[0]
                 state = (qs.get("state") or [""])[0]
+                if not redirect_uri_registered(redirect):
+                    self.send_response(400)
+                    self.end_headers()
+                    return
                 if (qs.get("client_id") or [""])[0] != client_id:
                     self.send_response(400)
                     self.end_headers()
@@ -232,6 +239,19 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 "step": "authorize",
                 "ok": exc.code in {302, 303, 307} and bool(code),
                 "http_status": exc.code,
+            })
+
+        evil_url = auth_url.replace(
+            urllib.parse.quote("http://127.0.0.1/studio/callback"),
+            urllib.parse.quote("http://127.0.0.1/evil/callback"),
+        )
+        try:
+            opener.open(evil_url, timeout=5)
+            steps.append({"step": "reject_unregistered_redirect", "ok": False})
+        except urllib.error.HTTPError as exc:
+            steps.append({
+                "step": "reject_unregistered_redirect",
+                "ok": exc.code == 400,
             })
 
         # 3) a different redirect_uri must not redeem the code

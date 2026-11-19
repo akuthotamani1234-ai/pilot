@@ -19,7 +19,10 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from .oidc_auth_code_grant import authorization_code_grant_error
+from .oidc_auth_code_grant import (
+    authorization_code_grant_error,
+    redirect_uri_registered,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "loopback_pkce_sso_drill.json"
@@ -120,6 +123,10 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 qs = urllib.parse.parse_qs(parsed.query)
                 redirect = (qs.get("redirect_uri") or ["http://127.0.0.1/callback"])[0]
                 state = (qs.get("state") or [""])[0]
+                if not redirect_uri_registered(redirect):
+                    self.send_response(400)
+                    self.end_headers()
+                    return
                 challenge = (qs.get("code_challenge") or [""])[0]
                 method = (qs.get("code_challenge_method") or [""])[0]
                 if (qs.get("client_id") or [""])[0] != client_id:
