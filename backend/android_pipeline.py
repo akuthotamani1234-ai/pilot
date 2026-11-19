@@ -39,6 +39,24 @@ def _run_dir(state):
     return Path(state["run_dir"])
 
 
+def _execution_is_linked(run_dir: Path) -> bool:
+    """True when execution would read or delete a file through a link."""
+    paths = (
+        run_dir, run_dir / ".private", run_dir / "generated_tests", run_dir / "STOP",
+        run_dir / "generated_tests" / "test_android_generated.py",
+        run_dir / "generated_tests" / "conftest.py",
+        run_dir / "generated_tests" / "android_test_cases.json",
+        run_dir / ".private" / "auto_secrets.json",
+        run_dir / ".private" / "android_config.json",
+        run_dir / ".private" / "contract_inputs.json",
+        run_dir / ".private" / "active_appium_session.json",
+        run_dir / "android_junit.xml", run_dir / "android_results.jsonl",
+        run_dir / "android_execution_unavailable.json",
+        run_dir / "android_cleanup.jsonl", run_dir / "android_healing.jsonl",
+    )
+    return any(path.is_symlink() for path in paths)
+
+
 def _save_json(path, data):
     # Keep package_name / app package ids valid; substring username redaction must not break them.
     path = Path(path)
@@ -1049,7 +1067,8 @@ def _run_mobile_process(command, env, timeout):
 def _cleanup_worker_session(run_dir, config):
     """Close only this run's recorded session, including after forced worker termination."""
     session_file = run_dir / ".private" / "active_appium_session.json"
-    if not session_file.exists():
+    if (Path(run_dir).is_symlink() or (Path(run_dir) / ".private").is_symlink()
+            or session_file.is_symlink() or not session_file.is_file()):
         return ""
     try:
         session_id = json.loads(session_file.read_text(encoding="utf-8"))["session_id"]
@@ -1069,6 +1088,8 @@ def _cleanup_worker_session(run_dir, config):
 
 def _execute_mobile(state):
     run_dir = _run_dir(state)
+    if _execution_is_linked(run_dir):
+        raise AndroidEnvironmentError("The Android run is a link.")
     cases = [c for c in state.get("test_cases", []) if not c.get("blocked")]
     script = run_dir / "generated_tests" / "test_android_generated.py"
     if not cases or not script.is_file():
@@ -1101,7 +1122,10 @@ def _execute_mobile(state):
         # exploration (private file), plus the private test account, if given.
         saved_path = run_dir / ".private" / "auto_secrets.json"
         try:
-            saved = json.loads(saved_path.read_text(encoding="utf-8")) if saved_path.is_file() else {}
+            saved = {}
+            if (not saved_path.is_symlink() and not saved_path.parent.is_symlink()
+                    and saved_path.is_file()):
+                saved = json.loads(saved_path.read_text(encoding="utf-8"))
         except ValueError:
             saved = {}
         resolved_inputs = {**resolved_inputs,
@@ -1118,9 +1142,13 @@ def _execute_mobile(state):
     )
     # Refresh the trusted harness when resuming an older generated run.
     template = Path(__file__).parent / "templates" / "android_conftest.py"
-    (script.parent / "conftest.py").write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    harness = script.parent / "conftest.py"
+    if script.parent.is_symlink() or harness.is_symlink():
+        raise AndroidEnvironmentError("The Android run is a link.")
+    harness.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
     junit = run_dir / "android_junit.xml"
-    junit.unlink(missing_ok=True)
+    if not junit.is_symlink():
+        junit.unlink(missing_ok=True)
     command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--junitxml=" + str(junit), str(script)]
     started = time.monotonic()
     output, returncode, cleanup_error = "", None, ""
@@ -1139,12 +1167,16 @@ def _execute_mobile(state):
         output = "Could not start the Appium test runner: " + str(e)
     finally:
         cleanup_error = _cleanup_worker_session(run_dir, state["config"])
-        inputs_path.unlink(missing_ok=True)
+        if not inputs_path.is_symlink() and not inputs_path.parent.is_symlink():
+            inputs_path.unlink(missing_ok=True)
     recorded = {r["id"]: r for r in [*preserved, *read_jsonl(events)]}
     if not any(case["id"] in recorded for case in pending):
         recorded.update({r["id"]: r for r in _parse_junit(junit, pending)})
     results = list(recorded.values())
-    unavailable = json.loads(unavailable_path.read_text(encoding="utf-8")) if unavailable_path.exists() else None
+    unavailable = None
+    if (unavailable_path.is_file() and not unavailable_path.is_symlink()
+            and not unavailable_path.parent.is_symlink()):
+        unavailable = json.loads(unavailable_path.read_text(encoding="utf-8"))
     from . import runctl
     stop_kind = runctl.kind()
     user_stopped = stop_kind in {"user_stop", "ctrl_c"} or ((run_dir / "STOP").exists() and not unavailable)

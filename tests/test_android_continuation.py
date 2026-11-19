@@ -36,6 +36,37 @@ def test_execution_keeps_completed_results_and_selects_only_pending_cases(tmp_pa
     assert {row["id"]: row["outcome"] for row in again["results"]} == outcomes
 
 
+def test_an_android_test_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.qa_runtime import private_inputs
+
+    secret = "tenant-b-only-exec"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auto_secrets.json").write_text(json.dumps({"password": secret}), encoding="utf-8")
+    (other / "contract_inputs.json").write_text(json.dumps({"secrets": {"password": secret}}), encoding="utf-8")
+    (other / "active_appium_session.json").write_text(json.dumps({"session_id": secret}), encoding="utf-8")
+    (other / "test_android_generated.py").write_text(f"# {secret}\n", encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    tests = run / "generated_tests"
+    tests.mkdir()
+    (tests / "test_android_generated.py").symlink_to(other / "test_android_generated.py")
+    monkeypatch.setattr(android_pipeline, "_run_mobile_process", lambda *a, **k: pytest.fail("started"))
+    with pytest.raises(android_pipeline.AndroidEnvironmentError, match="link"):
+        android_pipeline._execute_mobile({"run_dir": str(run), "config": {}, "test_cases": [{"id": "new"}]})
+    assert json.loads((other / "auto_secrets.json").read_text(encoding="utf-8"))["password"] == secret
+    assert json.loads((other / "contract_inputs.json").read_text(encoding="utf-8"))["secrets"]["password"] == secret
+    assert json.loads((other / "active_appium_session.json").read_text(encoding="utf-8"))["session_id"] == secret
+    assert (other / "test_android_generated.py").read_text(encoding="utf-8") == f"# {secret}\n"
+    assert private_inputs(run) == {"secrets": {}, "databases": {}}
+    assert android_pipeline._cleanup_worker_session(run, {"appium_url": "http://127.0.0.1:4723"}) == ""
+    assert json.loads((other / "active_appium_session.json").read_text(encoding="utf-8"))["session_id"] == secret
+
+
 def test_resume_api_does_not_start_a_worker_when_every_case_completed(tmp_path, monkeypatch):
     root = tmp_path / "android_done"
     root.mkdir()
