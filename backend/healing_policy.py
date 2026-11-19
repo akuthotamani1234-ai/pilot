@@ -5,12 +5,67 @@ policy evidence without re-implementing AST rules.
 """
 from __future__ import annotations
 
+import hashlib
+
 # Categories the failure classifier actually emits. Levels 3 and 4 never auto-apply.
 _HUMAN = {
     "flaky", "auth_problem", "product_defect", "suspect",
     "rule_violation", "test_mistake",
 }
 _ABORT = {"infrastructure", "data_corruption", "security"}
+_USED_APPROVALS: set[str] = set()
+_USED_APPROVALS_MAX = 256
+_RULE = "may change how elements are found; never what is asserted"
+
+
+def reset_healing_approvals() -> None:
+    """Clear process-local single-use healing approval tokens."""
+    _USED_APPROVALS.clear()
+
+
+def repair_digest(old_code: str, new_code: str, failure_class: str) -> str:
+    """Digest bound to one failure class and one exact script diff."""
+    cat = (failure_class or "").strip().lower()
+    raw = f"{cat}\n{old_code or ''}\n{new_code or ''}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def healing_approval_used(token: str) -> bool:
+    return (token or "").strip() in _USED_APPROVALS
+
+
+def _note_approval_used(token: str) -> None:
+    cleaned = (token or "").strip()
+    if not cleaned:
+        return
+    _USED_APPROVALS.add(cleaned)
+    while len(_USED_APPROVALS) > _USED_APPROVALS_MAX:
+        _USED_APPROVALS.pop()
+
+
+def issue_healing_approval(old_code: str, new_code: str, failure_class: str) -> dict:
+    """Mint a single-use token for a level-3 repair. Abort classes cannot be approved."""
+    decision = escalation_for(failure_class)
+    if decision["level"] >= 4:
+        return {
+            "ok": False,
+            "gate_e_complete": False,
+            "reason": f"{decision['category']} cannot be approved",
+            "escalation": decision,
+        }
+    if decision["auto_apply"]:
+        return {
+            "ok": False,
+            "gate_e_complete": False,
+            "reason": f"{decision['category']} does not need human approval",
+            "escalation": decision,
+        }
+    return {
+        "ok": True,
+        "gate_e_complete": False,
+        "token": repair_digest(old_code, new_code, decision["category"]),
+        "escalation": decision,
+    }
 
 
 def escalation_for(category: str) -> dict:
@@ -37,37 +92,72 @@ def escalation_for(category: str) -> dict:
     }
 
 
+def _decision(
+    *,
+    allowed: bool,
+    reason: str,
+    decision: dict | None = None,
+) -> dict:
+    out = {
+        "allowed": allowed,
+        "reason": reason,
+        "policy": "locator_only",
+        "rule": _RULE,
+        "gate_e_complete": False,
+    }
+    if decision:
+        out["escalation"] = decision
+    return out
+
+
 def review_repair(
     old_code: str,
     new_code: str,
     *,
     need_tests: bool = True,
     failure_class: str = "",
+    approval_token: str = "",
 ) -> dict:
-    """Whether a proposed script repair is allowed under Gate E rules."""
+    """Whether a proposed script repair is allowed under Gate E rules.
+
+    Level 3 applies only with a matching unused approval token, and still
+    cannot change assertions. Level 4 cannot be approved.
+    """
     from .agents.self_healing import _safe_repair
 
     decision = escalation_for(failure_class) if (failure_class or "").strip() else None
     if decision and not decision["auto_apply"]:
-        return {
-            "allowed": False,
-            "reason": f"{decision['category']} requires {decision['action']}",
-            "policy": "locator_only",
-            "rule": "may change how elements are found; never what is asserted",
-            "escalation": decision,
-            "gate_e_complete": False,
-        }
+        if decision["level"] >= 4:
+            return _decision(
+                allowed=False,
+                reason=f"{decision['category']} requires {decision['action']}",
+                decision=decision,
+            )
+        token = (approval_token or "").strip()
+        digest = repair_digest(old_code, new_code, decision["category"])
+        if token != digest:
+            return _decision(
+                allowed=False,
+                reason=f"{decision['category']} requires {decision['action']}",
+                decision=decision,
+            )
+        if healing_approval_used(token):
+            return _decision(
+                allowed=False,
+                reason="healing approval already used",
+                decision=decision,
+            )
+        problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
+        if problem:
+            return _decision(allowed=False, reason=problem, decision=decision)
+        _note_approval_used(token)
+        return _decision(allowed=True, reason="", decision=decision)
     problem = _safe_repair(old_code or "", new_code or "", need_tests=need_tests)
-    out = {
-        "allowed": problem is None,
-        "reason": problem or "",
-        "policy": "locator_only",
-        "rule": "may change how elements are found; never what is asserted",
-        "gate_e_complete": False,
-    }
-    if decision:
-        out["escalation"] = decision
-    return out
+    return _decision(
+        allowed=problem is None,
+        reason=problem or "",
+        decision=decision,
+    )
 
 
 def summarize_healing(healing_log: list[dict] | None = None) -> dict:
