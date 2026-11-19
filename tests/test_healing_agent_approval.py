@@ -206,3 +206,36 @@ def test_a_repair_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (real / "healing_log.json").is_file() and secret not in (real / "healing_log.json").read_bytes()
     assert saved["heal_round"] == 1
     assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_baseline_map_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.agents.self_healing import _baseline_map, _old_page
+
+    secret = "tenant-b-only-page"
+    other = tmp_path / "other"
+    nested = other / "runs" / "base"
+    nested.mkdir(parents=True)
+    saved = nested / "app_map.json"
+    saved.write_text(json.dumps([{"slug": secret, "url": "https://other.test/"}]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {
+        "changes": {"baseline_dir": str(linked / "runs" / "base"), "baseline_slug": {"home": secret}},
+        "app_map": [],
+    }
+    assert _baseline_map(state) == []
+    assert _old_page(state, {"slug": "home"}) is None
+    assert secret in saved.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "app_map.json").write_text(json.dumps([{"slug": "home-own", "url": "https://home.test/"}]), encoding="utf-8")
+    state["changes"] = {"baseline_dir": str(real), "baseline_slug": {"home": "home-own"}}
+    pages = _baseline_map(state)
+    assert pages[0]["slug"] == "home-own"
+    assert _old_page(state, {"slug": "home"})["slug"] == "home-own"
+    assert secret not in json.dumps(pages)
+    assert secret in saved.read_text(encoding="utf-8")
