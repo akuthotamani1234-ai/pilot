@@ -36,6 +36,69 @@ def test_redis_durable_queue_plan_drain(monkeypatch):
 
 
 @pytest.mark.skipif(shutil.which("redis-cli") is None, reason="redis-cli missing")
+def _redis_queue(prefix: str) -> RedisDurableQueue:
+    return RedisDurableQueue(
+        "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
+    )
+
+
+def _wipe(queue: RedisDurableQueue, prefix: str) -> None:
+    for key in queue._r.scan_iter(match=f"{prefix}:*"):
+        queue._r.delete(key)
+    queue.close()
+
+
+def test_redis_stale_claim_and_cancel_cannot_overwrite_status():
+    prefix = f"qpilot:teststatus:{uuid.uuid4().hex}"
+    queue = _redis_queue(prefix)
+    original = queue._load
+    try:
+        task = queue.enqueue(
+            run_id="run-status", role="worker", payload={"url": "/a"},
+            idempotency_key="a",
+        )
+        assert queue.cancel(task["task_id"]) is True
+        assert queue.get(task["task_id"])["status"] == "cancelled"
+        queue._r.zadd(queue._pending_key("run-status"), {task["task_id"]: time.time()})
+
+        def pending(task_id):
+            row = original(task_id)
+            if row:
+                row = dict(row)
+                row["status"] = "pending"
+            return row
+
+        queue._load = pending
+        assert queue.claim(worker_id="w9", run_id="run-status") is None
+        assert queue.mark_blocked(task["task_id"], "stale") is False
+        queue._load = original
+        assert queue.get(task["task_id"])["status"] == "cancelled"
+
+        queue.enqueue(
+            run_id="run-status", role="worker", payload={"url": "/b"},
+            idempotency_key="b",
+        )
+        claimed = queue.claim(worker_id="w1", run_id="run-status")
+        assert claimed and claimed["status"] == "leased"
+        done, _ = queue.complete(claimed["task_id"], "w1", {"evidence": ["ok"]})
+        assert done is True
+
+        def leased(task_id):
+            row = original(task_id)
+            if row and row["task_id"] == claimed["task_id"]:
+                row = dict(row)
+                row["status"] = "leased"
+            return row
+
+        queue._load = leased
+        assert queue.cancel(claimed["task_id"]) is False
+        queue._load = original
+        assert queue.get(claimed["task_id"])["status"] == "succeeded"
+    finally:
+        queue._load = original
+        _wipe(queue, prefix)
+
+
 def test_redis_recover_ignores_a_stale_expired_snapshot():
     prefix = f"qpilot:testrecover:{uuid.uuid4().hex}"
     queue = RedisDurableQueue(

@@ -70,6 +70,44 @@ end
 return 1
 """
 
+# Lease a popped task only while it is still waiting.
+_CLAIM_WAITING = """
+local status = redis.call('HGET', KEYS[1], 'status')
+if status ~= 'pending' and status ~= 'retry_wait' then
+  return 0
+end
+redis.call('HSET', KEYS[1],
+  'status', 'leased',
+  'attempt', ARGV[2],
+  'lease_owner', ARGV[3],
+  'lease_until', ARGV[4],
+  'updated_at', ARGV[1])
+return 1
+"""
+
+_SET_TERMINAL = """
+local status = redis.call('HGET', KEYS[1], 'status')
+local allowed = false
+local i = 5
+while i <= #ARGV do
+  if status == ARGV[i] then
+    allowed = true
+  end
+  i = i + 1
+end
+if not allowed then
+  return 0
+end
+redis.call('HSET', KEYS[1],
+  'status', ARGV[2],
+  'error_class', ARGV[3],
+  'lease_owner', '',
+  'lease_until', '',
+  'updated_at', ARGV[1])
+redis.call('ZREM', KEYS[2], ARGV[4])
+return 1
+"""
+
 
 class RedisDurableQueue:
     """Redis hash + ZSET queue with leases, retries, and idempotency keys."""
@@ -194,6 +232,17 @@ class RedisDurableQueue:
         self._r.zadd(self._pending_key(run_id), {task_id: now})
         return task
 
+    def _lua(self, name: str, source: str):
+        cache = getattr(self, "_lua_cache", None)
+        if cache is None:
+            cache = {}
+            self._lua_cache = cache
+        script = cache.get(name)
+        if script is None:
+            script = self._r.register_script(source)
+            cache[name] = script
+        return script
+
     def _recover_script(self):
         script = getattr(self, "_recover_lease", None)
         if script is None:
@@ -243,13 +292,15 @@ class RedisDurableQueue:
             if not row or row["status"] not in {"pending", "retry_wait"}:
                 continue
             now = _now()
-            row["status"] = "leased"
-            row["attempt"] = int(row["attempt"]) + 1
-            row["lease_owner"] = worker_id
-            row["lease_until"] = now + self.lease_seconds
-            row["updated_at"] = now
-            self._dump(row)
-            return row
+            attempt = int(row["attempt"]) + 1
+            until = now + self.lease_seconds
+            ok = self._lua("claim", _CLAIM_WAITING)(
+                keys=[self._task_key(task_id)],
+                args=[str(now), str(attempt), worker_id, str(until)],
+            )
+            if int(ok) != 1:
+                continue
+            return self._load(task_id) or row
 
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
         now = _now()
@@ -315,30 +366,26 @@ class RedisDurableQueue:
             return False, "worker does not own this lease"
         return True, msg
 
-    def mark_blocked(self, task_id: str, reason: str = "") -> bool:
+    def _terminal(self, task_id: str, status: str, error_class: str, allowed: tuple[str, ...]) -> bool:
         row = self._load(task_id)
-        if not row or row["status"] not in {"pending", "retry_wait"}:
+        if not row or row["status"] not in allowed:
             return False
-        row["status"] = "blocked"
-        row["error_class"] = reason or "blocked"
-        row["lease_owner"] = None
-        row["lease_until"] = None
-        row["updated_at"] = _now()
-        self._dump(row)
-        self._r.zrem(self._pending_key(row["run_id"]), task_id)
-        return True
+        now = _now()
+        result = self._lua("terminal", _SET_TERMINAL)(
+            keys=[self._task_key(task_id), self._pending_key(row["run_id"])],
+            args=[str(now), status, error_class, task_id, *allowed],
+        )
+        return int(result) == 1
+
+    def mark_blocked(self, task_id: str, reason: str = "") -> bool:
+        return self._terminal(task_id, "blocked", reason or "blocked", ("pending", "retry_wait"))
 
     def cancel(self, task_id: str) -> bool:
         row = self._load(task_id)
-        if not row or row["status"] not in {"pending", "leased", "retry_wait", "blocked"}:
-            return False
-        row["status"] = "cancelled"
-        row["lease_owner"] = None
-        row["lease_until"] = None
-        row["updated_at"] = _now()
-        self._dump(row)
-        self._r.zrem(self._pending_key(row["run_id"]), task_id)
-        return True
+        kept = "" if not row else str(row.get("error_class") or "")
+        return self._terminal(
+            task_id, "cancelled", kept, ("pending", "leased", "retry_wait", "blocked"),
+        )
 
     def get(self, task_id: str) -> dict | None:
         return self._load(task_id)
