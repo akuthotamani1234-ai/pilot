@@ -1388,6 +1388,26 @@ def resume_seen(saved_pages: list[dict]) -> tuple[set[str], set[tuple[str, bool]
     return urls, done
 
 
+def waiting_rows(queue, priorities: list[str] | None = None) -> list[dict]:
+    """Queue rows for a resume file. A logged-in visit stays logged in.
+
+    Higher-scored addresses stay ahead. Two visits of one address keep the
+    logged-in one first.
+    """
+    rows = [
+        {"url": url, "auth": bool(auth), "depth": depth, "inside": inside}
+        for url, depth, inside, auth in queue
+    ]
+    ranked = rank_candidates([
+        {"url": row["url"], "new_template": True, "journey_distance": 1,
+         "changed": any(token and token in row["url"] for token in (priorities or []))}
+        for row in rows
+    ])
+    order = {row["url"]: index for index, row in enumerate(ranked)}
+    rows.sort(key=lambda row: (order.get(row["url"], len(order)), 0 if row["auth"] else 1))
+    return rows
+
+
 def pending_visit(raw) -> tuple[str, bool]:
     """A waiting address, and whether that visit was behind the login.
 
@@ -2900,22 +2920,12 @@ def discovery_agent(state: QAState) -> QAState:
                 print(f"  [discovery] {url} was cut off by the stop - not counted", flush=True)
                 stopped = runctl.reason()
                 queue.appendleft((url, depth, inside, auth))  # (counted as not visited)
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 break
             app_map.append(entry)
             if remember_locale(locale_seen, entry):
                 write_locale(run_dir, locale_seen)
-            waiting_rows = [
-                {"url": url, "auth": bool(auth), "depth": depth, "inside": inside}
-                for url, depth, inside, auth in queue
-            ]
-            ranked_waiting = rank_candidates([
-                {"url": row["url"], "new_template": True, "journey_distance": 1,
-                 "changed": any(token and token in row["url"] for token in priorities)}
-                for row in waiting_rows
-            ])
-            order = {row["url"]: index for index, row in enumerate(ranked_waiting)}
-            waiting_rows.sort(key=lambda row: (order.get(row["url"], len(order)), 0 if row["auth"] else 1))
-            save_crawl_progress(run_dir, app_map, waiting_rows)
+            save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
@@ -2927,6 +2937,7 @@ def discovery_agent(state: QAState) -> QAState:
                 login["found"] = False
                 reread.add((at, False))
                 queue.appendleft((at, at_depth, at_inside, False))
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 print(f"  [discovery] login: the sign-up page was found now ({url}) - creating the test account and "
                       "logging in from the login page again", flush=True)
             learned = [b for b in entry.get("behaviour", []) if b.get("effect") not in ("error", None)]
