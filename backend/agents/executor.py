@@ -254,10 +254,12 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
             unsafe_role = True
         else:
             role_files.append(private / name)
+    from ..finalization import folder_is_linked
     linked = (test_dir, test_dir / "pytest.ini", results_file.parent, results_file, junit, log_path,
               shot_dir, run_dir, run_dir / "traces", run_dir / "videos", private, private / "auth.json",
               *role_files)
-    if unsafe_role or any(path.is_symlink() for path in linked):
+    if (unsafe_role or folder_is_linked(run_dir) or folder_is_linked(results_file.parent)
+            or any(path.is_symlink() for path in linked)):
         print("  [execution] the test results are a link, so the suite was not started", flush=True)
         return {"timed_out": False, "stopped": True, "returncode": -1, "sandbox": sandbox}
     # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
@@ -357,14 +359,15 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         if job:
             job.close()  # every browser the tests started ends with it
     log = results_file.with_name(results_file.stem + "_pytest_output.txt")  # pytest's own output, kept as evidence
-    if not log.is_symlink() and not log.parent.is_symlink():
+    if not log.is_symlink() and not folder_is_linked(log.parent):
         log.write_text(redact(out or ""), encoding="utf-8")
     return {"timed_out": timed_out, "stopped": stopped, "returncode": proc.returncode, "sandbox": sandbox}
 
 
 def _write_run_json(run_dir: Path, name: str, payload) -> None:
+    from ..finalization import folder_is_linked
     from .change_detection import run_path_is_linked
-    if run_path_is_linked(run_dir, name):
+    if folder_is_linked(run_dir) or run_path_is_linked(run_dir, name):
         return
     (run_dir / name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
