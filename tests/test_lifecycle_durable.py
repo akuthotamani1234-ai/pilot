@@ -511,3 +511,37 @@ def test_an_account_tag_is_not_read_through_a_link_into_another_folder(tmp_path,
     assert ns["_worker_account_tag"]() == "home-own"
     assert secret not in ns["_worker_account_tag"]()
     assert secret in life.read_text(encoding="utf-8")
+
+
+def test_an_android_case_list_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import ast
+    from pathlib import Path
+
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-case"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    cases = nested / "android_test_cases.json"
+    cases.write_text(json.dumps([{"id": secret}]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/android_conftest.py").read_text(encoding="utf-8"))
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_load_mobile_json")
+    ns = {"Path": Path, "json": json, "AndroidEnvironmentError": AndroidEnvironmentError}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "android_conftest.py", "exec"), ns)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        ns["_load_mobile_json"](linked / "runs" / "run" / "android_test_cases.json")
+    assert secret in cases.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "cases.json").write_text(json.dumps([{"id": "home-own"}]), encoding="utf-8")
+    loaded = ns["_load_mobile_json"](real / "cases.json")
+    assert loaded[0]["id"] == "home-own"
+    assert secret not in json.dumps(loaded)
+    assert secret in cases.read_text(encoding="utf-8")
