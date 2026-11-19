@@ -52,17 +52,32 @@ def _b64(obj: dict) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
+def _linked_drill() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "dashboard_auth_mode_matrix",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_dashboard_auth_matrix_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_drill()
+    work = Path(ops_dir) / "dashboard_auth_work" if ops_dir else (
+        ROOT / "artifacts" / "ops" / "dashboard_auth_work"
+    )
+    db = work / "auth.sqlite"
+    if folder_is_linked(work) or folder_is_linked(db):
+        return _linked_drill()
+
     from backend import tenancy_store as ts
     from backend.dashboard_auth import authorize
     from backend.tenancy_store import upsert_principal, upsert_tenant
 
     rows: list[dict] = []
-    work = Path(ops_dir) / "dashboard_auth_work" if ops_dir else (
-        ROOT / "artifacts" / "ops" / "dashboard_auth_work"
-    )
     work.mkdir(parents=True, exist_ok=True)
-    db = work / "auth.sqlite"
 
     # none
     with _env({}):
@@ -174,11 +189,15 @@ def run_dashboard_auth_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     }
 
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (Path(ops_dir) / "dashboard_auth_matrix_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_drill()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "dashboard_auth_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
