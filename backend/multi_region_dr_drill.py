@@ -66,7 +66,23 @@ def _recreate_db(admin: str, name: str, steps: list[dict]) -> None:
             raise RuntimeError((proc.stderr or proc.stdout or f"{label} failed")[:300])
 
 
+def _linked_region() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "multi_region_postgres_failover",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_multi_region_dr_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "multi_region_dr_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_region()
+
     dsn = _dsn()
     ran_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     if not dsn:
@@ -79,8 +95,10 @@ def run_multi_region_dr_drill(*, ops_dir: Path | None = None) -> dict:
         }
     else:
         dump_dir = ROOT / "artifacts" / "ops" / "multi_region_dr"
-        dump_dir.mkdir(parents=True, exist_ok=True)
         dump_path = dump_dir / "region_a.dump.sql"
+        if folder_is_linked(dump_dir) or folder_is_linked(dump_path):
+            return _linked_region()
+        dump_dir.mkdir(parents=True, exist_ok=True)
         admin = _admin_dsn(dsn)
         region_a = _db_dsn(dsn, REGION_A)
         region_b = _db_dsn(dsn, REGION_B)
@@ -102,6 +120,8 @@ def run_multi_region_dr_drill(*, ops_dir: Path | None = None) -> dict:
             if seed.returncode != 0:
                 raise RuntimeError((seed.stderr or seed.stdout or "seed failed")[:300])
 
+            if folder_is_linked(dump_dir) or folder_is_linked(dump_path):
+                return _linked_region()
             dump = subprocess.run(
                 ["pg_dump", "--no-owner", "--no-acl", "-f", str(dump_path), region_a],
                 capture_output=True,
@@ -156,12 +176,15 @@ def run_multi_region_dr_drill(*, ops_dir: Path | None = None) -> dict:
             "reason": reason,
         }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_region()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "multi_region_dr_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_region()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "multi_region_dr_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
