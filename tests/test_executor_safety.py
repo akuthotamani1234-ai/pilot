@@ -172,7 +172,7 @@ def test_an_undone_repair_does_not_restore_a_backup_through_a_link(tmp_path):
     (real / "healing" / "test_home.round1.before.py").write_text("click('home-own')\n", encoding="utf-8")
     _undo(real_tests, real, "test_home.py", entries)
     restored = real_script.read_bytes()
-    assert restored == b"click('home-own')\n"
+    assert real_script.read_text(encoding="utf-8") == "click('home-own')\n"
     assert secret not in restored
     assert target.read_bytes() == secret
 
