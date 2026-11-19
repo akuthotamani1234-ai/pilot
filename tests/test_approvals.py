@@ -75,6 +75,46 @@ def test_heal_yes_cannot_bypass_policy(tmp_path: Path):
     assert accepted["reason"] == "a person accepted it"
 
 
+def test_an_accepted_heal_writes_the_script_once(tmp_path: Path):
+    db = tmp_path / "approvals.sqlite"
+    run = tmp_path / "run"
+    script = run / "generated_tests" / "test_x.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(_OLD, encoding="utf-8")
+    reset_healing_approvals()
+    detail = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+        "run_dir": str(run), "file": "test_x.py",
+    })
+    row = create("heal", "locator", detail=detail, path=db)
+    accepted = decide_approval(row["id"], "yes", path=db)
+    assert accepted["status"] == "accepted"
+    assert accepted["heal_applied"] is True
+    assert script.read_text(encoding="utf-8") == _GOOD
+    again = create("heal", "locator again", detail=detail, path=db)
+    reused = decide_approval(again["id"], "yes", path=db)
+    assert reused["status"] == "rejected"
+    assert "already used" in reused["reason"]
+    weaken = json.dumps({
+        "old_code": _GOOD, "new_code": _BAD, "failure_class": "auth_problem",
+        "run_dir": str(run), "file": "test_x.py",
+    })
+    script.write_text(_GOOD, encoding="utf-8")
+    blocked = create("heal", "weaken", detail=weaken, path=db)
+    assert decide_approval(blocked["id"], "yes", path=db)["status"] == "rejected"
+    assert script.read_text(encoding="utf-8") == _GOOD
+    escaped = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "locator",
+        "run_dir": str(run), "file": "../outside.py",
+    })
+    outside = tmp_path / "outside.py"
+    outside.write_text(_OLD, encoding="utf-8")
+    escape = create("heal", "escape", detail=escaped, path=db)
+    refused = decide_approval(escape["id"], "yes", path=db)
+    assert refused["status"] == "rejected"
+    assert outside.read_text(encoding="utf-8") == _OLD
+
+
 def test_unknown_kind_rejected(tmp_path: Path):
     with pytest.raises(ValueError):
         create("ordinary", "x", path=tmp_path / "a.sqlite")

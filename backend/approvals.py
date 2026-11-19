@@ -113,14 +113,58 @@ def heal_detail_allowed(detail: str) -> dict:
             }
         token = str(issued.get("token") or "")
     reviewed = review_repair(
-        old, new, failure_class=failure_class, approval_token=token,
+        old, new, failure_class=failure_class, approval_token=token, consume=False,
     )
     if not reviewed.get("allowed"):
         return {
             "allowed": False,
             "reason": reviewed.get("reason") or "healing policy refused the repair",
         }
-    return {"allowed": True, "reason": ""}
+    return {"allowed": True, "reason": "", "token": token}
+
+
+def apply_approved_heal(detail: str, token: str = "") -> dict:
+    """Write one approved repair under the run's generated tests.
+
+    The file must already match ``old_code``. The path cannot leave that folder.
+    """
+    from .healing_policy import review_repair
+
+    try:
+        payload = json.loads(detail or "")
+    except json.JSONDecodeError:
+        payload = None
+    if not isinstance(payload, dict):
+        return {"ok": False, "applied": False, "reason": "heal detail is not a repair"}
+    run_raw = str(payload.get("run_dir") or "").strip()
+    rel = str(payload.get("file") or "").strip()
+    if not run_raw or not rel:
+        return {"ok": True, "applied": False, "reason": "no script path on this approval"}
+    parts = Path(rel).parts
+    if Path(rel).is_absolute() or ".." in parts or not parts:
+        return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
+    run_dir = Path(run_raw).resolve()
+    path = (run_dir / "generated_tests" / rel).resolve()
+    if run_dir not in path.parents:
+        return {"ok": False, "applied": False, "reason": "script path must stay inside the run"}
+    if not path.is_file():
+        return {"ok": False, "applied": False, "reason": "script no longer matches the approved repair"}
+    old = path.read_text(encoding="utf-8")
+    new = payload.get("new_code")
+    if not isinstance(new, str) or old != payload.get("old_code"):
+        return {"ok": False, "applied": False, "reason": "script no longer matches the approved repair"}
+    reviewed = review_repair(
+        old, new, failure_class=str(payload.get("failure_class") or ""),
+        approval_token=token, consume=True,
+    )
+    if not reviewed.get("allowed"):
+        return {
+            "ok": False,
+            "applied": False,
+            "reason": reviewed.get("reason") or "healing policy refused the repair",
+        }
+    path.write_text(new, encoding="utf-8")
+    return {"ok": True, "applied": True, "reason": ""}
 
 
 def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) -> dict:
@@ -141,11 +185,21 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
         # No answer → rejected (safe choice); explicit reject also rejected.
         if (answer or "").strip() == "":
             status = "rejected"
+        heal_token = ""
+        heal_applied = False
         if status == "accepted" and current["kind"] == "heal":
             policy = heal_detail_allowed(current["detail"])
             if not policy["allowed"]:
                 status = "rejected"
                 reason = str(policy["reason"])
+            else:
+                heal_token = str(policy.get("token") or "")
+                applied = apply_approved_heal(current["detail"], heal_token)
+                heal_applied = bool(applied.get("applied"))
+                if not applied.get("ok"):
+                    status = "rejected"
+                    reason = str(applied.get("reason") or "approved repair was not written")
+                    heal_token = ""
         decided_at = time.time()
         conn.execute(
             "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ? WHERE id = ?",
@@ -153,7 +207,11 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
-        return dict(updated)
+        result = dict(updated)
+        if heal_token:
+            result["heal_token"] = heal_token
+        result["heal_applied"] = heal_applied
+        return result
 
 
 def snapshot(*, path: Path | None = None) -> dict:
