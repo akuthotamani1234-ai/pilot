@@ -22,6 +22,8 @@ CRITERIA = (
     ("multi_app", "multi_app_healing_suite_drill.json", "Multi-app fixture suite"),
     ("regression", "healing_regression_drill.json", "Locator-only regression"),
     ("seed_catalog", "production_healing_seed_catalog_drill.json", "Seed catalog ready"),
+    ("fixture_coverage", "production_healing_fixture_coverage_drill.json", "Fixture coverage map"),
+    ("rollback_policy", "production_healing_rollback_policy_drill.json", "Rollback policy"),
 )
 
 

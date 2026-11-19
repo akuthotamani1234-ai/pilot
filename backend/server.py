@@ -2277,6 +2277,49 @@ def ops_hosted_ci_permissions_contract():
     }
 
 
+@app.post("/api/ops/drills/production-healing-rollback-policy")
+def ops_production_healing_rollback_policy():
+    """Gate E: healing rollback policy (production suite still open)."""
+    from backend.production_healing_rollback_policy_drill import (
+        run_production_healing_rollback_policy_drill,
+    )
+    evidence = run_production_healing_rollback_policy_drill()
+    _audit(
+        "ops_production_healing_rollback_policy",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_rollback_policy": evidence}
+
+
+@app.post("/api/ops/drills/independent-reviewer-roster-contract")
+def ops_independent_reviewer_roster_contract():
+    """Gate G: reviewer roster contract (unsigned)."""
+    from backend.independent_reviewer_roster_contract_drill import (
+        run_independent_reviewer_roster_contract_drill,
+    )
+    evidence = run_independent_reviewer_roster_contract_drill()
+    _audit(
+        "ops_independent_reviewer_roster_contract",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_reviewer_roster_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-comms-contract")
+def ops_hosted_dr_comms_contract():
+    """Gate H: DR communications contract (hosted DR still open)."""
+    from backend.hosted_dr_comms_contract_drill import run_hosted_dr_comms_contract_drill
+    evidence = run_hosted_dr_comms_contract_drill()
+    _audit(
+        "ops_hosted_dr_comms_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_comms_contract": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

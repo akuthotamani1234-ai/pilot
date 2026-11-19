@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_acceptance_gate",
-  "ran_at": "2026-11-19T05:11:21Z",
+  "ran_at": "2026-11-19T05:37:35Z",
   "kind": "acceptance_gate_local_only",
-  "score": 9,
-  "score_of": 9,
+  "score": 11,
+  "score_of": 11,
   "criteria": [
     {
       "id": "contract",
@@ -68,10 +68,24 @@
       "label": "Seed catalog ready",
       "ready": true,
       "accepted": false
+    },
+    {
+      "id": "fixture_coverage",
+      "artifact": "production_healing_fixture_coverage_drill.json",
+      "label": "Fixture coverage map",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "rollback_policy",
+      "artifact": "production_healing_rollback_policy_drill.json",
+      "label": "Rollback policy",
+      "ready": true,
+      "accepted": false
     }
   ],
   "production_suite_executed": false,
   "accepted": false,
   "ok": true,
-  "reason": "Production healing acceptance gate local 9/9; production / third-party suite still open (not accepted)"
+  "reason": "Production healing acceptance gate local 11/11; production / third-party suite still open (not accepted)"
 }

@@ -35,6 +35,7 @@ BLOCKERS = (
             "hosted_dr_cutover_checklist_drill.json",
             "hosted_oncall_rota_contract_drill.json",
             "hosted_dr_rpo_contract_drill.json",
+            "hosted_dr_comms_contract_drill.json",
         ],
     },
     {
@@ -82,6 +83,7 @@ BLOCKERS = (
             "production_healing_acceptance_gate_drill.json",
             "production_healing_seed_catalog_drill.json",
             "production_healing_fixture_coverage_drill.json",
+            "production_healing_rollback_policy_drill.json",
             "healing_regression_drill.json",
         ],
     },
@@ -147,6 +149,7 @@ BLOCKERS = (
             "independent_review_scope_matrix_drill.json",
             "independent_review_blocker_freeze_drill.json",
             "independent_review_response_sla_drill.json",
+            "independent_reviewer_roster_contract_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
             "INDEPENDENT_REVIEW_FINDINGS.md",
