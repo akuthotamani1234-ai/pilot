@@ -180,3 +180,29 @@ def test_a_repair_does_not_follow_a_link_into_another_script(tmp_path, monkeypat
     assert list(vault.iterdir()) == [vault / "keep.txt"]
     assert (vault / "keep.txt").read_text(encoding="utf-8") == "tenant-b-only-backup"
     assert out["rerun_only"] == ["test_flows_ai.py::test_ai_flow_6"]
+
+
+def test_a_repair_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-heal"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "healing_log.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = self_healing_agent({"run_dir": str(linked / "run"), "app_map": [], "failures": [], "log": []})
+    missing = self_healing_agent({"run_dir": str(linked / "fresh"), "app_map": [], "failures": [], "log": []})
+    assert "link" in refused["log"][-1] and "link" in missing["log"][-1]
+    assert not (nested / "healing").exists()
+    assert not (other / "fresh").exists()
+    assert (nested / "healing_log.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = self_healing_agent({"run_dir": str(real), "app_map": [], "failures": [], "log": []})
+    assert (real / "healing").is_dir() and not (real / "healing").is_symlink()
+    assert (real / "healing_log.json").is_file() and secret not in (real / "healing_log.json").read_bytes()
+    assert saved["heal_round"] == 1
+    assert (nested / "keep.txt").read_bytes() == secret

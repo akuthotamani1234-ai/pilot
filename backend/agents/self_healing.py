@@ -315,8 +315,13 @@ def self_healing_agent(state: QAState) -> QAState:
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
     backup_dir = run_dir / "healing"
-    if run_dir.is_symlink():
-        return state
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        note = "Self-healing skipped: this run's folder is a link."
+        return {"heal_round": state.get("heal_round", 0), "rerun_only": [],
+                "healing_log": list(state.get("healing_log") or []),
+                "unhealable": list(state.get("unhealable") or []),
+                "log": list(state.get("log") or []) + [note]}
     if not backup_dir.is_symlink():
         backup_dir.mkdir(exist_ok=True)
     rnd = state.get("heal_round", 0) + 1
