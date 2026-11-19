@@ -378,6 +378,7 @@ def progress() -> dict:
         {"id": "G-device-matrix-link", "label": "A device matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-multi-api-link", "label": "A multi-API matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-emulator-smoke-link", "label": "An emulator smoke drill does not follow a link into another folder", "status": "done"},
+        {"id": "G-appium-matrix-link", "label": "An Appium matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
