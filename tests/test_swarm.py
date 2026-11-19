@@ -410,19 +410,19 @@ def test_a_failed_address_check_does_not_open_checkout():
     class Route:
         def __init__(self, url):
             self.request = Req(url)
-            self.aborted = ""
+            self.actions = []
 
         def fetch(self, **_kwargs):
-            return type("Resp", (), {"status": 302, "headers": {"location": "/checkout"}})()
+            raise AssertionError("a failed probe must not fetch past the page's own route")
 
         def abort(self, reason="blockedbyclient"):
-            self.aborted = reason
+            self.actions.append("abort")
+
+        def fallback(self):
+            self.actions.append("fallback")
 
         def continue_(self):
-            self.aborted = "continue"
-
-        def fulfill(self, **_kwargs):
-            return None
+            self.actions.append("continue")
 
     class Page:
         url = ""
@@ -442,8 +442,14 @@ def test_a_failed_address_check_does_not_open_checkout():
             opened.append(url)
             route = Route(url)
             self.handler(route)
-            if route.aborted:
+            if "abort" in route.actions:
                 raise RuntimeError("net::ERR_ABORTED")
+            if "fallback" in route.actions or "continue" in route.actions:
+                # The product page redirects. The next navigation is checkout.
+                follow = Route(url.split("?", 1)[0].rstrip("/") + "/checkout")
+                self.handler(follow)
+                if "abort" in follow.actions:
+                    raise RuntimeError("net::ERR_ABORTED")
             self.url = url
             return type("Resp", (), {"status": 200})()
 
@@ -539,6 +545,87 @@ def test_a_probe_that_cannot_reach_the_host_still_opens_the_page():
     _response, pay = open_guarded(Page(), "https://shop.test/checkout")
     assert pay["status"] == "blocked"
     assert opened == ["https://shop.test/product"]
+
+
+def test_a_failed_probe_lets_the_pages_own_route_answer():
+    from backend.swarm import open_guarded
+
+    class Request:
+        def __init__(self, url):
+            self.url = url
+            self.resource_type = "document"
+            self.frame = type("Frame", (), {"parent_frame": None})()
+
+        def is_navigation_request(self):
+            return True
+
+    class Route:
+        def __init__(self, url):
+            self.request = Request(url)
+            self.actions = []
+
+        def abort(self, reason):
+            self.actions.append(("abort", reason))
+
+        def fallback(self):
+            self.actions.append("fallback")
+
+        def fetch(self, **kwargs):
+            raise AssertionError("a failed probe must not fetch past the page's own route")
+
+    class Page:
+        url = ""
+
+        def __init__(self):
+            self.handler = None
+            self.routes = []
+
+        def get(self, url, **kwargs):
+            raise OSError("getaddrinfo ENOTFOUND shop.test")
+
+        @property
+        def request(self):
+            return self
+
+        def route(self, pattern, handler):
+            self.handler = handler
+
+        def unroute(self, pattern, handler):
+            self.handler = None
+
+        def goto(self, url, **kwargs):
+            route = Route(url)
+            self.routes.append(route)
+            self.handler(route)
+            if any(step[0] == "abort" for step in route.actions if isinstance(step, tuple)):
+                raise RuntimeError("Page.goto: net::ERR_ABORTED")
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    page = Page()
+    response, blocked = open_guarded(page, "https://shop.test/product")
+    assert blocked is None and response.status == 200
+    assert page.routes[0].actions == ["fallback"]
+    _response, pay = open_guarded(page, "https://shop.test/checkout")
+    assert pay["status"] == "blocked"
+    assert page.url == "https://shop.test/product"
+
+    class Redirecting(Page):
+        def goto(self, url, **kwargs):
+            route = Route("https://shop.test/checkout")
+            self.routes.append(route)
+            self.handler(route)
+            if any(step[0] == "abort" for step in route.actions if isinstance(step, tuple)):
+                raise RuntimeError("Page.goto: net::ERR_ABORTED")
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    turned = Redirecting()
+    _response, redirected = open_guarded(turned, "https://shop.test/product")
+    assert redirected["status"] == "blocked"
+    assert redirected["final_url"].endswith("/checkout")
+    assert turned.routes[0].actions[0][0] == "abort"
+    assert turned.url == ""
 
 
 def test_the_whole_website_is_split_across_workers():

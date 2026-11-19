@@ -202,12 +202,8 @@ def open_guarded(page, address: str, *, timeout: int = 20000):
             # The probe never ran. Do not open checkout, and abort a redirect into it.
             if is_payment_url(address):
                 return None, _payment_block(address, address)
-            blocked_url = ""
-            if hasattr(page, "route"):
-                from .payment_nav import navigate_for_crawl
-                _response, blocked_url = navigate_for_crawl(page, address, timeout=timeout)
-            else:
-                _response = page.goto(address, wait_until="domcontentloaded", timeout=timeout)
+            from .payment_nav import open_falling_back
+            _response, blocked_url = open_falling_back(page, address, timeout=timeout)
             final = blocked_url or str(getattr(page, "url", "") or "")
             if blocked_url or is_payment_url(final):
                 return None, _payment_block(address, final or address)
