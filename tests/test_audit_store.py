@@ -597,6 +597,84 @@ def test_a_linked_baseline_does_not_read_or_write_another_tenant(monkeypatch, tm
     assert saved.read_text(encoding="utf-8") == secret
 
 
+def test_saving_a_baseline_does_not_follow_a_link_into_another_tenant(monkeypatch, tmp_path):
+    import json
+
+    from backend.agents.change_detection import change_detection_agent, save_baseline_agent
+    from backend.config import settings
+    from backend.visual import _bkey, _save_index, _store
+
+    root = tmp_path / "baseline"
+    runs = tmp_path / "runs" / "run-b"
+    monkeypatch.setattr(settings, "baseline_dir", root)
+    monkeypatch.setattr(settings, "runs_dir", tmp_path / "runs")
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t2")
+    secret = "tenant-t1-only-script"
+    theirs = root / "t1" / "shop.test"
+    (theirs / "tests").mkdir(parents=True)
+    (theirs / "tests" / "test_keep.py").write_text(secret + "\n", encoding="utf-8")
+    (theirs / "app_map.json").write_text(json.dumps([{"url": "https://shop.test/secret", "slug": "secret", "status": 200}]), encoding="utf-8")
+    (theirs / "visual").mkdir()
+    (theirs / "visual" / "index.json").write_text(json.dumps({"secret": secret}) + "\n", encoding="utf-8")
+    (theirs / "visual" / "pic.png").write_bytes(b"t1-png")
+    ours = root / "t2" / "shop.test"
+    ours.mkdir(parents=True)
+    (ours / "tests").symlink_to(theirs / "tests", target_is_directory=True)
+    (runs / "generated_tests").mkdir(parents=True)
+    (runs / "generated_tests" / "test_new.py").write_text("def test_new():\n    assert True\n", encoding="utf-8")
+    (runs / "generated_tests" / "test_linked.py").symlink_to(theirs / "tests" / "test_keep.py")
+    state = {
+        "app_map": [{"url": "https://shop.test/", "status": 200, "slug": "home", "title": "Home"}],
+        "run_dir": str(runs), "site_key": "shop.test", "url": "https://shop.test/",
+        "source": "https://shop.test/", "run_id": "run-b", "failures": [], "test_cases": [], "log": [],
+    }
+    saved = save_baseline_agent(state)
+    assert "link" in saved["log"][-1]
+    assert (theirs / "tests" / "test_keep.py").read_text(encoding="utf-8") == secret + "\n"
+    assert not (theirs / "tests" / "test_new.py").exists()
+    assert secret not in json.dumps(saved)
+
+    (ours / "tests").unlink()
+    (ours / "app_map.json").symlink_to(theirs / "app_map.json")
+    before_map = (theirs / "app_map.json").read_text(encoding="utf-8")
+    compared = change_detection_agent(state)
+    assert compared["changes"]["first_run"] is True
+    assert secret not in json.dumps(compared)
+    assert (theirs / "app_map.json").read_text(encoding="utf-8") == before_map
+    again = save_baseline_agent(state)
+    assert "link" in again["log"][-1]
+    assert (theirs / "app_map.json").read_text(encoding="utf-8") == before_map
+
+    (ours / "visual").mkdir()
+    (ours / "visual" / "index.json").symlink_to(theirs / "visual" / "index.json")
+    before_index = (theirs / "visual" / "index.json").read_text(encoding="utf-8")
+    _save_index("shop.test", {"pages": {"home": {"title": "stolen"}}})
+    assert (theirs / "visual" / "index.json").read_text(encoding="utf-8") == before_index
+    shot_name = f"{_bkey('home')}_desktop.png"
+    (ours / "visual" / shot_name).symlink_to(theirs / "visual" / "pic.png")
+    (runs / "visual").mkdir()
+    (runs / "visual" / "home.png").write_bytes(b"t2-png")
+    _store("shop.test", {"pages": {}}, "home", {"url": "https://shop.test/", "desktop": {"shot": "visual/home.png"}},
+           runs, "Home", "run-b")
+    assert (theirs / "visual" / "pic.png").read_bytes() == b"t1-png"
+
+    target = tmp_path / "changes.json"
+    target.write_text(secret, encoding="utf-8")
+    (runs / "changes.json").unlink(missing_ok=True)
+    (runs / "changes.json").symlink_to(target)
+    written = change_detection_agent({**state, "app_map": state["app_map"]})
+    assert secret not in json.dumps(written)
+    assert target.read_text(encoding="utf-8") == secret
+
+    (ours / "app_map.json").unlink()
+    (runs / "changes.json").unlink()
+    kept = save_baseline_agent(state)
+    assert "saved to" in kept["log"][-1]
+    assert (ours / "tests" / "test_new.py").is_file()
+    assert not (ours / "tests" / "test_linked.py").exists()
+    assert (theirs / "tests" / "test_keep.py").read_text(encoding="utf-8") == secret + "\n"
+
+
 def test_a_due_schedule_starts_while_a_principal_must_be_signed_in(monkeypatch, tmp_path):
     import json
     from datetime import datetime

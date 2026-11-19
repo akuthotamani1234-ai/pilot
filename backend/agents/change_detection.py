@@ -174,7 +174,7 @@ def change_detection_agent(state: QAState) -> QAState:
     from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
     old_map_file = bdir / "app_map.json"
-    linked = baseline_is_linked(bdir)
+    linked = baseline_is_linked(bdir) or baseline_is_linked(old_map_file) or baseline_is_linked(bdir / "meta.json")
     current = [p for p in state["app_map"] if page_testable(p)]
 
     if linked or not old_map_file.exists():
@@ -234,7 +234,11 @@ def change_detection_agent(state: QAState) -> QAState:
             })
     saved_pages = [{"url": url, "template": "same", "status": "ok"} for url in unchanged_urls]
     changes["incremental"] = plan_pages(saved_pages, current_pages, fresh=not settings.incremental)
-    Path(state["run_dir"], "changes.json").write_text(json.dumps(changes, indent=2), encoding="utf-8")
+    out = Path(state["run_dir"]) / "changes.json"
+    if Path(state["run_dir"]).is_symlink() or out.is_symlink():
+        msg = (msg + " The changes file is a link, so it was not written.").strip()
+    else:
+        out.write_text(json.dumps(changes, indent=2), encoding="utf-8")
     return {"changes": changes, "log": state.get("log", []) + [msg]}
 
 
@@ -246,17 +250,21 @@ def save_baseline_agent(state: QAState) -> QAState:
     run_dir = Path(state["run_dir"])
     from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
-    if baseline_is_linked(bdir):
+    writes = [bdir / name for name in ("tests", "app_map.json", "open_questions.json", "test_cases.json", "meta.json")]
+    if any(baseline_is_linked(path) for path in (bdir, *writes)):
         return {"log": state.get("log", []) + ["Baseline: not updated (the folder is a link)."]}
     tests_dir = bdir / "tests"
-    if tests_dir.exists():
-        for f in tests_dir.glob("*.py"):
-            f.unlink()
+    if tests_dir.is_dir() and not tests_dir.is_symlink():
+        for f in list(tests_dir.glob("*.py")):
+            if f.is_symlink() or not baseline_is_linked(f):
+                f.unlink()
     tests_dir.mkdir(parents=True, exist_ok=True)
 
-    for f in (run_dir / "generated_tests").glob("*.py"):  # test files + the steps_*.py they import
-        if f.name != "conftest.py":  # (the sandbox fixtures always come fresh from backend/templates)
-            (tests_dir / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+    generated = run_dir / "generated_tests"
+    scripts = [] if generated.is_symlink() or not generated.is_dir() else [
+        f for f in generated.glob("*.py") if f.name != "conftest.py" and not f.is_symlink()]
+    for f in scripts:  # test files + the steps_*.py they import; a link is not copied
+        (tests_dir / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
     (bdir / "app_map.json").write_text(json.dumps(state["app_map"], indent=2), encoding="utf-8")
     # the rule questions of this run ("... Is that allowed?"): the next run's review asks them (backend/review.py)
     questions = [{"tc_id": f.get("tc_id"), "question": re.sub(r"\s*\([^)]*\)\s*$", "", f.get("explanation") or "")}

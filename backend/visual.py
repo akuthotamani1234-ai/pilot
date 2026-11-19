@@ -211,6 +211,7 @@ def load_index(site_key: str) -> dict:
 
 def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title: str, run_id: str) -> None:
     """This run's look of one page becomes its approved look (pictures copied into the baseline)."""
+    from .agents.change_detection import run_path_is_linked
     from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
     if baseline_is_linked(vdir):
@@ -222,7 +223,12 @@ def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title
         if not c or not c.get("shot") or not (run_dir / c["shot"]).exists():
             continue
         name = f"{_bkey(key)}_{w}.png"
-        shutil.copyfile(run_dir / c["shot"], vdir / name)
+        shot = run_dir / c["shot"]
+        dest = vdir / name
+        rel = Path(c["shot"])
+        if rel.is_absolute() or run_path_is_linked(run_dir, *rel.parts) or dest.is_symlink() or baseline_is_linked(dest):
+            continue
+        shutil.copyfile(shot, dest)
         widths[w] = dict(c, shot=name)
     if widths:
         index["pages"][key] = {"url": cap.get("url"), "title": title, "widths": widths, "run_id": run_id,
@@ -232,10 +238,11 @@ def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title
 def _save_index(site_key: str, index: dict) -> None:
     from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
-    if baseline_is_linked(vdir):
+    index_path = vdir / INDEX
+    if baseline_is_linked(vdir) or baseline_is_linked(index_path):
         return
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / INDEX).write_text(json.dumps(index, indent=1), encoding="utf-8")
+    index_path.write_text(json.dumps(index, indent=1), encoding="utf-8")
 
 
 def visual_check_agent(state: QAState) -> QAState:
