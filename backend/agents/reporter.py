@@ -490,17 +490,19 @@ def fill_case_results(cases: list[dict], results: list[dict], failures: list[dic
 
 def _write_run_text(run_dir: Path, name: str, text: str) -> None:
     """Write one file in this run. A link is left untouched."""
+    from ..finalization import folder_is_linked
     from .change_detection import run_path_is_linked
-    if run_path_is_linked(Path(run_dir), name):
+    if folder_is_linked(Path(run_dir)) or run_path_is_linked(Path(run_dir), name):
         return
     (Path(run_dir) / name).write_text(text, encoding="utf-8")
 
 
 def _read_run_json(run_dir: Path, name: str):
     """JSON from one file in this run, or None when it is missing or a link."""
+    from ..finalization import folder_is_linked
     from .change_detection import run_path_is_linked
     path = Path(run_dir) / name
-    if run_path_is_linked(Path(run_dir), name) or not path.is_file():
+    if folder_is_linked(Path(run_dir)) or run_path_is_linked(Path(run_dir), name) or not path.is_file():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -510,7 +512,10 @@ def _read_run_json(run_dir: Path, name: str):
 
 def compare_with_previous(state: QAState, run_dir: Path, cases: list[dict]) -> dict:
     """Regression view: this run's test cases against the last finished run of the same site (by stable ID)."""
+    from ..finalization import folder_is_linked
     from .change_detection import run_path_is_linked, tenant_owns_run
+    if folder_is_linked(run_dir):
+        return {"previous_run": None}
     site = state.get("site_key", "")
     prev = None
     for d in sorted(run_dir.parent.glob(f"{site}_*"), key=lambda p: p.name, reverse=True):

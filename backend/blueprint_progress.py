@@ -200,6 +200,7 @@ def progress() -> dict:
         {"id": "G-crawl-link", "label": "A crawl does not follow a link into another folder", "status": "done"},
         {"id": "G-merge-folder-link", "label": "A merged report does not follow a link into another folder", "status": "done"},
         {"id": "C-lifecycle-folder-link", "label": "A cleanup record does not follow a link into another folder", "status": "done"},
+        {"id": "G-report-folder-link", "label": "A report file does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
