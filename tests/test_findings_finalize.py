@@ -119,6 +119,35 @@ def test_report_path_ensure_then_gates_see_findings(tmp_path):
     assert next(c for c in m["consistency"] if "finding" in c["check"])["ok"]
 
 
+def test_a_finding_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-finding"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "failures.json").write_bytes(secret)
+    (other / "results.json").write_text(json.dumps([
+        _result("test_secret.py::test_secret", "test_secret", "failed", error="secret"),
+    ]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert ensure_findings_from_results(linked / "run") == []
+    assert load_saved_results(linked / "run") == []
+    assert not (other / "run").exists()
+    assert (other / "failures.json").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "results.json").write_text(json.dumps([
+        _result("test_home.py::test_home", "test_home", "failed", error="button missing"),
+    ]), encoding="utf-8")
+    findings = ensure_findings_from_results(real)
+    assert findings and findings[0]["nodeid"].endswith("test_home")
+    saved = (real / "failures.json").read_bytes()
+    assert b"test_home" in saved and secret not in saved
+    assert (other / "failures.json").read_bytes() == secret
+
+
 def test_a_finding_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
     from backend.agents.executor import _read, _write_run_json

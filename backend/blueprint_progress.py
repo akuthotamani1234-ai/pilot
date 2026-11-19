@@ -192,6 +192,8 @@ def progress() -> dict:
         {"id": "G-release-link", "label": "A release row does not follow a link into another folder", "status": "done"},
         {"id": "G-graph-link", "label": "A discovery graph does not follow a link into another folder", "status": "done"},
         {"id": "G-visual-capture-link", "label": "A visual capture does not follow a link into another folder", "status": "done"},
+        {"id": "G-api-spec-link", "label": "An API spec does not follow a link into another folder", "status": "done"},
+        {"id": "G-finding-folder-link", "label": "A finding does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

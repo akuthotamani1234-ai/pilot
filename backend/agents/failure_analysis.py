@@ -498,16 +498,18 @@ def _case_of(r: dict, cases: list[dict]) -> dict | None:
 
 
 def _save_failures(run_dir: Path, failures: list) -> None:
+    from ..finalization import folder_is_linked
     path = Path(run_dir) / "failures.json"
-    if Path(run_dir).is_symlink() or path.is_symlink():
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
         return
     path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
 
 
 def load_saved_results(run_dir: Path | str) -> list[dict]:
     """Results already on disk: prefer results.json, else merge results.jsonl / worker files / android_results."""
+    from ..finalization import folder_is_linked
     run_dir = Path(run_dir)
-    if run_dir.is_symlink():
+    if folder_is_linked(run_dir):
         return []
     final = run_dir / "results.json"
     if final.is_file() and not final.is_symlink():
@@ -684,8 +686,9 @@ def ensure_findings_from_results(
     failed/error/inconclusive outcome (via classify), merges into failures.json without wiping
     richer LLM findings already present, and is idempotent by nodeid.
     """
+    from ..finalization import folder_is_linked
     run_dir = Path(run_dir)
-    if run_dir.is_symlink():
+    if folder_is_linked(run_dir):
         return []
     if results is None:
         results = load_saved_results(run_dir)
@@ -733,7 +736,7 @@ def ensure_findings_from_results(
         covered.add(nodeid)
         next_id += 1
 
-    if not run_dir.is_symlink():
+    if not folder_is_linked(run_dir):
         run_dir.mkdir(parents=True, exist_ok=True)
     _save_failures(run_dir, out)
     return out

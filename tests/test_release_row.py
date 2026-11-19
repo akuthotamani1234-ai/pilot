@@ -205,6 +205,29 @@ def test_a_finished_run_builds_the_same_row(tmp_path):
     assert row["operations"]["backup_path"] == "app_map.json"
 
 
+def test_an_api_spec_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import store_api_spec
+
+    secret = b"tenant-b-only-spec"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "api_spec.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert store_api_spec(linked / "run", [{"method": "GET", "path": "/secret"}]) is False
+    assert not (other / "run").exists()
+    assert (other / "api_spec.json").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    assert store_api_spec(real, [{"method": "GET", "path": "/ours"}]) is True
+    text = (real / "api_spec.json").read_bytes()
+    assert b"/ours" in text and secret not in text
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_a_crawl_record_does_not_follow_a_link_into_another_run(tmp_path):
     import json
     from pathlib import Path
