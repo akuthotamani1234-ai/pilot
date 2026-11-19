@@ -76,6 +76,7 @@ BLOCKERS = (
             "workflow_dispatch_contract_drill.json",
             "hosted_ci_runner_matrix_drill.json",
             "ci_artifact_upload_rehearsal_drill.json",
+            "hosted_runner_readiness_drill.json",
         ],
     },
     {
@@ -89,6 +90,7 @@ BLOCKERS = (
             "workflow_dispatch_contract_drill.json",
             "hosted_ci_runner_matrix_drill.json",
             "ci_artifact_upload_rehearsal_drill.json",
+            "hosted_runner_readiness_drill.json",
         ],
     },
     {

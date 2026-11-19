@@ -666,6 +666,14 @@ def readiness() -> dict:
                 else "No CI artifact upload rehearsal"
             ),
         },
+        "hosted_runner_readiness_drill": {
+            "ready": _ops_evidence("hosted_runner_readiness_drill.json"),
+            "reason": (
+                "Hosted runner readiness scores present; broad runners still open"
+                if _ops_evidence("hosted_runner_readiness_drill.json")
+                else "No hosted runner readiness scores"
+            ),
+        },
         "hosted_idp_readiness_drill": {
             "ready": _ops_evidence("hosted_idp_readiness_drill.json"),
             "reason": (
