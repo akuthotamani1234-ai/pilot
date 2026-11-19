@@ -1949,6 +1949,36 @@ def ops_hosted_idp_claim_map_completeness():
     return {"gate_i_complete": False, "hosted_idp_claim_map_completeness": evidence}
 
 
+@app.post("/api/ops/drills/studio-sso-login-path")
+def ops_studio_sso_login_path():
+    """Gate I: Studio SSO login-path contract (hosted IdP still open)."""
+    from backend.studio_sso_login_path_drill import run_studio_sso_login_path_drill
+    evidence = run_studio_sso_login_path_drill()
+    _audit(
+        "ops_studio_sso_login_path",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_login_path": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-scope-matrix")
+def ops_independent_review_scope_matrix():
+    """Gate G: gate→evidence scope matrix (unsigned)."""
+    from backend.independent_review_scope_matrix_drill import (
+        run_independent_review_scope_matrix_drill,
+    )
+    evidence = run_independent_review_scope_matrix_drill()
+    _audit(
+        "ops_independent_review_scope_matrix",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_scope_matrix": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""

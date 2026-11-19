@@ -5,6 +5,7 @@ from backend.hosted_idp_sso_readiness_pack_drill import (
 
 
 def test_hosted_idp_sso_readiness_pack_stays_partial(tmp_path, monkeypatch):
+    import backend.hosted_idp_claim_map_completeness_drill as claim
     import backend.hosted_idp_contract_drill as contract
     import backend.hosted_idp_readiness_drill as ready
     import backend.oidc_acl_matrix_pack_drill as matrix
@@ -14,6 +15,10 @@ def test_hosted_idp_sso_readiness_pack_stays_partial(tmp_path, monkeypatch):
     monkeypatch.setattr(
         matrix, "run_oidc_acl_matrix_pack_drill",
         lambda ops_dir=None: {"ok": True},
+    )
+    monkeypatch.setattr(
+        claim, "run_hosted_idp_claim_map_completeness_drill",
+        lambda ops_dir=None: {"ok": True, "score": 8, "score_of": 8},
     )
     monkeypatch.setattr(
         contract, "run_hosted_idp_contract_drill",
