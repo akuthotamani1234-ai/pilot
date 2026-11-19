@@ -323,6 +323,26 @@ def test_a_page_that_refreshes_into_checkout_is_not_opened():
     assert blocked["status"] == "blocked"
     assert "/checkout" not in fetched
     assert opened == []
+
+    class RefreshHeader:
+        status = 200
+        headers = {"Refresh": "0; url=/checkout"}
+
+        def text(self):
+            return "<html>ok</html>"
+
+    class HeaderOnly(Page):
+        def get(self, url, **kwargs):
+            fetched.append(str(url))
+            return RefreshHeader()
+
+    fetched.clear()
+    opened.clear()
+    _response, blocked = open_guarded(HeaderOnly(), "https://shop.example/header")
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert opened == []
+    assert fetched == ["https://shop.example/header"]
     fetched.clear()
     response, cart = open_guarded(page, "https://shop.example/cart")
     assert cart is None and response.status == 200

@@ -23,10 +23,28 @@ def _response_html(response) -> str:
     return raw
 
 
-def meta_refresh_url(html: str, base: str) -> str:
-    """The immediate meta-refresh address, or '' when the page does not refresh."""
+def _refresh_target(value: str, base: str) -> str:
+    """The address in a refresh delay, or '' when it is missing or not immediate."""
     from urllib.parse import urljoin
 
+    delay = re.match(r"\s*(\d+)", value or "")
+    if delay and int(delay.group(1)) > 1:
+        return ""
+    target = _REFRESH_URL.search(value or "")
+    if not target:
+        return ""
+    return urljoin(base, target.group(1).strip())
+
+
+def header_refresh_url(response, base: str) -> str:
+    """The address in a Refresh response header, or '' when the header is absent."""
+    headers = getattr(response, "headers", None) or {}
+    raw = headers.get("refresh") or headers.get("Refresh") or ""
+    return _refresh_target(str(raw), base)
+
+
+def meta_refresh_url(html: str, base: str) -> str:
+    """The immediate meta-refresh address, or '' when the page does not refresh."""
     if not html or "refresh" not in html.lower():
         return ""
     for attrs in _META_TAG.findall(html):
@@ -36,13 +54,9 @@ def meta_refresh_url(html: str, base: str) -> str:
         if not found:
             continue
         value = found.group(2) if found.group(2) is not None else (found.group(3) or "")
-        delay = re.match(r"\s*(\d+)", value)
-        if delay and int(delay.group(1)) > 1:
-            continue
-        target = _REFRESH_URL.search(value)
-        if not target:
-            continue
-        return urljoin(base, target.group(1).strip())
+        target = _refresh_target(value, base)
+        if target:
+            return target
     return ""
 
 
@@ -63,7 +77,8 @@ def _walk(fetch, address: str, *, base: str = "", timeout: int = 10000):
     for _hop in range(5):
         response = fetch(current, max_redirects=0, timeout=timeout)
         if getattr(response, "status", None) not in {301, 302, 303, 307, 308}:
-            nxt = meta_refresh_url(_response_html(response), current)
+            nxt = header_refresh_url(response, current) or meta_refresh_url(
+                _response_html(response), current)
             if not nxt or nxt == current:
                 return current, "", response
             if is_payment_url(nxt):

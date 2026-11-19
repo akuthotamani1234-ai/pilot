@@ -408,6 +408,22 @@ def test_a_generated_open_does_not_follow_a_redirect_into_checkout():
         goto(RefreshPage(), product)
     assert opened == []
 
+    class HeaderProbe:
+        status = 200
+        headers = {"Refresh": "0; url=/checkout"}
+
+        def text(self):
+            return "<html>ok</html>"
+
+    class HeaderPage(Page):
+        def get(self, url, **kwargs):
+            return HeaderProbe()
+
+    opened.clear()
+    with pytest.raises(pytest.skip.Exception):
+        goto(HeaderPage(), product)
+    assert opened == []
+
 
 def test_a_generated_read_does_not_fetch_checkout():
     import ast
