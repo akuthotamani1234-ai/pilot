@@ -44,12 +44,13 @@ export function App() {
     setSsoNote("Exchanging…");
     try {
       const result = await exchangeSsoCode(ssoCode.trim());
-      if (result.ok && result.access_token) {
+      if (result.ok && result.access_token && result.principal_bound !== false) {
         saveDashboardToken(result.access_token);
         setToken(result.access_token);
-        setSsoNote("OIDC code exchanged; token saved (hosted IdP still open)");
+        const role = result.role ? ` as ${result.role}` : "";
+        setSsoNote(`OIDC code exchanged${role}; token saved (hosted IdP still open)`);
       } else {
-        setSsoNote(result.reason || "SSO exchange failed");
+        setSsoNote(result.principal_reason || result.reason || "SSO exchange failed");
       }
     } catch (err) {
       setSsoNote(err instanceof Error ? err.message : "SSO exchange failed");

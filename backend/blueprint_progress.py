@@ -337,6 +337,7 @@ def progress() -> dict:
         {"id": "B-browser-paypal", "label": "The test browser refuses PayPal hosts and checkout files", "status": "done"},
         {"id": "B-click-paypal", "label": "A generated test cannot click a link to PayPal or a checkout file", "status": "done"},
         {"id": "B-crawl-no-click", "label": "A checkout page is recorded and its controls are not clicked", "status": "done"},
+        {"id": "I-callback-token", "label": "SSO callback returns a token only after a principal is bound", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

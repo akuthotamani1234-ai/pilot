@@ -73,6 +73,7 @@ def test_exchange_binds_a_new_principal_and_leaves_a_stored_role(monkeypatch, tm
     assert created["ok"] is True
     assert created["principal_created"] is True
     assert created["role"] == "admin"
+    assert created["access_token"] == "tok"
     assert created["gate_i_complete"] is False
     assert authorize("Bearer tok")["ok"] is True
 
@@ -82,4 +83,12 @@ def test_exchange_binds_a_new_principal_and_leaves_a_stored_role(monkeypatch, tm
     assert kept["principal_created"] is False
     assert kept["role"] == "viewer"
     assert get_principal("kept-1", db_path=db)["role"] == "viewer"
+    assert kept["access_token"] == "tok"
+    reset_used_authorization_codes()
+    claims.update({"sub": "stranger", "groups": ["other-team"], "email": "s@ex.test"})
+    stranger = exchange_code(code="code-stranger", db_path=db)
+    assert stranger["ok"] is True
+    assert stranger["principal_bound"] is False
+    assert stranger["access_token"] == ""
+    assert "not a known role" in (stranger.get("reason") or "")
     reset_used_authorization_codes()
