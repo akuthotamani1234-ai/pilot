@@ -596,7 +596,10 @@ def execution_agent(state: QAState) -> QAState:
     assigned = isolated_work([
         {"id": case.get("tc_id") or case.get("id") or "",
          "source": case.get("expected_source") or case.get("oracle") or "",
-         "assertion": case.get("expected") or case.get("title") or ""}
+         "assertion": case.get("expected") or case.get("title") or "",
+         "url": case.get("url") or case.get("page_url") or "",
+         "pages": case.get("pages") or [],
+         "spec": case.get("spec") if isinstance(case.get("spec"), dict) else {}}
         for case in state.get("test_cases") or []
     ], settings.test_workers)
     accepted = sum(row["accepted"] for row in assigned)

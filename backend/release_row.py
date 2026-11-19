@@ -192,11 +192,41 @@ def link_graph(pages: list[dict]) -> dict:
     return graph
 
 
+def _payment_case(case: dict) -> str:
+    """The checkout address on a case, or '' when the case may be tested."""
+    found: list = []
+    for key in ("url", "page", "page_url", "final_url", "href"):
+        found.append(case.get(key))
+    spec = case.get("spec")
+    if isinstance(spec, dict):
+        found.append(spec.get("url"))
+    for item in case.get("pages") or []:
+        found.append(item.get("url") if isinstance(item, dict) else item)
+    for raw in found:
+        text = str(raw or "")
+        if is_payment_url(text):
+            return text
+    return ""
+
+
 def isolated_work(cases: list[dict], worker_count: int) -> list[dict]:
-    """One worker context per accepted case. An assertion without a source is not assigned."""
+    """One worker context per accepted case. An assertion without a source is not assigned.
+
+    A checkout or payment address is not given to a worker, even with an approved source.
+    """
     count = max(1, int(worker_count or 1))
     assigned = []
     for index, case in enumerate(cases):
+        pay = _payment_case(case)
+        if pay:
+            assigned.append({
+                "id": case.get("id") or "",
+                "worker": 0,
+                "isolated": False,
+                "accepted": False,
+                "reason": "checkout, payment and placing an order are never tested",
+            })
+            continue
         ok, source = accept_expected(str(case.get("source") or ""))
         if not ok:
             assigned.append({"id": case.get("id") or "", "worker": 0, "isolated": False, "accepted": False, "reason": source})
