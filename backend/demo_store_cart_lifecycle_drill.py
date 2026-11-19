@@ -69,13 +69,29 @@ def _signin(base: str) -> str:
     raise RuntimeError(f"DemoStore sign-in did not yield sid (HTTP {code})")
 
 
+def _linked_cart() -> dict:
+    return {
+        "gate_c_complete": False,
+        "ok": False,
+        "drill": "demo_store_cart_lifecycle_cleanup",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_demo_store_cart_lifecycle_drill(*, ops_dir: Path | None = None) -> dict:
     from tests.demo_store import DemoStore
 
-    store = DemoStore(bugs=False).start()
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "demo_store_cart_lifecycle_drill.json"
     work = Path(ops_dir) / "demo_store_cart_lifecycle_work" if ops_dir else (
         ROOT / "artifacts" / "ops" / "demo_store_cart_lifecycle_work"
     )
+    if folder_is_linked(dest) or folder_is_linked(dest / name) or folder_is_linked(work):
+        return _linked_cart()
+
+    store = DemoStore(bugs=False).start()
     work.mkdir(parents=True, exist_ok=True)
     run_dir = work / f"run_{int(time.time())}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -148,12 +164,15 @@ def run_demo_store_cart_lifecycle_drill(*, ops_dir: Path | None = None) -> dict:
             "ok": False,
             "reason": "DemoStore cart lifecycle drill aborted before evidence",
         }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name) or folder_is_linked(work):
+        return _linked_cart()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "demo_store_cart_lifecycle_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_cart()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "demo_store_cart_lifecycle_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
