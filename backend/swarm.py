@@ -58,6 +58,19 @@ def is_payment_url(url: str) -> bool:
 _QUOTED = re.compile(r"""['"]([^'"]+)['"]""")
 
 
+def _script_opens_payment(base: str, script: str) -> bool:
+    """True when a javascript: address quotes a checkout or payment URL."""
+    from urllib.parse import urljoin
+
+    for quoted in _QUOTED.findall(script or ""):
+        text = quoted.strip()
+        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
+            continue
+        if is_payment_url(urljoin(base, text)):
+            return True
+    return False
+
+
 def control_opens_payment(page_url: str, href: str = "", form_action: str = "", onclick: str = "") -> bool:
     """True when the control's address is checkout or payment, whatever its label says."""
     from urllib.parse import urljoin
@@ -65,17 +78,15 @@ def control_opens_payment(page_url: str, href: str = "", form_action: str = "", 
     base = page_url or ""
     for raw in (href or "", form_action or ""):
         text = raw.strip()
-        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
+        if not text or text.startswith("#"):
+            continue
+        if text.lower().startswith("javascript:"):
+            if _script_opens_payment(base, text):
+                return True
             continue
         if is_payment_url(urljoin(base, text)):
             return True
-    for quoted in _QUOTED.findall(onclick or ""):
-        text = quoted.strip()
-        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
-            continue
-        if is_payment_url(urljoin(base, text)):
-            return True
-    return False
+    return _script_opens_payment(base, onclick or "")
 
 
 def stored_control_opens_payment(page_url: str, control: dict | None) -> bool:
