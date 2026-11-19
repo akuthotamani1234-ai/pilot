@@ -478,6 +478,7 @@ def progress() -> dict:
         {"id": "G-audit-export-link", "label": "An audit export does not follow a link into another folder", "status": "done"},
         {"id": "G-api-version-link", "label": "An API version contract does not follow a link into another folder", "status": "done"},
         {"id": "G-swarm-control-link", "label": "A swarm control drill does not follow a link into another folder", "status": "done"},
+        {"id": "G-lifecycle-link", "label": "A lifecycle cleanup does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
