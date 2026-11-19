@@ -58,6 +58,7 @@ BLOCKERS = (
             "oidc_acl_matrix_pack_drill.json",
             "hosted_idp_claim_map_completeness_drill.json",
             "studio_sso_login_path_drill.json",
+            "studio_sso_session_rebind_drill.json",
         ],
     },
     {
@@ -76,6 +77,7 @@ BLOCKERS = (
             "production_healing_suite_pack_drill.json",
             "production_healing_third_party_sla_drill.json",
             "production_healing_acceptance_gate_drill.json",
+            "production_healing_seed_catalog_drill.json",
             "healing_regression_drill.json",
         ],
     },

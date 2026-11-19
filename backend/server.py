@@ -1748,6 +1748,22 @@ def ops_production_healing_acceptance_gate():
     return {"gate_e_complete": False, "production_healing_acceptance_gate": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-seed-catalog")
+def ops_production_healing_seed_catalog():
+    """Gate E: seed catalog for third-party healing (suite still open)."""
+    from backend.production_healing_seed_catalog_drill import (
+        run_production_healing_seed_catalog_drill,
+    )
+    evidence = run_production_healing_seed_catalog_drill()
+    _audit(
+        "ops_production_healing_seed_catalog",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_seed_catalog": evidence}
+
+
 @app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
 def ops_hosted_dispatch_payload_rehearsal():
     """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""
@@ -1961,6 +1977,21 @@ def ops_studio_sso_login_path():
         live=bool(evidence.get("live_hosted_sso")),
     )
     return {"gate_i_complete": False, "studio_sso_login_path": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-session-rebind")
+def ops_studio_sso_session_rebind():
+    """Gate I: SSO session rebind same sub (hosted IdP still open)."""
+    from backend.studio_sso_session_rebind_drill import (
+        run_studio_sso_session_rebind_drill,
+    )
+    evidence = run_studio_sso_session_rebind_drill()
+    _audit(
+        "ops_studio_sso_session_rebind",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_session_rebind": evidence}
 
 
 @app.post("/api/ops/drills/independent-review-scope-matrix")

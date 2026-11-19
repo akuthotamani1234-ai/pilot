@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:00:31Z",
+  "ran_at": "2026-11-19T05:11:39Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -19,7 +19,7 @@
         "gate": "I",
         "label": "Live hosted IdP Studio SSO login + multi-tenant ACLs",
         "status": "open",
-        "local_partial_count": 17,
+        "local_partial_count": 18,
         "local_partial_missing": []
       },
       {
@@ -27,7 +27,7 @@
         "gate": "E",
         "label": "Production failure matrix / healing suite",
         "status": "open",
-        "local_partial_count": 12,
+        "local_partial_count": 13,
         "local_partial_missing": []
       },
       {
@@ -56,8 +56,8 @@
       }
     ]
   },
-  "freeze_sha256": "8050cd1e7ef04ffbf185dd36703b37e593ffa8394a0d05373d80ad5df45e9a29",
+  "freeze_sha256": "e7b80d43808da6eb6ce47ab725a0e65e6c39a9ffe7d320361a0ecba63d0ce5ec",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze 8050cd1e7ef0\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze e7b80d43808d\u2026 (6 open); external sign-off still open"
 }

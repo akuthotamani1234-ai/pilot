@@ -19,6 +19,7 @@ STEPS = (
     ("pkce", "loopback_pkce_sso_drill.json", "PKCE S256 challenge"),
     ("callback", "studio_oidc_callback_drill.json", "Studio /api/sso/callback"),
     ("principal", "studio_sso_principal_bootstrap_drill.json", "Principal bootstrap"),
+    ("rebind", "studio_sso_session_rebind_drill.json", "Session rebind same sub"),
     ("acl_matrix", "oidc_acl_matrix_pack_drill.json", "Claim ACL matrix"),
     ("claim_map", "hosted_idp_claim_map_completeness_drill.json", "Claim-map completeness"),
     ("idp_pack", "hosted_idp_sso_readiness_pack_drill.json", "IdP SSO readiness pack"),
