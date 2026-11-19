@@ -46,3 +46,16 @@ def test_wrong_client_redirect_and_expiry_are_refused():
     assert authorization_code_grant_error(_entry(issued_at=None), **base)
     assert authorization_code_grant_error(None, **base)
     assert authorization_code_grant_error(_entry(), **base, verifier_ok=False)
+
+
+def test_a_code_minted_with_state_is_refused_when_the_token_state_differs():
+    base = {
+        "grant": "authorization_code",
+        "client_id": "qpilot-studio",
+        "redirect_uri": "http://127.0.0.1/studio/callback",
+        "now": 1_010.0,
+    }
+    bound = _entry(state="studio-sso-1")
+    assert authorization_code_grant_error(bound, **base, state="studio-sso-1") == ""
+    assert authorization_code_grant_error(bound, **base, state="other-browser") == "invalid_grant"
+    assert authorization_code_grant_error(bound, **base) == "invalid_grant"

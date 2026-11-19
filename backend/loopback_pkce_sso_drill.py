@@ -143,6 +143,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                     "client_id": client_id,
                     "code_challenge": challenge,
                     "redirect_uri": redirect,
+                    "state": state,
                     "issued_at": time.time(),
                 }
                 loc = (
@@ -170,6 +171,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             verifier = (form.get("code_verifier") or [""])[0]
             redirect_uri = (form.get("redirect_uri") or [""])[0]
             posted_client = (form.get("client_id") or [""])[0]
+            posted_state = (form.get("state") or [""])[0]
             entry = codes.pop(code, None)
             verifier_ok = False
             if entry and verifier:
@@ -182,6 +184,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 redirect_uri=redirect_uri,
                 now=time.time(),
                 verifier_ok=verifier_ok,
+                state=posted_state,
             )
             if error:
                 body = json.dumps({"error": error}).encode()
@@ -272,6 +275,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             "client_id": client_id,
             "redirect_uri": "http://127.0.0.1/studio/callback",
             "code_verifier": verifier,
+            "state": "studio-pkce-1",
         }).encode()
         token_req = urllib.request.Request(  # noqa: S310
             f"{issuer}/token",

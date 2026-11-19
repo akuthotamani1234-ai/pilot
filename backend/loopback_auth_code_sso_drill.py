@@ -133,6 +133,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                     "email": email,
                     "client_id": client_id,
                     "redirect_uri": redirect,
+                    "state": state,
                     "issued_at": time.time(),
                 }
                 loc = f"{redirect}?code={urllib.parse.quote(code)}&state={urllib.parse.quote(state)}"
@@ -156,6 +157,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
             grant = (form.get("grant_type") or [""])[0]
             redirect_uri = (form.get("redirect_uri") or [""])[0]
             posted_client = (form.get("client_id") or [""])[0]
+            posted_state = (form.get("state") or [""])[0]
             entry = codes.pop(code, None)
             error = authorization_code_grant_error(
                 entry,
@@ -163,6 +165,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 client_id=posted_client,
                 redirect_uri=redirect_uri,
                 now=time.time(),
+                state=posted_state,
             )
             if error:
                 body = json.dumps({"error": error}).encode()
@@ -318,6 +321,7 @@ def run_loopback_auth_code_sso_drill(*, ops_dir: Path | None = None) -> dict:
             "code": code,
             "client_id": client_id,
             "redirect_uri": "http://127.0.0.1/studio/callback",
+            "state": "studio-sso-1",
         }).encode()
         token_req = urllib.request.Request(  # noqa: S310
             f"{issuer}/token",
