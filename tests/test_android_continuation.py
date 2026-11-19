@@ -67,6 +67,34 @@ def test_an_android_test_run_does_not_follow_a_link_into_another_run(tmp_path, m
     assert json.loads((other / "active_appium_session.json").read_text(encoding="utf-8"))["session_id"] == secret
 
 
+def test_contract_inputs_do_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.qa_runtime import private_inputs
+
+    monkeypatch.delenv("ANDROID_CONTRACT_INPUTS", raising=False)
+    secret = "tenant-b-only-contract"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run" / ".private"
+    nested.mkdir(parents=True)
+    (nested / "contract_inputs.json").write_text(
+        json.dumps({"secrets": {"password": secret}, "databases": {}}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert private_inputs(linked / "runs" / "run") == {"secrets": {}, "databases": {}}
+    assert json.loads((nested / "contract_inputs.json").read_text(encoding="utf-8"))["secrets"]["password"] == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / ".private"
+    real.mkdir(parents=True)
+    (real / "contract_inputs.json").write_text(
+        json.dumps({"secrets": {"password": "home-own"}, "databases": {"shop": "home.sqlite"}}),
+        encoding="utf-8")
+    loaded = private_inputs(tmp_path / "real")
+    assert loaded["secrets"]["password"] == "home-own"
+    assert loaded["databases"]["shop"] == "home.sqlite"
+    assert secret not in json.dumps(loaded)
+    assert json.loads((nested / "contract_inputs.json").read_text(encoding="utf-8"))["secrets"]["password"] == secret
+
+
 def test_resume_api_does_not_start_a_worker_when_every_case_completed(tmp_path, monkeypatch):
     root = tmp_path / "android_done"
     root.mkdir()

@@ -764,7 +764,7 @@ def private_inputs(run_dir):
     if encoded:
         return json.loads(encoded)
     path = Path(run_dir) / ".private" / "contract_inputs.json"
-    if (Path(run_dir).is_symlink() or path.is_symlink() or path.parent.is_symlink()
-            or not path.is_file()):
+    from .finalization import folder_is_linked
+    if folder_is_linked(path.parent) or path.is_symlink() or not path.is_file():
         return {"secrets": {}, "databases": {}}
     return json.loads(path.read_text(encoding="utf-8"))
