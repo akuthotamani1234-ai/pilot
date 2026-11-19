@@ -274,6 +274,21 @@ def _inside_run(path) -> bool:
         return False
 
 
+def _link_escapes(path) -> bool:
+    """True when a path in this run resolves outside it: a link, or .. ."""
+    text = os.fsdecode(path)
+    raw = Path(text)
+    if not raw.is_absolute():
+        raw = Path.cwd() / raw
+    try:
+        inside = Path(os.path.normpath(raw)).is_relative_to(RUN_DIR)
+    except (TypeError, ValueError, OSError):
+        inside = False
+    if not inside and ".." not in Path(text).parts:
+        return False
+    return not _inside_run(path)
+
+
 def _audit(event, args):
     if _SANDBOX["thread"] is None or threading.get_ident() != _SANDBOX["thread"]:
         return
@@ -283,7 +298,7 @@ def _audit(event, args):
         path, mode, flags = (list(args) + [None, None])[:3]
         writing = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (
             isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT))
-        if SENSITIVE.search(os.fsdecode(path)) or (writing and not _inside_run(path)):
+        if SENSITIVE.search(os.fsdecode(path)) or (writing and not _inside_run(path)) or _link_escapes(path):
             raise PermissionError(f"blocked by the test sandbox: open {os.fsdecode(path)!r}")
     if event in _FILE_EVENTS and args and not all(_inside_run(a) for a in args[:2] if isinstance(a, (str, bytes))):
         raise PermissionError(f"blocked by the test sandbox: {event}")

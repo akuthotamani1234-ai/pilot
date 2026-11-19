@@ -254,3 +254,46 @@ def test_a_test_result_does_not_follow_a_link_into_another_run(tmp_path):
     assert (other / "auth.json").read_text(encoding="utf-8") == secret
     assert save_login_state(own, written.append) is True
     assert written == [str(own / ".private" / "auth.json")]
+
+
+def test_a_generated_test_cannot_read_through_a_link_out_of_its_run(tmp_path, monkeypatch):
+    import ast
+    import os
+    import re
+    import threading
+
+    import pytest
+
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_inside_run", "_link_escapes", "_audit"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "own.txt").write_text("ours", encoding="utf-8")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("tenant-b-only-secret", encoding="utf-8")
+    (run / "note.txt").symlink_to(secret)
+    library = tmp_path / "library.txt"
+    library.write_text("library", encoding="utf-8")
+    ns = {
+        "Path": Path, "os": os, "threading": threading,
+        "RUN_DIR": run.resolve(),
+        "_SANDBOX": {"thread": threading.get_ident()},
+        "SENSITIVE": re.compile(
+            r"(^|[\\/])(\.env|accounts|\.private|auth\.json|id_rsa|\.ssh|\.aws|\.git-credentials)([\\/]|$)",
+            re.I),
+        "_PROCESS_EVENTS": (), "_NET_EVENTS": (), "_FILE_EVENTS": (),
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    ns["_audit"]("open", (str(run / "own.txt"), "r"))
+    ns["_audit"]("open", (str(library), "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", (str(run / "note.txt"), "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", (str(run / "note.txt"), "w"))
+    monkeypatch.chdir(run)
+    ns["_audit"]("open", ("own.txt", "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", ("../secret.txt", "r"))
+    assert secret.read_text(encoding="utf-8") == "tenant-b-only-secret"
+    assert not (tmp_path / "outside.txt").exists()
