@@ -28,6 +28,16 @@ def test_lease_heartbeat_and_exclusive_claim(tmp_path):
     q.close()
 
 
+def test_recover_leaves_a_live_lease(tmp_path):
+    q = DurableQueue(tmp_path / "swarm.db", lease_seconds=30)
+    q.enqueue(run_id="run-1", role="worker", payload={"url": "/a"}, idempotency_key="a")
+    claimed = q.claim(worker_id="w1")
+    assert q.recover_expired() == []
+    row = q.get(claimed["task_id"])
+    assert row["status"] == "leased" and row["lease_owner"] == "w1"
+    q.close()
+
+
 def test_expired_lease_is_requeued_then_retryable(tmp_path):
     q = DurableQueue(tmp_path / "swarm.db", lease_seconds=1, max_attempts=3)
     task = q.enqueue(run_id="run-1", role="worker", payload={"url": "/a"}, idempotency_key="a")

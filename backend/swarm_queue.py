@@ -256,12 +256,14 @@ class DurableQueue:
                 status = "retry_wait"
             else:
                 status = "failed"
-            self._db.execute(
+            cur = self._db.execute(
                 """UPDATE tasks SET status=?, lease_owner=NULL, lease_until=NULL,
-                       error_class='lease_expired', updated_at=? WHERE task_id=? AND status='leased'""",
-                (status, now, row["task_id"]),
+                       error_class='lease_expired', updated_at=?
+                   WHERE task_id=? AND status='leased' AND lease_until < ?""",
+                (status, now, row["task_id"], now),
             )
-            recovered.append(row["task_id"])
+            if cur.rowcount == 1:
+                recovered.append(row["task_id"])
         if recovered:
             self._db.commit()
         return recovered

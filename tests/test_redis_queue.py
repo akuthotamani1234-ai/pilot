@@ -36,6 +36,39 @@ def test_redis_durable_queue_plan_drain(monkeypatch):
 
 
 @pytest.mark.skipif(shutil.which("redis-cli") is None, reason="redis-cli missing")
+def test_redis_recover_ignores_a_stale_expired_snapshot():
+    prefix = f"qpilot:testrecover:{uuid.uuid4().hex}"
+    queue = RedisDurableQueue(
+        "redis://127.0.0.1:6379/15", lease_seconds=30, key_prefix=prefix,
+    )
+    original = queue._load
+
+    def stale(task_id):
+        row = original(task_id)
+        if row and row.get("status") == "leased":
+            row = dict(row)
+            row["lease_until"] = time.time() - 30
+        return row
+
+    try:
+        queue.enqueue(
+            run_id="run-live", role="worker", payload={"url": "/a"},
+            idempotency_key="a",
+        )
+        claimed = queue.claim(worker_id="w1", run_id="run-live")
+        assert claimed and claimed["lease_owner"] == "w1"
+        queue._load = stale
+        assert queue.recover_expired() == []
+        queue._load = original
+        row = queue.get(claimed["task_id"])
+        assert row["status"] == "leased" and row["lease_owner"] == "w1"
+    finally:
+        queue._load = original
+        for key in queue._r.scan_iter(match=f"{prefix}:*"):
+            queue._r.delete(key)
+        queue.close()
+
+
 def test_redis_expired_lease_cannot_complete():
     prefix = f"qpilot:testlease:{uuid.uuid4().hex}"
     queue = RedisDurableQueue(
