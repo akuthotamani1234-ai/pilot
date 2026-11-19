@@ -192,27 +192,35 @@ def repeat_android(config_file, repeats, root):
     from datetime import datetime
 
     from .android_pipeline import _run_mobile_process
-    from .android_runner import _read_config
+    from .android_runner import _read_config, prepare_android_run
+    from .finalization import write_text_unless_linked
 
+    root = Path(root)
+    if root.is_symlink():
+        raise ValueError("The runs folder is a link.")
     config, _ = _read_config(Path(config_file))
     if not 1 <= repeats <= 10:
         raise ValueError("Repeats must be between 1 and 10")
     ids = []
     for index in range(repeats):
         run_id = "repeat_" + datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + str(index + 1)
-        directory = Path(root) / run_id
+        directory = prepare_android_run(root, run_id)
         private = directory / ".private"
-        private.mkdir(parents=True)
         current = dict(config)
         if current["app_mode"] == "apk":
-            shutil.copyfile(current["apk_path"], private / "app.apk")
-            current["apk_path"] = str((private / "app.apk").resolve())
+            dest = private / "app.apk"
+            if dest.is_symlink():
+                raise ValueError("The Android run is a link.")
+            shutil.copyfile(current["apk_path"], dest)
+            current["apk_path"] = str(dest.absolute())
+        if not write_text_unless_linked(private, "android_config.json", json.dumps(current)):
+            raise ValueError("The Android run is a link.")
         path = private / "android_config.json"
-        path.write_text(json.dumps(current), encoding="utf-8")
         completed, timed_out = _run_mobile_process(
-            [sys.executable, "-m", "backend.android_runner", "--config", str(path.resolve())], os.environ.copy(), 3600
+            [sys.executable, "-m", "backend.android_runner", "--config", str(path.absolute())], os.environ.copy(), 3600
         )
-        (directory / "repeat.log").write_text(completed.stdout + completed.stderr, encoding="utf-8")
+        if not write_text_unless_linked(directory, "repeat.log", completed.stdout + completed.stderr):
+            raise ValueError("The Android run is a link.")
         if timed_out or not (directory / "results.json").exists():
             raise RuntimeError("The repeat did not finish; inspect its preserved evidence: " + run_id)
         ids.append(run_id)

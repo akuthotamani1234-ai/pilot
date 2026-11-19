@@ -3746,9 +3746,12 @@ async def start_mobile_run(
         if any(job["status"] == "running" for job in jobs.values()):
             raise HTTPException(409, "A test is already running. Wait for it to finish or stop it first.")
     run_id = f"android_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-    run_dir = RUNS / run_id
+    from backend.android_runner import prepare_android_run
+    try:
+        run_dir = prepare_android_run(RUNS, run_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     private = run_dir / ".private"
-    private.mkdir(parents=True)
     if apk is not None:
         filename = (apk.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
         if Path(filename).suffix.lower() != ".apk":
@@ -3756,6 +3759,10 @@ async def start_mobile_run(
             await apk.close()
             raise HTTPException(400, "Upload an Android .apk file.")
         apk_path = private / "app.apk"
+        if apk_path.is_symlink():
+            shutil.rmtree(run_dir, ignore_errors=True)
+            await apk.close()
+            raise HTTPException(400, "The Android run is a link.")
         size = 0
         try:
             with apk_path.open("wb") as target:
@@ -3776,7 +3783,10 @@ async def start_mobile_run(
             shutil.rmtree(run_dir, ignore_errors=True)
             raise HTTPException(400, str(e)) from e
     config_path = private / "android_config.json"
-    config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    from backend.finalization import write_text_unless_linked
+    if not write_text_unless_linked(private, "android_config.json", json.dumps(config, indent=2)):
+        shutil.rmtree(run_dir, ignore_errors=True)
+        raise HTTPException(400, "The Android run is a link.")
     source = (f"Android Chrome {config['start_url']}" if app_mode == "web" else
               f"Android app {config['package_name']}" if config["package_name"] else "Uploaded Android APK")
     command = [sys.executable, "-u", "-m", "backend.android_runner", "--config", str(config_path)]
@@ -3874,7 +3884,7 @@ async def resume_android_run(
     from .android_resume import snapshot
     d = _run_dir(run)
     config_path = d / ".private/android_config.json"
-    if not config_path.is_file():
+    if _run_path_is_linked(RUNS, config_path) or not config_path.is_file():
         raise HTTPException(400, "The saved Android configuration is unavailable.")
     if not snapshot(d)["can_resume"]:
         raise HTTPException(409, "No safely resumable unexecuted cases remain.")
