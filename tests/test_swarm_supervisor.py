@@ -1,4 +1,6 @@
 """Phase 3: durable supervisor plans, enqueues, drains, and recovers."""
+import time
+
 from backend.swarm_queue import DurableQueue
 from backend.swarm_supervisor import drain, enqueue_plan, plan_run
 
@@ -28,6 +30,28 @@ def test_supervisor_drains_safe_pages_and_skips_checkout(tmp_path):
     assert "failed" not in statuses.values()
     assert all(s in ("succeeded", "blocked") for s in statuses.values())
     assert "https://shop.example/checkout" not in seen
+    q.close()
+
+
+def test_drain_stops_when_the_lease_expires_during_work(tmp_path):
+    q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30)
+    q.enqueue(run_id="run-c", role="worker", payload={"url": "/slow"}, idempotency_key="slow")
+
+    def work(task):
+        q._db.execute(
+            "UPDATE tasks SET lease_until=? WHERE task_id=?",
+            (time.time() - 1, task["task_id"]),
+        )
+        q._db.commit()
+        return {"evidence": ["too late"]}
+
+    summary = drain(q, run_id="run-c", worker_id="w1", work=work)
+    assert summary["processed"] == 0
+    assert summary["gate_b_complete"] is False
+    assert summary["lease_lost"]
+    row = q.get(summary["lease_lost"][0])
+    assert row["status"] == "leased"
+    assert row["result"] is None
     q.close()
 
 
