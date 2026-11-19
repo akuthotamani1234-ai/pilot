@@ -129,7 +129,9 @@ def _text_hash(text: str) -> str:
 def prepare(run_dir: Path, repo_url: str, token: str) -> dict:
     run_dir = Path(run_dir)
     fixes_path = run_dir / "fixes.json"
-    if run_dir.is_symlink() or fixes_path.is_symlink() or (run_dir / "repo_fix_plan.json").is_symlink():
+    from .finalization import folder_is_linked
+    if (folder_is_linked(run_dir) or fixes_path.is_symlink()
+            or (run_dir / "repo_fix_plan.json").is_symlink()):
         raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     owner, repo = parse_repo(repo_url)
     fixes = json.loads(fixes_path.read_text(encoding="utf-8")) if fixes_path.exists() else []
