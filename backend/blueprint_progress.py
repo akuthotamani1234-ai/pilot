@@ -358,6 +358,7 @@ def progress() -> dict:
         {"id": "B-safe-state", "label": "A Continue button that opens checkout is not safe work", "status": "done"},
         {"id": "B-resume-auth", "label": "A resumed guest page is not treated as the logged-in visit", "status": "done"},
         {"id": "B-resume-pending", "label": "A page waiting behind login is still waiting behind login after resume", "status": "done"},
+        {"id": "B-resume-cutoff", "label": "A page cut off by a stop is still waiting when the crawl continues", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

@@ -12,6 +12,7 @@ from backend.agents.discovery import (
     place_link,
     resume_seen,
     store_api_spec,
+    waiting_rows,
 )
 from backend.config import settings
 from backend.explore_score import rank_candidates
@@ -80,6 +81,17 @@ def test_a_guest_page_does_not_count_as_the_logged_in_visit():
     assert ("https://shop.example/account", True) not in done
     assert ("https://shop.example/product/1", True) in done
     assert ("https://shop.example/product/1", False) not in done
+
+
+def test_a_cut_off_page_is_still_waiting():
+    rows = waiting_rows([
+        ("https://shop.example/account", 2, True, True),
+        ("https://shop.example/next", 1, True, False),
+    ], [])
+    visits = {(row["url"], row["auth"]) for row in rows}
+    assert ("https://shop.example/account", True) in visits
+    assert ("https://shop.example/next", False) in visits
+    assert [row["auth"] for row in rows if row["url"].endswith("/account")] == [True]
 
 
 def test_a_waiting_logged_in_page_stays_logged_in_on_resume(tmp_path):
