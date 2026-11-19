@@ -68,7 +68,23 @@ SAMPLES = (
 )
 
 
+def _linked_taxonomy() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_taxonomy",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_production_healing_taxonomy_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "production_healing_taxonomy_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_taxonomy()
+
     rows = []
     for sample in SAMPLES:
         cat, why, conf = classify(sample)
@@ -102,9 +118,8 @@ def run_production_healing_taxonomy_drill(*, ops_dir: Path | None = None) -> dic
         "weaken_denied": not bool(deny.get("allowed")),
     }
     matched = sum(1 for r in rows if r.get("matched"))
-    live_matrix = (
-        ROOT / "docs" / "ops-evidence" / "production_healing_matrix_drill.json"
-    ).is_file()
+    matrix = ROOT / "docs" / "ops-evidence" / "production_healing_matrix_drill.json"
+    live_matrix = (not folder_is_linked(matrix)) and matrix.is_file()
     ok = (
         matched == len(rows)
         and healing["locator_repair_allowed"]
@@ -128,15 +143,15 @@ def run_production_healing_taxonomy_drill(*, ops_dir: Path | None = None) -> dic
             "production / third-party suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_taxonomy()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "production_healing_taxonomy_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_taxonomy()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "production_healing_taxonomy_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
