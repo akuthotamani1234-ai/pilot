@@ -26,7 +26,7 @@ def test_hosted_idp_sso_readiness_pack_stays_partial(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(
         ready, "run_hosted_idp_readiness_drill",
-        lambda ops_dir=None: {"ok": True, "score": 24, "score_of": 24},
+        lambda ops_dir=None: {"ok": True, "score": 25, "score_of": 25},
     )
     monkeypatch.setattr(
         bootstrap, "run_studio_sso_principal_bootstrap_drill",

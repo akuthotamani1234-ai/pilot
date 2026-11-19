@@ -135,7 +135,7 @@ Other settings you may want:
 - `VISION` (default `auto`): the AI looks at screenshots (on with a cloud AI or an Ollama vision model; `on` / `off`).
 - `TEST_RETRIES` (default 0): run failed tests again to spot flaky ones (1 = once).
 - `UI_PORT` (default 8000): the web UI's port.
-- Optional Studio SSO: `QPILOT_SSO_EXPECTED_STATE` and `QPILOT_SSO_EXPECTED_NONCE`. When set, `/api/sso/callback` rejects a mismatched OIDC state or ID-token nonce. `QPILOT_SSO_REPLAY_JTI=1` rejects a repeated or missing JWT `jti`. `QPILOT_OIDC_REDIRECT_ALLOWLIST` rejects a callback URI that is not listed. A future `nbf` is always rejected. Hosted IdP login stays open.
+- Optional Studio SSO: `QPILOT_SSO_EXPECTED_STATE` and `QPILOT_SSO_EXPECTED_NONCE`. When set, `/api/sso/callback` rejects a mismatched OIDC state or ID-token nonce. `QPILOT_SSO_REPLAY_JTI=1` rejects a repeated or missing JWT `jti`. `QPILOT_OIDC_REDIRECT_ALLOWLIST` rejects a callback URI that is not listed. `QPILOT_OIDC_PKCE_REQUIRED=1` rejects a token exchange that has no `code_verifier` (the callback query or `QPILOT_OIDC_CODE_VERIFIER`). A future `nbf` is always rejected. Hosted IdP login stays open.
 - Optional enterprise URLs (`POSTGRES_URL`, `REDIS_URL`, `OBJECT_STORE_URI`): leave empty for local-first mode.
   A URL alone does not enable Postgres/Redis/MinIO until those adapters are wired and verified.
 - Schema SQL lives in `migrations/`. Apply offline with
