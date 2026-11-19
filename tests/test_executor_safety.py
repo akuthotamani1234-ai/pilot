@@ -98,3 +98,34 @@ def test_a_test_result_does_not_follow_a_link_into_another_folder(tmp_path):
     written = (real / "results.json").read_bytes()
     assert b"https://shop.test/home" in written and secret not in written
     assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_undone_repair_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"click('new')\nSECRET-TENANT-B"
+    other = tmp_path / "other"
+    nested = other / "run" / "generated_tests"
+    nested.mkdir(parents=True)
+    (nested / "test_home.py").write_bytes(secret)
+    names = sorted(path.name for path in nested.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "run"
+    entries = [
+        {"status": "reverted", "method": "selector-match", "from": "old", "to": "new", "why": "still failing"},
+        {"status": "healed", "method": "selector-match", "from": "keep", "to": "kept", "why": ""},
+    ]
+    _undo(run / "generated_tests", run, "test_home.py", entries)
+    assert (nested / "test_home.py").read_bytes() == secret
+    assert sorted(path.name for path in nested.iterdir()) == names
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("click('new')\n", encoding="utf-8")
+    _undo(real, tmp_path / "real", "test_home.py", entries)
+    written = (real / "test_home.py").read_text(encoding="utf-8")
+    assert written == "click('old')\n"
+    assert b"SECRET-TENANT-B" not in written.encode()
+    assert (nested / "test_home.py").read_bytes() == secret

@@ -441,7 +441,9 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
     """Take back the repairs of one file that are not kept: a swapped selector is swapped back; when the whole file
     must go back (an AI rewrite, or another test broke) it is restored from the copy made before the round."""
     path = test_dir / file
-    if test_dir.is_symlink() or path.is_symlink() or Path(file).is_absolute() or ".." in Path(file).parts:
+    from ..finalization import folder_is_linked
+    if (folder_is_linked(test_dir) or folder_is_linked(run_dir) or test_dir.is_symlink()
+            or path.is_symlink() or Path(file).is_absolute() or ".." in Path(file).parts):
         return
     kept = [h for h in entries if h["status"] in ("healed", "repaired")]
     undo = [h for h in entries if h["status"] == "reverted"]
