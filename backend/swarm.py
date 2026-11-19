@@ -14,7 +14,10 @@ _PAYMENT_PATH = re.compile(
 )
 _PAYMENT_HOST = re.compile(r"(?:^|\.)paypal\.com$", re.I)
 # A one-script shop picks the page in the query: index.php?rt=checkout/cart is the cart.
-_ROUTE_KEY = re.compile(r"^(?:rt|route|r|controller|ctrl|action|act|task|cmd|do)$", re.I)
+_ROUTE_KEY = re.compile(
+    r"^(?:rt|route|r|controller|ctrl|action|act|task|cmd|do|page|step|view|screen)$",
+    re.I,
+)
 _PAY_STEP = re.compile(r"^(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)$", re.I)
 _CART_STEP = re.compile(r"^(?:cart|basket|bag|trolley)$", re.I)
 
@@ -199,8 +202,12 @@ def open_guarded(page, address: str, *, timeout: int = 20000):
             # The probe never ran. Do not open checkout, and abort a redirect into it.
             if is_payment_url(address):
                 return None, _payment_block(address, address)
-            from .payment_nav import navigate_for_crawl
-            _response, blocked_url = navigate_for_crawl(page, address, timeout=timeout)
+            blocked_url = ""
+            if hasattr(page, "route"):
+                from .payment_nav import navigate_for_crawl
+                _response, blocked_url = navigate_for_crawl(page, address, timeout=timeout)
+            else:
+                _response = page.goto(address, wait_until="domcontentloaded", timeout=timeout)
             final = blocked_url or str(getattr(page, "url", "") or "")
             if blocked_url or is_payment_url(final):
                 return None, _payment_block(address, final or address)
