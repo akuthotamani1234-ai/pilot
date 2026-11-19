@@ -83,6 +83,7 @@ def progress() -> dict:
         {"id": "B-redis-queue", "label": "Redis DurableQueue adapter + plan/drain drill", "status": "done"},
         {"id": "G-minio", "label": "Live MinIO object-store drill", "status": "done"},
         {"id": "C-admin-portal", "label": "AdminPortal remote_delete lifecycle adapter", "status": "done"},
+        {"id": "C-delete-proof", "label": "A login page is not proof a record was deleted", "status": "done"},
         {"id": "H-ci-rollback", "label": "Offline CI/deploy rollback rehearsal", "status": "done"},
         {"id": "I-auth-modes", "label": "Dashboard auth modes bearer/webhook/principal", "status": "done"},
         {"id": "D-android-dryrun", "label": "Android protocol dry-run evidence contract", "status": "done"},

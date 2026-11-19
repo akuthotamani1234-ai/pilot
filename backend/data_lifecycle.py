@@ -330,6 +330,26 @@ def created_jsonl_delete(run_dir: str | Path):
     return remote_delete
 
 
+def _login_landing(url: str) -> bool:
+    """A sign-in page is not proof that a record was removed."""
+    from urllib.parse import urlsplit
+
+    path = urlsplit(url or "").path.lower()
+    return any(part in path for part in ("/login", "/signin", "/sign-in"))
+
+
+def _admin_delete_confirmed(code: int, url: str) -> bool:
+    """True when the response is the delete itself or the fixture's deleted=1 landing."""
+    from urllib.parse import urlsplit
+
+    if _login_landing(url) or int(code) not in {200, 302, 303}:
+        return False
+    parsed = urlsplit(url or "")
+    if "deleted=1" in (parsed.query or ""):
+        return True
+    return parsed.path.rstrip("/").endswith("/delete")
+
+
 def admin_portal_delete(base_url: str):
     """Adapter: POST /users/<id>/delete on the local AdminPortal fixture."""
     import urllib.error
@@ -362,13 +382,18 @@ def admin_portal_delete(base_url: str):
         req = urllib.request.Request(url, data=b"", method="POST")  # noqa: S310
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
-                code = getattr(resp, "status", None) or resp.getcode()
-                # 200/303 both acceptable after delete
-                if int(code) in {200, 302, 303}:
+                code = int(getattr(resp, "status", None) or resp.getcode())
+                final = resp.geturl()
+                if _admin_delete_confirmed(code, final):
                     return {"deleted": True, "proof": f"admin_portal:deleted:{user_id}:{code}"}
-                return {"deleted": False, "reason": f"admin_portal HTTP {code} for user {user_id}"}
+                return {
+                    "deleted": False,
+                    "reason": f"admin_portal HTTP {code} did not confirm delete for user {user_id}",
+                }
         except urllib.error.HTTPError as exc:
-            if exc.code in {302, 303}:
+            location = exc.headers.get("Location") if exc.headers else ""
+            landed = urljoin(url, location) if location else ""
+            if location and _admin_delete_confirmed(exc.code, landed):
                 return {"deleted": True, "proof": f"admin_portal:deleted:{user_id}:{exc.code}"}
             return {"deleted": False, "reason": f"admin_portal HTTP {exc.code} for user {user_id}"}
         except Exception as exc:
@@ -420,9 +445,17 @@ def demo_store_cart_delete(base_url: str, sid_cookie: str):
             with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
                 code = int(getattr(resp, "status", None) or resp.getcode())
                 raw = resp.read().decode("utf-8", errors="replace")
-                if code == 200:
+                final = resp.geturl()
+                if (
+                    code == 200
+                    and not _login_landing(final)
+                    and "Removed from your cart" in raw
+                ):
                     return {"deleted": True, "proof": f"demo_store:cart_removed:{line}:{code}:{raw[:80]}"}
-                return {"deleted": False, "reason": f"demo_store HTTP {code} for cart line {line}"}
+                return {
+                    "deleted": False,
+                    "reason": f"demo_store HTTP {code} did not confirm cart line {line} was removed",
+                }
         except urllib.error.HTTPError as exc:
             return {"deleted": False, "reason": f"demo_store HTTP {exc.code} for cart line {line}"}
         except Exception as exc:
