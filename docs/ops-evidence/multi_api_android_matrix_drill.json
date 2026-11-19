@@ -1,12 +1,13 @@
 {
   "gate_d_complete": false,
   "drill": "multi_api_android_matrix",
-  "ran_at": "2026-11-19T00:07:23Z",
+  "ran_at": "2026-11-19T00:21:37Z",
   "sources": {
     "api24_smoke": true,
     "api30_appium": true
   },
   "api_levels": [
+    24,
     30
   ],
   "rows": 4,
@@ -69,5 +70,5 @@
     "android.api24+"
   ],
   "ok": true,
-  "reason": "Multi-API Android matrix api_levels=[30] (smoke=True, appium=True); broad multi-device CI runners still open"
+  "reason": "Multi-API Android matrix api_levels=[24, 30] (smoke=True, appium=True); broad multi-device CI runners still open"
 }

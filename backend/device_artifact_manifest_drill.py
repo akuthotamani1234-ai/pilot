@@ -17,6 +17,7 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "device_artifact_manifest_drill.json
 REQUIRED = (
     "android_appium_product_matrix_drill.json",
     "android_emulator_smoke_drill.json",
+    "android_emulator_smoke_api24_drill.json",
     "multi_api_android_matrix_drill.json",
     "device_matrix_drill.json",
     "cross_platform_journey_drill.json",
