@@ -129,6 +129,8 @@ def record_step(run_dir: Path, step: str, payload: dict) -> dict:
         raise ValueError(step)
     current: dict = {}
     path = run_dir / "row.json"
+    if run_dir.is_symlink() or path.is_symlink():
+        return current
     if path.is_file():
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -147,7 +149,9 @@ def record_step(run_dir: Path, step: str, payload: dict) -> dict:
     current[step] = payload
     run_dir.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(current, indent=2), encoding="utf-8")
-    (run_dir / f"{step}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    step_path = run_dir / f"{step}.json"
+    if not step_path.is_symlink():
+        step_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return current
 
 

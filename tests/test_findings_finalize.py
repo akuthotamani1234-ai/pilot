@@ -117,3 +117,69 @@ def test_report_path_ensure_then_gates_see_findings(tmp_path):
     assert "none found" not in gates["blockers"]["detail"].lower()
     m = metrics.build(results, [], None, findings)
     assert next(c for c in m["consistency"] if "finding" in c["check"])["ok"]
+
+
+def test_a_finding_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import backend.tenancy_store as tenancy
+    from backend.agents.executor import _read, _write_run_json
+    from backend.finalization import reconcile
+    from backend.release_row import record_step
+    from backend.report_rebuild import rebuild
+
+    secret = "tenant-b-only-finding"
+    other = tmp_path / "other"
+    other.mkdir()
+    results_text = json.dumps([
+        _result("test_home.py::test_secret", "test_secret", "failed", error=secret)])
+    failures_text = json.dumps([
+        {"id": 0, "nodeid": "test_home.py::test_secret", "error": secret, "source": "test"}])
+    jsonl_text = json.dumps(_result("test_home.py::test_secret", "test_secret", "failed", error=secret)) + "\n"
+    (other / "results.json").write_text(results_text, encoding="utf-8")
+    (other / "failures.json").write_text(failures_text, encoding="utf-8")
+    (other / "results.jsonl").write_text(jsonl_text, encoding="utf-8")
+    (other / "test_cases.json").write_text(json.dumps([{"title": secret}]), encoding="utf-8")
+    (other / "row.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    run = tmp_path / "run-a"
+    run.mkdir()
+    (run / "results.json").symlink_to(other / "results.json")
+    (run / "failures.json").symlink_to(other / "failures.json")
+    (run / "results.jsonl").symlink_to(other / "results.jsonl")
+    (run / "test_cases.json").symlink_to(other / "test_cases.json")
+    (run / "row.json").symlink_to(other / "row.json")
+    assert load_saved_results(run) == []
+    assert secret not in json.dumps(ensure_findings_from_results(run))
+    assert _read(run / "results.jsonl") == []
+    _write_run_json(run, "results.json", [{"nodeid": "test_home.py::test_ok", "outcome": "passed"}])
+    record_step(run, "seed", {"ok": True, "reason": "local"})
+    reconciled = reconcile({"run_dir": str(run), "results": [
+        _result("test_home.py::test_ok", "test_ok", "failed", error="ours")]})
+    assert secret not in json.dumps(reconciled)
+    assert (other / "results.json").read_text(encoding="utf-8") == results_text
+    assert (other / "failures.json").read_text(encoding="utf-8") == failures_text
+    assert (other / "results.jsonl").read_text(encoding="utf-8") == jsonl_text
+    assert (other / "row.json").read_text(encoding="utf-8") == json.dumps({"secret": secret})
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    try:
+        rebuild(linked, tmp_path / "rebuilt")
+    except ValueError as exc:
+        assert "link" in str(exc)
+    else:
+        raise AssertionError("rebuild followed a linked run")
+    assert not (tmp_path / "rebuilt").exists()
+
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.index_run(other.name, "t2", source="https://shop.test", verdict="Not Ready", db_path=db)
+    try:
+        rebuild(other, tmp_path / "rebuilt-tenant")
+    except ValueError as exc:
+        assert "another tenant" in str(exc)
+    else:
+        raise AssertionError("rebuild read another tenant")
+    assert (other / "failures.json").read_text(encoding="utf-8") == failures_text

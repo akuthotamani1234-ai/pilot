@@ -10,23 +10,38 @@ METADATA = ("app_map.json", "results.json", "test_cases.json", "crawl.json", "co
 
 
 def rebuild(source: Path, destination: Path) -> dict:
-    source, destination = source.resolve(), destination.resolve()
+    from .agents.change_detection import run_path_is_linked, run_read_block
+    source_path, dest_path = Path(source), Path(destination)
+    blocked = run_read_block(source_path)
+    if blocked:
+        raise ValueError(blocked)
+    if dest_path.is_symlink():
+        raise ValueError("This run's folder is a link.")
+    source, destination = source_path.resolve(), dest_path.resolve()
     if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
         raise ValueError("Rebuild output must be separate from historical run artifacts")
     if destination.exists() and any(destination.iterdir()):
         raise ValueError("Choose a new or empty rebuild output directory")
     destination.mkdir(parents=True, exist_ok=True)
     for name in METADATA:
-        if (source / name).exists():
-            shutil.copy2(source / name, destination / name)
+        item = source / name
+        if item.is_symlink() or not item.exists():
+            continue
+        shutil.copy2(item, destination / name)
     for folder in ("generated_tests", "html"):
-        if (source / folder).is_dir():
-            shutil.copytree(source / folder, destination / folder, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+        folder_path = source / folder
+        if folder_path.is_symlink() or not folder_path.is_dir():
+            continue
+        shutil.copytree(folder_path, destination / folder, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
     for path in source.glob("results*.jsonl"):
+        if path.is_symlink():
+            continue
         shutil.copy2(path, destination / path.name)
     pages, results = read_json(source / "app_map.json", []), read_json(source / "results.json", [])
     evidence = {r[key] for r in pages + results for key in ("screenshot", "trace") if r.get(key)}
     for name in evidence:
+        if run_path_is_linked(source, *Path(str(name)).parts):
+            continue
         original = (source / name).resolve()
         if original.is_relative_to(source) and original.is_file():
             target = destination / original.relative_to(source)

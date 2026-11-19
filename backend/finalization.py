@@ -8,9 +8,16 @@ from .safety import redact
 ADVERSE = {"failed", "error", "inconclusive"}
 
 
+def _path_is_linked(path: Path) -> bool:
+    path = Path(path)
+    return path.is_symlink() or path.parent.is_symlink()
+
+
 def read_json(path: Path, default):
+    if _path_is_linked(path):
+        return default
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
 
@@ -22,13 +29,17 @@ def finding_nodes(finding: dict) -> set[str]:
 def ingest_results(state: dict, *, recover: bool = True) -> list[dict]:
     """Keep final aggregates authoritative; recover missing worker records and torn JSONL safely."""
     root = Path(state["run_dir"])
+    if root.is_symlink():
+        return [] if recover or "results" not in state else list(state.get("results") or [])
     if not recover and "results" in state:
         return list(state.get("results") or [])
     rows = {}
     for result in read_json(root / "results.json", []) + list(state.get("results") or []):
-        if result.get("nodeid"):
+        if isinstance(result, dict) and result.get("nodeid"):
             rows[result["nodeid"]] = result
     for path in sorted(root.glob("results*.jsonl")):
+        if path.is_symlink():
+            continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -49,6 +60,8 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
     from .excel import case_hits
 
     root = Path(state["run_dir"])
+    if root.is_symlink():
+        return dict(state)
     results = ingest_results(state, recover=recover)
     cases = state.get("test_cases") or read_json(root / "test_cases.json", [])
     adverse = {r["nodeid"]: r for r in results if r.get("outcome") in ADVERSE}
@@ -109,5 +122,8 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
         for name, value in (("results.json", results), ("failures.json", failures), ("test_cases.json", cases),
                             ("pending_cases.json", {"pending": pending, "completed_nodeids": sorted(
                                 r["nodeid"] for r in results)})):
-            (root / name).write_text(json.dumps(value, indent=2), encoding="utf-8")
+            dest = root / name
+            if dest.is_symlink():
+                continue
+            dest.write_text(json.dumps(value, indent=2), encoding="utf-8")
     return recovered

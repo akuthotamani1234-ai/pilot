@@ -497,11 +497,20 @@ def _case_of(r: dict, cases: list[dict]) -> dict | None:
     return None
 
 
+def _save_failures(run_dir: Path, failures: list) -> None:
+    path = Path(run_dir) / "failures.json"
+    if Path(run_dir).is_symlink() or path.is_symlink():
+        return
+    path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+
+
 def load_saved_results(run_dir: Path | str) -> list[dict]:
     """Results already on disk: prefer results.json, else merge results.jsonl / worker files / android_results."""
     run_dir = Path(run_dir)
+    if run_dir.is_symlink():
+        return []
     final = run_dir / "results.json"
-    if final.exists():
+    if final.is_file() and not final.is_symlink():
         try:
             data = json.loads(final.read_text(encoding="utf-8"))
             if isinstance(data, list):
@@ -513,7 +522,7 @@ def load_saved_results(run_dir: Path | str) -> list[dict]:
     paths = [run_dir / "results.jsonl", *sorted(run_dir.glob("results.gw*.jsonl")),
              *sorted(run_dir.glob("results_bg*.jsonl")), run_dir / "android_results.jsonl"]
     for path in paths:
-        if not path.exists():
+        if path.is_symlink() or not path.exists():
             continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
@@ -676,26 +685,30 @@ def ensure_findings_from_results(
     richer LLM findings already present, and is idempotent by nodeid.
     """
     run_dir = Path(run_dir)
+    if run_dir.is_symlink():
+        return []
     if results is None:
         results = load_saved_results(run_dir)
-    if cases is None and (run_dir / "test_cases.json").exists():
+    cases_path = run_dir / "test_cases.json"
+    if cases is None and cases_path.is_file() and not cases_path.is_symlink():
         try:
-            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
+            loaded = json.loads(cases_path.read_text(encoding="utf-8"))
             cases = loaded if isinstance(loaded, list) else []
         except (OSError, ValueError, TypeError):
             cases = []
     cases = cases or []
     pages = {p["url"]: p for p in (app_map or []) if p.get("url")}
-    if not pages and (run_dir / "app_map.json").exists():
+    map_path = run_dir / "app_map.json"
+    if not pages and map_path.is_file() and not map_path.is_symlink():
         try:
-            am = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+            am = json.loads(map_path.read_text(encoding="utf-8"))
             pages = {p["url"]: p for p in am if isinstance(p, dict) and p.get("url")} if isinstance(am, list) else {}
         except (OSError, ValueError, TypeError):
             pages = {}
 
     existing: list[dict] = []
     path = run_dir / "failures.json"
-    if path.exists():
+    if path.is_file() and not path.is_symlink():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, list):
@@ -720,8 +733,9 @@ def ensure_findings_from_results(
         covered.add(nodeid)
         next_id += 1
 
-    run_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    if not run_dir.is_symlink():
+        run_dir.mkdir(parents=True, exist_ok=True)
+    _save_failures(run_dir, out)
     return out
 
 
@@ -864,7 +878,7 @@ def failure_analysis_agent(state: QAState) -> QAState:
 
     # Optional: the AI explains test failures in plain English. It can SUGGEST another category (shown as a
     # suggestion), but the category, severity and verdict stay the ones the rules decided.
-    Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    _save_failures(Path(state["run_dir"]), failures)
     test_failures = [f for f in failures if f["source"] == "test"]
     if llm_enabled() and test_failures:
         try:
@@ -880,12 +894,12 @@ def failure_analysis_agent(state: QAState) -> QAState:
         except (LLMError, json.JSONDecodeError, ValueError, KeyError, IndexError, TypeError) as e:
             print(f"  [failure-analysis] LLM explanation skipped: {e}")
 
-    Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    _save_failures(Path(state["run_dir"]), failures)
     from ..release_row import record_step, seeded_defect
     run_dir = Path(state["run_dir"])
     planted_id = ""
     planted_path = run_dir / "planted.json"
-    if planted_path.is_file():
+    if not run_dir.is_symlink() and not planted_path.is_symlink() and planted_path.is_file():
         try:
             planted = json.loads(planted_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
