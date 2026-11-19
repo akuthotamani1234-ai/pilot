@@ -171,7 +171,9 @@ def write_report(run_dir: Path, cases: list[dict], results: list[dict] | None) -
         "by_agent": {a: totals(cs) for a, cs in agents.items()},
         "per_case": cases_cost,
     }
-    (Path(run_dir) / "cost.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    path = Path(run_dir) / "cost.json"
+    if not Path(run_dir).is_symlink() and not path.is_symlink():
+        path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
 
