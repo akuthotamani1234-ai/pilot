@@ -73,17 +73,27 @@ REFERENCE_NAV = re.compile(r"^\s*(?:pay|payment|salary|compensation|billing)\s+"
                            r"(?:grades?|bands?|types?|methods?|settings|configuration|history|reports?|categories|policies)\s*$", re.I)
 
 
+# A hash cart (#/checkout/cart) is still the cart. The checkout step itself stays blocked.
+_DANGEROUS_HREF = re.compile(
+    r"javascript:|/(?:pay|purchase|transfer|confirm|delete|logout)(?:/|$)|"
+    r"/(?:check-?outs?)(?:/|$)(?!cart(?:/|$)|basket(?:/|$)|bag(?:/|$)|trolley(?:/|$))|"
+    r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)",
+    re.I,
+)
+
+
+def _dangerous_href(href: str) -> bool:
+    from .swarm import is_payment_url
+    return bool(is_payment_url(href or "") or _DANGEROUS_HREF.search(href or ""))
+
+
 def reference_navigation(text: str, context: dict | None = None) -> bool:
     """A reference/configuration destination, identified by purpose and native navigation context."""
     context = context or {}
     href = context.get("href") or ""
     if not REFERENCE_NAV.fullmatch(text or "") or context.get("tag") != "a" or context.get("in_form"):
         return False
-    from .swarm import is_payment_url
-    if is_payment_url(href):
-        return False
-    if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
-                 r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href, re.I):
+    if _dangerous_href(href):
         return False
     return context.get("role") == "menuitem" or bool(href and href != "#")
 
@@ -106,11 +116,7 @@ def _kind_of(s: str) -> str:
 def _nav_context(*, role: str | None = None, kind: str | None = None, tag: str | None = None,
                  purpose: str | None = None, href: str | None = None, selector: str | None = "") -> bool:
     """True when the control looks like navigation (link / menu / tab), not a pay/checkout submit."""
-    from .swarm import is_payment_url
-    if is_payment_url(href or ""):
-        return False
-    if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
-                 r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href or "", re.I):
+    if _dangerous_href(href or ""):
         return False
     role_l = (role or "").strip().lower()
     kind_l = (kind or "").strip().lower()

@@ -335,6 +335,10 @@ def test_a_generated_test_treats_a_checkout_query_as_checkout():
     assert not pay("https://shop.example/category/shoes?page=2")
     assert not pay("https://shop.example/index.php?view=checkout/cart")
     assert not pay("https://shop.example/index.php?page=checkout-guide")
+    assert pay("https://shop.example/#/checkout")
+    assert pay("https://shop.example/#!/payment")
+    assert not pay("https://shop.example/#/checkout/cart")
+    assert not pay("https://shop.example/#top")
 
 
 def test_a_generated_test_retries_a_cancelled_page_and_still_skips_checkout():

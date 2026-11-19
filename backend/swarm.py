@@ -29,21 +29,37 @@ def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
     return max(0, pattern_samples)
 
 
+def _route_bits_are_payment(value: str) -> bool:
+    """True when a route's pieces pick checkout or payment, and not the cart."""
+    bits = [bit for bit in re.split(r"[/.]", unquote(value or "").replace("_", "-")) if bit]
+    if not bits or not any(_PAY_STEP.fullmatch(bit) for bit in bits):
+        return False
+    cart = bool(_CART_STEP.fullmatch(bits[-1])) and any(
+        re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+    return not cart
+
+
 def _query_route_is_payment(query: str) -> bool:
     """True when the query picks a checkout or payment step, and not the cart."""
     from urllib.parse import parse_qsl
 
     for key, value in parse_qsl(query or "", keep_blank_values=True):
-        if not _ROUTE_KEY.match(key):
-            continue
-        bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
-        if not bits or not any(_PAY_STEP.fullmatch(bit) for bit in bits):
-            continue
-        cart = bool(_CART_STEP.fullmatch(bits[-1])) and any(
-            re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
-        if not cart:
+        if _ROUTE_KEY.match(key) and _route_bits_are_payment(value):
             return True
     return False
+
+
+def _fragment_route_is_payment(fragment: str) -> bool:
+    """True when a single-page #/route or #!/route picks checkout, and not the cart.
+
+    A normal #section anchor is not a page.
+    """
+    route = fragment or ""
+    if route.startswith("!/"):
+        route = route[1:]
+    if not route.startswith("/"):
+        return False
+    return _route_bits_are_payment(route.split("?", 1)[0])
 
 
 def is_payment_url(url: str) -> bool:
@@ -55,7 +71,9 @@ def is_payment_url(url: str) -> bool:
     path = unquote(parts.path).replace("_", "-")
     if _PAYMENT_PATH.search(path):
         return True
-    return _query_route_is_payment(parts.query)
+    if _query_route_is_payment(parts.query):
+        return True
+    return _fragment_route_is_payment(parts.fragment)
 
 
 _QUOTED = re.compile(r"""['"]([^'"]+)['"]""")

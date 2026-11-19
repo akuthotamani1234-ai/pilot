@@ -906,6 +906,18 @@ def _payment_target(raw: str) -> bool:
             re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
         if not cart:
             return True
+    if "#" in text:
+        route = unquote(text.split("#", 1)[1])
+        if route.startswith("!/"):
+            route = route[1:]
+        if route.startswith("/"):
+            bits = [bit for bit in re.split(r"[/.]", route.split("?", 1)[0].replace("_", "-")) if bit]
+            if bits and any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+                            for bit in bits):
+                cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
+                    re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+                if not cart:
+                    return True
     return False
 
 
