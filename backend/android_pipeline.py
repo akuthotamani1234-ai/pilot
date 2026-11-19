@@ -916,8 +916,9 @@ def discovery_agent(state):
             # Do not redact the private contract: assert_text / accessibility_id values often contain the
             # test username (e.g. "Welcome demo user"); redacting them makes execution look for [REDACTED].
             from .finalization import private_file
+            private_contract = run_dir / ".private" / "auto_contract.json"
             contract_path = private_file(run_dir, "auto_contract.json")
-            if contract_path is not None:
+            if contract_path is not None and not private_contract.is_symlink():
                 contract_path.write_text(json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8")
             _save_json(run_dir / "auto_flows.json", contract)
         _save_json(run_dir / "android_interaction.json", {**interaction, "kept": len(auto_flows)})
