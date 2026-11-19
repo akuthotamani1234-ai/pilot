@@ -44,6 +44,31 @@ def authorization_code_used(code: str) -> bool:
     return (code or "").strip() in _USED_CODES
 
 
+def pkce_required() -> bool:
+    """True when Studio must send a PKCE ``code_verifier`` on the token POST."""
+    return _env("QPILOT_OIDC_PKCE_REQUIRED").lower() in {"1", "true", "yes", "on"}
+
+
+def token_request_fields(
+    *,
+    code: str,
+    client_id: str,
+    redirect_uri: str,
+    code_verifier: str = "",
+) -> dict:
+    """Authorization-code token form. Includes ``code_verifier`` when present."""
+    fields = {
+        "grant_type": "authorization_code",
+        "code": (code or "").strip(),
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+    }
+    verifier = (code_verifier or "").strip()
+    if verifier:
+        fields["code_verifier"] = verifier
+    return fields
+
+
 def token_endpoint() -> str:
     explicit = _env("QPILOT_OIDC_TOKEN_URL", "OIDC_TOKEN_URL")
     if explicit:
@@ -155,6 +180,7 @@ def exchange_code(
     redirect_uri: str | None = None,
     client_id: str | None = None,
     state: str = "",
+    code_verifier: str = "",
 ) -> dict:
     """POST authorization_code grant; validate access/id token when present."""
     from .oidc_jwt import validate_bearer
@@ -171,6 +197,15 @@ def exchange_code(
             "gate_i_complete": False,
             "code_reused": True,
             "reason": "authorization code already used",
+        }
+
+    verifier = (code_verifier or _env("QPILOT_OIDC_CODE_VERIFIER")).strip()
+    if pkce_required() and not verifier:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "pkce_required": True,
+            "reason": "code_verifier required when QPILOT_OIDC_PKCE_REQUIRED is set",
         }
 
     state_check = validate_sso_state(state)
@@ -195,12 +230,12 @@ def exchange_code(
     redirect_check = validate_redirect_uri(redirect)
     if redirect_check.get("redirect_enforced") and not redirect_check.get("ok"):
         return redirect_check
-    form = urllib.parse.urlencode({
-        "grant_type": "authorization_code",
-        "code": code.strip(),
-        "client_id": cid,
-        "redirect_uri": redirect,
-    }).encode()
+    form = urllib.parse.urlencode(token_request_fields(
+        code=code,
+        client_id=cid,
+        redirect_uri=redirect,
+        code_verifier=verifier,
+    )).encode()
     req = urllib.request.Request(  # noqa: S310
         endpoint,
         data=form,

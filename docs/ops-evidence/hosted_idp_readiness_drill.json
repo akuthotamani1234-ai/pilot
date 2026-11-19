@@ -1,10 +1,10 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_readiness",
-  "ran_at": "2026-11-19T07:09:22Z",
+  "ran_at": "2026-11-19T07:44:32Z",
   "kind": "readiness_score_only",
-  "score": 24,
-  "score_of": 24,
+  "score": 25,
+  "score_of": 25,
   "checks": [
     {
       "artifact": "loopback_sso_drill.json",
@@ -125,9 +125,14 @@
       "artifact": "studio_sso_code_reuse_drill.json",
       "label": "Authorization code single use",
       "ready": true
+    },
+    {
+      "artifact": "studio_sso_pkce_verifier_drill.json",
+      "label": "Studio callback PKCE verifier",
+      "ready": true
     }
   ],
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Hosted IdP readiness 24/24; live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP readiness 25/25; live hosted IdP Studio SSO login still open"
 }

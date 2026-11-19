@@ -564,12 +564,20 @@ def sso_validate_bearer(authorization: str | None = Header(default=None)):
 
 
 @app.get("/api/sso/callback")
-def sso_callback(code: str = "", state: str = "", redirect_uri: str = ""):
+def sso_callback(
+    code: str = "",
+    state: str = "",
+    redirect_uri: str = "",
+    code_verifier: str = "",
+):
     """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open).
 
     A caller-supplied ``redirect_uri`` is forwarded only when it is on
     ``QPILOT_OIDC_REDIRECT_ALLOWLIST``. When that list is unset, the query
     value is ignored and the configured callback URI is used.
+    ``code_verifier`` is sent on the token POST when present. When
+    ``QPILOT_OIDC_PKCE_REQUIRED`` is set, a missing verifier is rejected
+    before the token endpoint.
     """
     from backend.studio_oidc_callback import exchange_code, validate_redirect_uri
 
@@ -591,6 +599,7 @@ def sso_callback(code: str = "", state: str = "", redirect_uri: str = ""):
     verdict = exchange_code(
         code=code,
         state=state,
+        code_verifier=code_verifier,
         **({"redirect_uri": forwarded} if forwarded else {}),
     )
     _audit(
@@ -2573,6 +2582,21 @@ def ops_independent_review_evidence_retention():
         "gate_g_complete": False,
         "independent_review_evidence_retention": evidence,
     }
+
+
+@app.post("/api/ops/drills/studio-sso-pkce-verifier")
+def ops_studio_sso_pkce_verifier():
+    """Gate I: PKCE verifier required on the Studio token POST when configured."""
+    from backend.studio_sso_pkce_verifier_drill import (
+        run_studio_sso_pkce_verifier_drill,
+    )
+    evidence = run_studio_sso_pkce_verifier_drill()
+    _audit(
+        "ops_studio_sso_pkce_verifier",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_pkce_verifier": evidence}
 
 
 @app.post("/api/ops/drills/studio-sso-code-reuse")

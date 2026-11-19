@@ -313,6 +313,7 @@ def progress() -> dict:
         {"id": "I-sso-callback-redirect", "label": "Callback forwards redirect_uri only when allowlisted", "status": "done"},
         {"id": "I-sso-code-reuse", "label": "Studio SSO authorization code is single-use", "status": "done"},
         {"id": "E-prod-healing-escalation-enforce", "label": "Auth and infrastructure repairs cannot auto-apply", "status": "done"},
+        {"id": "I-sso-pkce-verifier", "label": "Studio callback sends code_verifier and can require it", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
