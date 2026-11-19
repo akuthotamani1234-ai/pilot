@@ -147,6 +147,10 @@ def discovery_agent(state):
     run_dir = _run_dir(state)
     if _folder_is_linked(run_dir):
         raise AndroidEnvironmentError("The Android run is a link.")
+    from .android_runtime import stop_note
+    note = stop_note(run_dir)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
     from .android_dynamic import set_progress_log
     set_progress_log(run_dir / "progress.log")
     driver = create_session(config)
@@ -185,8 +189,14 @@ def discovery_agent(state):
     class DiscoveryLimitReached(AndroidEnvironmentError):
         pass
 
+    def _discovery_stopped():
+        note = stop_note(run_dir)
+        if "link" in note:
+            raise DiscoveryLimitReached(note)
+        return "stopped" in note
+
     def navigation_action(action, recovery=False, cheap=False):
-        if (run_dir / "STOP").exists():
+        if _discovery_stopped():
             raise DiscoveryLimitReached("Stop requested")
         if time.monotonic() >= deadline:
             raise DiscoveryLimitReached("Discovery time limit reached")
@@ -214,7 +224,7 @@ def discovery_agent(state):
 
         limit = min(deadline, time.monotonic() + seconds)
         while driver.current_package != config["package_name"]:
-            if (run_dir / "STOP").exists():
+            if _discovery_stopped():
                 raise DiscoveryLimitReached("Stop requested")
             # The keyboard is hidden and (in test mode) a permission prompt declined while waiting, not just slept on
             other = bring_app_back(driver, config)
@@ -509,14 +519,14 @@ def discovery_agent(state):
                 or (max_screens and len(screens) >= max_screens)
                 or (max_actions and action_count >= max_actions)
                 or time.monotonic() >= deadline
-                or (run_dir / "STOP").exists()
+                or _discovery_stopped()
             ):
                 unvisited.append(
                     {
                         "screen_id": screen["id"],
                         "element_id": element["id"],
                         "label": label,
-                        "reason": ("Stop requested" if (run_dir / "STOP").exists() else
+                        "reason": ("Stop requested" if _discovery_stopped() else
                                    "Discovery time limit reached" if time.monotonic() >= deadline else
                                    "Exploration action limit reached" if max_actions and action_count >= max_actions else
                                    "Screen limit reached" if max_screens and len(screens) >= max_screens else
@@ -870,7 +880,7 @@ def discovery_agent(state):
 
             issues.append({"error": redact(str(e))[:300]})
             lost = device_unavailable(e)
-        if screens and not lost and not (run_dir / "STOP").exists():
+        if screens and not lost and not _discovery_stopped():
             try:
                 interaction = user_like_testing()
             except Exception as e:  # the safe exploration's evidence stands even if user-like testing breaks

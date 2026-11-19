@@ -81,6 +81,40 @@ def test_discovery_only_clicks_safe_navigation_and_restores_the_start_screen(tmp
     assert json.loads((tmp_path / "app_map.json").read_text(encoding="utf-8"))[0]["platform"] == "android"
 
 
+def test_android_discovery_does_not_follow_a_stop_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-stop"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    calls = []
+    monkeypatch.setattr(android_pipeline, "create_session", lambda config: calls.append(config))
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent(_state(run))
+    assert calls == []
+    assert secret not in json.dumps(calls)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    driver = FakeDriver()
+    monkeypatch.setattr(android_pipeline, "create_session", lambda _config: driver)
+    found = android_pipeline.discovery_agent(_state(real))
+    assert len(found["screens"]) == 2
+    assert secret not in json.dumps(found)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_test_design_records_safe_cases_and_blocked_controls(tmp_path, monkeypatch):
     driver = FakeDriver()
     monkeypatch.setattr(android_pipeline, "create_session", lambda _config: driver)
