@@ -36,9 +36,14 @@ def _linked_manifest() -> dict:
 
 def run_portfolio_artifact_manifest_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+
+    out_name = "portfolio_artifact_manifest_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_manifest()
     ops = ROOT / "docs" / "ops-evidence"
+    if folder_is_linked(ops):
+        return _linked_manifest()
     artifacts: list[dict] = []
     missing: list[str] = []
     for name in REQUIRED:
@@ -63,26 +68,23 @@ def run_portfolio_artifact_manifest_drill(*, ops_dir: Path | None = None) -> dic
         "browsers": ["chromium", "firefox", "webkit"],
         "workflow": ".github/workflows/multi-browser-portfolios.yml",
         "workflow_exists": (
-            ROOT / ".github/workflows/multi-browser-portfolios.yml"
-        ).is_file(),
+            not folder_is_linked(ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml")
+            and (ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml").is_file()
+        ),
         "ok": not missing and (
-            ROOT / ".github/workflows/multi-browser-portfolios.yml"
-        ).is_file(),
+            not folder_is_linked(ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml")
+            and (ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml").is_file()
+        ),
         "reason": (
             f"Portfolio artifact manifest {len(artifacts)}/{len(REQUIRED)} "
             "hashed for CI upload shape; broad hosted multi-browser runner "
             "matrix still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (
-        (Path(ops_dir) / "portfolio_artifact_manifest_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_manifest()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_manifest()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "portfolio_artifact_manifest_drill.json"
