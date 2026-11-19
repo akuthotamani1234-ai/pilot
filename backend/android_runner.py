@@ -66,7 +66,9 @@ def _read_config(path: Path) -> tuple[dict, Path]:
 
 def write_android_failure(run_dir: Path, run_id: str, source: str, message: str) -> bool:
     """Write the short failure report. A linked report or summary is left untouched."""
-    from .finalization import write_text_unless_linked
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(run_dir):
+        return False
     body = ("<!doctype html><meta charset='utf-8'><h1>Insufficient Evidence</h1><p>"
             + html.escape(message) + "</p>")
     summary = json.dumps({

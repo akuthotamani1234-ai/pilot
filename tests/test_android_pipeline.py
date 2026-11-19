@@ -315,6 +315,48 @@ def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkey
     assert (created / ".private").is_dir() and not (created / ".private").is_symlink()
 
 
+def test_an_android_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_reporting import analyze, collect_healing, report
+    from backend.android_runner import write_android_failure
+
+    secret = b"tenant-b-only-android-report"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "summary.json").write_bytes(secret)
+    (nested / "report.html").write_bytes(secret)
+    (nested / "failures.json").write_bytes(secret)
+    (nested / "healing_log.json").write_bytes(secret)
+    (nested / "android_healing.jsonl").write_bytes(secret + b"\n")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {
+        "run_dir": str(linked / "run"), "run_id": "linked", "config": {}, "screens": [],
+        "test_cases": [], "results": [{"id": "t1", "outcome": "failed", "error": "boom"}], "log": [],
+    }
+    skipped = report(state)
+    assert "link" in skipped["log"][-1]
+    assert analyze(state)["failures"]
+    assert collect_healing(state)["healing_log"] == []
+    assert write_android_failure(linked / "run", "linked", "Android app", "boom") is False
+    for name in ("summary.json", "report.html", "failures.json", "healing_log.json"):
+        assert (nested / name).read_bytes() == secret
+    assert (nested / "android_healing.jsonl").read_bytes() == secret + b"\n"
+    assert not (nested / "test_cases.json").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    written = report({**state, "run_dir": str(real), "run_id": "real", "results": []})
+    assert written["verdict"]
+    assert (real / "summary.json").is_file() and not (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_file()
+    assert secret not in (real / "summary.json").read_bytes()
+    assert secret not in (real / "report.html").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_an_android_report_does_not_follow_a_link_into_another_run(tmp_path):
     import pytest
 

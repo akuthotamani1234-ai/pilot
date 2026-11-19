@@ -91,8 +91,9 @@ def analyze(state: dict) -> dict:
                 else "Check device connectivity and the foreground screen; inspect the original locator evidence.",
             }
         )
-    from .finalization import write_text_unless_linked
-    write_text_unless_linked(Path(state["run_dir"]), "failures.json", json.dumps(failures, indent=2))
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if not folder_is_linked(Path(state["run_dir"])):
+        write_text_unless_linked(Path(state["run_dir"]), "failures.json", json.dumps(failures, indent=2))
     return {"failures": failures}
 
 
@@ -339,8 +340,16 @@ def report(state: dict) -> dict:
     from .agents.reporter import decide_verdict
     from .cost import write_report
     from .excel import automation_status, case_result, write_workbook
+    from .finalization import folder_is_linked
 
     run_dir = Path(state["run_dir"])
+    if folder_is_linked(run_dir):
+        return {
+            "verdict": "Insufficient Evidence",
+            "report_path": "",
+            "test_cases": list(state.get("test_cases") or []),
+            "log": list(state.get("log") or []) + ["Android report skipped: this run's folder is a link."],
+        }
     cases = [normalize_case(c) for c in state.get("test_cases", [])]
     results = state.get("results", [])
     # Backward compatibility for earlier Android runs and their downloaded case files.
@@ -507,11 +516,13 @@ def report(state: dict) -> dict:
 
 def collect_healing(state: dict) -> dict:
     from .android_pipeline import read_jsonl
-    from .finalization import write_text_unless_linked
+    from .finalization import folder_is_linked, write_text_unless_linked
     run_dir = Path(state["run_dir"])
     log_path = run_dir / "android_healing.jsonl"
-    entries = [] if run_dir.is_symlink() or log_path.is_symlink() else read_jsonl(log_path)
-    write_text_unless_linked(run_dir, "healing_log.json", json.dumps(entries, indent=2))
+    linked = folder_is_linked(run_dir)
+    entries = [] if linked or log_path.is_symlink() else read_jsonl(log_path)
+    if not linked:
+        write_text_unless_linked(run_dir, "healing_log.json", json.dumps(entries, indent=2))
     return {"healing_log": entries}
 
 
