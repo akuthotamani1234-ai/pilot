@@ -183,3 +183,57 @@ def test_a_finding_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch
     else:
         raise AssertionError("rebuild read another tenant")
     assert (other / "failures.json").read_text(encoding="utf-8") == failures_text
+
+
+def test_a_rebuilt_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    from backend.report_rebuild import rebuild
+
+    secret = "tenant-b-only-rebuild"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_secret.py").write_text(f"# {secret}\n", encoding="utf-8")
+    (other / "shot.png").write_bytes(b"tenant-b-only-rebuild")
+    (other / "rebuild_comparison.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    source = tmp_path / "source"
+    tests = source / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_keep.py").write_text("def test_keep():\n    assert True\n", encoding="utf-8")
+    (tests / "test_secret.py").symlink_to(other / "test_secret.py")
+    shots = source / "screenshots"
+    shots.mkdir()
+    (shots / "01_home.png").symlink_to(other / "shot.png")
+    (source / "app_map.json").write_text(json.dumps([
+        {"url": "https://shop.test/", "screenshot": "screenshots/01_home.png"}
+    ]), encoding="utf-8")
+    (source / "results.json").write_text("[]", encoding="utf-8")
+
+    def _summary(state):
+        path = Path(state["run_dir"]) / "summary.json"
+        path.write_text(json.dumps({
+            "metrics": {"single_tests": {"total": 0}, "test_cases": {}, "consistent": True},
+            "findings": 0,
+        }), encoding="utf-8")
+        return {}
+
+    monkeypatch.setattr("backend.agents.reporter.reporter_agent", _summary)
+    rebuilt = tmp_path / "rebuilt"
+    comparison = rebuild(source, rebuilt)
+    copied = (rebuilt / "generated_tests" / "test_keep.py").read_text(encoding="utf-8")
+    assert "test_keep" in copied
+    assert not (rebuilt / "generated_tests" / "test_secret.py").exists()
+    assert secret not in copied
+    assert not (rebuilt / "screenshots" / "01_home.png").exists()
+    assert (other / "test_secret.py").read_text(encoding="utf-8") == f"# {secret}\n"
+    assert (other / "shot.png").read_bytes() == b"tenant-b-only-rebuild"
+    assert comparison["source"].endswith("source")
+
+    linked_dest = tmp_path / "linked-dest"
+    linked_dest.symlink_to(other, target_is_directory=True)
+    try:
+        rebuild(source, linked_dest)
+    except ValueError as exc:
+        assert "link" in str(exc)
+    else:
+        raise AssertionError("rebuild wrote through a linked folder")
+    assert json.loads((other / "rebuild_comparison.json").read_text(encoding="utf-8"))["secret"] == secret
