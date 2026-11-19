@@ -29,6 +29,7 @@ BLOCKERS = (
             "paging_escalation_ack_pack_drill.json",
             "hosted_oncall_contract_drill.json",
             "hosted_oncall_readiness_drill.json",
+            "hosted_oncall_readiness_pack_drill.json",
         ],
     },
     {
@@ -44,6 +45,7 @@ BLOCKERS = (
             "dual_tenant_oidc_acl_drill.json",
             "oidc_groups_role_acl_drill.json",
             "oidc_tid_tenant_acl_drill.json",
+            "oidc_email_domain_tenant_acl_drill.json",
             "studio_sso_principal_bootstrap_drill.json",
             "hosted_idp_contract_drill.json",
             "hosted_idp_readiness_drill.json",
