@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-18T23:57:17Z",
+  "ran_at": "2026-11-19T00:00:54Z",
   "ok": true,
   "blockers": [
     {
@@ -63,6 +63,7 @@
         "multi_app_healing_suite_drill.json",
         "production_healing_matrix_drill.json",
         "production_healing_taxonomy_drill.json",
+        "production_healing_contract_drill.json",
         "healing_regression_drill.json"
       ],
       "status": "open",
@@ -71,6 +72,7 @@
         "multi_app_healing_suite_drill.json",
         "production_healing_matrix_drill.json",
         "production_healing_taxonomy_drill.json",
+        "production_healing_contract_drill.json",
         "healing_regression_drill.json"
       ],
       "local_partial_missing": []

@@ -1,7 +1,7 @@
 {
   "gate_a_surfaces_complete": false,
   "drill": "travel_site_surface_coverage",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-19T00:00:54Z",
   "fixture": "TravelSite",
   "pages_walked": [
     "home",
@@ -12,15 +12,15 @@
     "gate_a_surfaces_complete": false,
     "pages": 3,
     "frames": {
-      "testable": 0,
+      "testable": 3,
       "external": 0,
       "unreachable": 0,
-      "pages_with_frames": 0,
-      "listed_iframes": 0
+      "pages_with_frames": 3,
+      "listed_iframes": 3
     },
     "shadow": {
-      "open_roots_seen": 0,
-      "pages_with_shadow": 0,
+      "open_roots_seen": 3,
+      "pages_with_shadow": 3,
       "closed_unsupported": 0
     },
     "dialogs": {
@@ -34,30 +34,26 @@
     },
     "rich_controls": {
       "canvas": 0,
-      "file_upload": 0,
-      "web_component": 0,
-      "pages_with_rich": 0
+      "file_upload": 3,
+      "web_component": 3,
+      "pages_with_rich": 3
     },
     "unknown": [
-      "iframe inventory empty on this run",
-      "shadow DOM signals empty on this run",
-      "no lazy-loaded content signals recorded",
       "no dialog/modal surfaces recorded",
-      "no download links recorded",
-      "no canvas/file-upload/web-component controls recorded"
+      "no download links recorded"
     ],
     "evidence": {
       "pages": 3,
       "frames": {
-        "testable": 0,
+        "testable": 3,
         "external": 0,
         "unreachable": 0,
-        "pages_with_frames": 0,
-        "listed_iframes": 0
+        "pages_with_frames": 3,
+        "listed_iframes": 3
       },
       "shadow": {
-        "open_roots_seen": 0,
-        "pages_with_shadow": 0,
+        "open_roots_seen": 3,
+        "pages_with_shadow": 3,
         "closed_unsupported": 0
       },
       "api": {
@@ -66,8 +62,8 @@
         "blocked_requests": 0
       },
       "lazy": {
-        "pages_with_lazy": 0,
-        "items_seen": 0
+        "pages_with_lazy": 3,
+        "items_seen": 3
       },
       "metadata": {
         "pages_with_locale": 3,
@@ -89,9 +85,9 @@
       },
       "rich_controls": {
         "canvas": 0,
-        "file_upload": 0,
-        "web_component": 0,
-        "pages_with_rich": 0
+        "file_upload": 3,
+        "web_component": 3,
+        "pages_with_rich": 3
       }
     },
     "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."

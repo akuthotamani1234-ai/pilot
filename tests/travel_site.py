@@ -30,11 +30,26 @@ FARE = 120
 FLIGHTS = [  # (code, stops, price per passenger)
     ("QA101", 0, 410), ("QA205", 1, 320), ("QA330", 0, 455), ("QA412", 2, 290), ("QA518", 0, 380), ("QA640", 1, 345)]
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>{title} - TravelSite</title>
+PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title} - TravelSite</title>
 <style>body{{font-family:sans-serif;margin:0}} nav a{{margin-right:12px}} main{{padding:16px}}
 .err{{color:#b00}} .flight{{border:1px solid #ccc;padding:8px;margin:6px 0}}</style></head>
 <body><header><nav class="main-nav"><a href="/">Search flights</a><a href="/signup">Sign up</a></nav></header>
-<main><h1>{title}</h1>{body}</main><footer><p>TravelSite demo</p></footer></body></html>"""
+<main><h1>{title}</h1>{body}</main>
+<footer><p>TravelSite demo</p>
+<section id="surface-lab" aria-label="Surface discovery lab">
+ <iframe name="travel-help" title="Travel help" src="/signup" width="120" height="40"></iframe>
+ <img loading="lazy" alt="" width="1" height="1" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+ <input type="file" id="travel-passport" accept="image/*" aria-label="Passport upload">
+ <flight-chip></flight-chip>
+ <script>
+ customElements.define('flight-chip', class extends HTMLElement {{
+   connectedCallback() {{
+     const r = this.attachShadow({{mode:'open'}});
+     r.innerHTML = '<span>Travel surface chip</span>';
+   }}
+ }});
+ </script>
+</section></footer></body></html>"""
 
 
 def _options(selected: str = "") -> str:

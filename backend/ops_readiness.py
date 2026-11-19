@@ -494,6 +494,22 @@ def readiness() -> dict:
                 else "No ApiDemos interaction evidence"
             ),
         },
+        "discovery_surface_matrix_drill": {
+            "ready": _ops_evidence("discovery_surface_matrix_drill.json"),
+            "reason": (
+                "Discovery surface-signal matrix present; full Gate A live completeness still open"
+                if _ops_evidence("discovery_surface_matrix_drill.json")
+                else "No discovery surface matrix evidence"
+            ),
+        },
+        "production_healing_contract_drill": {
+            "ready": _ops_evidence("production_healing_contract_drill.json"),
+            "reason": (
+                "Production healing contract present; production / third-party suite still open"
+                if _ops_evidence("production_healing_contract_drill.json")
+                else "No production healing contract evidence"
+            ),
+        },
         "multi_device_ci_contract": {
             "ready": _ops_evidence("multi_device_ci_contract.json"),
             "reason": (

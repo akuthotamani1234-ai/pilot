@@ -1,7 +1,7 @@
 {
   "gate_a_complete": false,
   "drill": "multi_fixture_discovery_score",
-  "ran_at": "2026-11-18T23:53:25Z",
+  "ran_at": "2026-11-19T00:00:54Z",
   "fixtures": [
     {
       "fixture": "AdminPortal",
@@ -32,15 +32,25 @@
     {
       "fixture": "ClassicShop",
       "pages": 6,
-      "surface_keys_hit": [],
-      "score": 0.6,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "file_upload",
+        "web_component"
+      ],
+      "score": 1.0,
       "ok": true
     },
     {
       "fixture": "TravelSite",
       "pages": 3,
-      "surface_keys_hit": [],
-      "score": 0.6,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "file_upload",
+        "web_component"
+      ],
+      "score": 1.0,
       "ok": true
     }
   ],

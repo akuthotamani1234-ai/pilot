@@ -50,6 +50,7 @@ BLOCKERS = (
             "multi_app_healing_suite_drill.json",
             "production_healing_matrix_drill.json",
             "production_healing_taxonomy_drill.json",
+            "production_healing_contract_drill.json",
             "healing_regression_drill.json",
         ],
     },

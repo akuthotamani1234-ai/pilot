@@ -1472,6 +1472,31 @@ def ops_apidemos_interaction():
     return {"gate_d_complete": False, "apidemos_interaction": evidence}
 
 
+@app.post("/api/ops/drills/discovery-surface-matrix")
+def ops_discovery_surface_matrix():
+    """Gate A: multi-fixture surface-signal matrix (full live completeness open)."""
+    from backend.discovery_surface_matrix_drill import run_discovery_surface_matrix_drill
+    evidence = run_discovery_surface_matrix_drill()
+    _audit(
+        "ops_discovery_surface_matrix",
+        ok=bool(evidence.get("ok")),
+        union_hit=int(evidence.get("union_hit") or 0),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_a_complete": False, "discovery_surface_matrix": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-contract")
+def ops_production_healing_contract():
+    """Gate E: production healing suite contract (third-party suite still open)."""
+    from backend.production_healing_contract_drill import (
+        run_production_healing_contract_drill,
+    )
+    evidence = run_production_healing_contract_drill()
+    _audit("ops_production_healing_contract", ok=bool(evidence.get("ok")))
+    return {"gate_e_complete": False, "production_healing_contract": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

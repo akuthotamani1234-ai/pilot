@@ -34,7 +34,7 @@ def progress() -> dict:
     ]
     gates = [
         {"id": "A", "label": "Gate A — Discovery surfaces", "status": "active",
-         "note": "Multi-fixture discovery score + surface inventories; full live matrix still open"},
+         "note": "Multi-fixture score + surface-signal matrix; full live completeness still open"},
         {"id": "B", "label": "Gate B — Durable swarm", "status": "active",
          "note": "Redis DurableQueue + contention + control/retry; product-wide sign-off still open"},
         {"id": "C", "label": "Gate C — Oracles + cleanup", "status": "active",
@@ -152,6 +152,7 @@ def progress() -> dict:
         {"id": "F-compat-drill", "label": "DemoStore compatibility portfolio drill (desktop+mobile)", "status": "done"},
         {"id": "A-lab-canvas-lazy", "label": "DemoStore /lab canvas + lazy surface signals", "status": "done"},
         {"id": "A-discovery-score", "label": "Multi-fixture discovery completeness score (4 demos)", "status": "done"},
+        {"id": "A-surface-matrix", "label": "Multi-fixture surface-signal completeness matrix", "status": "done"},
         {"id": "F-compat-engines", "label": "Offline Chromium/Firefox/WebKit compatibility matrix", "status": "done"},
         {"id": "H-postgres-dr", "label": "Postgres dump→isolated-DB restore DR drill", "status": "done"},
         {"id": "H-multi-region-dr", "label": "Local dual-region Postgres failover rehearsal", "status": "done"},
@@ -195,6 +196,7 @@ def progress() -> dict:
         {"id": "E-prod-healing-matrix", "label": "Production-like multi-failure healing matrix", "status": "done"},
         {"id": "E-prod-healing-4apps", "label": "Production-like healing matrix on 4 demos (+nav)", "status": "done"},
         {"id": "E-prod-healing-taxonomy", "label": "Production healing taxonomy (auth/infra/flaky/…)", "status": "done"},
+        {"id": "E-prod-healing-contract", "label": "Production healing suite contract (not third-party)", "status": "done"},
         {"id": "D-android-refresh", "label": "Live Appium product-matrix refresh (API30 emulator)", "status": "done"},
         {"id": "D-apidemos-deep", "label": "Live ApiDemos deep interaction (Accessibility+tap)", "status": "done"},
         {"id": "D-cross-journey-refresh", "label": "Cross-platform journey refresh (web+Android)", "status": "done"},
