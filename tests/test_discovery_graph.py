@@ -137,3 +137,42 @@ def test_a_saved_page_does_not_follow_a_link_into_another_run(tmp_path):
     assert saved == own / "note.txt"
     assert write_text_unless_linked(own, "note.txt", "ours") is True
     assert (own / "note.txt").read_text(encoding="utf-8") == "ours"
+
+
+def test_a_crawl_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import backend.agents.discovery as discovery
+
+    secret = b"tenant-b-only-crawl"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("the browser started")
+
+    monkeypatch.setattr(discovery, "sync_playwright", explode)
+    monkeypatch.setattr(discovery.settings, "discovery_only", True)
+    refused = discovery.discovery_agent({
+        "url": "https://shop.test/", "run_dir": str(linked / "run"), "site_key": "shop", "log": [],
+    })
+    assert refused["app_map"] == [] and "link" in refused["log"][-1]
+    assert not (nested / "screenshots").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    try:
+        discovery.discovery_agent({
+            "url": "https://shop.test/", "run_dir": str(real), "site_key": "shop", "log": [],
+        })
+    except AssertionError as exc:
+        assert str(exc) == "the browser started"
+    else:
+        raise AssertionError("the real crawl did not reach the browser")
+    shots = real / "screenshots"
+    assert shots.is_dir() and not shots.is_symlink()
+    assert list(shots.iterdir()) == []
+    assert (nested / "keep.txt").read_bytes() == secret

@@ -1901,8 +1901,18 @@ def discovery_agent(state: QAState) -> QAState:
     start_url = _normalize(state["url"])
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
-    if not run_dir.is_symlink() and not shots.is_symlink():
-        shots.mkdir(parents=True, exist_ok=True)
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir) or shots.is_symlink():
+        reason = "This run's folder is a link, so the crawl was not started."
+        print(f"  [discovery] stopped before the crawl: {reason}", flush=True)
+        return {
+            "app_map": [], "crawl_issues": [], "roles": {},
+            "login": {"found": False, "logged_in": False, "note": reason, "outcome": "not_required"},
+            "crawl": {"start_url": start_url, "stopped": reason, "visited": 0, "sample_unchanged": True,
+                      "swarm": {"sample": settings.swarm_sample}},
+            "log": state.get("log", []) + [f"Discovery stopped before the crawl: {reason}"],
+        }
+    shots.mkdir(parents=True, exist_ok=True)
     target = read_target(run_dir)
     if target is not None and target.get("ok") is False:
         reason = "; ".join(target.get("problems") or ["the target is not registered"])
