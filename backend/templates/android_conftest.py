@@ -19,13 +19,20 @@ from backend.android_evidence import app_problem, device_time, read_log, save_lo
 from backend.android_runtime import MobileRuntime, device_unavailable, read_only_case, same_screen
 from backend.safety import redact
 
+
+def _load_mobile_json(path: Path):
+    """JSON from this run. A link, or a folder on the way to it, is not this run's file."""
+    path = Path(path)
+    if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 _CONFIG_PATH = Path(os.environ["ANDROID_MOBILE_CONFIG"])
-if _CONFIG_PATH.is_symlink() or any(parent.is_symlink() for parent in _CONFIG_PATH.parents):
-    raise AndroidEnvironmentError("The Android run is a link.")
+CONFIG = _load_mobile_json(_CONFIG_PATH)
 RUN = _CONFIG_PATH.resolve().parent.parent
-CONFIG = json.loads(Path(os.environ["ANDROID_MOBILE_CONFIG"]).read_text(encoding="utf-8"))
-CASES = json.loads(Path(os.environ["ANDROID_MOBILE_CASES"]).read_text(encoding="utf-8"))
-SCREENS = json.loads((RUN / "screens.json").read_text(encoding="utf-8"))
+CASES = _load_mobile_json(os.environ["ANDROID_MOBILE_CASES"])
+SCREENS = _load_mobile_json(RUN / "screens.json")
 UNAVAILABLE = RUN / "android_execution_unavailable.json"
 
 
