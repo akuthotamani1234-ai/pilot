@@ -45,21 +45,45 @@ class LocalObjectStore:
 
     def list_keys(self, prefix: str = "") -> list[str]:
         out = []
-        for path in self.root.rglob("*"):
-            if path.is_file():
-                rel = path.relative_to(self.root).as_posix()
-                if not prefix or rel.startswith(prefix):
-                    out.append(rel)
+        if self.root.is_symlink():
+            return out
+
+        def walk(directory: Path) -> None:
+            try:
+                children = list(directory.iterdir())
+            except OSError:
+                return
+            for path in children:
+                if path.is_symlink():
+                    continue
+                if path.is_dir():
+                    walk(path)
+                elif path.is_file():
+                    rel = path.relative_to(self.root).as_posix()
+                    if not prefix or rel.startswith(prefix):
+                        out.append(rel)
+
+        walk(self.root)
         return sorted(out)
 
     def _path(self, key: str) -> Path:
+        """A real file inside the store. A link, or a path outside the root, is refused."""
         clean = (key or "").replace("\\", "/").lstrip("/")
-        if not clean or ".." in clean.split("/"):
+        parts = [part for part in clean.split("/") if part]
+        if not parts or any(part in {".", ".."} for part in parts):
             raise ObjectStoreError("invalid object key")
-        path = (self.root / clean).resolve()
-        if not str(path).startswith(str(self.root)):
+        if self.root.is_symlink():
             raise ObjectStoreError("object key escapes store root")
-        return path
+        cursor = self.root
+        for part in parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise ObjectStoreError("object key escapes store root")
+        try:
+            cursor.resolve().relative_to(self.root.resolve())
+        except (OSError, ValueError):
+            raise ObjectStoreError("object key escapes store root") from None
+        return cursor
 
 
 class MinioObjectStore:
