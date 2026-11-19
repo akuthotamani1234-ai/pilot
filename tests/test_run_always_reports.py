@@ -190,3 +190,34 @@ def test_a_stop_ends_the_test_run_within_seconds_and_keeps_its_browsers_closed(t
     assert took < 30, took
     assert json.loads((run_dir / "execution.json").read_text(encoding="utf-8"))["stopped"] is True
     assert "stopped early" in out["log"][-1]
+
+
+def test_ai_usage_does_not_follow_a_link_into_another_run(tmp_path):
+    from backend import cost
+    secret = "tenant-b-only-usage"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "llm_usage.jsonl"
+    victim.write_text(secret + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    cost.set_run_dir(linked)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    assert victim.read_text(encoding="utf-8") == secret + "\n"
+    assert cost.read_usage(linked) == []
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "llm_usage.jsonl").symlink_to(victim)
+    cost.set_run_dir(real, resume=True)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    assert victim.read_text(encoding="utf-8") == secret + "\n"
+    assert cost.read_usage(real) == []
+
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    cost.set_run_dir(fresh)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    saved = (fresh / "llm_usage.jsonl").read_text(encoding="utf-8")
+    assert "vision" in saved and secret not in saved
+    assert cost.read_usage(fresh)[0]["agent"] == "vision"
