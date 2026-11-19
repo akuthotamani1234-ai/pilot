@@ -46,6 +46,20 @@ def test_a_review_pack_does_not_follow_a_link_into_another_folder(tmp_path, monk
     assert planted.is_symlink()
     planted.unlink()
 
+    origin = mod.CHECKLIST
+    note = other / "secret-checklist.md"
+    note.write_text(secret, encoding="utf-8")
+    linked_list = tmp_path / "checklist.md"
+    linked_list.symlink_to(note)
+    monkeypatch.setattr(mod, "CHECKLIST", linked_list)
+    unread = run_independent_review_pack_drill(ops_dir=folder)
+    assert unread["checklist_present"] is False
+    assert unread["ok"] is False
+    assert unread["signed_off"] is False
+    assert secret not in str(unread)
+    assert note.read_text(encoding="utf-8") == secret
+    monkeypatch.setattr(mod, "CHECKLIST", origin)
+
     saved = run_independent_review_pack_drill(ops_dir=folder)
     written = (folder / "independent_review_pack.json").read_text(encoding="utf-8")
     assert calls["n"] >= 1
