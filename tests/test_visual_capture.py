@@ -17,6 +17,32 @@ def test_capture_visual_records_first_run_screenshots(tmp_path):
     assert again["pages"][0]["key"] == "home"
 
 
+def test_a_visual_capture_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-visual"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "visual.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    report = capture_visual(linked / "run", [{"url": "https://shop.test/", "slug": "home",
+                                              "screenshot": "screenshots/01_home.png"}])
+    assert report["pages"] == [] and "link" in report["note"]
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "visual.json").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    real = tmp_path / "real"
+    (real / "screenshots").mkdir(parents=True)
+    (real / "screenshots" / "01_home.png").write_bytes(b"png")
+    saved = capture_visual(real, [{"url": "https://shop.test/", "slug": "home",
+                                   "screenshot": "screenshots/01_home.png"}])
+    assert saved["pages"][0]["status"] == "new"
+    text = (real / "visual.json").read_bytes()
+    assert b"home" in text and secret not in text
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_a_visual_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.finalization import copy_unless_linked, write_bytes_unless_linked
