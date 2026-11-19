@@ -36,7 +36,7 @@ SEVERITY = {"http_status": "medium", "page_failed": "critical", "product_defect"
             "auth_problem": "high", "flaky": "low", "timeout": "medium", "infrastructure": "medium",
             "inconclusive": "low", "assertion_failure": "low", "locator": "low",
             "third_party": "low", "suspect": "low", "rule_violation": "medium", "layout": "medium",
-            "test_mistake": "low"}
+            "test_mistake": "low", "mixed_content": "low"}
 CATEGORY_NAME = {"product_defect": "Application defect (potential website bug)",
                  "assertion_failure": "Test assertion failure (exploratory expectation not met)",
                  "locator": "Locator / interaction failure (not proof of a website bug)",
@@ -187,6 +187,23 @@ def _console_or_network_notes(r: dict) -> list[str]:
     return notes[:12]
 
 
+def _passive_mixed_only(err: str) -> bool:
+    """True when a console assertion reports only an insecure style, font, or picture."""
+    if not PASSIVE_MIXED.search(err or ""):
+        return False
+    kept = []
+    for raw in (err or "").splitlines():
+        line = re.sub(r"^E\s+", "", raw).strip()
+        if not line or line.startswith("AssertionError"):
+            continue
+        if re.search(r"JavaScript errors on ", line):
+            continue
+        if PASSIVE_MIXED.search(line) or RESOURCE_LOAD_FAIL.search(line):
+            continue
+        kept.append(line)
+    return not kept
+
+
 def _rule_classify(r: dict) -> tuple[str, str, str]:
     """(category, why, confidence) for one failed / inconclusive test result - from the fixed rules only."""
     err, etype = (r.get("error") or ""), (r.get("error_type") or "")
@@ -281,6 +298,10 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
                                      "calling it a bug."), "low"
     if "Timeout" in etype or "Timeout" in err:
         return "timeout", "Page or element took too long - slow site, or a wait in the script is wrong.", "low"
+    if _passive_mixed_only(err):
+        return "mixed_content", (
+            "The page asks for a style, font, or picture over insecure http:// on an https:// page. "
+            "The browser blocks it. That is not an application defect."), "low"
     if asserted:
         # the check itself failed: the website did not behave as expected. Built-in checks are precise;
         # an AI-written check may itself be wrong, so it gets less confidence.
@@ -404,7 +425,8 @@ def _one_per_problem(failures: list[dict]) -> list[dict]:
     Merged findings keep every covered nodeid in ``nodeids`` so metrics/ensure stay 1:1 with results."""
     out, first = [], {}
     for f in failures:
-        if not (f.get("test") or "").startswith("test_no_console_errors") or f["category"] != "product_defect":
+        if not (f.get("test") or "").startswith("test_no_console_errors") or f["category"] not in (
+                "product_defect", "mixed_content"):
             out.append(f)
             continue
         said = "\n".join((f.get("error") or "").splitlines()[1:]) or f.get("error") or ""  # (without 'errors on <url>:')
