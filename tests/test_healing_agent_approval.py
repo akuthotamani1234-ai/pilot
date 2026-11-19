@@ -239,3 +239,25 @@ def test_a_baseline_map_is_not_read_through_a_link_into_another_folder(tmp_path)
     assert _old_page(state, {"slug": "home"})["slug"] == "home-own"
     assert secret not in json.dumps(pages)
     assert secret in saved.read_text(encoding="utf-8")
+
+
+def test_a_generated_script_is_not_read_through_a_link_into_another_folder(tmp_path):
+    from backend.agents.self_healing import _file_with
+
+    secret = "tenant-b-only-selector"
+    other = tmp_path / "other"
+    suite = other / "runs" / "run" / "generated_tests"
+    suite.mkdir(parents=True)
+    script = suite / "test_secret.py"
+    script.write_text(f"def test_secret():\n    page.locator({secret!r})\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _file_with(secret, linked / "runs" / "run" / "generated_tests", "test_secret.py") is None
+    assert secret in script.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_home.py").write_text("def test_home():\n    page.locator('home-own')\n", encoding="utf-8")
+    assert _file_with("home-own", real, "test_home.py") == "test_home.py"
+    assert secret in script.read_text(encoding="utf-8")
