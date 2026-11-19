@@ -1529,6 +1529,41 @@ def ops_independent_review_request():
     return {"gate_g_complete": False, "independent_review_request": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-replay-pack")
+def ops_production_healing_replay_pack():
+    """Gate E: fixture before/after healing replay pack (production still open)."""
+    from backend.production_healing_replay_pack_drill import (
+        run_production_healing_replay_pack_drill,
+    )
+    evidence = run_production_healing_replay_pack_drill()
+    _audit(
+        "ops_production_healing_replay_pack",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_replay_pack": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-runner-matrix")
+def ops_hosted_ci_runner_matrix():
+    """Gates D/F: hosted runner matrix honesty snapshot (execution still open)."""
+    from backend.hosted_ci_runner_matrix_drill import (
+        run_hosted_ci_runner_matrix_drill,
+    )
+    evidence = run_hosted_ci_runner_matrix_drill()
+    _audit(
+        "ops_hosted_ci_runner_matrix",
+        ok=bool(evidence.get("ok")),
+        gate_d_complete=False,
+        gate_f_complete=False,
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_runner_matrix": evidence,
+    }
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

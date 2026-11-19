@@ -626,6 +626,22 @@ def readiness() -> dict:
                 else "No independent review request receipt"
             ),
         },
+        "production_healing_replay_pack_drill": {
+            "ready": _ops_evidence("production_healing_replay_pack_drill.json"),
+            "reason": (
+                "Production healing replay pack present; production suite still open"
+                if _ops_evidence("production_healing_replay_pack_drill.json")
+                else "No production healing replay pack"
+            ),
+        },
+        "hosted_ci_runner_matrix_drill": {
+            "ready": _ops_evidence("hosted_ci_runner_matrix_drill.json"),
+            "reason": (
+                "Hosted CI runner matrix snapshot present; broad runners still open"
+                if _ops_evidence("hosted_ci_runner_matrix_drill.json")
+                else "No hosted CI runner matrix snapshot"
+            ),
+        },
         "sso_tenant_acl_drill": {
             "ready": _ops_evidence("sso_tenant_acl_drill.json"),
             "reason": (
