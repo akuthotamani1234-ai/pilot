@@ -8,6 +8,15 @@ from backend.hosted_ci_concurrency_contract_drill import (
 def test_a_concurrency_contract_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import backend.hosted_ci_concurrency_contract_drill as mod
 
+    calls = {"n": 0}
+    real_audit = mod._audit
+
+    def _audit(*args, **kwargs):
+        calls["n"] += 1
+        return real_audit(*args, **kwargs)
+
+    monkeypatch.setattr(mod, "_audit", _audit)
+
     secret = "tenant-b-only-concurrency"
     other = tmp_path / "other"
     other.mkdir()
@@ -23,9 +32,22 @@ def test_a_concurrency_contract_does_not_follow_a_link_into_another_folder(tmp_p
     assert refused["gate_d_complete"] is False
     assert refused["gate_f_complete"] is False
     assert refused["live_hosted_runners"] is False
+    assert calls["n"] == 0
     assert secret not in str(refused)
     assert kept.read_bytes() == original
     assert [path.name for path in other.iterdir()] == [kept.name]
+
+    folder = tmp_path / "planted"
+    folder.mkdir()
+    planted = folder / kept.name
+    planted.symlink_to(kept)
+    skipped_file = run_hosted_ci_concurrency_contract_drill(ops_dir=folder)
+    assert "link" in skipped_file["reason"]
+    assert skipped_file["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped_file)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
 
     secret_yaml = other / "secret-workflow.yml"
     secret_yaml.write_text(
@@ -40,6 +62,7 @@ def test_a_concurrency_contract_does_not_follow_a_link_into_another_folder(tmp_p
     real.mkdir()
     skipped = run_hosted_ci_concurrency_contract_drill(ops_dir=real)
     written = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 2
     assert skipped["android"]["checks"]["present"] is False
     assert skipped["android"]["concurrency_group_declared"] is False
     assert skipped["android"]["cancel_in_progress_declared"] is False
@@ -56,6 +79,7 @@ def test_a_concurrency_contract_does_not_follow_a_link_into_another_folder(tmp_p
     monkeypatch.setattr(mod, "ANDROID_WF", own)
     saved = run_hosted_ci_concurrency_contract_drill(ops_dir=real)
     saved_text = (real / kept.name).read_text(encoding="utf-8")
+    assert calls["n"] == 4
     assert saved["android"]["checks"]["present"] is True
     assert saved["android"]["concurrency_group_declared"] is True
     assert saved["android"]["cancel_in_progress_declared"] is True
