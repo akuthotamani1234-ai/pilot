@@ -5,12 +5,14 @@ same time, then close. Payment and checkout links are never handed to a worker.
 A long product list can still keep a short sample for the deeper crawl.
 """
 import re
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 _PAYMENT_PATH = re.compile(
-    r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:/|$)",
+    r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)"
+    r"(?:\.[a-z0-9]+)?(?:/|$)",
     re.I,
 )
+_PAYMENT_HOST = re.compile(r"(?:^|\.)paypal\.com$", re.I)
 
 
 def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
@@ -22,7 +24,11 @@ def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
 
 def is_payment_url(url: str) -> bool:
     """True when the address itself is a checkout or payment step."""
-    path = urlsplit(url or "").path.replace("_", "-")
+    parts = urlsplit(url or "")
+    host = parts.hostname or ""
+    if _PAYMENT_HOST.search(host):
+        return True
+    path = unquote(parts.path).replace("_", "-")
     return bool(_PAYMENT_PATH.search(path))
 
 

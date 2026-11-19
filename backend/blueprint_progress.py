@@ -329,6 +329,7 @@ def progress() -> dict:
         {"id": "I-oidc-principal-rbac", "label": "OIDC dashboard auth requires a principal role and matching tenant", "status": "done"},
         {"id": "I-oidc-groups-enforced", "label": "OIDC groups claim cannot raise the principal role", "status": "done"},
         {"id": "C-ai-not-contract", "label": "An AI expectation on a contract case cannot become a product defect", "status": "done"},
+        {"id": "B-payment-url-shape", "label": "PayPal hosts and checkout files are never opened", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
