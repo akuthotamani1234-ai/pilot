@@ -36,10 +36,21 @@ def device_unavailable(error):
 def stop_file_note(stop) -> str:
     """Why this stop file should halt the run, or empty when it should continue.
 
-    A stop file reached through a link is not a user stop.
+    A stop file reached through a link is not a user stop. A test double that
+    only answers ``exists()`` keeps that answer.
     """
     from .finalization import folder_is_linked
-    stop = Path(stop)
+    try:
+        stop = Path(stop)
+    except TypeError:
+        exists = getattr(stop, "exists", None)
+        if not callable(exists):
+            return ""
+        try:
+            stopped = bool(exists())
+        except OSError:
+            return ""
+        return "The mobile run was stopped by the user." if stopped else ""
     if folder_is_linked(stop):
         return "The Android run is a link."
     if stop.is_file():

@@ -182,8 +182,11 @@ FAILURES = [
 ]
 
 
-def test_a_slack_report_path_does_not_follow_a_link_into_another_folder(tmp_path):
+def test_a_slack_report_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     from backend.integrations import slack_message
+
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
 
     secret = "tenant-b-only-slack"
     other = tmp_path / "other"
