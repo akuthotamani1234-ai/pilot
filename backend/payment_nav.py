@@ -271,6 +271,54 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
 _CANCELLED = re.compile(r"net::ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation")
 
 
+def open_falling_back(page, url: str, *, timeout: int, wait_until: str = "domcontentloaded"):
+    """Open one page when the checkout probe could not run.
+
+    Return ``(response, blocked_url)``. A fixture route still answers, because
+    this does not fetch the address itself. A navigation that is already
+    checkout is aborted. A page with no route guard is opened directly.
+    """
+    from .swarm import is_payment_url
+
+    if not hasattr(page, "route"):
+        return page.goto(url, wait_until=wait_until, timeout=timeout), ""
+    blocked = {"url": ""}
+
+    def handle(route):
+        req = route.request
+        try:
+            top = (req.resource_type == "document" and req.is_navigation_request()
+                   and req.frame.parent_frame is None)
+        except Exception:
+            top = False
+        if top and is_payment_url(getattr(req, "url", "") or ""):
+            blocked["url"] = req.url
+            try:
+                route.abort("blockedbyclient")
+            except Exception:
+                pass
+            return
+        if hasattr(route, "fallback"):
+            route.fallback()
+        else:
+            route.continue_()
+
+    page.route("**/*", handle)
+    try:
+        try:
+            response = page.goto(url, wait_until=wait_until, timeout=timeout)
+        except Exception:
+            if blocked["url"]:
+                return None, blocked["url"]
+            raise
+        return response, blocked["url"]
+    finally:
+        try:
+            page.unroute("**/*", handle)
+        except Exception:
+            pass
+
+
 def open_refusing_checkout(page, url: str, *, timeout: int, wait_until: str = "domcontentloaded") -> str:
     """Open ``url`` unless that would enter checkout. Return the checkout URL or ''.
 
@@ -285,8 +333,7 @@ def open_refusing_checkout(page, url: str, *, timeout: int, wait_until: str = "d
             from .swarm import is_payment_url
             if is_payment_url(url):
                 return url
-            _response, landed = navigate_for_crawl(
-                page, url, timeout=timeout, wait_until=wait_until)
+            _response, landed = open_falling_back(page, url, timeout=timeout, wait_until=wait_until)
             return landed or ""
         if blocked:
             return blocked
