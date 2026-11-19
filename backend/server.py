@@ -3366,7 +3366,11 @@ def start_run(
         if req.reuse_tests:
             cmd.append("--reuse-tests")
         env = os.environ.copy()
-        _stamp_tenant_env(env, caller or "")
+        from backend.my_tests import current_baseline_tenant
+        if caller:
+            _stamp_tenant_env(env, caller or "")
+        else:
+            _stamp_tenant_env(env, tenant_id=current_baseline_tenant())
         if req.reuse_tests and req.reuse_from_run:
             env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
         elif "REUSE_FROM_RUN" in env:
@@ -4386,7 +4390,13 @@ def add_schedule(
         raise HTTPException(400, f"A scheduled test runs without you: put the {prov} key in .env as {KEY_ENV[prov]} "
                                  "first (a key typed in the chat is never saved).")
     env_ = st.get("environment") if st.get("environment") in ("test", "staging", "production") else "test"
+    reader = _signed_in_reader(authorization, x_qa_token, "run.write")
+    tenant = ""
+    if isinstance(reader, str):
+        from backend.tenancy_store import get_principal
+        tenant = str((get_principal(reader) or {}).get("tenant_id") or "")
     s = {"id": f"S{int(time.time())}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
+         "tenant_id": tenant if re.fullmatch(r"[\w.-]+", tenant) else "",
          "settings": {"llm_provider": prov or None, "llm_model": st.get("llm_model") or None, "environment": env_,
                       "production_confirmed": env_ == "production", "max_pages": int(st.get("max_pages") or 0),
                       "writes_confirmed": bool(st.get("confirm_writes"))},
@@ -4432,7 +4442,12 @@ def run_due_schedules(now=None) -> list[str]:
                 s["waiting"], changed = True, True
             continue
         try:
-            job = start_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})))
+            from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
+            token = push_baseline_tenant(str(s.get("tenant_id") or ""))
+            try:
+                job = start_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})))
+            finally:
+                pop_baseline_tenant(token)
             s.update(last=now.isoformat(timespec="minutes"), last_job=job["id"], last_error="", waiting=False)
             started.append(s["id"])
             _audit("scheduled_run", schedule=s["id"], job=job["id"])
@@ -4458,13 +4473,29 @@ class ApproveVisual(BaseModel):
 
 
 @app.post("/api/visual/{run}/approve")
-def approve_visual(run: str, req: ApproveVisual):
+def approve_visual(
+    run: str, req: ApproveVisual,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """A person approved the new look of these pages: the next runs compare with it (backend/visual.py)."""
+    from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
     from backend.visual import approve
+    reader = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(reader, JSONResponse):
+        return reader
+    tenant = ""
+    if isinstance(reader, str):
+        from backend.tenancy_store import get_principal
+        tenant = str((get_principal(reader) or {}).get("tenant_id") or "")
     d = _run_dir(run)
-    if not (d / "visual.json").exists():
-        raise HTTPException(404, "This run has no visual check.")
-    n = approve(d, req.pages)
+    token = push_baseline_tenant(tenant)
+    try:
+        if not (d / "visual.json").exists():
+            raise HTTPException(404, "This run has no visual check.")
+        n = approve(d, req.pages)
+    finally:
+        pop_baseline_tenant(token)
     _audit("approve_visual", run=run, pages=n)
     return {"approved": n, "visual": _read_json(d / "visual.json", None)}
 

@@ -347,6 +347,74 @@ def test_a_tenants_saved_tests_stay_off_another_tenants_website(monkeypatch, tmp
     assert "QPILOT_TENANT_ID" not in env
 
 
+def test_a_scheduled_run_and_an_approved_look_stay_in_that_tenants_baseline(monkeypatch, tmp_path):
+    import json
+    from datetime import datetime
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import my_tests, server
+    from backend.config import settings
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    run = runs / "run-a"
+    run.mkdir(parents=True)
+    (run / "run_args.json").write_text(
+        '{"source": "https://shop.test/", "site_key": "shop.test", "settings": {"llm_provider": "none", "environment": "test"}}',
+        encoding="utf-8")
+    (run / "shot.png").write_bytes(b"png")
+    (run / "cap.json").write_text('{"url": "https://shop.test/", "desktop": {"shot": "shot.png"}}', encoding="utf-8")
+    (run / "visual.json").write_text(
+        '{"pages": [{"status": "changed", "key": "home", "title": "Home", "capture": "cap.json"}],'
+        ' "counts": {"changed": 1, "approved": 0}}',
+        encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    monkeypatch.setattr(server, "SCHEDULES", tmp_path / "schedules.json")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1"}
+    created = client.post(
+        "/api/schedules", headers={**header, "Authorization": "Bearer admin-1"},
+        json={"run": "run-a", "every": "daily", "at": "07:00"},
+    )
+    assert created.status_code == 200 and created.json()["tenant_id"] == "t1"
+    saved = json.loads((tmp_path / "schedules.json").read_text(encoding="utf-8"))
+    saved[0]["next"] = "2020-01-01T00:00"
+    (tmp_path / "schedules.json").write_text(json.dumps(saved), encoding="utf-8")
+    seen = []
+
+    def fake_start(_req):
+        seen.append(my_tests.baseline_folder("shop.test"))
+        return {"id": 7}
+
+    monkeypatch.setattr(server, "start_run", fake_start)
+    assert server.run_due_schedules(datetime(2020, 1, 1, 0, 10)) == [created.json()["id"]]
+    assert seen == [tmp_path / "baseline" / "t1" / "shop.test"]
+    assert my_tests.current_baseline_tenant() == ""
+
+    other = client.post(
+        "/api/visual/run-a/approve", headers={**header, "Authorization": "Bearer admin-2"}, json={},
+    )
+    assert other.status_code == 403
+    approved = client.post(
+        "/api/visual/run-a/approve", headers={**header, "Authorization": "Bearer admin-1"}, json={},
+    )
+    assert approved.status_code == 200 and approved.json()["approved"] == 1
+    assert (tmp_path / "baseline" / "t1" / "shop.test" / "visual" / "index.json").is_file()
+    assert not (tmp_path / "baseline" / "shop.test").exists()
+    assert my_tests.current_baseline_tenant() == ""
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)

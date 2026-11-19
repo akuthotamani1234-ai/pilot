@@ -132,6 +132,7 @@ def progress() -> dict:
         {"id": "G-job", "label": "A signed-in principal cannot stop or read another tenant's live test", "status": "done"},
         {"id": "G-approval", "label": "An approval stays in its tenant and cannot rewrite another tenant's test", "status": "done"},
         {"id": "G-baseline", "label": "A tenant's saved tests and baseline stay off another tenant's website", "status": "done"},
+        {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "I-api-version-contract", "label": "API version contract drill (legacy→v1, reject v99)", "status": "done"},
         {"id": "G-live-drills-refresh3", "label": "Re-verify live Postgres/Redis/MinIO after audit/API work", "status": "done"},
         {"id": "C-lifecycle-cleanup-drill", "label": "Offline lifecycle + created.jsonl cleanup drill", "status": "done"},
