@@ -52,6 +52,7 @@ BLOCKERS = (
             "hosted_idp_readiness_drill.json",
             "hosted_idp_sso_readiness_pack_drill.json",
             "oidc_org_tenant_acl_drill.json",
+            "oidc_acl_matrix_pack_drill.json",
         ],
     },
     {
@@ -88,6 +89,7 @@ BLOCKERS = (
             "hosted_runner_readiness_drill.json",
             "hosted_dispatch_payload_rehearsal_drill.json",
             "hosted_ci_artifact_gate_pack_drill.json",
+            "android_device_ci_readiness_pack_drill.json",
         ],
     },
     {
@@ -104,6 +106,7 @@ BLOCKERS = (
             "hosted_runner_readiness_drill.json",
             "hosted_dispatch_payload_rehearsal_drill.json",
             "hosted_ci_artifact_gate_pack_drill.json",
+            "browser_portfolio_ci_readiness_pack_drill.json",
         ],
     },
     {

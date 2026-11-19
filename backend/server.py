@@ -1812,6 +1812,51 @@ def ops_oidc_org_tenant_acl():
     return {"gate_i_complete": False, "oidc_org_tenant_acl": evidence}
 
 
+@app.post("/api/ops/drills/oidc-acl-matrix-pack")
+def ops_oidc_acl_matrix_pack():
+    """Gate I: tid+email+org/hd+groups ACL matrix (hosted IdP still open)."""
+    from backend.oidc_acl_matrix_pack_drill import run_oidc_acl_matrix_pack_drill
+    evidence = run_oidc_acl_matrix_pack_drill()
+    _audit(
+        "ops_oidc_acl_matrix_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "oidc_acl_matrix_pack": evidence}
+
+
+@app.post("/api/ops/drills/android-device-ci-readiness-pack")
+def ops_android_device_ci_readiness_pack():
+    """Gate D: Android device CI readiness pack (hosted runners still open)."""
+    from backend.android_device_ci_readiness_pack_drill import (
+        run_android_device_ci_readiness_pack_drill,
+    )
+    evidence = run_android_device_ci_readiness_pack_drill()
+    _audit(
+        "ops_android_device_ci_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {"gate_d_complete": False, "android_device_ci_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/browser-portfolio-ci-readiness-pack")
+def ops_browser_portfolio_ci_readiness_pack():
+    """Gate F: browser portfolio CI readiness pack (hosted runners still open)."""
+    from backend.browser_portfolio_ci_readiness_pack_drill import (
+        run_browser_portfolio_ci_readiness_pack_drill,
+    )
+    evidence = run_browser_portfolio_ci_readiness_pack_drill()
+    _audit(
+        "ops_browser_portfolio_ci_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {"gate_f_complete": False, "browser_portfolio_ci_readiness_pack": evidence}
+
+
 @app.post("/api/ops/drills/independent-review-signoff-pack")
 def ops_independent_review_signoff_pack():
     """Gate G: catalog+integrity+attestation pack (unsigned)."""

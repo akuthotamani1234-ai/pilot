@@ -1,10 +1,10 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_readiness",
-  "ran_at": "2026-11-19T03:07:26Z",
+  "ran_at": "2026-11-19T03:53:13Z",
   "kind": "readiness_score_only",
-  "score": 9,
-  "score_of": 9,
+  "score": 12,
+  "score_of": 12,
   "checks": [
     {
       "artifact": "loopback_sso_drill.json",
@@ -47,6 +47,21 @@
       "ready": true
     },
     {
+      "artifact": "oidc_email_domain_tenant_acl_drill.json",
+      "label": "OIDC email-domain\u2192tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_org_tenant_acl_drill.json",
+      "label": "OIDC org/hd\u2192tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_acl_matrix_pack_drill.json",
+      "label": "OIDC ACL matrix pack",
+      "ready": true
+    },
+    {
       "artifact": "hosted_idp_contract_drill.json",
       "label": "Hosted IdP contract snapshot",
       "ready": true
@@ -54,5 +69,5 @@
   ],
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Hosted IdP readiness 9/9; live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP readiness 12/12; live hosted IdP Studio SSO login still open"
 }

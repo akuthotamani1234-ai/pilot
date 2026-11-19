@@ -1,0 +1,16 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_acl_matrix_pack",
+  "ran_at": "2026-11-19T03:53:13Z",
+  "kind": "local_ops_pack",
+  "parts": {
+    "tid": true,
+    "email_domain": true,
+    "org_hd": true,
+    "groups": true
+  },
+  "live_hosted_sso": false,
+  "elapsed_ms": 5365,
+  "ok": true,
+  "reason": "OIDC ACL matrix pack ok in 5365ms (4/4); live hosted IdP Studio SSO still open"
+}

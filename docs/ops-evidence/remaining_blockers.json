@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T03:40:22Z",
+  "ran_at": "2026-11-19T03:53:43Z",
   "ok": true,
   "blockers": [
     {
@@ -59,7 +59,8 @@
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json",
         "hosted_idp_sso_readiness_pack_drill.json",
-        "oidc_org_tenant_acl_drill.json"
+        "oidc_org_tenant_acl_drill.json",
+        "oidc_acl_matrix_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -76,7 +77,8 @@
         "hosted_idp_contract_drill.json",
         "hosted_idp_readiness_drill.json",
         "hosted_idp_sso_readiness_pack_drill.json",
-        "oidc_org_tenant_acl_drill.json"
+        "oidc_org_tenant_acl_drill.json",
+        "oidc_acl_matrix_pack_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -127,7 +129,8 @@
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
-        "hosted_ci_artifact_gate_pack_drill.json"
+        "hosted_ci_artifact_gate_pack_drill.json",
+        "android_device_ci_readiness_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -142,7 +145,8 @@
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
-        "hosted_ci_artifact_gate_pack_drill.json"
+        "hosted_ci_artifact_gate_pack_drill.json",
+        "android_device_ci_readiness_pack_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -159,7 +163,8 @@
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
-        "hosted_ci_artifact_gate_pack_drill.json"
+        "hosted_ci_artifact_gate_pack_drill.json",
+        "browser_portfolio_ci_readiness_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -171,7 +176,8 @@
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
         "hosted_dispatch_payload_rehearsal_drill.json",
-        "hosted_ci_artifact_gate_pack_drill.json"
+        "hosted_ci_artifact_gate_pack_drill.json",
+        "browser_portfolio_ci_readiness_pack_drill.json"
       ],
       "local_partial_missing": []
     },

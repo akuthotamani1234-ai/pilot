@@ -20,6 +20,11 @@ LOCAL_PARTIAL = (
     "studio_oidc_callback_drill.json",
     "sso_tenant_acl_drill.json",
     "dual_tenant_oidc_acl_drill.json",
+    "oidc_groups_role_acl_drill.json",
+    "oidc_tid_tenant_acl_drill.json",
+    "oidc_email_domain_tenant_acl_drill.json",
+    "oidc_org_tenant_acl_drill.json",
+    "oidc_acl_matrix_pack_drill.json",
 )
 
 
@@ -35,10 +40,11 @@ def run_hosted_idp_contract_drill(*, ops_dir: Path | None = None) -> dict:
         "code_challenge_method": "S256",
         "id_token_alg": "RS256",
         "required_claims": ["iss", "aud", "sub", "exp", "iat"],
-        "optional_claims": ["email", "tid", "groups"],
+        "optional_claims": ["email", "tid", "groups", "org", "hd"],
         "studio_callback": "/api/sso/callback",
         "dashboard_auth_mode": "oidc",
         "tenant_acl": "SQLite/Postgres principal scoping required",
+        "acl_matrix": ["tid", "email_domain", "org_hd", "groups"],
     }
     evidence = {
         "gate_i_complete": False,
