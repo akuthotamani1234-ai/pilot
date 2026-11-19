@@ -132,7 +132,7 @@ def automation_status(case: dict, test_dir: Path | None) -> tuple[str, str]:
     names = _case_names(case)
     for name in _case_files(case):
         f = test_dir / name
-        if f.is_symlink() or not f.exists():
+        if folder_is_linked(f) or not f.is_file():
             continue
         code = f.read_text(encoding="utf-8", errors="replace")
         if any(re.search(def_pattern(n), code, re.M) for n in names):
