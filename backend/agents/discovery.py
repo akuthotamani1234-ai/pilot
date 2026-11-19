@@ -1388,6 +1388,13 @@ def resume_seen(saved_pages: list[dict]) -> tuple[set[str], set[tuple[str, bool]
     return urls, done
 
 
+def drop_expired_login(queue, skipped: dict) -> None:
+    """The login is gone. Pages that still wait behind it are not left for a resume to open."""
+    for item in [row for row in queue if row[3]]:
+        queue.remove(item)
+        skipped[item[0]] = "not visited: the login expired"
+
+
 def waiting_rows(queue, priorities: list[str] | None = None) -> list[dict]:
     """Queue rows for a resume file. A logged-in visit stays logged in.
 
@@ -2445,9 +2452,8 @@ def discovery_agent(state: QAState) -> QAState:
                 login["session_expired"] = True
                 print(f"  [discovery] login: the session expired at {url} and logging in again did not work - "
                       "the remaining pages behind the login are not tested", flush=True)
-                for item in [q for q in queue if q[3]]:
-                    queue.remove(item)
-                    skipped[item[0]] = "not visited: the login expired"
+                drop_expired_login(queue, skipped)
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 continue
             except Exception as e:
                 if _gone(e) and not runctl.stopping():  # our browser went away mid-page: never the website's error
