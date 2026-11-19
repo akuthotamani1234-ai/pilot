@@ -645,6 +645,28 @@ def _patched_goto(real):
         checker = globals().get("_payment_target")
         if checker and checker(str(url or "")):
             pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+        # A cart address stays open. A redirect from it into checkout is not loaded.
+        request = getattr(getattr(self, "request", None), "get", None)
+        if checker and request is not None:
+            from urllib.parse import urljoin as _join
+            current = str(url or "")
+            for _hop in range(5):
+                try:
+                    probe = request(current, max_redirects=0, timeout=10000)
+                except Exception:
+                    break
+                if getattr(probe, "status", None) not in (301, 302, 303, 307, 308):
+                    break
+                headers = getattr(probe, "headers", None) or {}
+                location = headers.get("location") or headers.get("Location") or ""
+                if not location:
+                    break
+                nxt = _join(current, location)
+                if checker(nxt):
+                    pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+                current = nxt
+            else:
+                pytest.skip("Blocked: checkout or payment is recorded and not opened again")
         kwargs.setdefault("wait_until", "domcontentloaded")
         kwargs.setdefault("timeout", NAV_TIMEOUT_MS)
         if kwargs["wait_until"] != "domcontentloaded" or not kwargs["timeout"]:

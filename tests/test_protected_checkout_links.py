@@ -306,6 +306,54 @@ def test_a_generated_open_does_not_start_checkout():
     assert opened == [cart]
 
 
+def test_a_generated_open_does_not_follow_a_redirect_into_checkout():
+    import ast
+    import re
+    from pathlib import Path
+
+    import pytest
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    code = "\n\n".join(
+        ast.get_source_segment(src, node)
+        for node in ast.parse(src).body
+        if getattr(node, "name", None) in {"_payment_target", "_patched_goto"}
+    )
+    ns = {"re": re, "pytest": pytest, "NAV_TIMEOUT_MS": 30000,
+          "_pw": type("Pw", (), {"Error": type("Error", (Exception,), {})})()}
+    exec(code, ns)
+    opened = []
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            if url.endswith("checkout/cart"):
+                return Probe(302, "https://shop.example/index.php?rt=checkout/confirm")
+            return Probe(200)
+
+        @property
+        def request(self):
+            return self
+
+    def real(self, url, **kwargs):
+        opened.append(url)
+        raise RuntimeError("opened")
+
+    goto = ns["_patched_goto"](real)
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    product = "https://shop.example/product/1"
+    with pytest.raises(pytest.skip.Exception):
+        goto(Page(), cart)
+    assert opened == []
+    with pytest.raises(RuntimeError, match="opened"):
+        goto(Page(), product, wait_until="commit")
+    assert opened == [product]
+
+
 def test_a_generated_read_does_not_fetch_checkout():
     import ast
     import re
