@@ -79,6 +79,9 @@ def reference_navigation(text: str, context: dict | None = None) -> bool:
     href = context.get("href") or ""
     if not REFERENCE_NAV.fullmatch(text or "") or context.get("tag") != "a" or context.get("in_form"):
         return False
+    from .swarm import is_payment_url
+    if is_payment_url(href):
+        return False
     if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
                  r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href, re.I):
         return False
@@ -103,6 +106,9 @@ def _kind_of(s: str) -> str:
 def _nav_context(*, role: str | None = None, kind: str | None = None, tag: str | None = None,
                  purpose: str | None = None, href: str | None = None, selector: str | None = "") -> bool:
     """True when the control looks like navigation (link / menu / tab), not a pay/checkout submit."""
+    from .swarm import is_payment_url
+    if is_payment_url(href or ""):
+        return False
     if re.search(r"javascript:|/(?:pay|checkout|purchase|transfer|confirm|delete|logout)(?:/|$)|"
                  r"[?&](?:action|do|cmd)=(?:pay|buy|delete|transfer|confirm)", href or "", re.I):
         return False

@@ -42,6 +42,9 @@ def test_reference_navigation_does_not_authorize_payment_controls():
     assert action_class("Pay Grades", "button") == "pay"
     assert action_class("Pay now", "a", context) == "pay"
     assert action_class("Pay Grades", "a", dict(context, href="/pay/confirm")) == "pay"
+    assert action_class("Pay Grades", "a", dict(context, href="index.php?page=checkout")) == "pay"
+    assert action_class("Pay Grades", "a", dict(context, href="index.php?step=payment")) == "pay"
+    assert action_class("Pay Grades", "a", dict(context, href="category?page=2")) == "safe"
     assert action_class("Confirm payment", "button", {"tag": "button", "in_form": True}) == "pay"
 
 
