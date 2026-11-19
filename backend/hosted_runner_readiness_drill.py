@@ -22,6 +22,7 @@ DEVICE_CHECKS = (
     ("workflow_dispatch_contract_drill.json", "workflow_dispatch contracts"),
     ("hosted_ci_runner_matrix_drill.json", "Hosted CI runner matrix"),
     ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
+    ("android_device_ci_readiness_pack_drill.json", "Android device CI readiness pack"),
 )
 
 BROWSER_CHECKS = (
@@ -31,6 +32,7 @@ BROWSER_CHECKS = (
     ("workflow_dispatch_contract_drill.json", "workflow_dispatch contracts"),
     ("hosted_ci_runner_matrix_drill.json", "Hosted CI runner matrix"),
     ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
+    ("browser_portfolio_ci_readiness_pack_drill.json", "Browser portfolio CI readiness pack"),
 )
 
 

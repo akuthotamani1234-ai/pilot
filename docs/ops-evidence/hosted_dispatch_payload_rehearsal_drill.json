@@ -2,7 +2,7 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "hosted_dispatch_payload_rehearsal",
-  "ran_at": "2026-11-19T03:19:21Z",
+  "ran_at": "2026-11-19T04:15:08Z",
   "kind": "dry_run_payload_only",
   "android": {
     "workflow_present": true,
