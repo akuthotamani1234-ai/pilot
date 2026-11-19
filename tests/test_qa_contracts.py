@@ -20,6 +20,55 @@ def loc(value, strategy="css"):
     return {"strategy": strategy, "value": value}
 
 
+def test_an_approved_browser_flow_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.qa_web import BrowserContractAdapter
+
+    secret = "tenant-b-only-browser"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+
+    class Page:
+        def __init__(self):
+            self.reads = 0
+
+        @property
+        def url(self):
+            self.reads += 1
+            return "https://shop.example"
+
+    page = Page()
+    contract = parse_contract()
+    linked = BrowserContractAdapter(page, "https://shop.example", contract, run / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        linked.guard()
+    assert secret not in str(stopped.value)
+    assert page.reads == 0
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped_page = Page()
+    with pytest.raises(InterruptedError, match="stopped by the user"):
+        BrowserContractAdapter(stopped_page, "https://shop.example", contract, real / "STOP").guard()
+    assert stopped_page.reads == 0
+
+    open_page = Page()
+    BrowserContractAdapter(open_page, "https://shop.example", contract, real / "missing").guard()
+    assert open_page.reads == 1
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 @pytest.mark.parametrize("headless", [True, False])
 def test_pipeline_contracts_honor_browser_visibility_and_watch_speed(tmp_path, monkeypatch, headless):
     from playwright.sync_api import BrowserType
