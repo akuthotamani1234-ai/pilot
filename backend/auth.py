@@ -245,16 +245,12 @@ def wait_for_person(tab, form: dict, seconds: int) -> dict | None:
 
 def reopen_if_safe(tab, landing: str, evidence: list, timeout: int) -> bool:
     """Return True when the post-login page is checkout and was not opened again."""
-    from .payment_nav import opens_checkout
+    from .payment_nav import open_refusing_checkout
 
-    try:
-        blocked = opens_checkout(tab.request.get, landing, timeout=timeout)
-    except Exception:
-        blocked = ""
+    blocked = open_refusing_checkout(tab, landing, timeout=timeout)
     if blocked:
         evidence.append("checkout was not opened again")
         return True
-    tab.goto(landing, wait_until="domcontentloaded", timeout=timeout)
     return False
 
 
@@ -279,14 +275,10 @@ def log_in(context, url: str, form: dict, user: str, password: str, scope=None) 
         return tab, result
 
     try:
-        from .payment_nav import opens_checkout
-        try:
-            blocked = opens_checkout(tab.request.get, url, timeout=settings.page_timeout_ms)
-        except Exception:
-            blocked = ""
+        from .payment_nav import open_refusing_checkout
+        blocked = open_refusing_checkout(tab, url, timeout=settings.page_timeout_ms)
         if blocked:
             return done("failed", "checkout, payment and placing an order are never tested")
-        tab.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
         _settle(tab)
         if CAPTCHA.search(tab.content()):
             if not settings.headless:  # a person will solve it: the account is typed in, the rest is up to them

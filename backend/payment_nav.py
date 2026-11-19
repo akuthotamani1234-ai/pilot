@@ -258,6 +258,34 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
             pass
 
 
+_CANCELLED = re.compile(r"net::ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation")
+
+
+def open_refusing_checkout(page, url: str, *, timeout: int, wait_until: str = "domcontentloaded") -> str:
+    """Open ``url`` unless that would enter checkout. Return the checkout URL or ''.
+
+    A navigation the browser cancels is tried once more. A probe that cannot
+    reach the host still lets the browser open the page. An address that is
+    already checkout is not opened.
+    """
+    def once() -> str:
+        try:
+            blocked = opens_checkout(page.request.get, url, timeout=timeout)
+        except Exception:
+            blocked = ""
+        if blocked:
+            return blocked
+        page.goto(url, wait_until=wait_until, timeout=timeout)
+        return ""
+
+    try:
+        return once()
+    except Exception as exc:
+        if not _CANCELLED.search(str(exc)):
+            raise
+        return once()
+
+
 def opens_checkout(fetch, address: str, *, base: str = "", timeout: int = 10000) -> str:
     """The checkout address this GET would open, including an address that already is checkout.
 

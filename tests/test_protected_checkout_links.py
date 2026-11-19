@@ -751,6 +751,78 @@ def test_a_login_page_that_redirects_into_checkout_is_not_opened():
     assert "checkout" in res["evidence"][-1]
 
 
+def test_a_cancelled_login_sign_up_or_session_recheck_is_tried_once_more():
+    from backend.agents.discovery import _create_account, resume_session
+    from backend.auth import log_in, reopen_if_safe
+
+    login_url = "https://shop.example/login"
+    home = "https://shop.example/account"
+
+    class Tab:
+        url = "about:blank"
+
+        def __init__(self):
+            self.opened = []
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                return _hop(200)
+
+        def on(self, *args, **kwargs):
+            return None
+
+        def goto(self, url, **kwargs):
+            self.opened.append(url)
+            if len(self.opened) == 1:
+                raise RuntimeError(f"Page.goto: net::ERR_ABORTED at {url}")
+            raise RuntimeError("opened")
+
+    class Ctx:
+        def __init__(self, tab):
+            self.tab = tab
+
+        def new_page(self):
+            return self.tab
+
+        def close(self):
+            return None
+
+    class Browser:
+        def __init__(self, tab):
+            self.tab = tab
+
+        def new_context(self, **kwargs):
+            return Ctx(self.tab)
+
+    login = Tab()
+    _tab, res = log_in(Ctx(login), login_url, {"user": "#u", "password": "#p"}, "a", "b")
+    assert login.opened == [login_url, login_url]
+    assert "opened" in res["evidence"][-1]
+
+    signup = Tab()
+    made, why = _create_account(Browser(signup), "https://shop.example/register")
+    assert made is None and signup.opened == [
+        "https://shop.example/register", "https://shop.example/register"]
+    assert "opened" in why and "checkout" not in why
+
+    session = Tab()
+    try:
+        resume_session(session, home, 1000)
+    except RuntimeError as exc:
+        assert "opened" in str(exc)
+    assert session.opened == [home, home]
+
+    again = Tab()
+    evidence = []
+    try:
+        reopen_if_safe(again, home, evidence, 1000)
+    except RuntimeError as exc:
+        assert "opened" in str(exc)
+    assert again.opened == [home, home]
+    assert evidence == []
+
+
 def test_a_normal_login_page_is_still_opened():
     from backend.auth import log_in
 
