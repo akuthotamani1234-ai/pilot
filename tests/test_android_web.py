@@ -165,6 +165,50 @@ def test_a_driver_check_does_not_follow_a_link_into_another_folder(tmp_path, mon
     assert (package / "index.js").read_text(encoding="utf-8") == secret
 
 
+def test_a_chromedriver_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-chromedriver"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "chromedriver.exe").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    root = tmp_path / "repo"
+    linked_dir = root / "tools" / "chromedriver"
+    linked_dir.mkdir(parents=True)
+    (linked_dir / "chromedriver.exe").symlink_to(other / "chromedriver.exe")
+    real_dir = root / "runs" / "android_verification_tools"
+    real_dir.mkdir(parents=True)
+    real = real_dir / "chromedriver.exe"
+    monkeypatch.setattr(android, "__file__", str(root / "backend" / "android.py"))
+    monkeypatch.setattr(android, "_adb_path", lambda: "adb")
+    seen = []
+
+    class Result:
+        def __init__(self, stdout):
+            self.stdout = stdout
+            self.returncode = 0
+
+    def run_cli(cmd, args, timeout):
+        seen.append(str(cmd))
+        if cmd == "adb":
+            return Result("versionName=120.\n")
+        return Result("ChromeDriver 120.\n")
+
+    monkeypatch.setattr(android, "_run_cli", run_cli)
+    assert android._managed_web_chromedriver({"device_id": "emulator-5554"}) is None
+    assert seen == []
+    assert (other / "chromedriver.exe").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real.write_text("home-own", encoding="utf-8")
+    found = android._managed_web_chromedriver({"device_id": "emulator-5554"})
+    assert found == str(real.resolve())
+    assert secret not in found and str(other) not in found
+    assert all(str(other) not in item for item in seen)
+    assert real.read_text(encoding="utf-8") == "home-own"
+    assert (other / "chromedriver.exe").read_text(encoding="utf-8") == secret
+
+
 def test_only_the_known_system_ui_wait_dialog_can_be_recovered():
     class Button:
         clicked = 0
