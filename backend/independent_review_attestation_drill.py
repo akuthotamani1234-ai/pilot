@@ -26,6 +26,11 @@ def _linked_attestation() -> dict:
 
 def run_independent_review_attestation_drill(*, ops_dir: Path | None = None) -> dict:
     from .finalization import folder_is_linked, write_text_unless_linked
+
+    out_name = "independent_review_attestation_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_attestation()
     from .independent_review_evidence_catalog_drill import (
         run_independent_review_evidence_catalog_drill,
     )
@@ -33,8 +38,6 @@ def run_independent_review_attestation_drill(*, ops_dir: Path | None = None) -> 
         run_independent_review_integrity_drill,
     )
 
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
-        return _linked_attestation()
     catalog = run_independent_review_evidence_catalog_drill(ops_dir=ops_dir)
     integrity = run_independent_review_integrity_drill(ops_dir=ops_dir)
     attestation = {
@@ -73,15 +76,10 @@ def run_independent_review_attestation_drill(*, ops_dir: Path | None = None) -> 
             else "Attestation stub incomplete; independent sign-off still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (
-        (Path(ops_dir) / "independent_review_attestation_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_attestation()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_attestation()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_attestation_drill.json"

@@ -6,6 +6,26 @@ from backend.independent_review_attestation_drill import (
 
 
 def test_an_attestation_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import backend.independent_review_evidence_catalog_drill as cat
+    import backend.independent_review_integrity_drill as integ
+
+    calls = {"n": 0}
+
+    def _catalog(ops_dir=None):
+        calls["n"] += 1
+        return {"ok": True, "entry_count": 21, "signed_off": False}
+
+    def _integrity(ops_dir=None):
+        calls["n"] += 1
+        return {
+            "ok": True,
+            "signed_off": False,
+            "integrity_sha256": "this-install-hash",
+        }
+
+    monkeypatch.setattr(cat, "run_independent_review_evidence_catalog_drill", _catalog)
+    monkeypatch.setattr(integ, "run_independent_review_integrity_drill", _integrity)
+
     secret = "tenant-b-only-attestation"
     other = tmp_path / "other"
     other.mkdir()
@@ -20,33 +40,29 @@ def test_an_attestation_does_not_follow_a_link_into_another_folder(tmp_path, mon
     assert evidence["ok"] is False
     assert evidence["gate_g_complete"] is False
     assert evidence["signed_off"] is False
+    assert calls["n"] == 0
     assert kept.read_bytes() == original
     assert secret not in evidence["reason"]
     assert [path.name for path in other.iterdir()] == [
         "independent_review_attestation_drill.json",
     ]
 
-    import backend.independent_review_evidence_catalog_drill as cat
-    import backend.independent_review_integrity_drill as integ
+    folder = tmp_path / "real"
+    folder.mkdir()
+    planted = folder / "independent_review_attestation_drill.json"
+    planted.symlink_to(kept)
+    skipped = run_independent_review_attestation_drill(ops_dir=folder)
+    assert skipped["ok"] is False
+    assert skipped["signed_off"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped)
+    assert kept.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
 
-    monkeypatch.setattr(
-        cat,
-        "run_independent_review_evidence_catalog_drill",
-        lambda ops_dir=None: {"ok": True, "entry_count": 21, "signed_off": False},
-    )
-    monkeypatch.setattr(
-        integ,
-        "run_independent_review_integrity_drill",
-        lambda ops_dir=None: {
-            "ok": True,
-            "signed_off": False,
-            "integrity_sha256": "this-install-hash",
-        },
-    )
-    real = tmp_path / "real"
-    real.mkdir()
-    saved = run_independent_review_attestation_drill(ops_dir=real)
-    written = (real / "independent_review_attestation_drill.json").read_text(encoding="utf-8")
+    saved = run_independent_review_attestation_drill(ops_dir=folder)
+    written = (folder / "independent_review_attestation_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] == 2
     assert saved["ok"] is True
     assert saved["gate_g_complete"] is False
     assert saved["signed_off"] is False
