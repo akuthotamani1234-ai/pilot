@@ -352,6 +352,7 @@ def progress() -> dict:
         {"id": "B-worker-session", "label": "A swarm worker opens later pages with the saved login", "status": "done"},
         {"id": "B-redirect-checkout", "label": "A page that redirects to checkout is not kept as a read page", "status": "done"},
         {"id": "B-crawl-redirect", "label": "A crawl that lands on checkout does not click that page", "status": "done"},
+        {"id": "B-checkpoint-resume", "label": "A retried swarm task resumes from the checkpoint it saved", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

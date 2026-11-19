@@ -69,13 +69,24 @@ def enqueue_plan(queue: DurableQueue, run_id: str, tasks: list[dict]) -> list[di
     return stored
 
 
+def _keep_checkpoint(queue: DurableQueue, task: dict, worker_id: str, result) -> None:
+    """Store a worker's resume point before the attempt is acked or failed.
+
+    The next claim of a retried task then carries that checkpoint.
+    """
+    saved = result.get("checkpoint") if isinstance(result, dict) else getattr(result, "checkpoint", None)
+    if isinstance(saved, dict):
+        queue.checkpoint(task["task_id"], worker_id, saved)
+
+
 def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
     """Claim and process pending tasks until none remain for this run.
 
     ``work(task) -> dict`` must return a result envelope. Raise with ``error_class``
     attribute for classified failures, or return {"error_class": "..."}.
     A rejected ack (expired lease) stops this drain. The task stays leased so
-    recovery can requeue it. Gate B stays incomplete.
+    recovery can requeue it. A checkpoint on the result is stored before the
+    ack, so the next claim of a retry resumes there. Gate B stays incomplete.
     """
     processed = 0
     lease_lost: list[str] = []
@@ -102,6 +113,7 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
         else:
             try:
                 result = work(task)
+                _keep_checkpoint(queue, task, worker_id, result)
                 if isinstance(result, dict) and result.get("error_class"):
                     ok, _reason = queue.fail(
                         task["task_id"], worker_id,
@@ -114,6 +126,7 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
                         result if isinstance(result, dict) else {"ok": True},
                     )
             except Exception as exc:
+                _keep_checkpoint(queue, task, worker_id, exc)
                 error_class = getattr(exc, "error_class", "worker_crash")
                 ok, _reason = queue.fail(
                     task["task_id"], worker_id,

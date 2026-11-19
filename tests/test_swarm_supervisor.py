@@ -56,6 +56,35 @@ def test_drain_never_opens_a_payment_url(tmp_path):
     q.close()
 
 
+def test_a_retried_task_resumes_from_the_checkpoint(tmp_path):
+    q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30, max_attempts=3)
+    q.enqueue(
+        run_id="run-r", role="worker",
+        payload={"url": "https://shop.example/product/1"},
+        idempotency_key="product",
+    )
+    seen = []
+
+    def work(task):
+        seen.append(task.get("checkpoint"))
+        if not task.get("checkpoint"):
+            return {
+                "error_class": "worker_crash",
+                "detail": "browser closed",
+                "checkpoint": {"step": 2, "url": "https://shop.example/product/1"},
+            }
+        return {"ok": True, "resumed": task["checkpoint"]["step"]}
+
+    summary = drain(q, run_id="run-r", worker_id="w1", work=work)
+    row = summary["tasks"][0]
+    assert seen == [None, {"step": 2, "url": "https://shop.example/product/1"}]
+    assert row["status"] == "succeeded"
+    assert row["attempt"] == 2
+    assert row["checkpoint"] == {"step": 2, "url": "https://shop.example/product/1"}
+    assert row["result"]["resumed"] == 2
+    q.close()
+
+
 def test_drain_stops_when_the_lease_expires_during_work(tmp_path):
     q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30)
     q.enqueue(run_id="run-c", role="worker", payload={"url": "/slow"}, idempotency_key="slow")
