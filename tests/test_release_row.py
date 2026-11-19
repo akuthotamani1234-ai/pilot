@@ -127,6 +127,27 @@ def test_a_finished_run_does_not_treat_checkout_continue_as_safe_work(tmp_path):
     assert "Continue" not in actions
 
 
+def test_a_checkout_case_is_not_given_to_a_worker():
+    from backend.release_row import isolated_work
+
+    rows = isolated_work([
+        {"id": "see-price", "source": "business_rule", "assertion": "the price is shown",
+         "url": "https://shop.example/saree"},
+        {"id": "pay", "source": "business_rule", "assertion": "the order is placed",
+         "url": "https://shop.example/checkout"},
+        {"id": "confirm", "source": "business_rule", "assertion": "confirm the order",
+         "spec": {"url": "https://shop.example/index.php?rt=checkout/confirm"}},
+        {"id": "cart", "source": "business_rule", "assertion": "the cart is shown",
+         "url": "https://shop.example/index.php?rt=checkout/cart"},
+    ], 2)
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["see-price"]["accepted"] is True and by_id["see-price"]["worker"] == 1
+    assert by_id["pay"]["accepted"] is False and by_id["pay"]["worker"] == 0
+    assert "checkout" in by_id["pay"]["reason"]
+    assert by_id["confirm"]["accepted"] is False and "checkout" in by_id["confirm"]["reason"]
+    assert by_id["cart"]["accepted"] is True and by_id["cart"]["worker"] == 2
+
+
 def test_a_finished_run_builds_the_same_row(tmp_path):
     (tmp_path / "app_map.json").write_text("[]", encoding="utf-8")
     state = {

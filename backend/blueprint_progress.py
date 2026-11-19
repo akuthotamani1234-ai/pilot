@@ -361,6 +361,7 @@ def progress() -> dict:
         {"id": "B-test-page-landing", "label": "A generated test does not click a control on a checkout page", "status": "done"},
         {"id": "B-safe-state", "label": "A Continue button that opens checkout is not safe work", "status": "done"},
         {"id": "B-run-row-safe", "label": "The finished-run release row does not treat that Continue as safe work", "status": "done"},
+        {"id": "J-checkout-worker", "label": "A checkout case is not given to a worker", "status": "done"},
         {"id": "B-resume-auth", "label": "A resumed guest page is not treated as the logged-in visit", "status": "done"},
         {"id": "B-resume-pending", "label": "A page waiting behind login is still waiting behind login after resume", "status": "done"},
         {"id": "B-resume-cutoff", "label": "A page cut off by a stop is still waiting when the crawl continues", "status": "done"},
