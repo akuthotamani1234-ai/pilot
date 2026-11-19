@@ -220,3 +220,61 @@ def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkey
 
     created = prepare_android_run(runs, "android_real")
     assert (created / ".private").is_dir() and not (created / ".private").is_symlink()
+
+
+def test_an_android_report_does_not_follow_a_link_into_another_run(tmp_path):
+    import pytest
+
+    from backend.android_reporting import report
+    from backend.android_runner import prepare_android_run, write_android_failure
+
+    secret = "tenant-b-only-mobile"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "dynamic.json").write_text(json.dumps({"events": [{"secret": secret}]}), encoding="utf-8")
+    (other / "healing_log.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    report({"run_dir": str(linked), "run_id": "linked", "config": {}, "screens": [],
+            "test_cases": [], "results": []})
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    assert "test_cases.json" not in {path.name for path in other.iterdir()}
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "summary.json").symlink_to(other / "summary.json")
+    (real / "report.html").symlink_to(other / "report.html")
+    (real / "dynamic.json").symlink_to(other / "dynamic.json")
+    (real / "healing_log.json").symlink_to(other / "healing_log.json")
+    report({"run_dir": str(real), "run_id": "real", "config": {}, "screens": [],
+            "test_cases": [], "results": []})
+    assert (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_symlink()
+    assert (real / "healing_log.json").is_symlink()
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "healing_log.json").read_text(encoding="utf-8") == json.dumps({"secret": secret})
+    for path in real.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        assert secret not in path.read_text(encoding="utf-8", errors="replace")
+
+    runs = tmp_path / "runs"
+    planted = runs / "android_report"
+    planted.mkdir(parents=True)
+    (planted / "report.html").symlink_to(other / "report.html")
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(runs, "android_report")
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    assert write_android_failure(real, "real", "Android app", "boom") is False
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert write_android_failure(plain, "plain", "Android app", "boom") is True
+    assert "Insufficient Evidence" in (plain / "report.html").read_text(encoding="utf-8")
+    assert json.loads((plain / "summary.json").read_text(encoding="utf-8"))["verdict"] == "Insufficient Evidence"
