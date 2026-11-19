@@ -2217,6 +2217,7 @@ def discovery_agent(state: QAState) -> QAState:
                 used_slugs.discard(old["slug"])
             if not browser.is_connected() and not reopen():  # (its window was closed, or Chrome stopped)
                 queue.appendleft((url, depth, inside, auth))
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
                 break
             page, context = tabs[auth], contexts[auth]
@@ -2226,6 +2227,7 @@ def discovery_agent(state: QAState) -> QAState:
                 except Exception as e:  # (the whole browser / session went with it)
                     if not _gone(e) or not reopen():
                         queue.appendleft((url, depth, inside, auth))
+                        save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                         stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
                         break
                     page, context = tabs[auth], contexts[auth]
@@ -2436,6 +2438,7 @@ def discovery_agent(state: QAState) -> QAState:
                         routes["session_expired"].append({"url": url, "action": "logged in again"})
                         print(f"  [discovery] login: the session expired at {url} - logged in again", flush=True)
                         queue.appendleft((url, depth, inside, auth))
+                        save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                         continue
                     new_tab.close()
                 routes["session_expired"].append({"url": url, "action": "stopped testing the pages behind the login"})
@@ -2453,6 +2456,7 @@ def discovery_agent(state: QAState) -> QAState:
                         for k in (u, _normalize(u), _no_index(_normalize(u))):
                             landed.discard((k, auth))
                     queue.appendleft((url, depth, inside, auth))
+                    save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                     if reopen():
                         continue
                     stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
@@ -2472,6 +2476,7 @@ def discovery_agent(state: QAState) -> QAState:
                     print("      ↳ the browser cancelled the page load (the website was still moving) - once more",
                           flush=True)
                     queue.appendleft((url, depth, inside, auth))
+                    save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                     continue
                 if "ERR_BLOCKED_BY_CLIENT" in str(e):  # the safety rules stopped where this address leads
                     used_slugs.discard(slug)

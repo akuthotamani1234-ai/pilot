@@ -83,6 +83,14 @@ def test_a_guest_page_does_not_count_as_the_logged_in_visit():
     assert ("https://shop.example/product/1", False) not in done
 
 
+def test_a_page_put_back_after_the_browser_closes_is_still_waiting(tmp_path):
+    save_crawl_progress(tmp_path, [], waiting_rows([
+        ("https://shop.example/account", 2, True, True),
+    ], []))
+    _pages, pending = load_saved_crawl(tmp_path)
+    assert pending_visit(pending[0]) == ("https://shop.example/account", True)
+
+
 def test_a_cut_off_page_is_still_waiting():
     rows = waiting_rows([
         ("https://shop.example/account", 2, True, True),
