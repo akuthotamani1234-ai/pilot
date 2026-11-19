@@ -33,6 +33,29 @@ def test_supervisor_drains_safe_pages_and_skips_checkout(tmp_path):
     q.close()
 
 
+def test_drain_never_opens_a_payment_url(tmp_path):
+    q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30)
+    q.enqueue(
+        run_id="run-pay", role="worker",
+        payload={"url": "https://shop.example/checkout"},
+        idempotency_key="pay",
+    )
+    seen = []
+
+    def work(task):
+        seen.append(task["payload"]["url"])
+        return {"ok": True}
+
+    summary = drain(q, run_id="run-pay", worker_id="w1", work=work)
+    assert seen == []
+    assert summary["processed"] == 1
+    assert summary["gate_b_complete"] is False
+    row = summary["tasks"][0]
+    assert row["status"] == "failed"
+    assert row["error_class"] == "rule_violation"
+    q.close()
+
+
 def test_drain_stops_when_the_lease_expires_during_work(tmp_path):
     q = DurableQueue(tmp_path / "q.sqlite", lease_seconds=30)
     q.enqueue(run_id="run-c", role="worker", payload={"url": "/slow"}, idempotency_key="slow")

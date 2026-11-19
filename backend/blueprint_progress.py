@@ -322,6 +322,7 @@ def progress() -> dict:
         {"id": "B-lease-expiry-ack", "label": "Expired swarm lease cannot ack success or failure", "status": "done"},
         {"id": "B-drain-lease-lost", "label": "Supervisor stops when a swarm ack is rejected", "status": "done"},
         {"id": "B-redis-lease-cas", "label": "Redis lease ack is compare-and-set", "status": "done"},
+        {"id": "B-drain-payment-block", "label": "Supervisor never opens a payment or checkout URL", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
