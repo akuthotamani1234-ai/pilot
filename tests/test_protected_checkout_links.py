@@ -349,6 +349,56 @@ def test_a_generated_read_does_not_fetch_checkout():
     assert opened == [product]
 
 
+def test_a_submit_button_formaction_to_checkout_is_not_filled():
+    import ast
+    import time
+    from pathlib import Path
+
+    from playwright.sync_api import sync_playwright
+
+    from backend.forms import data_forms
+    from backend.observe import Explorer
+    from backend.swarm import stored_control_opens_payment
+    page_url = "https://shop.example/contact"
+    submit = {"text": "Continue", "selector": "#go", "formaction": "index.php?rt=checkout/confirm"}
+    form = {
+        "selector": "#note",
+        "method": "post",
+        "action": "/contact",
+        "submit": submit,
+        "fields": [{"selector": "#name", "type": "text", "label": "Name", "name": "name", "required": True}],
+    }
+    assert stored_control_opens_payment(page_url, submit)
+    assert stored_control_opens_payment(page_url, {"formaction": "index.php?rt=checkout/cart"}) is False
+    assert data_forms([{
+        "url": page_url, "slug": "contact", "title": "Contact", "page_type": "content",
+        "inputs": form["fields"], "forms": [form],
+    }]) == []
+    entry = {"forms": [form]}
+    Explorer("", lambda *_a, **_k: None, time.time() + 30).fill_forms(type("P", (), {"url": page_url})(), page_url, entry)
+    assert entry["form_fills"][0]["sent"] is False
+    assert "never filled" in entry["form_fills"][0]["not_sent"]
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    js = next(
+        ast.literal_eval(node.value)
+        for node in ast.parse(src).body
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "CONTROL_TEXT_JS"
+    )
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            tab = browser.new_page()
+            tab.set_content(
+                '<form action="/contact">'
+                '<button id="go" formaction="index.php?rt=checkout/confirm">Continue</button>'
+                "</form>"
+            )
+            names = tab.locator("#go").evaluate(js, False)
+        finally:
+            browser.close()
+    assert names[8] == "index.php?rt=checkout/confirm"
+
+
 def test_a_form_that_posts_to_checkout_is_not_filled():
     from backend.form_rules import pair_cases
     from backend.forms import data_forms, form_cases
