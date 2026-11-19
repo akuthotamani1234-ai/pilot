@@ -328,3 +328,36 @@ def test_a_signed_in_heal_does_not_follow_a_run_folder_symlink(monkeypatch, tmp_
     assert decided.json()["status"] == "rejected"
     assert decided.json()["reason"] == "tenant isolation"
     assert script.read_text(encoding="utf-8") == _OLD
+
+
+def test_an_approved_repair_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.approvals import apply_approved_heal
+
+    secret = b"tenant-b-only-repair"
+    other = tmp_path / "other"
+    nested = other / "run"
+    (nested / "generated_tests").mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    script = nested / "generated_tests" / "test_home.py"
+    script.write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    payload = {
+        "old_code": _OLD, "new_code": _GOOD, "file": "test_home.py",
+    }
+    refused = apply_approved_heal(json.dumps({**payload, "run_dir": str(linked / "run")}))
+    missing = apply_approved_heal(json.dumps({**payload, "run_dir": str(linked / "fresh")}))
+    assert refused["applied"] is False and "inside the run" in refused["reason"]
+    assert missing["applied"] is False
+    assert not (other / "fresh").exists()
+    assert script.read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "generated_tests" / "test_home.py").write_text(_OLD, encoding="utf-8")
+    own = apply_approved_heal(json.dumps({**payload, "run_dir": str(real)}))
+    written = (real / "generated_tests" / "test_home.py").read_bytes()
+    assert own["applied"] is True
+    assert b"#b" in written and secret not in written
+    assert script.read_bytes() == secret
