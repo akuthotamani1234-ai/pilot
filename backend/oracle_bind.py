@@ -64,19 +64,39 @@ def attach_assertions(cases: list[dict]) -> list[dict]:
     return [attach_assertion(case) for case in cases]
 
 
+def _unapproved_label(row: dict | None) -> str:
+    if not isinstance(row, dict):
+        return ""
+    raw = str(row.get("expected_source") or row.get("oracle") or "").strip().lower()
+    if raw in _UNAPPROVED and not (row.get("reviewed") or row.get("human_accepted")):
+        return raw
+    return ""
+
+
 def decision_for_result(case: dict | None, result: dict | None = None) -> dict | None:
     """Decide observation for a bound case. Unaccepted assertions never become defects."""
     if not isinstance(case, dict):
+        case = {}
+    result = result if isinstance(result, dict) else {}
+    if isinstance(case.get("assertion"), dict):
+        holder = case
+    elif _unapproved_label(case):
+        holder = case
+        attach_assertion(holder)
+    elif _unapproved_label(result):
+        holder = {
+            "oracle": _unapproved_label(result),
+            "expected": result.get("expected") or "",
+            "tc_id": result.get("tc_id") or case.get("tc_id") or "",
+            "url": result.get("url") or case.get("url") or "",
+            "contract_id": result.get("contract_id") or case.get("contract_id"),
+        }
+        attach_assertion(holder)
+    else:
         return None
-    if not isinstance(case.get("assertion"), dict):
-        raw = str(case.get("expected_source") or case.get("oracle") or "").strip().lower()
-        if raw not in _UNAPPROVED:
-            return None
-        attach_assertion(case)
-    if not isinstance(case.get("assertion"), dict):
+    if not isinstance(holder.get("assertion"), dict):
         return None
-    assertion = case["assertion"]
-    result = result or {}
+    assertion = holder["assertion"]
     status = str(result.get("status") or result.get("outcome") or result.get("execution_status") or "").lower()
     matched = status in {"passed", "pass"}
     observed = str(result.get("error") or result.get("actual") or status or "")
