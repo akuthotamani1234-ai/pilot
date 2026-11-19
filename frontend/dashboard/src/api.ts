@@ -114,13 +114,11 @@ export async function decideApproval(id: string, answer: string): Promise<Approv
 export function ssoCallbackQuery(fields: {
   code: string;
   state?: string;
-  codeVerifier?: string;
   redirectUri?: string;
 }): string {
   const qs = new URLSearchParams();
   qs.set("code", fields.code);
   if (fields.state?.trim()) qs.set("state", fields.state.trim());
-  if (fields.codeVerifier?.trim()) qs.set("code_verifier", fields.codeVerifier.trim());
   if (fields.redirectUri?.trim()) qs.set("redirect_uri", fields.redirectUri.trim());
   return qs.toString();
 }
@@ -130,6 +128,8 @@ export async function startSsoLogin(): Promise<{
   ok: boolean;
   state?: string;
   nonce?: string;
+  code_challenge?: string;
+  code_challenge_method?: string;
   reason?: string;
   gate_i_complete?: boolean;
 }> {
@@ -145,7 +145,6 @@ export async function startSsoLogin(): Promise<{
 export async function exchangeSsoCode(fields: {
   code: string;
   state?: string;
-  codeVerifier?: string;
   redirectUri?: string;
 }): Promise<{
   ok: boolean;

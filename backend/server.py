@@ -578,16 +578,14 @@ def sso_callback(
     code: str = "",
     state: str = "",
     redirect_uri: str = "",
-    code_verifier: str = "",
 ):
     """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open).
 
     A caller-supplied ``redirect_uri`` is forwarded only when it is on
     ``QPILOT_OIDC_REDIRECT_ALLOWLIST``. When that list is unset, the query
     value is ignored and the configured callback URI is used.
-    ``code_verifier`` is sent on the token POST when present. When
-    ``QPILOT_OIDC_PKCE_REQUIRED`` is set, a missing verifier is rejected
-    before the token endpoint.
+    The PKCE verifier is the one stored when this login started. A verifier
+    in the query string is not read.
     """
     from backend.studio_oidc_callback import (
         consume_sso_login,
@@ -623,7 +621,7 @@ def sso_callback(
         code=code,
         state=state,
         nonce=str(login.get("nonce") or ""),
-        code_verifier=code_verifier,
+        code_verifier=str(login.get("code_verifier") or ""),
         **({"redirect_uri": forwarded} if forwarded else {}),
     )
     _audit(

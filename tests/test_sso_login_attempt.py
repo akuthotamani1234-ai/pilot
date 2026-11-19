@@ -1,5 +1,9 @@
 """A Studio callback is refused unless it continues a login this process started."""
+import base64
+import hashlib
 import json
+import urllib.error
+import urllib.parse
 import urllib.request
 
 from fastapi.testclient import TestClient
@@ -9,6 +13,7 @@ from backend.studio_oidc_callback import (
     consume_sso_login,
     issue_sso_login,
     reset_sso_logins,
+    reset_used_authorization_codes,
 )
 from backend.tenancy_store import get_principal, upsert_tenant
 
@@ -88,4 +93,40 @@ def test_a_callback_nonce_must_match_the_login_it_started(monkeypatch, tmp_path)
     assert refused["gate_i_complete"] is False
     assert refused["nonce_ok"] is False
     assert get_principal("paste-1", db_path=db) is None
+    reset_sso_logins()
+
+
+def test_the_pkce_verifier_stays_on_the_server(monkeypatch):
+    monkeypatch.setenv("QPILOT_OIDC_TOKEN_URL", "http://127.0.0.1:9/token")
+    monkeypatch.delenv("QPILOT_OIDC_PKCE_REQUIRED", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_STATE", raising=False)
+    monkeypatch.delenv("QPILOT_OIDC_REDIRECT_ALLOWLIST", raising=False)
+    monkeypatch.delenv("QPILOT_SSO_EXPECTED_NONCE", raising=False)
+    seen = {}
+
+    def capture(req, timeout=10):
+        seen["data"] = req.data
+        seen["timeout"] = timeout
+        raise urllib.error.URLError("stop")
+
+    monkeypatch.setattr(urllib.request, "urlopen", capture)
+    reset_sso_logins()
+    reset_used_authorization_codes()
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    started = client.post("/api/sso/login", headers={"X-Agentic-QA": "1"}).json()
+    assert started["gate_i_complete"] is False
+    assert started.get("code_challenge")
+    assert started.get("code_challenge_method") == "S256"
+    assert "code_verifier" not in started
+    body = client.get(
+        "/api/sso/callback",
+        params={"code": "code-pkce-stays", "state": started["state"], "code_verifier": "from-the-query"},
+    ).json()
+    assert "data" in seen, body
+    posted = urllib.parse.parse_qs(seen["data"].decode())
+    verifier = posted["code_verifier"][0]
+    assert verifier != "from-the-query"
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    assert challenge == started["code_challenge"]
     reset_sso_logins()
