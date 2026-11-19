@@ -3357,7 +3357,11 @@ def restore_login(state: QAState) -> str:
     """`main.py --resume`: the saved login (.private/auth.json) was deleted when the first part of the run ended.
     Sign in once more with the same test account, so the tests still start logged in. Returns a note for the log."""
     login, run_dir = state.get("login") or {}, Path(state["run_dir"])
-    if not login.get("logged_in") or (run_dir / PRIVATE / "auth.json").exists():
+    auth = run_dir / PRIVATE / "auth.json"
+    from ..finalization import folder_is_linked
+    if folder_is_linked(auth):
+        return "Resume: the saved login is a link, so it was not read."
+    if not login.get("logged_in") or auth.is_file():
         return ""
     entry = next((p for p in state.get("app_map", []) if p["url"] == login.get("page")), None)
     form = login_form(entry) if entry else None

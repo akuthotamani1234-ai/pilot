@@ -125,6 +125,37 @@ def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypa
     assert secret.decode() not in env["QA_RUN_DIR"]
 
 
+def test_a_resumed_login_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import restore_login
+
+    secret = "tenant-b-only-resume"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    private = run / ".private"
+    private.mkdir(parents=True)
+    (private / "auth.json").symlink_to(other / "auth.json")
+    note = restore_login({"login": {"logged_in": True, "page": "https://shop.example/login"}, "run_dir": str(run)})
+    assert "link" in note
+    assert secret not in note
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert not (private / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_private = real / ".private"
+    real_private.mkdir(parents=True)
+    (real_private / "auth.json").write_text('{"cookies":"home-own"}\n', encoding="utf-8")
+    assert restore_login({"login": {"logged_in": True, "page": "https://shop.example/login"}, "run_dir": str(real)}) == ""
+    assert (real_private / "auth.json").read_text(encoding="utf-8") == '{"cookies":"home-own"}\n'
+    assert secret not in (real_private / "auth.json").read_text(encoding="utf-8")
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_a_saved_login_is_not_passed_to_tests_through_a_link(tmp_path):
     from backend.agents.executor import _env
 
