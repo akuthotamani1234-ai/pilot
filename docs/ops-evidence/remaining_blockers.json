@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T06:37:13Z",
+  "ran_at": "2026-11-19T06:48:01Z",
   "ok": true,
   "blockers": [
     {
@@ -85,7 +85,8 @@
         "studio_sso_jti_replay_drill.json",
         "studio_sso_nbf_drill.json",
         "hosted_idp_metadata_contract_drill.json",
-        "hosted_idp_redirect_uri_allowlist_drill.json"
+        "hosted_idp_redirect_uri_allowlist_drill.json",
+        "studio_sso_redirect_allowlist_enforcement_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -114,7 +115,8 @@
         "studio_sso_jti_replay_drill.json",
         "studio_sso_nbf_drill.json",
         "hosted_idp_metadata_contract_drill.json",
-        "hosted_idp_redirect_uri_allowlist_drill.json"
+        "hosted_idp_redirect_uri_allowlist_drill.json",
+        "studio_sso_redirect_allowlist_enforcement_drill.json"
       ],
       "local_partial_missing": []
     },

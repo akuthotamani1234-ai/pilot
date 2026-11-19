@@ -2531,6 +2531,21 @@ def ops_independent_review_evidence_retention():
     }
 
 
+@app.post("/api/ops/drills/studio-sso-redirect-allowlist-enforcement")
+def ops_studio_sso_redirect_allowlist_enforcement():
+    """Gate I: redirect URI allowlist enforcement (hosted IdP still open)."""
+    from backend.studio_sso_redirect_allowlist_enforcement_drill import (
+        run_studio_sso_redirect_allowlist_enforcement_drill,
+    )
+    evidence = run_studio_sso_redirect_allowlist_enforcement_drill()
+    _audit(
+        "ops_studio_sso_redirect_allowlist_enforcement",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_redirect_allowlist_enforcement": evidence}
+
+
 @app.post("/api/ops/drills/studio-sso-nbf")
 def ops_studio_sso_nbf():
     """Gate I: Studio SSO nbf rejection (hosted IdP still open)."""

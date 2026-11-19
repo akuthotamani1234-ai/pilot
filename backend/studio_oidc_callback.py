@@ -93,6 +93,39 @@ def validate_sso_nonce(nonce: str, *, expected: str | None = None) -> dict:
     }
 
 
+def validate_redirect_uri(redirect_uri: str, *, allowlist: str | None = None) -> dict:
+    """Reject a callback redirect URI that is not on the configured allowlist.
+
+    When ``QPILOT_OIDC_REDIRECT_ALLOWLIST`` (comma-separated) is empty, the
+    check is not enforced — hosted IdP Studio SSO still open.
+    """
+    raw = allowlist if allowlist is not None else _env("QPILOT_OIDC_REDIRECT_ALLOWLIST")
+    allowed = [part.strip() for part in raw.split(",") if part.strip()]
+    got = (redirect_uri or "").strip()
+    if not allowed:
+        return {
+            "ok": True,
+            "gate_i_complete": False,
+            "redirect_enforced": False,
+            "reason": "SSO redirect URI allowlist not enforced (unset)",
+        }
+    if got not in allowed:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "redirect_enforced": True,
+            "redirect_ok": False,
+            "reason": "redirect_uri not allowlisted",
+        }
+    return {
+        "ok": True,
+        "gate_i_complete": False,
+        "redirect_enforced": True,
+        "redirect_ok": True,
+        "reason": "SSO redirect URI is allowlisted",
+    }
+
+
 def exchange_code(
     *,
     code: str,
@@ -128,6 +161,9 @@ def exchange_code(
         "QPILOT_OIDC_REDIRECT_URI", "OIDC_REDIRECT_URI",
         default="http://127.0.0.1/studio/callback",
     )
+    redirect_check = validate_redirect_uri(redirect)
+    if redirect_check.get("redirect_enforced") and not redirect_check.get("ok"):
+        return redirect_check
     form = urllib.parse.urlencode({
         "grant_type": "authorization_code",
         "code": code.strip(),

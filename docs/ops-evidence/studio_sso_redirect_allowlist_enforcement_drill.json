@@ -1,0 +1,13 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_redirect_allowlist_enforcement",
+  "ran_at": "2026-11-19T06:48:01Z",
+  "kind": "redirect_allowlist_enforcement",
+  "good_ok": true,
+  "bad_rejected": true,
+  "unset_passthrough": true,
+  "bad_reason": "redirect_uri not allowlisted",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO redirect allowlist enforcement ok (listed URI accepted, other URI rejected); live hosted IdP Studio SSO still open"
+}

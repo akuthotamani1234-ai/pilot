@@ -208,6 +208,7 @@ def progress() -> dict:
         {"id": "I-sso-nbf", "label": "Studio SSO rejects JWT nbf in the future", "status": "done"},
         {"id": "I-idp-metadata-contract", "label": "Hosted IdP discovery metadata contract (not live)", "status": "done"},
         {"id": "I-idp-redirect-allowlist", "label": "Hosted IdP redirect URI allowlist contract", "status": "done"},
+        {"id": "I-sso-redirect-enforce", "label": "Studio SSO rejects unlisted redirect URIs", "status": "done"},
         {"id": "I-sso-principal-bootstrap", "label": "Studio SSO principal bootstrap from OIDC claims", "status": "done"},
         {"id": "I-idp-sso-readiness-pack", "label": "Hosted IdP SSO readiness pack (not live SSO)", "status": "done"},
         {"id": "H-paging-ack", "label": "Loopback paging ack→resolve lifecycle", "status": "done"},
