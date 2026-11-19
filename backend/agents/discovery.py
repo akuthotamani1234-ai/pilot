@@ -1388,6 +1388,16 @@ def resume_seen(saved_pages: list[dict]) -> tuple[set[str], set[tuple[str, bool]
     return urls, done
 
 
+def pending_visit(raw) -> tuple[str, bool]:
+    """A waiting address, and whether that visit was behind the login.
+
+    Older progress files stored only the address. Those stay guest visits.
+    """
+    if isinstance(raw, dict):
+        return _normalize(str(raw.get("url") or "")), bool(raw.get("auth"))
+    return _normalize(str(raw or "")), False
+
+
 def click_page(requested: str, final: str = "") -> str:
     """The address whose controls may be clicked.
 
@@ -1863,11 +1873,13 @@ def discovery_agent(state: QAState) -> QAState:
             resumed_urls, resumed_visits = resume_seen(saved_pages)
             seen.update(resumed_visits)
             for raw in pending:
-                waiting = _normalize(raw)
-                if not waiting or (waiting, False) in seen:
+                waiting, auth_wait = pending_visit(raw)
+                if not waiting or (waiting, auth_wait) in seen:
                     continue
-                seen.add((waiting, False))
-                place_link(queue, (waiting, 1, True, False), priorities=priorities, uncertain=True)
+                depth = int(raw.get("depth") or 1) if isinstance(raw, dict) else 1
+                inside = bool(raw.get("inside", True)) if isinstance(raw, dict) else True
+                seen.add((waiting, auth_wait))
+                place_link(queue, (waiting, depth, inside, auth_wait), priorities=priorities, uncertain=True)
             print(f"  [discovery] resumed {len(saved_pages)} inventoried page(s), "
                   f"{len(pending)} still waiting", flush=True)
     crawl_started, time_limited, stopped = time.time(), False, ""
@@ -2892,13 +2904,18 @@ def discovery_agent(state: QAState) -> QAState:
             app_map.append(entry)
             if remember_locale(locale_seen, entry):
                 write_locale(run_dir, locale_seen)
-            waiting = [item[0] for item in queue]
+            waiting_rows = [
+                {"url": url, "auth": bool(auth), "depth": depth, "inside": inside}
+                for url, depth, inside, auth in queue
+            ]
             ranked_waiting = rank_candidates([
-                {"url": item, "new_template": True, "journey_distance": 1,
-                 "changed": any(token and token in item for token in priorities)} for item in waiting
+                {"url": row["url"], "new_template": True, "journey_distance": 1,
+                 "changed": any(token and token in row["url"] for token in priorities)}
+                for row in waiting_rows
             ])
-            ranked_urls = [row["url"] for row in ranked_waiting]
-            save_crawl_progress(run_dir, app_map, ranked_urls + [item for item in waiting if item not in set(ranked_urls)])
+            order = {row["url"]: index for index, row in enumerate(ranked_waiting)}
+            waiting_rows.sort(key=lambda row: (order.get(row["url"], len(order)), 0 if row["auth"] else 1))
+            save_crawl_progress(run_dir, app_map, waiting_rows)
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
