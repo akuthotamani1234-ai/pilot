@@ -396,3 +396,28 @@ def test_home_and_static_are_not_cached_and_show_build_stamp(client):
     assert build.status_code == 200
     assert build.json()["build"]
     assert build.json()["assets"]["chat.js"] == build.json()["build"]
+
+
+def test_a_link_script_is_not_read_through_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-link"
+    other = tmp_path / "other"
+    suite = other / "runs" / "run" / "generated_tests"
+    suite.mkdir(parents=True)
+    script = suite / "test_all_links.py"
+    script.write_text(f"{{'id': '{secret}'}}\n{{'id': 'other'}}\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = server._case_progress(linked / "runs" / "run", False)
+    assert refused["links"]["total"] == 0
+    assert secret not in json.dumps(refused)
+    assert secret in script.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_all_links.py").write_text(
+        "{'id': 'home-own'}\n{'id': 'home-two'}\n{'id': 'home-three'}\n", encoding="utf-8")
+    counted = server._case_progress(real.parent, False)
+    assert counted["links"]["total"] == 3
+    assert secret not in json.dumps(counted)
+    assert secret in script.read_text(encoding="utf-8")

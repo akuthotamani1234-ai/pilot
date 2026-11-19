@@ -602,8 +602,10 @@ def _case_progress(d: Path, executing: bool) -> dict:
                      "automation": auto, "automated_by": how, "status": status, "detail": detail})
     links = [r for r in results if r.get("file") == "test_all_links.py"]
     links_total = 0
-    if (test_dir / "test_all_links.py").exists():
-        links_total = len(re.findall(r"'id': ", (test_dir / "test_all_links.py").read_text(encoding="utf-8", errors="replace")))
+    script = test_dir / "test_all_links.py"
+    from .finalization import folder_is_linked
+    if script.is_file() and not script.is_symlink() and not folder_is_linked(script.parent):
+        links_total = len(re.findall(r"'id': ", script.read_text(encoding="utf-8", errors="replace")))
     for n, c in enumerate(cases):  # the steps each finished test did, in order (the failing one marked)
         hit = [r for r in case_hits(c, results) if r.get("live_steps")] if results else []
         if hit:
