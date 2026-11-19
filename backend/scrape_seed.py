@@ -27,13 +27,20 @@ OPENAPI_HINTS = (
 
 
 def is_pay_checkout_url(url: str) -> bool:
-    """True when the URL looks like a checkout/payment destination (never seed)."""
+    """True when the URL looks like a checkout/payment destination (never seed).
+
+    Path words and ``?checkout=`` stay here. A query that names the page, step,
+    or screen (``?page=checkout``) uses the same rule as the crawl, so a sitemap
+    cannot seed an address the crawl would refuse to open.
+    """
     try:
         p = urlparse(url)
     except Exception:
         return True
     blob = f"{p.path}?{p.query}".rstrip("?")
-    return bool(PAY_CHECKOUT_PATH.search(blob))
+    if PAY_CHECKOUT_PATH.search(blob):
+        return True
+    return is_payment_url(url)
 
 
 def _same_host(url: str, host: str) -> bool:

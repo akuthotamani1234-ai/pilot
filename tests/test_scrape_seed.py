@@ -34,13 +34,19 @@ def test_a_redirect_into_checkout_is_not_read():
                 return Resp(200, body="cart")
             if str(url).endswith("/cart"):
                 return Resp(302, "https://shop.test/index.php?rt=checkout/cart")
+            if str(url).endswith("/guide"):
+                return Resp(302, "https://shop.test/index.php?page=checkout")
+            if "page=checkout" in str(url):
+                return Resp(200, body="pay")
             return Resp(404)
 
     assert _get_text(Fetcher(), "https://shop.test/home") == ""
     assert seen == ["https://shop.test/home"]
     assert _get_text(Fetcher(), "https://shop.test/product") == "<a href='/pim'>People</a>"
     assert _get_text(Fetcher(), "https://shop.test/cart") == "cart"
+    assert _get_text(Fetcher(), "https://shop.test/guide") == ""
     assert "https://shop.test/checkout" not in seen
+    assert not any("page=checkout" in u for u in seen)
 
 
 def test_pay_checkout_urls_are_detected():
@@ -48,6 +54,11 @@ def test_pay_checkout_urls_are_detected():
     assert is_pay_checkout_url("https://shop.test/cart/checkout")
     assert is_pay_checkout_url("https://shop.test/payment?x=1")
     assert is_pay_checkout_url("https://shop.test/app?checkout=1")
+    assert is_pay_checkout_url("https://shop.test/index.php?page=checkout")
+    assert is_pay_checkout_url("https://shop.test/index.php?step=payment")
+    assert is_pay_checkout_url("https://shop.test/index.php?screen=place-order")
+    assert not is_pay_checkout_url("https://shop.test/category?page=2")
+    assert not is_pay_checkout_url("https://shop.test/checkout-guide")
     assert not is_pay_checkout_url("https://hr.test/admin/viewPayGrades")
     assert not is_pay_checkout_url("https://hr.test/pim/viewEmployeeList")
 
@@ -83,6 +94,8 @@ def test_seed_urls_drops_checkout_and_keeps_admin(monkeypatch):
           <loc>https://hr.test/checkout</loc>
           <loc>https://hr.test/admin/viewPayGrades</loc>
           <loc>https://hr.test/payment</loc>
+          <loc>https://hr.test/index.php?page=checkout</loc>
+          <loc>https://hr.test/index.php?page=2</loc>
         </urlset>
         """,
         "https://hr.test/openapi.json": '{"paths": {"/leave/viewLeaveList": {}, "/checkout/pay": {}}}',
@@ -99,6 +112,8 @@ def test_seed_urls_drops_checkout_and_keeps_admin(monkeypatch):
     assert not any(is_pay_checkout_url(u) for u in out)
     assert "https://hr.test/checkout" not in out
     assert "https://hr.test/payment" not in out
+    assert "https://hr.test/index.php?page=checkout" not in out
+    assert "https://hr.test/index.php?page=2" in out
 
     from backend.scrape_seed import seed_entries
     entries = dict(seed_entries(fetcher, "https://hr.test/",
