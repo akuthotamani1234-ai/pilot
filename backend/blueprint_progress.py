@@ -480,6 +480,7 @@ def progress() -> dict:
         {"id": "G-swarm-control-link", "label": "A swarm control drill does not follow a link into another folder", "status": "done"},
         {"id": "G-lifecycle-link", "label": "A lifecycle cleanup does not follow a link into another folder", "status": "done"},
         {"id": "G-qx-core-link", "label": "A core capability drill does not follow a link into another folder", "status": "done"},
+        {"id": "G-live-matrix-link", "label": "A live failure matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

@@ -60,7 +60,23 @@ def _provoke(page) -> list[dict]:
     return cases
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "live_demo_store_failure_matrix",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_live_failure_matrix_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "live_failure_matrix_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_matrix()
+
     from playwright.sync_api import sync_playwright
 
     from tests.demo_store import DemoStore
@@ -134,12 +150,15 @@ def run_live_failure_matrix_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "live_failure_matrix_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_matrix()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "live_failure_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
