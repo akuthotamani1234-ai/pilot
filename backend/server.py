@@ -564,16 +564,42 @@ def sso_validate_bearer(authorization: str | None = Header(default=None)):
 
 
 @app.get("/api/sso/callback")
-def sso_callback(code: str = "", state: str = ""):
-    """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open)."""
-    from backend.studio_oidc_callback import exchange_code
-    verdict = exchange_code(code=code, state=state)
+def sso_callback(code: str = "", state: str = "", redirect_uri: str = ""):
+    """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open).
+
+    A caller-supplied ``redirect_uri`` is forwarded only when it is on
+    ``QPILOT_OIDC_REDIRECT_ALLOWLIST``. When that list is unset, the query
+    value is ignored and the configured callback URI is used.
+    """
+    from backend.studio_oidc_callback import exchange_code, validate_redirect_uri
+
+    forwarded = None
+    if (redirect_uri or "").strip():
+        check = validate_redirect_uri(redirect_uri)
+        if not check.get("redirect_enforced"):
+            redirect_uri = ""
+        elif not check.get("ok"):
+            _audit(
+                "sso_callback",
+                ok=False,
+                redirect_ok=False,
+                reason="redirect_uri not allowlisted",
+            )
+            return check
+        else:
+            forwarded = redirect_uri.strip()
+    verdict = exchange_code(
+        code=code,
+        state=state,
+        **({"redirect_uri": forwarded} if forwarded else {}),
+    )
     _audit(
         "sso_callback",
         ok=bool(verdict.get("ok")),
         verified=bool(verdict.get("signature_verified")),
         state=(state or "")[:40],
         state_ok=verdict.get("state_ok"),
+        redirect_ok=verdict.get("redirect_ok"),
     )
     return verdict
 
