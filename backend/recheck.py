@@ -48,7 +48,10 @@ def recheck(run_dir: Path, nodeids: list[str]) -> dict:
     from .agents.discovery import restore_login
     from .agents.executor import _read, _relative, _run_pytest
     from .agents.failure_analysis import _short_error
+    from .finalization import folder_is_linked
     run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return {"results": {}, "note": "This run's folder is a link. It was not re-checked."}
     blocked = run_read_block(run_dir, "generated_tests", "run_args.json", "recheck.json", "failures.json", ".private")
     if blocked:
         return {"results": {}, "note": blocked + " It was not re-checked."}

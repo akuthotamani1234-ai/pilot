@@ -190,6 +190,41 @@ def _index(monkeypatch, tmp_path):
     return tenancy
 
 
+def test_a_recheck_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.recheck import recheck
+
+    secret = b"tenant-b-only-recheck"
+    other = tmp_path / "other"
+    nested = other / "run"
+    (nested / "generated_tests").mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "recheck.json").write_bytes(secret)
+    (nested / ".private").mkdir()
+    (nested / ".private" / "auth.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = recheck(linked / "run", ["test_home.py::test_home"])
+    assert "link" in refused["note"]
+    assert refused["results"] == {}
+    assert (nested / "recheck.json").read_bytes() == secret
+    assert (nested / ".private" / "auth.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    monkeypatch.setattr("backend.agents.executor._run_pytest", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "backend.agents.executor._read",
+        lambda _out: [{"nodeid": "test_home.py::test_home", "outcome": "passed"}],
+    )
+    own = recheck(real, ["test_home.py::test_home"])
+    written = (real / "recheck.json").read_bytes()
+    assert b"test_home.py::test_home" in written and b"fixed" in written and secret not in written
+    assert own["results"]["test_home.py::test_home"]["verdict"] == "fixed"
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert (nested / ".private" / "auth.json").read_bytes() == secret
+
+
 def test_recheck_does_not_follow_a_link_or_another_tenant(monkeypatch, tmp_path, capsys):
     import main as cli
     from backend.recheck import recheck
