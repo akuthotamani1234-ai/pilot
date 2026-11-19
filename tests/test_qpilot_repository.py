@@ -209,6 +209,42 @@ def test_a_proposal_status_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert (nested / "keep.txt").read_bytes() == secret
 
 
+def test_a_proposal_status_does_not_follow_a_private_folder_link(tmp_path):
+    from backend import repo_jobs
+    from backend.repo_fix import RepoFixError
+
+    secret = b"tenant-b-only-private-status"
+    other = tmp_path / "other"
+    (other / ".private").mkdir(parents=True)
+    (other / ".private" / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    (linked / ".private").symlink_to(other / ".private", target_is_directory=True)
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked, {"status": "ready", "stage": "home-own-status"})
+    assert not (other / ".private" / "repo_fix_status.json").exists()
+    assert not (other / ".private" / "repo_fix_status.tmp").exists()
+    assert (other / ".private" / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    repo_jobs._write(real, {"status": "ready", "stage": "Review the shop"})
+    written = (real / ".private" / "repo_fix_status.json").read_bytes()
+    assert b"Review the shop" in written
+    assert secret not in written
+    assert (other / ".private" / "keep.txt").read_bytes() == secret
+
+
+def test_proposal_private_link_stays_on_the_sidebar():
+    from backend.blueprint_progress import progress
+
+    snap = progress()
+    row = next(item for item in snap["upcoming"] if item["id"] == "G-proposal-private-link")
+    assert row["status"] == "done"
+    assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
+    assert snap["complete"] is False
+
+
 def test_a_source_snapshot_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import io
     import zipfile
