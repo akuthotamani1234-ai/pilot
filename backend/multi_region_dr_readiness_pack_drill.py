@@ -13,7 +13,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "multi_region_dr_readiness_pack_drill.json"
 
 
+def _linked_pack() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "multi_region_dr_readiness_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_multi_region_dr_readiness_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "multi_region_dr_readiness_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_pack()
+
     from .failover_rto_drill import run_failover_rto_drill
     from .hosted_oncall_readiness_pack_drill import (
         run_hosted_oncall_readiness_pack_drill,
@@ -53,15 +69,15 @@ def run_multi_region_dr_readiness_pack_drill(*, ops_dir: Path | None = None) -> 
             "Multi-region DR readiness pack incomplete; hosted DR still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_pack()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "multi_region_dr_readiness_pack_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_pack()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "multi_region_dr_readiness_pack_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
