@@ -398,6 +398,7 @@ def progress() -> dict:
         {"id": "G-pkce-verifier-link", "label": "A PKCE verifier check does not follow a link into another folder", "status": "done"},
         {"id": "G-code-reuse-link", "label": "A code-reuse check does not follow a link into another folder", "status": "done"},
         {"id": "G-redirect-allowlist-link", "label": "A redirect allowlist does not follow a link into another folder", "status": "done"},
+        {"id": "G-nonce-binding-link", "label": "A nonce check does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
