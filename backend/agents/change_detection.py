@@ -181,15 +181,24 @@ def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
                     except Exception:
                         pass
                 return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
+    from ..finalization import folder_is_linked
     from ..my_tests import baseline_is_linked
     b = baseline_path(site_key)
-    if baseline_is_linked(b):
+    tests_dir = b / "tests"
+    cases_path = b / "test_cases.json"
+    meta_path = b / "meta.json"
+    if (baseline_is_linked(b) or folder_is_linked(tests_dir) or cases_path.is_symlink()
+            or folder_is_linked(cases_path.parent)):
         return None
-    files = sorted((b / "tests").glob("*.py")) if (b / "tests").is_dir() else []
-    if not files or not (b / "test_cases.json").exists():
+    files = sorted(
+        f for f in tests_dir.glob("*.py") if not f.is_symlink()
+    ) if tests_dir.is_dir() else []
+    if not files or not cases_path.is_file():
         return None
-    meta = json.loads((b / "meta.json").read_text(encoding="utf-8")) if (b / "meta.json").exists() else {}
-    return {"files": files, "cases": json.loads((b / "test_cases.json").read_text(encoding="utf-8")), "meta": meta}
+    meta = {}
+    if meta_path.is_file() and not meta_path.is_symlink():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    return {"files": files, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
 
 
 def change_detection_agent(state: QAState) -> QAState:
