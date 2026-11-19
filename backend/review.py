@@ -138,9 +138,11 @@ def review_gate_agent(state: QAState) -> QAState:
         return {"test_cases": cases, "log": log + ["Review: nothing to ask."]}
     listed = [{"tc_id": c["tc_id"], "title": c.get("title"), "feature": c.get("feature"), "scenario": c.get("scenario"),
                "fixed": c.get("kind") == "cleanup"} for c in cases if c.get("tc_id")]
-    from .finalization import write_text_unless_linked
-    if not run_dir.is_symlink():
-        write_text_unless_linked(run_dir, "review_request.json", json.dumps(
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(run_dir):
+        note = "Review skipped: this run's folder is a link."
+        return {"test_cases": cases, "log": log + [note]}
+    write_text_unless_linked(run_dir, "review_request.json", json.dumps(
             {"questions": qs, "cases": listed, "asked": time.time(), "timeout_s": settings.review_timeout_s},
             indent=2))
     print(f"::review::{json.dumps({'questions': len(qs), 'cases': len(listed)})}", flush=True)
