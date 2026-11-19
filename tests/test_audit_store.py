@@ -484,6 +484,7 @@ def test_a_due_schedule_starts_while_a_principal_must_be_signed_in(monkeypatch, 
 
     class Proc:
         pid = 123
+        returncode = 0
         stdout = iter(())
 
         def poll(self):
