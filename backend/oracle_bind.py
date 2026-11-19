@@ -78,22 +78,25 @@ def decision_for_result(case: dict | None, result: dict | None = None) -> dict |
     if not isinstance(case, dict):
         case = {}
     result = result if isinstance(result, dict) else {}
-    if _unapproved_label(case):
+    result_label = _unapproved_label(result)
+    if result_label:
+        # The result says this failure was an AI or observed guess. A stored
+        # contract assertion on the matched case must not turn that into a defect.
+        holder = {
+            "oracle": result_label,
+            "expected": result.get("expected") or case.get("expected") or "",
+            "tc_id": result.get("tc_id") or case.get("tc_id") or "",
+            "url": result.get("url") or case.get("url") or "",
+            "contract_id": result.get("contract_id") or case.get("contract_id"),
+        }
+        attach_assertion(holder)
+    elif _unapproved_label(case):
         # A leftover contract assertion must not hide an explicit AI label.
         case.pop("assertion", None)
         attach_assertion(case)
         holder = case
     elif isinstance(case.get("assertion"), dict):
         holder = case
-    elif _unapproved_label(result):
-        holder = {
-            "oracle": _unapproved_label(result),
-            "expected": result.get("expected") or "",
-            "tc_id": result.get("tc_id") or case.get("tc_id") or "",
-            "url": result.get("url") or case.get("url") or "",
-            "contract_id": result.get("contract_id") or case.get("contract_id"),
-        }
-        attach_assertion(holder)
     else:
         return None
     if not isinstance(holder.get("assertion"), dict):

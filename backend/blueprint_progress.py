@@ -373,6 +373,7 @@ def progress() -> dict:
         {"id": "B-goto-checkout", "label": "A generated test that opens a page does not start checkout", "status": "done"},
         {"id": "B-login-expired", "label": "When the login expires, pages behind it are not left waiting", "status": "done"},
         {"id": "B-read-checkout", "label": "A generated read does not fetch checkout, including after a redirect", "status": "done"},
+        {"id": "C-result-hides", "label": "A stored contract assertion cannot hide an AI label on the result", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
