@@ -16,7 +16,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "studio_sso_session_rebind_drill.json"
 
 
+def _linked_rebind() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "studio_sso_session_rebind",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_studio_sso_session_rebind_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "studio_sso_session_rebind_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_rebind()
+
     try:
         import jwt  # noqa: F401
     except ImportError:
@@ -87,19 +103,25 @@ def run_studio_sso_session_rebind_drill(*, ops_dir: Path | None = None) -> dict:
                 "Studio SSO session rebind incomplete; hosted IdP still open"
             ),
         }
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_rebind()
         return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "studio_sso_session_rebind_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "studio_sso_session_rebind_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if not write_text_unless_linked(dest, name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "studio_sso_session_rebind_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
+    return True
