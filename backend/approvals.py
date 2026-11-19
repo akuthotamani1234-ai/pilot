@@ -86,8 +86,48 @@ def list_approvals(*, status: str = "pending", limit: int = 50, path: Path | Non
     return [dict(r) for r in rows]
 
 
+def heal_detail_allowed(detail: str) -> dict:
+    """A heal approval may apply only when Gate E policy allows that exact diff."""
+    from .healing_policy import escalation_for, issue_healing_approval, review_repair
+
+    reason = "heal approval detail must include old_code, new_code, and failure_class"
+    try:
+        payload = json.loads(detail or "")
+    except json.JSONDecodeError:
+        payload = None
+    if not isinstance(payload, dict):
+        return {"allowed": False, "reason": reason}
+    old = payload.get("old_code")
+    new = payload.get("new_code")
+    failure_class = str(payload.get("failure_class") or "").strip()
+    if not isinstance(old, str) or not isinstance(new, str) or not failure_class:
+        return {"allowed": False, "reason": reason}
+    decision = escalation_for(failure_class)
+    token = ""
+    if not decision["auto_apply"] and decision["level"] < 4:
+        issued = issue_healing_approval(old, new, failure_class)
+        if not issued.get("ok"):
+            return {
+                "allowed": False,
+                "reason": issued.get("reason") or "healing approval refused",
+            }
+        token = str(issued.get("token") or "")
+    reviewed = review_repair(
+        old, new, failure_class=failure_class, approval_token=token,
+    )
+    if not reviewed.get("allowed"):
+        return {
+            "allowed": False,
+            "reason": reviewed.get("reason") or "healing policy refused the repair",
+        }
+    return {"allowed": True, "reason": ""}
+
+
 def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) -> dict:
-    """Apply human_review.decide and persist the outcome."""
+    """Apply human_review.decide and persist the outcome.
+
+    An accepted ``heal`` still has to pass the locator-only healing policy.
+    """
     with _connect(path) as conn:
         row = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
         if row is None:
@@ -97,13 +137,19 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
             return current
         verdict = decide(current["kind"], answer)
         status = "accepted" if verdict["apply"] else "rejected"
+        reason = verdict["reason"]
         # No answer → rejected (safe choice); explicit reject also rejected.
         if (answer or "").strip() == "":
             status = "rejected"
+        if status == "accepted" and current["kind"] == "heal":
+            policy = heal_detail_allowed(current["detail"])
+            if not policy["allowed"]:
+                status = "rejected"
+                reason = str(policy["reason"])
         decided_at = time.time()
         conn.execute(
             "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ? WHERE id = ?",
-            (status, (answer or "").strip(), verdict["reason"], decided_at, approval_id),
+            (status, (answer or "").strip(), reason, decided_at, approval_id),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()

@@ -10,6 +10,20 @@ from pathlib import Path
 
 from .approvals import create, decide_approval, list_approvals, snapshot
 
+_HEAL = json.dumps({
+    "old_code": (
+        'def test_x(page):\n'
+        '    page.locator("#a").click()\n'
+        '    assert page.locator("#ok").is_visible()\n'
+    ),
+    "new_code": (
+        'def test_x(page):\n'
+        '    page.locator("#b").click()\n'
+        '    assert page.locator("#ok").is_visible()\n'
+    ),
+    "failure_class": "locator",
+})
+
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "approvals_drill.json"
 
@@ -21,7 +35,7 @@ def run_approvals_drill(*, ops_dir: Path | None = None) -> dict:
     work.mkdir(parents=True, exist_ok=True)
     db = work / "approvals.sqlite"
 
-    accept_row = create("heal", "locator #buy", detail="css=#purchase", path=db)
+    accept_row = create("heal", "locator #buy", detail=_HEAL, path=db)
     reject_row = create("sensitive", "delete account", path=db)
     pending_before = list_approvals(status="pending", path=db)
     accepted = decide_approval(accept_row["id"], "yes", path=db)

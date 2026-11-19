@@ -1,0 +1,14 @@
+{
+  "gate_e_complete": false,
+  "drill": "healing_approval_queue",
+  "ran_at": "2026-11-19T07:49:14Z",
+  "kind": "approvals_queue_policy",
+  "prose_rejected": true,
+  "assertion_rejected": true,
+  "infrastructure_rejected": true,
+  "first_auth_accepted": true,
+  "second_auth_rejected": true,
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Approvals queue enforces healing policy (yes cannot apply prose, assertion edits, or infrastructure; one auth locator repair applies once); production / third-party healing suite still open"
+}
