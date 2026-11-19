@@ -319,6 +319,7 @@ def progress() -> dict:
         {"id": "G-pytest-output-link", "label": "A pytest output file does not follow a link into another folder", "status": "done"},
         {"id": "G-suite-tree-link", "label": "A generated test folder does not follow a link into another folder", "status": "done"},
         {"id": "G-undo-nested-link", "label": "An undone repair does not follow a script folder link into another folder", "status": "done"},
+        {"id": "G-fixes-link", "label": "Fix advice does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
