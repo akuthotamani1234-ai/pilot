@@ -23,7 +23,9 @@ class BrowserContractAdapter:
         self.origins = {origin(start_url), *[origin(u) for u in contract.allowed_origins]}
 
     def guard(self):
-        if self.stop_path and self.stop_path.exists():
+        from .qa_runtime import _user_stopped
+
+        if _user_stopped(self.stop_path):
             raise InterruptedError("The approved browser flow was stopped by the user")
         if origin(self.page.url) not in self.origins:
             raise ValueError("The browser contract left its approved origins")
