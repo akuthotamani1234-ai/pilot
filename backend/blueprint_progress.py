@@ -243,6 +243,7 @@ def progress() -> dict:
         {"id": "G-strength-folder-link", "label": "A proof score does not follow a link into another folder", "status": "done"},
         {"id": "G-events-folder-link", "label": "A live event does not follow a link into another folder", "status": "done"},
         {"id": "G-android-shot-folder-link", "label": "An Android screenshot does not follow a link into another folder", "status": "done"},
+        {"id": "G-coverage-folder-link", "label": "An Android coverage view does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},

@@ -100,7 +100,7 @@ def save_login_state(run_dir: Path, write) -> bool:
 
 def _path_is_linked(path: Path) -> bool:
     path = Path(path)
-    return path.is_symlink() or path.parent.is_symlink()
+    return path.is_symlink() or folder_is_linked(path.parent)
 
 
 def read_json(path: Path, default):

@@ -90,6 +90,29 @@ def test_coverage_keeps_zero_assertions_and_pending_work_visible(tmp_path):
     assert result["resume"]["uncertain"][0]["id"] == "pending"  # old journal has no start evidence
 
 
+def test_an_android_coverage_view_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-coverage"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    save(nested, "test_cases.json", [{"id": secret, "title": secret, "expected": secret}])
+    journal(nested, "android_results.jsonl", [{"id": secret, "outcome": "failed", "error": secret}])
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = dashboard(linked / "run")
+    assert secret not in json.dumps(refused)
+    assert secret in (nested / "test_cases.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    save(real, "test_cases.json", [{"id": "home-own", "title": "Home own", "expected": "The home page loads."}])
+    kept = dashboard(real)
+    assert kept["cases"][0]["id"] == "home-own"
+    assert secret not in json.dumps(kept)
+    assert secret in (nested / "test_cases.json").read_text(encoding="utf-8")
+
+
 class Adapter:
     def __init__(self):
         self.taps = 0
