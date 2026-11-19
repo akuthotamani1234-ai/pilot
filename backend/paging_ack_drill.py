@@ -77,7 +77,23 @@ def _post(port: int, path: str, payload: dict) -> tuple[int, dict]:
     return status, data
 
 
+def _linked_ack() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "paging_ack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_paging_ack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "paging_ack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_ack()
+
     port = _free_port()
     _Oncall.state = {"pages": [], "acks": [], "resolves": []}
     server = HTTPServer(("127.0.0.1", port), _Oncall)
@@ -127,12 +143,15 @@ def run_paging_ack_drill(*, ops_dir: Path | None = None) -> dict:
         server.shutdown()
         thread.join(timeout=2)
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_ack()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "paging_ack_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_ack()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "paging_ack_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
