@@ -2776,6 +2776,8 @@ def discovery_agent(state: QAState) -> QAState:
                     entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
                     print(f"  [discovery] {_normalize(url)} is a checkout or payment page - seen, not clicked",
                           flush=True)
+                    current["console"], current["failed"] = [], []
+                    explorer.explore(page, url, entry)
                 elif inside and not entry.get("error"):
                     current["console"], current["failed"] = [], []
                     if slug in looks:  # (what the AI saw on this page: the explorer tries it too - waited for 15 s
@@ -2805,6 +2807,8 @@ def discovery_agent(state: QAState) -> QAState:
                             print(f"  [discovery] an action changed {nxt} - it is read again")
             if mode == "page" and inside and not entry.get("error") and not click_actions_allowed(url):
                 entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
+                current["console"], current["failed"] = [], []
+                explorer.explore(page, url, entry)
             elif mode == "page" and inside and not entry.get("error"):
                 # a specific page: what its controls do is learned too (the pages they lead to are listed, not opened)
                 current["console"], current["failed"] = [], []
