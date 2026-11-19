@@ -19,8 +19,13 @@ DEFAULT_DB = ROOT / "artifacts" / "approvals.sqlite"
 
 
 def _connect(path: Path | None = None) -> sqlite3.Connection:
+    from .migrate import sqlite_path_is_linked
     db = Path(path) if path else DEFAULT_DB
+    if sqlite_path_is_linked(db):
+        raise ValueError("The approval database is a link.")
     db.parent.mkdir(parents=True, exist_ok=True)
+    if sqlite_path_is_linked(db):
+        raise ValueError("The approval database is a link.")
     conn = sqlite3.connect(str(db))
     conn.row_factory = sqlite3.Row
     conn.execute(
@@ -77,6 +82,10 @@ def create(kind: str, subject: str, *, detail: str = "", tenant_id: str = "", pa
 def list_approvals(*, status: str = "pending", limit: int = 50, tenant_id: str | None = None,
                    path: Path | None = None) -> list[dict]:
     """Newest first. status=all returns every row. A tenant id keeps other tenants out."""
+    from .migrate import sqlite_path_is_linked
+    db = Path(path) if path else DEFAULT_DB
+    if sqlite_path_is_linked(db):
+        return []
     want = (status or "pending").strip().lower()
     lim = min(200, max(1, int(limit or 50)))
     clauses, args = [], []

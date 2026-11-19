@@ -8,7 +8,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .migrate import apply_migrations
+from .migrate import apply_migrations, sqlite_path_is_linked
 from .rbac import allow
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,7 +16,11 @@ DEFAULT_DB = ROOT / "runs" / ".qpilot.sqlite"
 
 
 def _connect(path: Path) -> sqlite3.Connection:
+    if sqlite_path_is_linked(path):
+        raise ValueError("The tenant database is a link.")
     apply_migrations(f"sqlite:{path}")
+    if sqlite_path_is_linked(path):
+        raise ValueError("The tenant database is a link.")
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -101,7 +105,7 @@ def index_run(run_id: str, tenant_id: str, *, source: str = "", verdict: str = "
 
 def list_runs_for_tenant(tenant_id: str, *, db_path: str | Path | None = None) -> list[dict]:
     path = Path(db_path) if db_path else DEFAULT_DB
-    if not path.is_file():
+    if sqlite_path_is_linked(path) or not path.is_file():
         return []
     with _connect(path) as conn:
         rows = conn.execute(
@@ -134,7 +138,7 @@ def get_principal(principal_id: str, *, db_path: str | Path | None = None) -> di
         except Exception:
             pass
     path = Path(db_path) if db_path else DEFAULT_DB
-    if not path.is_file():
+    if sqlite_path_is_linked(path) or not path.is_file():
         return None
     pid = (principal_id or "").strip()
     if not pid:
@@ -149,7 +153,7 @@ def get_principal(principal_id: str, *, db_path: str | Path | None = None) -> di
 
 def get_run_tenant(run_id: str, *, db_path: str | Path | None = None) -> str | None:
     path = Path(db_path) if db_path else DEFAULT_DB
-    if not path.is_file():
+    if sqlite_path_is_linked(path) or not path.is_file():
         return None
     rid = (run_id or "").strip()
     if not rid:

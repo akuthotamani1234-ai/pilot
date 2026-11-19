@@ -178,6 +178,7 @@ def progress() -> dict:
         {"id": "G-queue-link", "label": "A swarm queue does not follow a link into another run", "status": "done"},
         {"id": "G-usage-link", "label": "AI usage does not follow a link into another run", "status": "done"},
         {"id": "G-live-log-link", "label": "A live log does not follow a link into another run", "status": "done"},
+        {"id": "G-db-link", "label": "A tenant database does not follow a link into another file", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
