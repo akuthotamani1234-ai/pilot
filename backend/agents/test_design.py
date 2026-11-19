@@ -2125,6 +2125,8 @@ def test_design_agent(state: QAState) -> QAState:
     mark_first_seen_inputs(state["app_map"])
     pages = [p for p in state["app_map"] if page_testable(p)]
     pages.sort(key=lambda p: not p.get("auth"))  # the app behind the login first (stable: crawl order kept)
+    # A checkout page is recorded. Tests that open or type on it are not written.
+    opened_pages = [p for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
     if settings.reuse_tests:  # regression run: the same test cases as last time (their scripts are run again)
         from .change_detection import saved_tests
         saved = saved_tests(state["site_key"], from_run=settings.reuse_from_run or None)
@@ -2140,26 +2142,26 @@ def test_design_agent(state: QAState) -> QAState:
                 "are run again (no new test cases)."]}
         print("  [test-design] regression run asked, but no saved tests for this site/run - writing new ones")
     data, typed = [], set()
-    for p in pages:  # (a box on many pages - the footer's newsletter box - is typed into once, on the first page)
+    for p in opened_pages:  # (a box on many pages - the footer's newsletter box - is typed into once, on the first page)
         own = [c for c in data_cases(p) if (c["selector"], c["field"]) not in typed]
         data += [dict(c, page=p["slug"], url=p["url"]) for c in own]
         typed.update((c["selector"], c["field"]) for c in own)
     # the search tests look for a word of a REAL item of this website (not a heading like 'Welcome' or 'Home')
-    word = site_search_word(pages)
-    cards = list(dict.fromkeys(s for p in pages if (s := (p.get("itemLinks") or {}).get("selector"))))[:6]
-    items = site_item_pages(pages)
+    word = site_search_word(opened_pages)
+    cards = list(dict.fromkeys(s for p in opened_pages if (s := (p.get("itemLinks") or {}).get("selector"))))[:6]
+    items = site_item_pages(opened_pages)
     for p in state["app_map"]:
         p["site_word"], p["site_cards"], p["site_items"] = section_search_word(p, pages, word), cards, items
 
     # incremental (a very large website, run again): only the pages that are new or whose design / controls changed are
     # fully tested again; the unchanged ones get the site-wide (smoke) checks
-    full = pages
+    full = opened_pages
     ch = state.get("changes") or {}
     if settings.incremental and ch and not ch.get("first_run"):
         status = ch.get("page_status") or {}
-        full = [p for p in pages if status.get(p["slug"], "new") in ("new", "changed")]
-        print(f"  [test-design] incremental: {len(full)} new / changed page(s) fully tested, {len(pages) - len(full)} "
-              "unchanged page(s) smoke-checked only")
+        full = [p for p in opened_pages if status.get(p["slug"], "new") in ("new", "changed")]
+        print(f"  [test-design] incremental: {len(full)} new / changed page(s) fully tested, "
+              f"{len(opened_pages) - len(full)} unchanged page(s) smoke-checked only")
 
     # every page gets its own test cases - no fixed number: journeys across pages, every feature found, one focused
     # check per feature / control (each with its own result), the AI's extra journeys, then the site-wide checks
@@ -2175,7 +2177,7 @@ def test_design_agent(state: QAState) -> QAState:
             print(f"  [test-design] AI failed: {e} — using built-in rules")
             mode = "built-in rules (the AI failed)"
     from ..my_tests import load as load_my_tests  # your own tests in plain English (kept per website)
-    mine = my_test_cases(pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1)
+    mine = my_test_cases(opened_pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1)
     small = small_checks(pages, data) if pages else []
     blocked = blocked_cases(pages)
     # data forms: valid / wrong values (nothing is sent unless staging) + staging's create -> edit -> delete
