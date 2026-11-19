@@ -20,6 +20,8 @@ def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
     events = []
     # Per-file offsets avoid skipping a late event from another worker.
     for path in sorted(root.glob("events.*.jsonl")):
+        if path.is_symlink() or folder_is_linked(path.parent):
+            continue
         offset = offsets.get(path.name, 0)
         try:
             with path.open("rb") as stream:

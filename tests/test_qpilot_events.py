@@ -57,6 +57,27 @@ def test_a_live_event_does_not_follow_a_link_into_another_folder(tmp_path):
     assert secret in (nested / "events.worker.jsonl").read_text(encoding="utf-8")
 
 
+def test_a_live_event_file_does_not_follow_a_link_into_another_file(tmp_path):
+    secret = "tenant-b-only-event-file"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "events.secret.jsonl"
+    target.write_text(json.dumps({"id": secret, "timestamp": 1, "text": secret}) + "\n", encoding="utf-8")
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "events.worker.jsonl").symlink_to(target)
+    assert read_events(real)["events"] == []
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    (real / "events.own.jsonl").write_text(
+        json.dumps({"id": "home-own", "timestamp": 2, "text": "kept"}) + "\n", encoding="utf-8")
+    events = read_events(real)["events"]
+    assert [event["id"] for event in events] == ["home-own"]
+    assert secret not in json.dumps(events)
+    assert secret in target.read_text(encoding="utf-8")
+
+
 def test_reference_navigation_does_not_authorize_payment_controls():
     from backend.actions import action_class
     context = {"tag": "a", "role": "menuitem", "in_form": False, "href": "#"}
