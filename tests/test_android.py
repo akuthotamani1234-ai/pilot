@@ -25,6 +25,36 @@ def test_java_path_discovers_user_local_blowai_jdk_without_java_home(tmp_path, m
     assert android._java_path() == str(java)
 
 
+def test_a_java_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-java"
+    name = "java.exe" if android.os.name == "nt" else "java"
+    other = tmp_path / "other"
+    binary = other / "bin" / name
+    binary.parent.mkdir(parents=True)
+    binary.write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-home"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("JAVA_HOME", str(linked))
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(android.shutil, "which", lambda _name: None)
+    assert android._java_path() is None
+    assert binary.read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-home"
+    own = real / "bin" / name
+    own.parent.mkdir(parents=True)
+    own.write_text("home-own", encoding="utf-8")
+    monkeypatch.setenv("JAVA_HOME", str(real))
+    found = android._java_path()
+    assert found == str(own)
+    assert secret not in found
+    assert own.read_text(encoding="utf-8") == "home-own"
+    assert binary.read_text(encoding="utf-8") == secret
+
+
 def test_parse_devices_keeps_status_and_details():
     assert parse_devices(
         "List of devices attached\nemulator-5554 device product:sdk_gphone\nphone offline\n"
