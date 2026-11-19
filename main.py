@@ -440,7 +440,11 @@ def main():
         return
     if args.merge:
         from backend.merge import merge_runs
-        out = merge_runs([settings.runs_dir / Path(r).name for r in args.merge], settings.runs_dir)
+        try:
+            out = merge_runs([settings.runs_dir / Path(r).name for r in args.merge], settings.runs_dir)
+        except ValueError as e:
+            print(f"\nThe reports were not merged: {e}")
+            sys.exit(2)
         print(f"\nMerged {len(args.merge)} run(s): {out / 'report.html'}")
         return
     signal.signal(signal.SIGINT, _on_ctrl_c)
