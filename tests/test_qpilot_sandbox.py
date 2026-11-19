@@ -125,6 +125,37 @@ def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypa
     assert secret.decode() not in env["QA_RUN_DIR"]
 
 
+def test_a_test_environment_does_not_follow_a_run_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _env
+
+    secret = "tenant-b-only-run"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    (other / "results.jsonl").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    env = _env(linked, linked / "generated_tests", linked / "results.jsonl", linked / "screenshots", {})
+    assert env["QA_RUN_DIR"] == ""
+    assert env["QA_RESULTS_FILE"] == ""
+    assert env["QA_SCREENSHOT_DIR"] == ""
+    assert env["QA_TRACE_DIR"] == ""
+    assert secret not in json.dumps(env)
+    assert str(other) not in json.dumps(env)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert (other / "results.jsonl").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "keep.txt").write_text("home-own", encoding="utf-8")
+    real_env = _env(real, real / "generated_tests", real / "results.jsonl", real / "screenshots", {})
+    assert Path(real_env["QA_RUN_DIR"]) == real.resolve()
+    assert Path(real_env["QA_RESULTS_FILE"]) == (real / "results.jsonl").resolve()
+    assert secret not in json.dumps(real_env)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_a_resumed_login_does_not_follow_a_link_into_another_folder(tmp_path):
     from backend.agents.discovery import restore_login
 
