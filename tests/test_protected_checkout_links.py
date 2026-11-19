@@ -570,6 +570,219 @@ def test_a_form_that_posts_to_checkout_is_not_filled():
     assert not any(c.get("url") == page["url"] for c in pairs)
 
 
+def _hop(status, location=""):
+    return type("Resp", (), {"status": status, "headers": {"location": location} if location else {}})()
+
+
+def test_a_role_check_does_not_follow_a_safe_address_into_checkout(tmp_path, monkeypatch):
+    from backend.agents.discovery import _explore_roles
+    from backend.config import settings
+
+    opened = []
+    product = "https://shop.example/product"
+    pay = "https://shop.example/checkout"
+    home = "https://shop.example/account"
+
+    class Request:
+        def get(self, url, **kwargs):
+            if url == product:
+                return _hop(302, pay)
+            return _hop(200)
+
+    class Loc:
+        def inner_text(self, timeout=5000):
+            return "Account"
+
+        def count(self):
+            return 0
+
+    class Tab:
+        def __init__(self):
+            self.url = home
+            self.request = Request()
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+            return type("Resp", (), {"status": 200})()
+
+        def wait_for_load_state(self, *args, **kwargs):
+            return None
+
+        def locator(self, selector):
+            return Loc()
+
+    class Ctx:
+        def storage_state(self, path):
+            from pathlib import Path
+            Path(path).write_text("{}", encoding="utf-8")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(
+        "backend.agents.discovery.log_in",
+        lambda *args, **kwargs: (Tab(), {"logged_in": True, "outcome": "ok"}),
+    )
+    monkeypatch.setattr("backend.agents.discovery.looks_logged_out", lambda *args, **kwargs: False)
+    monkeypatch.setattr(settings, "test_accounts", [
+        {"role": "admin", "username": "admin@x.test", "password": "x"},
+        {"role": "viewer", "username": "viewer@x.test", "password": "x"},
+    ])
+    app = [
+        {"url": home, "auth": True, "final_url": home},
+        {"url": product, "auth": True, "final_url": product},
+    ]
+    session = {"user": "admin@x.test", "form": {"user": "#email"}, "login_page": "https://shop.example/login"}
+    roles = _explore_roles(lambda: Ctx(), session, app, tmp_path)
+    assert product not in opened and pay not in opened
+    assert home in opened
+    assert roles["roles"]["viewer"]["pages"][product]["access"] == "blocked"
+    assert roles["roles"]["viewer"]["pages"][product]["to"] == pay
+
+
+def test_sign_up_does_not_open_a_redirect_into_checkout():
+    from backend.agents.discovery import _create_account
+
+    opened = []
+    pay = "https://shop.example/checkout"
+
+    class Tab:
+        url = "about:blank"
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                return _hop(302, pay)
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+
+    class Ctx:
+        def new_page(self):
+            return Tab()
+
+        def close(self):
+            return None
+
+    class Browser:
+        def new_context(self, **kwargs):
+            return Ctx()
+
+    made, why = _create_account(Browser(), "https://shop.example/register")
+    assert made is None and opened == []
+    assert "checkout" in why
+
+
+def test_a_login_page_that_redirects_into_checkout_is_not_opened():
+    from backend.auth import log_in
+
+    opened = []
+    pay = "https://shop.example/checkout"
+
+    class Tab:
+        url = "about:blank"
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                if url.endswith("/login"):
+                    return _hop(302, pay)
+                return _hop(200)
+
+        def on(self, *args, **kwargs):
+            return None
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+
+    class Ctx:
+        def new_page(self):
+            return Tab()
+
+    tab, res = log_in(Ctx(), "https://shop.example/login", {"user": "#u", "password": "#p"}, "a", "b")
+    assert opened == [] and tab.url == "about:blank"
+    assert res["logged_in"] is False
+    assert "checkout" in res["evidence"][-1]
+
+
+def test_a_normal_login_page_is_still_opened():
+    from backend.auth import log_in
+
+    opened = []
+
+    class Tab:
+        url = "about:blank"
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                return _hop(200)
+
+        def on(self, *args, **kwargs):
+            return None
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            raise RuntimeError("opened")
+
+    class Ctx:
+        def new_page(self):
+            return Tab()
+
+    _tab, res = log_in(Ctx(), "https://shop.example/login", {"user": "#u", "password": "#p"}, "a", "b")
+    assert opened == ["https://shop.example/login"]
+    assert res["logged_in"] is False
+
+
+def test_a_checkout_landing_is_not_opened_again():
+    from backend.auth import reopen_if_safe
+
+    opened = []
+    pay = "https://shop.example/checkout"
+    evidence = []
+
+    class Tab:
+        url = pay
+
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                raise AssertionError(url)
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+
+    assert reopen_if_safe(Tab(), pay, evidence, 1000) is True
+    assert opened == []
+    assert evidence == ["checkout was not opened again"]
+
+
+def test_a_session_recheck_does_not_follow_the_landing_into_checkout():
+    from backend.agents.discovery import resume_session
+
+    opened = []
+    pay = "https://shop.example/checkout"
+    home = "https://shop.example/account"
+
+    class Tab:
+        class request:
+            @staticmethod
+            def get(url, **kwargs):
+                if url == home:
+                    return _hop(302, pay)
+                return _hop(200)
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+
+    assert resume_session(Tab(), home, 1000) == pay
+    assert opened == []
+    assert resume_session(Tab(), pay, 1000) == pay
+    assert opened == []
+
+
 def test_extra_pages_of_one_kind_do_not_include_checkout():
     from backend.items import item_cases
     pay = "https://shop.example/index.php?rt=checkout/confirm"

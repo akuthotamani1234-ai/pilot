@@ -74,3 +74,23 @@ def payment_redirect(fetch, address: str, *, base: str = "", timeout: int = 1000
     """Return the checkout address a GET would reach, or '' when the click may proceed."""
     _open, blocked = follow_get(fetch, address, base=base, timeout=timeout)
     return blocked
+
+
+def opens_checkout(fetch, address: str, *, base: str = "", timeout: int = 10000) -> str:
+    """The checkout address this GET would open, including an address that already is checkout.
+
+    A probe that cannot reach the host returns '' so a normal page can still be opened.
+    """
+    from urllib.parse import urljoin
+
+    from .swarm import is_payment_url
+
+    current = (address or "").strip()
+    if base and current:
+        current = urljoin(base, current)
+    if is_payment_url(current):
+        return current
+    try:
+        return payment_redirect(fetch, current, timeout=timeout)
+    except Exception:
+        return ""

@@ -919,6 +919,13 @@ def _create_account(browser, signup_url: str) -> tuple[dict | None, str]:
     context = browser.new_context(viewport={"width": 1366, "height": 900}, ignore_https_errors=True)
     tab = context.new_page()
     try:
+        from ..payment_nav import opens_checkout
+        try:
+            blocked = opens_checkout(tab.request.get, signup_url, timeout=settings.page_timeout_ms)
+        except Exception:
+            blocked = ""
+        if blocked:
+            return None, "checkout, payment and placing an order are never tested"
         tab.goto(signup_url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
         _settle(tab)
         tab.wait_for_timeout(1000)
@@ -1449,6 +1456,24 @@ def refuse_checkout_redirect(page, url: str, timeout: int) -> str:
     except Exception:
         return ""
     return blocked or ""
+
+
+def resume_session(page, landing: str, timeout: int) -> str:
+    """Re-open the page after login, unless that GET would enter checkout.
+
+    Returns the checkout address when the open was refused, otherwise ''.
+    A landing that is already checkout is not opened again.
+    """
+    from ..payment_nav import opens_checkout
+
+    try:
+        blocked = opens_checkout(page.request.get, landing, timeout=timeout)
+    except Exception:
+        blocked = ""
+    if blocked:
+        return blocked
+    page.goto(landing, wait_until="domcontentloaded", timeout=timeout)
+    return ""
 
 
 def click_page(requested: str, final: str = "") -> str:
@@ -2455,7 +2480,10 @@ def discovery_agent(state: QAState) -> QAState:
                 used_slugs.discard(slug)
                 alive = False  # is the login really gone? the page right after login must still open logged in
                 try:
-                    page.goto(session["landing"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    pay_to = resume_session(page, session["landing"], settings.page_timeout_ms)
+                    if pay_to:
+                        skipped[url] = "checkout, payment and placing an order are never tested"
+                        continue
                     _settle(page)
                     alive = not looks_logged_out(page, session["form"])
                 except Exception:
@@ -3241,6 +3269,11 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
                 p.setdefault("roles", {})[a["role"]] = "blocked"
             for p in pages:
                 try:
+                    pay_to = refuse_checkout_redirect(tab, p["url"], settings.page_timeout_ms)
+                    if pay_to:
+                        seen[p["url"]] = {"access": "blocked", "status": None, "to": pay_to}
+                        p.setdefault("roles", {})[a["role"]] = "blocked"
+                        continue
                     resp = tab.goto(p["url"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
                     _settle(tab)
                     status = resp.status if resp else None
