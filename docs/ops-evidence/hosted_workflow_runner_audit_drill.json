@@ -1,0 +1,46 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_workflow_runner_audit",
+  "ran_at": "2026-11-19T04:47:21Z",
+  "kind": "workflow_yaml_audit",
+  "android": {
+    "path": ".github/workflows/android-appium.yml",
+    "checks": {
+      "present": true,
+      "workflow_dispatch": true,
+      "runs_on": true,
+      "upload_artifact": true,
+      "contents_read": true,
+      "gate_complete_false_guard": true
+    },
+    "required_inputs": {
+      "api_level": true,
+      "include_api24_smoke": true,
+      "artifact_prefix": true
+    },
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "browsers": {
+    "path": ".github/workflows/multi-browser-portfolios.yml",
+    "checks": {
+      "present": true,
+      "workflow_dispatch": true,
+      "runs_on": true,
+      "upload_artifact": true,
+      "contents_read": true,
+      "gate_complete_false_guard": true
+    },
+    "required_inputs": {
+      "engines": true,
+      "portfolio": true,
+      "artifact_prefix": true
+    },
+    "ok": true,
+    "live_hosted_runners": false
+  },
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Hosted workflow runner audit ok; broad hosted multi-device/browser runners still open"
+}

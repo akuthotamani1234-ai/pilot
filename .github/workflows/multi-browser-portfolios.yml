@@ -5,6 +5,19 @@ name: Multi-browser portfolios
 
 on:
   workflow_dispatch:
+    inputs:
+      engines:
+        description: "Comma-separated Playwright engines"
+        type: string
+        default: "chromium,firefox,webkit"
+      portfolio:
+        description: "Portfolio fixture id"
+        type: string
+        default: "demo_store"
+      artifact_prefix:
+        description: "Prefix for uploaded portfolio artifacts"
+        type: string
+        default: "qpilot-browser-portfolio"
 
 permissions:
   contents: read
@@ -28,6 +41,13 @@ jobs:
         run: |
           python -m pip install -r requirements-dev.txt
           python -m playwright install --with-deps chromium firefox webkit
+
+      - name: Note portfolio dispatch inputs
+        run: |
+          echo "engines: ${{ inputs.engines }}"
+          echo "portfolio: ${{ inputs.portfolio }}"
+          echo "artifact_prefix: ${{ inputs.artifact_prefix }}"
+          echo "Hosted multi-browser matrix runners still open."
 
       - name: Run multi-browser portfolio suite drill
         run: |

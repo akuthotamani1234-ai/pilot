@@ -2088,6 +2088,25 @@ def ops_hosted_ci_artifact_gate_pack():
     }
 
 
+@app.post("/api/ops/drills/hosted-workflow-runner-audit")
+def ops_hosted_workflow_runner_audit():
+    """Gates D/F: audit workflow YAML for dispatch/runner/artifacts (not run)."""
+    from backend.hosted_workflow_runner_audit_drill import (
+        run_hosted_workflow_runner_audit_drill,
+    )
+    evidence = run_hosted_workflow_runner_audit_drill()
+    _audit(
+        "ops_hosted_workflow_runner_audit",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_workflow_runner_audit": evidence,
+    }
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

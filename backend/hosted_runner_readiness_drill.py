@@ -23,6 +23,7 @@ DEVICE_CHECKS = (
     ("hosted_ci_runner_matrix_drill.json", "Hosted CI runner matrix"),
     ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
     ("android_device_ci_readiness_pack_drill.json", "Android device CI readiness pack"),
+    ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
 )
 
 BROWSER_CHECKS = (
@@ -33,6 +34,7 @@ BROWSER_CHECKS = (
     ("hosted_ci_runner_matrix_drill.json", "Hosted CI runner matrix"),
     ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
     ("browser_portfolio_ci_readiness_pack_drill.json", "Browser portfolio CI readiness pack"),
+    ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
 )
 
 
