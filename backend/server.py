@@ -4458,7 +4458,8 @@ def _next_time(s: dict, after):
 
 
 def _schedule_is_linked() -> bool:
-    return SCHEDULES.is_symlink() or SCHEDULES.parent.is_symlink()
+    from .finalization import folder_is_linked
+    return folder_is_linked(SCHEDULES)
 
 
 def _schedules() -> list[dict]:
