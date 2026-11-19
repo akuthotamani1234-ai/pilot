@@ -96,9 +96,13 @@ def baseline_is_linked(path: Path) -> bool:
     """True when a baseline path follows a symlink.
 
     A tenant folder that is a link can point at another tenant. Reading or
-    writing that path would use the other tenant's files.
+    writing that path would use the other tenant's files. The baseline folder
+    itself is refused when it, or a folder on the way to it, is a link.
     """
+    from .finalization import folder_is_linked
     root = Path(settings.baseline_dir)
+    if folder_is_linked(root):
+        return True
     try:
         rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
     except ValueError:
