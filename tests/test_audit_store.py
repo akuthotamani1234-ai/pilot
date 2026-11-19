@@ -286,6 +286,67 @@ def test_a_signed_in_principal_cannot_stop_or_read_another_tenants_live_test(mon
         server.jobs.update(saved)
 
 
+def test_a_tenants_saved_tests_stay_off_another_tenants_website(monkeypatch, tmp_path):
+    import requests
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import my_tests, server
+    from backend.agents.change_detection import baseline_path
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    saved = my_tests.save("shop.test", ["See the shop heading"], tenant_id="t1")
+    assert [item["text"] for item in saved] == ["See the shop heading"]
+    assert my_tests.load("shop.test") == []
+    assert my_tests.load("shop.test", tenant_id="t2") == []
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+    assert baseline_path("shop.test") == tmp_path / "baseline" / "t1" / "shop.test"
+    assert [item["text"] for item in my_tests.load("shop.test")] == ["See the shop heading"]
+
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+
+    def fake_get(url, **_kwargs):
+        class Raw:
+            def read(self, _n, decode_content=True):
+                return b"<html><title>Shop</title></html>"
+
+        class Response:
+            status_code = 200
+            is_redirect = False
+            headers: dict = {}
+            raw = Raw()
+
+            def __init__(self):
+                self.url = url
+                self.text = "<html><title>Shop</title></html>"
+
+            def close(self):
+                return None
+
+        return Response()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(server, "is_private_host", lambda *_args, **_kwargs: False)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    own = client.get("/api/check", params={"source": "https://shop.test"}, headers={"Authorization": "Bearer admin-1"})
+    other = client.get("/api/check", params={"source": "https://shop.test"}, headers={"Authorization": "Bearer admin-2"})
+    assert own.status_code == 200 and own.json()["my_tests"] == ["See the shop heading"]
+    assert other.status_code == 200 and other.json()["my_tests"] == []
+    env: dict = {}
+    server._stamp_tenant_env(env, "admin-2")
+    assert env["QPILOT_TENANT_ID"] == "t2"
+    server._stamp_tenant_env(env, "")
+    assert "QPILOT_TENANT_ID" not in env
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)

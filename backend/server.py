@@ -296,6 +296,19 @@ KEY_ENV = {p["id"]: p["key_env"] for p in PROVIDERS}
 
 # ------------------------------------------------------------------ helpers
 
+def _stamp_tenant_env(env: dict, principal_id: str = "", tenant_id: str = "") -> None:
+    """A worker keeps this tenant's baseline. Open mode does not inherit a leftover id."""
+    tenant = (tenant_id or "").strip()
+    if not tenant and principal_id:
+        from backend.tenancy_store import get_principal
+        row = get_principal(principal_id) or {}
+        tenant = str(row.get("tenant_id") or "").strip()
+    if tenant and re.fullmatch(r"[\w.-]+", tenant):
+        env["QPILOT_TENANT_ID"] = tenant
+    else:
+        env.pop("QPILOT_TENANT_ID", None)
+
+
 def _signed_in_reader(authorization: str | None, x_qa_token: str | None, action: str = "run.read"):
     """None when the studio is open. Otherwise the principal id, or a JSON refusal."""
     from backend.dashboard_auth import auth_mode, authorize
@@ -3103,7 +3116,11 @@ def tenancy_run_access(
 
 
 @app.get("/api/check")
-def check_source(source: str):
+def check_source(
+    source: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """Step 2: open the website once (or recognise a GitHub repo / project folder) before testing starts."""
     import html as _html
 
@@ -3148,8 +3165,17 @@ def check_source(source: str):
     # (a single-page app's #/auth/register is only in the address: the server never sees the part after #)
     login = bool(_auth_link(url) or _auth_link(r.url) or re.search(r"type=[\"']?password", r.text[:300_000], re.I))
     from backend import my_tests  # (your own tests saved for this website: the chat shows them to edit)
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if reader is None:
+        saved_tests = my_tests.load(my_tests.site_key_of(url))
+    elif isinstance(reader, str):
+        from backend.tenancy_store import get_principal
+        row = get_principal(reader) or {}
+        saved_tests = my_tests.load(my_tests.site_key_of(url), tenant_id=str(row.get("tenant_id") or ""))
+    else:
+        saved_tests = []
     return {"kind": "website", "ok": r.status_code < 400, "url": url, "final_url": r.url,
-            "my_tests": [t["text"] for t in my_tests.load(my_tests.site_key_of(url))],
+            "my_tests": [t["text"] for t in saved_tests],
             "unwrapped": pasted if s != pasted else "",
             "status": r.status_code, "ms": int((time.time() - t0) * 1000), "login": login,
             "has_test_account": bool(os.environ.get("TEST_USERNAME") and os.environ.get("TEST_PASSWORD")),
@@ -3340,6 +3366,7 @@ def start_run(
         if req.reuse_tests:
             cmd.append("--reuse-tests")
         env = os.environ.copy()
+        _stamp_tenant_env(env, caller or "")
         if req.reuse_tests and req.reuse_from_run:
             env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
         elif "REUSE_FROM_RUN" in env:
@@ -3664,6 +3691,7 @@ async def start_mobile_run(
               f"Android app {config['package_name']}" if config["package_name"] else "Uploaded Android APK")
     command = [sys.executable, "-u", "-m", "backend.android_runner", "--config", str(config_path)]
     env = os.environ.copy()
+    _stamp_tenant_env(env, caller or "")
     if llm_provider is not None:
         previous_provider = env.get("LLM_PROVIDER", "ollama")
         env["LLM_PROVIDER"] = llm_provider
@@ -3771,6 +3799,7 @@ async def resume_android_run(
     except ValueError as error:
         raise HTTPException(409, "Restore the original private input references before resuming.") from error
     env = os.environ.copy()
+    _stamp_tenant_env(env, caller or "")
     # Resuming executes saved, validated cases; no new AI exploration is requested.
     env.update(LLM_PROVIDER="none", PYTHONUTF8="1", PYTHONUNBUFFERED="1")
     privacy = _worker_privacy(env, "none")
@@ -4231,7 +4260,9 @@ rechecks: dict[str, dict] = {}  # run -> {"running", "tests", "error"} (the re-c
 
 
 def _recheck_worker(run: str, tests: list[str]) -> None:
+    from backend.tenancy_store import get_run_tenant
     env = os.environ.copy()
+    _stamp_tenant_env(env, tenant_id=get_run_tenant(run) or "")
     env.update({"PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
     try:
         _worker_privacy(env)

@@ -63,7 +63,8 @@ def _store(run_dir: Path, name: str, payload: dict) -> None:
 
 def priority_urls(site_key: str) -> list[str]:
     """Areas the previous runs asked the next crawl to open first."""
-    payload = _read(settings.baseline_dir / (site_key or "site") / "next_priority.json")
+    from .my_tests import baseline_folder
+    payload = _read(baseline_folder(site_key or "site") / "next_priority.json")
     if isinstance(payload, dict) and isinstance(payload.get("next_priority"), list):
         return [str(item) for item in payload["next_priority"] if item]
     if isinstance(payload, list):
@@ -141,7 +142,8 @@ def schema_for(state: dict) -> dict:
     if previous is None:
         site = str(state.get("site_key") or "")
         if site:
-            previous = _read(settings.baseline_dir / site / "api_spec.json")
+            from .my_tests import baseline_folder
+            previous = _read(baseline_folder(site) / "api_spec.json")
     if not isinstance(current, dict) or not isinstance(previous, dict):
         return {"compared": False, "broken": [], "trust_broken": False}
     diff = diff_specs(previous, current)
@@ -336,7 +338,8 @@ def trends_for(state: dict, verdict: str, failures: list[dict],
     trends["verdict"] = keep_verdict(verdict, trends)
     site = str(state.get("site_key") or "")
     if site and trends["next_priority"]:
-        folder = settings.baseline_dir / site
+        from .my_tests import baseline_folder
+        folder = baseline_folder(site)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "next_priority.json").write_text(
             json.dumps({"next_priority": trends["next_priority"]}, indent=2), encoding="utf-8")

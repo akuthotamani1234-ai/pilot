@@ -484,7 +484,7 @@ def main():
         from backend import my_tests
         if args.fresh:  # (your own tests are yours, not the last run's: they stay)
             keep = my_tests.load(site_key)
-            shutil.rmtree(settings.baseline_dir / site_key, ignore_errors=True)
+            shutil.rmtree(my_tests.baseline_folder(site_key), ignore_errors=True)
             if keep:
                 my_tests.save(site_key, [t["text"] for t in keep])
         if not settings.discovery_only and os.environ.get("QA_MY_TESTS_SET") == "1":  # (the chat's box: what is in it is the list)

@@ -9,6 +9,7 @@
 """
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -26,13 +27,31 @@ def site_key_of(url: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", (p.hostname or "") + (f"_{p.port}" if p.port else ""))
 
 
-def _file(site_key: str) -> Path:
-    return settings.baseline_dir / site_key / FILE
+def baseline_folder(site_key: str, tenant_id: str | None = None) -> Path:
+    """baseline/<site>, or baseline/<tenant>/<site> when a tenant is signed in.
+
+    An explicit tenant id never falls back to the shared folder. A missing id uses
+    QPILOT_TENANT_ID from the worker, then the shared folder.
+    """
+    key = site_key or "site"
+    if tenant_id is None:
+        tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+        if tenant and re.fullmatch(r"[\w.-]+", tenant):
+            return settings.baseline_dir / tenant / key
+        return settings.baseline_dir / key
+    tenant = tenant_id.strip()
+    if not re.fullmatch(r"[\w.-]+", tenant):
+        return settings.baseline_dir / ".none" / key
+    return settings.baseline_dir / tenant / key
 
 
-def load(site_key: str) -> list[dict]:
+def _file(site_key: str, tenant_id: str | None = None) -> Path:
+    return baseline_folder(site_key, tenant_id) / FILE
+
+
+def load(site_key: str, tenant_id: str | None = None) -> list[dict]:
     try:
-        return json.loads(_file(site_key).read_text(encoding="utf-8"))
+        return json.loads(_file(site_key, tenant_id).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -51,20 +70,20 @@ def _entry(text: str, old: dict | None = None) -> dict:
                    "text": text, "added": datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
-def save(site_key: str, texts) -> list[dict]:
+def save(site_key: str, texts, tenant_id: str | None = None) -> list[dict]:
     """The list becomes exactly these tests (the chat's box: what is in it is the list; empty = none)."""
-    known = {t["text"].lower(): t for t in load(site_key)}
+    known = {t["text"].lower(): t for t in load(site_key, tenant_id)}
     tests = [_entry(t, known.get(t.lower())) for t in _clean(texts)]
-    f = _file(site_key)
+    f = _file(site_key, tenant_id)
     if tests or f.exists():
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(tests, indent=1), encoding="utf-8")
     return tests
 
 
-def add(site_key: str, texts) -> list[dict]:
+def add(site_key: str, texts, tenant_id: str | None = None) -> list[dict]:
     """More tests on top of the saved ones (the review step, main.py --my-test)."""
-    return save(site_key, [t["text"] for t in load(site_key)] + list(texts or []))
+    return save(site_key, [t["text"] for t in load(site_key, tenant_id)] + list(texts or []), tenant_id)
 
 
 def lines(text: str) -> list[str]:

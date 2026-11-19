@@ -28,7 +28,8 @@ from .state import QAState
 
 
 def _expect_file(site_key: str) -> Path:
-    return settings.baseline_dir / site_key / "expectations.json"
+    from .my_tests import baseline_folder
+    return baseline_folder(site_key) / "expectations.json"
 
 
 def load_expectations(site_key: str) -> dict:
@@ -49,7 +50,8 @@ def save_expectations(site_key: str, answers: dict) -> None:
 def open_rule_questions(site_key: str) -> list[dict]:
     """The rule questions earlier runs left open (saved with the baseline)."""
     try:
-        return json.loads((settings.baseline_dir / site_key / "open_questions.json").read_text(encoding="utf-8"))
+        from .my_tests import baseline_folder
+        return json.loads((baseline_folder(site_key) / "open_questions.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
