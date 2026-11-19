@@ -207,3 +207,32 @@ def test_a_collected_suite_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert any("test_home_own" in item for item in ids)
     assert secret not in "\n".join(ids)
     assert secret in (suite / "test_secret.py").read_text(encoding="utf-8")
+
+
+def test_a_saved_result_line_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.agents.executor import _read, _result_count
+
+    secret = "tenant-b-only-result"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "results.jsonl").write_text(
+        json.dumps({"nodeid": secret, "outcome": "failed"}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _read(linked / "run" / "results.jsonl") == []
+    assert _result_count(linked / "run" / "results.jsonl") == 0
+    assert secret in (nested / "results.jsonl").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "results.jsonl").write_text(
+        json.dumps({"nodeid": "home-own", "outcome": "passed"}) + "\n", encoding="utf-8")
+    rows = _read(real / "results.jsonl")
+    assert rows == [{"nodeid": "home-own", "outcome": "passed"}]
+    assert _result_count(real / "results.jsonl") == 1
+    assert secret not in json.dumps(rows)
+    assert secret in (nested / "results.jsonl").read_text(encoding="utf-8")
