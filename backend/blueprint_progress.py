@@ -380,6 +380,7 @@ def progress() -> dict:
         {"id": "G-emulator-smoke-link", "label": "An emulator smoke drill does not follow a link into another folder", "status": "done"},
         {"id": "G-appium-matrix-link", "label": "An Appium matrix does not follow a link into another folder", "status": "done"},
         {"id": "G-observability-probe-link", "label": "An observability probe does not follow a link into another folder", "status": "done"},
+        {"id": "G-paging-rehearsal-link", "label": "A paging rehearsal does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
