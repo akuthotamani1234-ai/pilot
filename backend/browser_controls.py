@@ -46,6 +46,10 @@ _CLOCK_JS = f"""(() => {{
 
 
 def _read(path: Path) -> dict | None:
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
