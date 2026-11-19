@@ -10,13 +10,22 @@ from urllib.parse import quote
 import requests
 
 
+def _ancestor_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def snapshot(repo_url: str, token: str, run_dir: Path, branch: str = "") -> Path:
     from .repo_fix import RepoFixError, _gh, parse_repo
     run_dir = Path(run_dir)
     private = run_dir / ".private"
     source_dir = private / "repo_source"
     record = run_dir / "repo_source.json"
-    if run_dir.is_symlink() or private.is_symlink() or source_dir.is_symlink() or record.is_symlink():
+    if (run_dir.is_symlink() or private.is_symlink() or source_dir.is_symlink() or record.is_symlink()
+            or _ancestor_is_linked(run_dir)):
         raise RepoFixError("The source snapshot is a link, so it was not saved.")
     owner, repo = parse_repo(repo_url)
     metadata = _gh("GET", f"/repos/{owner}/{repo}", token)

@@ -177,6 +177,45 @@ def test_a_reviewed_fix_does_not_follow_a_link_into_another_run(tmp_path, monkey
     assert json.loads((other / "repo_fix_status.json").read_text(encoding="utf-8"))["secret"] == secret
 
 
+def test_a_source_snapshot_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import io
+    import zipfile
+
+    secret = b"tenant-b-only-snapshot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(repo_fix, "_gh", lambda *args, **kwargs: pytest.fail("github"))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        from backend.repo_source import snapshot
+        snapshot("https://github.com/fixture/app", "token", linked / "run")
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("fixture-app/README.md", "mine\n")
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, _size):
+            yield archive.getvalue()
+
+    monkeypatch.setattr(repo_fix, "_gh", lambda *args, **kwargs: {"default_branch": "main", "object": {"sha": "abc"}})
+    monkeypatch.setattr("backend.repo_source.requests.get", lambda *args, **kwargs: _Response())
+    real = tmp_path / "real"
+    real.mkdir()
+    from backend.repo_source import snapshot
+    root = snapshot("https://github.com/fixture/app", "token", real)
+    assert (root / "README.md").read_text(encoding="utf-8") == "mine\n"
+    assert secret not in (root / "README.md").read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_legacy_tag_match_must_be_unique_across_files(tmp_path, monkeypatch):
     run, root = _setup(tmp_path)
     for name in ("first.html", "second.html"):
