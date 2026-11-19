@@ -120,7 +120,10 @@ CONSOLE_OR_NETWORK = re.compile(
     re.I)
 # Network / browser load failures (not an HTTP status the site's own server returned).
 RESOURCE_LOAD_FAIL = re.compile(r"Failed to load resource|net::ERR_|NS_ERROR_", re.I)
-APP_JS_EXCEPTION = re.compile(r"JS exception|Uncaught |TypeError:|ReferenceError:|SyntaxError:", re.I)
+APP_JS_EXCEPTION = re.compile(
+    r"JS exception|Uncaught |TypeError:|ReferenceError:|SyntaxError:|RangeError:|URIError:|"
+    r"EvalError:|AggregateError:|InternalError:",
+    re.I)
 OWN_HTTP_STATUS = re.compile(r"^HTTP [45]\d\d\b")
 
 
