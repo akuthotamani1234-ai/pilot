@@ -61,10 +61,11 @@ def persist(session) -> None:
 
     if session.account_mode != "create":
         return
-    from .finalization import private_file, write_text_unless_linked
+    from .finalization import folder_is_linked, private_file, write_text_unless_linked
     root = Path(session.device.stop_path.parent)
-    if not root.is_symlink():
-        root.mkdir(parents=True, exist_ok=True)
+    if folder_is_linked(root):
+        return
+    root.mkdir(parents=True, exist_ok=True)
     secret_path = private_file(root, "auto_secrets.json")
     public = json.dumps(session.account_setup)
     if secret_path is None or not write_text_unless_linked(root, "account_setup.json", public):
