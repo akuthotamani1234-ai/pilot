@@ -92,3 +92,85 @@ def test_saved_tests_does_not_follow_a_link_into_another_run(tmp_path, monkeypat
     assert "SECRET" not in got["files"][0].read_text(encoding="utf-8")
     assert got["cases"] == [{"id": "ok"}]
     assert got["meta"]["origin"] == ""
+
+
+def test_saved_tests_does_not_copy_another_tenants_run(tmp_path, monkeypatch):
+    import backend.tenancy_store as tenancy
+
+    runs = tmp_path / "runs"
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(settings, "runs_dir", runs)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setenv("QPILOT_TENANT_ID", "t1")
+
+    def write_run(name, marker):
+        folder = runs / name / "generated_tests"
+        folder.mkdir(parents=True)
+        (folder / "test_case.py").write_text(f"MARKER = {marker!r}\n", encoding="utf-8")
+        (runs / name / "test_cases.json").write_text(json.dumps([{"id": marker}]), encoding="utf-8")
+
+    write_run("run-a", "mine")
+    write_run("run-b", "theirs")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://shop.test", verdict="Ready", db_path=db)
+
+    stolen = saved_tests("shop.test", from_run="run-b")
+    assert stolen is None
+    own = saved_tests("shop.test", from_run="run-a")
+    assert own is not None
+    assert own["cases"] == [{"id": "mine"}]
+    assert "theirs" not in own["files"][0].read_text(encoding="utf-8")
+
+
+def test_a_launch_does_not_reuse_another_tenants_run(monkeypatch, tmp_path):
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "check_target", lambda url, resolve=True: url)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://shop.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://shop.test", verdict="Ready", db_path=db)
+    captured = {}
+
+    class Proc:
+        pid = 7
+        returncode = 0
+        stdout = iter(())
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    def fake_popen(_cmd, **kwargs):
+        captured["reuse"] = kwargs["env"].get("REUSE_FROM_RUN")
+        captured["tenant"] = kwargs["env"].get("QPILOT_TENANT_ID")
+        return Proc()
+
+    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    kept = dict(server.jobs)
+    server.jobs.clear()
+    try:
+        server._launch_run(server.RunRequest(
+            source="https://shop.test/", authorized=True, llm_provider="none",
+            reuse_tests=True, reuse_from_run="run-b",
+        ), "admin-1")
+        assert captured["tenant"] == "t1"
+        assert captured.get("reuse") in (None, "")
+        server.jobs.clear()
+        server._launch_run(server.RunRequest(
+            source="https://shop.test/", authorized=True, llm_provider="none",
+            reuse_tests=True, reuse_from_run="run-a",
+        ), "admin-1")
+        assert captured["reuse"] == "run-a"
+    finally:
+        server.jobs.clear()
+        server.jobs.update(kept)
