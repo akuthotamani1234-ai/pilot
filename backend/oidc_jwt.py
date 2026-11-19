@@ -32,6 +32,30 @@ def _env(*names: str) -> str:
     return ""
 
 
+_SEEN_JTI: set[str] = set()
+_SEEN_JTI_MAX = 256
+
+
+def replay_jti_enabled() -> bool:
+    return (os.getenv("QPILOT_SSO_REPLAY_JTI") or "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def reset_seen_jti() -> None:
+    """Clear the process-local jti replay cache (tests and drills)."""
+    _SEEN_JTI.clear()
+
+
+def _jti_already_seen(jti: str) -> bool:
+    if jti in _SEEN_JTI:
+        return True
+    _SEEN_JTI.add(jti)
+    if len(_SEEN_JTI) > _SEEN_JTI_MAX:
+        _SEEN_JTI.pop()
+    return False
+
+
 def configured_claims() -> dict:
     return {
         "issuer": _env("QPILOT_OIDC_ISSUER", "BLOWAI_OIDC_ISSUER", "OIDC_ISSUER"),
@@ -96,6 +120,7 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
         "exp": payload.get("exp"),
         "email": payload.get("email"),
         "nonce": payload.get("nonce"),
+        "jti": payload.get("jti"),
     }
     if cfg["issuer"] and str(payload.get("iss") or "") != cfg["issuer"]:
         out["reason"] = f"iss mismatch (want {cfg['issuer']})"
@@ -114,6 +139,15 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
                 return out
         except (TypeError, ValueError):
             out["reason"] = "exp claim is not a number"
+            return out
+
+    if replay_jti_enabled():
+        jti = str(payload.get("jti") or "").strip()
+        if not jti:
+            out["reason"] = "jti required when QPILOT_SSO_REPLAY_JTI is set"
+            return out
+        if _jti_already_seen(jti):
+            out["reason"] = "jti replay rejected"
             return out
 
     if verify_signature and cfg["issuer"]:
