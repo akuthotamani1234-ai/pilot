@@ -315,6 +315,73 @@ def test_a_role_check_does_not_open_checkout_again(tmp_path, monkeypatch):
     assert pay not in code
 
 
+def test_a_generated_test_retries_a_cancelled_page_and_still_skips_checkout():
+    import ast
+    import re
+    from pathlib import Path
+
+    import pytest
+    src = Path("backend/templates/conftest.py").read_text(encoding="utf-8")
+    code = "\n\n".join(
+        ast.get_source_segment(src, node)
+        for node in ast.parse(src).body
+        if getattr(node, "name", None) in {"_payment_target", "_patched_goto"}
+    )
+    error = type("Error", (Exception,), {})
+    noted = []
+    ns = {"re": re, "pytest": pytest, "NAV_TIMEOUT_MS": 30000,
+          "_pw": type("Pw", (), {"Error": error})(),
+          "_the_website": lambda url: False, "CLOSE_CONSENT_JS": "",
+          "_did_not_open": lambda url, exc: noted.append(str(exc))}
+    exec(code, ns)
+    opened = []
+
+    class Page:
+        def get(self, url, **kwargs):
+            return type("Probe", (), {"status": 200, "headers": {}})()
+
+        @property
+        def request(self):
+            return self
+
+        def wait_for_load_state(self, *args, **kwargs):
+            return None
+
+        def evaluate(self, *args, **kwargs):
+            return False
+
+        def wait_for_timeout(self, *args, **kwargs):
+            return None
+
+    def real(self, url, **kwargs):
+        opened.append(url)
+        if opened.count(url) == 1:
+            raise error(f"Page.goto: net::ERR_ABORTED at {url}")
+        return type("Response", (), {"status": 200})()
+
+    goto = ns["_patched_goto"](real)
+    home = "https://shop.example/account"
+    response = goto(Page(), home, wait_until="commit")
+    assert response.status == 200
+    assert opened == [home, home]
+    assert noted == []
+    opened.clear()
+    pay = "https://shop.example/checkout"
+    with pytest.raises(pytest.skip.Exception):
+        goto(Page(), pay, wait_until="commit")
+    assert opened == []
+
+    def always(self, url, **kwargs):
+        opened.append(url)
+        raise error("Page.goto: net::ERR_ABORTED")
+
+    goto = ns["_patched_goto"](always)
+    with pytest.raises(error, match="ERR_ABORTED"):
+        goto(Page(), home, wait_until="commit")
+    assert opened == [home, home]
+    assert noted == ["Page.goto: net::ERR_ABORTED"]
+
+
 def test_a_generated_open_does_not_start_checkout():
     import ast
     import re
