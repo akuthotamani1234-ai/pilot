@@ -5,8 +5,10 @@ from pathlib import Path
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
-    """Tiny .env loader so we don't need an extra dependency."""
-    if not path.exists():
+    """Tiny .env loader so we don't need an extra dependency. A link is not this install's settings."""
+    from .finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path) or not path.is_file():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
