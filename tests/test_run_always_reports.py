@@ -223,6 +223,39 @@ def test_ai_usage_does_not_follow_a_link_into_another_run(tmp_path):
     assert cost.read_usage(fresh)[0]["agent"] == "vision"
 
 
+def test_a_cost_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend import cost
+
+    secret = b"tenant-b-only-cost"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "llm_usage.jsonl").write_bytes(secret)
+    (nested / "cost.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    cost.set_run_dir(linked / "run")
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    report = cost.write_report(linked / "run", [], [])
+    assert (nested / "llm_usage.jsonl").read_bytes() == secret
+    assert (nested / "cost.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert secret.decode() not in json.dumps(report)
+    assert cost.read_usage(linked / "run") == []
+
+    real = tmp_path / "real"
+    real.mkdir()
+    cost.set_run_dir(real)
+    cost.record("reporter", "https://shop.example", "test_home", 1, 2, 0.1, True)
+    written = cost.write_report(real, [], [])
+    usage = (real / "llm_usage.jsonl").read_text(encoding="utf-8")
+    saved = (real / "cost.json").read_text(encoding="utf-8")
+    assert "reporter" in usage and secret.decode() not in usage
+    assert written["tests_executed"] == 0 and secret.decode() not in saved
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_project_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import sys
 

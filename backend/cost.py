@@ -62,9 +62,10 @@ def set_run_dir(run_dir: Path, resume: bool = False) -> None:
 
 
 def _usage_file(run_dir: Path) -> Path | None:
+    from .finalization import folder_is_linked
     run_dir = Path(run_dir)
     path = run_dir / "llm_usage.jsonl"
-    if run_dir.is_symlink() or path.is_symlink():
+    if folder_is_linked(run_dir) or path.is_symlink():
         return None
     return path
 
@@ -180,8 +181,9 @@ def write_report(run_dir: Path, cases: list[dict], results: list[dict] | None) -
         "by_agent": {a: totals(cs) for a, cs in agents.items()},
         "per_case": cases_cost,
     }
+    from .finalization import folder_is_linked
     path = Path(run_dir) / "cost.json"
-    if not Path(run_dir).is_symlink() and not path.is_symlink():
+    if not folder_is_linked(Path(run_dir)) and not path.is_symlink():
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
