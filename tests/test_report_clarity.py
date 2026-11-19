@@ -428,3 +428,45 @@ def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_anothe
     assert (real / "integrations.json").is_symlink()
     assert json.loads((other / "integrations.json").read_text(encoding="utf-8"))["secret"] == secret
     assert all(secret.encode() not in body for body in bodies)
+
+
+def test_a_consistency_check_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-created"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "created.json").write_text(json.dumps({
+        "created": 77, "deleted": 70, "left": [secret],
+    }), encoding="utf-8")
+    (nested / "app_map.json").write_text(json.dumps([
+        {"frames": [{"status": "testable"} for _ in range(9)]},
+    ]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = json.dumps(metrics.more_checks(None, linked / "run" / "generated_tests"))
+    assert "77 = 70" not in refused
+    assert "9 + 0 + 0 = 9" not in refused
+    assert secret not in refused
+    file_run = tmp_path / "file-link" / "run"
+    (file_run / "generated_tests").mkdir(parents=True)
+    (file_run / "created.json").symlink_to(nested / "created.json")
+    (file_run / "app_map.json").symlink_to(nested / "app_map.json")
+    refused_file = json.dumps(metrics.more_checks(None, file_run / "generated_tests"))
+    assert "77 = 70" not in refused_file
+    assert "9 + 0 + 0 = 9" not in refused_file
+    assert secret in (nested / "created.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "run"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "created.json").write_text(json.dumps({
+        "created": 1, "deleted": 0, "left": ["home-own"],
+    }), encoding="utf-8")
+    (real / "app_map.json").write_text(json.dumps([
+        {"frames": [{"status": "testable"}]},
+    ]), encoding="utf-8")
+    own = json.dumps(metrics.more_checks(None, real / "generated_tests"))
+    assert "1 = 0 + 1" in own
+    assert "1 + 0 + 0 = 1" in own
+    assert secret not in own
+    assert secret in (nested / "created.json").read_text(encoding="utf-8")

@@ -577,3 +577,30 @@ def test_an_android_stop_note_is_not_read_through_a_link_into_another_folder(tmp
     assert ns["_unavailable_note"]() == "home-own"
     assert secret not in ns["_unavailable_note"]()
     assert secret in note.read_text(encoding="utf-8")
+
+
+def test_a_saved_role_list_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import saved_roles
+
+    secret = "tenant-b-only-role"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "roles.json").write_text(json.dumps({"clerk": {"note": secret}}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert saved_roles(linked / "run") == {}
+    run = tmp_path / "file-link"
+    run.mkdir()
+    (run / "roles.json").symlink_to(nested / "roles.json")
+    assert saved_roles(run) == {}
+    assert secret in (nested / "roles.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "roles.json").write_text(json.dumps({"clerk": {"note": "home-own"}}), encoding="utf-8")
+    loaded = saved_roles(real)
+    assert loaded["clerk"]["note"] == "home-own"
+    assert secret not in json.dumps(loaded)
+    assert secret in (nested / "roles.json").read_text(encoding="utf-8")
