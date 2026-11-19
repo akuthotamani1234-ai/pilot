@@ -141,6 +141,123 @@ def payment_redirect(fetch, address: str, *, base: str = "", timeout: int = 1000
     return blocked
 
 
+_REDIRECTS = {301, 302, 303, 307, 308}
+_DROP_HEADERS = {"content-encoding", "content-length", "transfer-encoding"}
+
+
+def _fulfill(route, response, body: bytes | None = None) -> None:
+    """Pass a fetched response to the browser. A modified body drops encoding headers."""
+    if body is None:
+        route.fulfill(response=response)
+        return
+    headers = {k: v for k, v in dict(response.headers).items() if k.lower() not in _DROP_HEADERS}
+    route.fulfill(status=response.status, headers=headers, body=body)
+
+
+def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domcontentloaded"):
+    """Open one page in the browser. Return ``(response, blocked_url)``.
+
+    The browser's own navigation is the request that can be cancelled, so an
+    HTTP 204 still reaches Chrome and the crawl can try the page once more.
+    A redirect or immediate refresh into checkout is aborted before that
+    document is requested. A URL that is already checkout is opened as-is.
+    """
+    from urllib.parse import urljoin
+
+    from .swarm import is_payment_url
+
+    if is_payment_url(url):
+        return page.goto(url, wait_until=wait_until, timeout=timeout), ""
+
+    blocked = {"url": ""}
+    hops = {"n": 0}
+
+    def handle(route):
+        req = route.request
+        try:
+            top = (req.resource_type == "document" and req.is_navigation_request()
+                   and req.frame.parent_frame is None)
+        except Exception:
+            top = False
+        if not top or blocked["url"]:
+            route.continue_()
+            return
+        if is_payment_url(req.url):
+            blocked["url"] = req.url
+            try:
+                route.abort("blockedbyclient")
+            except Exception:
+                pass
+            return
+        hops["n"] += 1
+        if hops["n"] > 5:
+            blocked["url"] = req.url
+            try:
+                route.abort("blockedbyclient")
+            except Exception:
+                pass
+            return
+        try:
+            response = route.fetch(max_redirects=0, timeout=timeout)
+        except Exception:
+            route.continue_()
+            return
+        status = getattr(response, "status", None)
+        headers = getattr(response, "headers", None) or {}
+        if status in _REDIRECTS:
+            location = headers.get("location") or headers.get("Location") or ""
+            nxt = urljoin(req.url, location) if location else ""
+            if not nxt or is_payment_url(nxt):
+                blocked["url"] = nxt or req.url
+                try:
+                    route.abort("blockedbyclient")
+                except Exception:
+                    pass
+                return
+            _fulfill(route, response)
+            return
+        nxt = header_refresh_url(response, req.url)
+        if status in (204, 205):
+            if nxt and nxt != req.url and is_payment_url(nxt):
+                blocked["url"] = nxt
+                try:
+                    route.abort("blockedbyclient")
+                except Exception:
+                    pass
+                return
+            _fulfill(route, response)
+            return
+        try:
+            body = response.body()
+        except Exception:
+            body = b""
+        html = body[:8000].decode("utf-8", "replace")
+        nxt = nxt or meta_refresh_url(html, req.url)
+        if nxt and nxt != req.url and is_payment_url(nxt):
+            blocked["url"] = nxt
+            try:
+                route.abort("blockedbyclient")
+            except Exception:
+                pass
+            return
+        _fulfill(route, response, body)
+
+    page.route("**/*", handle)
+    try:
+        try:
+            response = page.goto(url, wait_until=wait_until, timeout=timeout)
+        except Exception:
+            if blocked["url"]:
+                return None, blocked["url"]
+            raise
+        return response, blocked["url"]
+    finally:
+        try:
+            page.unroute("**/*", handle)
+        except Exception:
+            pass
+
+
 def opens_checkout(fetch, address: str, *, base: str = "", timeout: int = 10000) -> str:
     """The checkout address this GET would open, including an address that already is checkout.
 

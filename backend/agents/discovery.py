@@ -2301,22 +2301,20 @@ def discovery_agent(state: QAState) -> QAState:
             entry = {"url": url, "depth": depth, "slug": slug, "auth": auth,
                      "screenshot": shot_path.relative_to(run_dir).as_posix(),
                      "found_by": found_by.get(url, "start" if depth == 0 else "link")}
-            pay_to = refuse_checkout_redirect(page, url, settings.page_timeout_ms)
-            if pay_to:
-                used_slugs.discard(slug)
-                skipped[url] = "checkout, payment and placing an order are never tested"
-                routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
-                print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
-                continue
             t0 = time.time()
             try:
+                from ..payment_nav import navigate_for_crawl
+
+                def _open(limit, wait="domcontentloaded"):
+                    return navigate_for_crawl(page, url, timeout=limit, wait_until=wait)
+
                 pace.wait()  # (polite speed: MAX_REQUESTS_PER_SEC, slower after HTTP 429 / 503)
                 try:
-                    resp = page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    resp, pay_to = _open(settings.page_timeout_ms)
                 except PageTimeout:  # a slow answer once (a busy demo server): one more try, with twice the time
                     print(f"      ↳ slow to open - trying once more with {2 * settings.page_timeout_ms // 1000} s",
                           flush=True)
-                    resp = page.goto(url, wait_until="commit", timeout=2 * settings.page_timeout_ms)
+                    resp, pay_to = _open(2 * settings.page_timeout_ms, "commit")
                     try:
                         page.wait_for_load_state("domcontentloaded", timeout=2 * settings.page_timeout_ms)
                     except PageTimeout:
@@ -2327,8 +2325,20 @@ def discovery_agent(state: QAState) -> QAState:
                             raise
                         entry["still_loading"] = True
                         print("      ↳ the page shows but never finished loading - testing it as it shows", flush=True)
+                if pay_to:
+                    used_slugs.discard(slug)
+                    skipped[url] = "checkout, payment and placing an order are never tested"
+                    routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
+                    print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
+                    continue
                 if resp is not None and resp.status in (429, 503) and pace.back_off(resp.status):
-                    resp = page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    resp, pay_to = _open(settings.page_timeout_ms)
+                    if pay_to:
+                        used_slugs.discard(slug)
+                        skipped[url] = "checkout, payment and placing an order are never tested"
+                        routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
+                        print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
+                        continue
                 try:
                     page.wait_for_load_state("networkidle", timeout=5000)
                 except Exception:
