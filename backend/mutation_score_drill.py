@@ -58,7 +58,9 @@ def _linked_drill() -> dict:
 
 
 def run_mutation_score_drill(*, ops_dir: Path | None = None) -> dict:
-    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+    out_name = "mutation_score_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     reported = _reported(RUN7)
     source = _source(RUN7)
@@ -85,12 +87,10 @@ def run_mutation_score_drill(*, ops_dir: Path | None = None) -> dict:
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    out = (Path(ops_dir) / "mutation_score_drill.json") if ops_dir else EVIDENCE
-    if folder_is_linked(dest) or folder_is_linked(out):
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)
-    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
         return _linked_drill()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "mutation_score_drill.json"
