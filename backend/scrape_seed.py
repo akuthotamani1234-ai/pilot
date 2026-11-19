@@ -60,7 +60,13 @@ def _get_text(fetcher, url: str, timeout_ms: int = 15000) -> str:
     """fetcher: callable(url) -> text, or Playwright APIRequestContext-like with .get."""
     if callable(fetcher) and not hasattr(fetcher, "get"):
         return fetcher(url) or ""
-    r = fetcher.get(url, timeout=timeout_ms)
+    from .payment_nav import read_safe
+    try:
+        r = read_safe(fetcher.get, url, timeout=timeout_ms)
+    except TypeError:
+        r = fetcher.get(url, timeout=timeout_ms)
+    if r is None:
+        return ""
     ok = getattr(r, "ok", None)
     if ok is False:
         return ""
