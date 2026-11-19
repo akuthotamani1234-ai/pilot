@@ -41,6 +41,8 @@ def _run_dir(state):
 
 def _execution_is_linked(run_dir: Path) -> bool:
     """True when execution would read or delete a file through a link."""
+    if _folder_is_linked(run_dir):
+        return True
     paths = (
         run_dir, run_dir / ".private", run_dir / "generated_tests", run_dir / "STOP",
         run_dir / "generated_tests" / "test_android_generated.py",
@@ -60,7 +62,7 @@ def _execution_is_linked(run_dir: Path) -> bool:
 def _save_json(path, data):
     # Keep package_name / app package ids valid; substring username redaction must not break them.
     path = Path(path)
-    if path.is_symlink() or path.parent.is_symlink():
+    if path.is_symlink() or _folder_is_linked(path.parent):
         return
     path.write_text(redact_json(data), encoding="utf-8")
 
