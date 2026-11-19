@@ -1,6 +1,6 @@
 # Independent review summary (unsigned)
 
-Generated: 2026-11-19T05:36:15Z
+Generated: 2026-11-19T05:42:46Z
 
 This summary is **not** a sign-off. An independent reviewer must complete
 `docs/INDEPENDENT_REVIEW_CHECKLIST.md` before Gate G can close.
@@ -8,23 +8,23 @@ This summary is **not** a sign-off. An independent reviewer must complete
 ## Readiness
 
 - Score: 5/5
-- Evidence artifacts hashed: 142
+- Evidence artifacts hashed: 149
 - Hard-open blockers: 6
 - signed_off: False
 
 ## Hard-open blockers
 
-- **H-drills** (Gate H): Live hosted multi-region DR / on-call paging — local partial 17/17
-- **I-auth** (Gate I): Live hosted IdP Studio SSO login + multi-tenant ACLs — local partial 20/20
-- **E-live-matrix** (Gate E): Production failure matrix / healing suite — local partial 14/14
-- **D-android** (Gate D): Broad multi-device CI Appium product-matrix artifacts — local partial 16/16
-- **F-live-ci** (Gate F): Broad hosted multi-browser portfolio CI artifacts — local partial 13/13
-- **G-review** (Gate G): Independent security/reliability review sign-off — local partial 17/17
+- **H-drills** (Gate H): Live hosted multi-region DR / on-call paging — local partial 18/18
+- **I-auth** (Gate I): Live hosted IdP Studio SSO login + multi-tenant ACLs — local partial 21/21
+- **E-live-matrix** (Gate E): Production failure matrix / healing suite — local partial 16/16
+- **D-android** (Gate D): Broad multi-device CI Appium product-matrix artifacts — local partial 17/17
+- **F-live-ci** (Gate F): Broad hosted multi-browser portfolio CI artifacts — local partial 14/14
+- **G-review** (Gate G): Independent security/reliability review sign-off — local partial 19/19
 
 ## Evidence pack
 
 - Checklist: docs/INDEPENDENT_REVIEW_CHECKLIST.md
-- Pack drill: `independent_review_pack.json` (142 files)
+- Pack drill: `independent_review_pack.json` (149 files)
 - Readiness: `independent_review_readiness_drill.json`
 
 ## Rule

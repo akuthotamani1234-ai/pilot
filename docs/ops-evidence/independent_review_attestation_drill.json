@@ -1,13 +1,13 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_attestation",
-  "ran_at": "2026-11-19T05:36:15Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "signed_off": false,
   "attestation": {
     "title": "Qpilot X Independent Review Attestation",
     "scope": "Gates A\u2013J evidence pack for security/reliability review",
-    "integrity_sha256": "815fcb42b503be82336b559e83de8e3cff8337f19fc8f66dbb1cc42cbf5e4327",
-    "catalog_entries": 146,
+    "integrity_sha256": "9db76680b19f44f751bb16e6c39b196a56b7cb7c589da648c420093a1e7f8eea",
+    "catalog_entries": 153,
     "reviewer_name": "",
     "reviewer_org": "",
     "signed_at": "",

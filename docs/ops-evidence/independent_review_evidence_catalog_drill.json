@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T05:36:15Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "signed_off": false,
   "entries": [
     {
@@ -69,7 +69,7 @@
     },
     {
       "name": "android_device_ci_readiness_pack_drill.json",
-      "bytes": 1847,
+      "bytes": 1982,
       "gates": [
         "gate_d"
       ]
@@ -132,7 +132,7 @@
     },
     {
       "name": "browser_portfolio_ci_readiness_pack_drill.json",
-      "bytes": 2002,
+      "bytes": 2137,
       "gates": [
         "gate_f"
       ]
@@ -270,7 +270,7 @@
     },
     {
       "name": "failover_rto_drill.json",
-      "bytes": 1062,
+      "bytes": 1061,
       "gates": [
         "gate_h"
       ]
@@ -325,8 +325,22 @@
       ]
     },
     {
+      "name": "hosted_ci_timeout_budget_drill.json",
+      "bytes": 696,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
       "name": "hosted_dispatch_payload_rehearsal_drill.json",
       "bytes": 1035,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "hosted_dr_comms_contract_drill.json",
+      "bytes": 1274,
       "gates": [
         "untagged"
       ]
@@ -361,7 +375,7 @@
     },
     {
       "name": "hosted_idp_readiness_drill.json",
-      "bytes": 2431,
+      "bytes": 2564,
       "gates": [
         "gate_i"
       ]
@@ -382,7 +396,7 @@
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
-      "bytes": 2383,
+      "bytes": 2525,
       "gates": [
         "gate_h"
       ]
@@ -403,7 +417,7 @@
     },
     {
       "name": "hosted_runner_readiness_drill.json",
-      "bytes": 3783,
+      "bytes": 4073,
       "gates": [
         "gate_d"
       ]
@@ -438,7 +452,7 @@
     },
     {
       "name": "independent_review_blocker_freeze_drill.json",
-      "bytes": 1802,
+      "bytes": 1869,
       "gates": [
         "gate_g"
       ]
@@ -452,7 +466,14 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 19154,
+      "bytes": 20104,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_findings_freeze_drill.json",
+      "bytes": 634,
       "gates": [
         "gate_g"
       ]
@@ -466,7 +487,7 @@
     },
     {
       "name": "independent_review_handoff_pack_drill.json",
-      "bytes": 438,
+      "bytes": 464,
       "gates": [
         "gate_g"
       ]
@@ -480,7 +501,7 @@
     },
     {
       "name": "independent_review_pack.json",
-      "bytes": 24145,
+      "bytes": 25378,
       "gates": [
         "gate_g"
       ]
@@ -523,6 +544,13 @@
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_reviewer_roster_contract_drill.json",
+      "bytes": 1185,
       "gates": [
         "gate_g"
       ]
@@ -760,7 +788,7 @@
     },
     {
       "name": "perf_portfolio_drill.json",
-      "bytes": 774,
+      "bytes": 772,
       "gates": [
         "gate_f"
       ]
@@ -795,7 +823,7 @@
     },
     {
       "name": "production_healing_acceptance_gate_drill.json",
-      "bytes": 2080,
+      "bytes": 2664,
       "gates": [
         "gate_e"
       ]
@@ -822,6 +850,13 @@
       ]
     },
     {
+      "name": "production_healing_human_loop_contract_drill.json",
+      "bytes": 1325,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "production_healing_matrix_drill.json",
       "bytes": 8693,
       "gates": [
@@ -830,7 +865,7 @@
     },
     {
       "name": "production_healing_readiness_drill.json",
-      "bytes": 2008,
+      "bytes": 2302,
       "gates": [
         "gate_e"
       ]
@@ -838,6 +873,13 @@
     {
       "name": "production_healing_replay_pack_drill.json",
       "bytes": 1749,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "production_healing_rollback_policy_drill.json",
+      "bytes": 1293,
       "gates": [
         "gate_e"
       ]
@@ -916,7 +958,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 11207,
+      "bytes": 12051,
       "gates": [
         "gate_g"
       ]
@@ -958,7 +1000,7 @@
     },
     {
       "name": "studio_sso_login_path_drill.json",
-      "bytes": 2206,
+      "bytes": 2759,
       "gates": [
         "gate_i"
       ]
@@ -973,6 +1015,13 @@
     {
       "name": "studio_sso_session_rebind_drill.json",
       "bytes": 428,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "studio_sso_state_binding_drill.json",
+      "bytes": 446,
       "gates": [
         "gate_i"
       ]
@@ -1035,20 +1084,20 @@
       ]
     }
   ],
-  "entry_count": 146,
+  "entry_count": 153,
   "by_gate": {
-    "gate_g": 19,
+    "gate_g": 21,
     "gate_f": 10,
     "gate_c": 6,
     "gate_d": 15,
-    "untagged": 27,
+    "untagged": 29,
     "gate_j": 4,
     "gate_b": 6,
-    "gate_i": 22,
-    "gate_e": 16,
+    "gate_i": 23,
+    "gate_e": 18,
     "gate_h": 23,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 146 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 153 files; signed_off remains False until external review"
 }

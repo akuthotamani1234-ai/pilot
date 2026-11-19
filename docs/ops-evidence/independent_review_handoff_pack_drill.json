@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_handoff_pack",
-  "ran_at": "2026-11-19T05:36:15Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "kind": "unsigned_ops_pack",
   "parts": {
     "request": true,
@@ -9,10 +9,12 @@
     "summary": true,
     "scope_matrix": true,
     "blocker_freeze": true,
-    "response_sla": true
+    "response_sla": true,
+    "roster": true,
+    "findings_freeze": true
   },
   "signed_off": false,
-  "elapsed_ms": 56,
+  "elapsed_ms": 59,
   "ok": true,
-  "reason": "Independent review handoff pack ok in 56ms (unsigned); external sign-off still open"
+  "reason": "Independent review handoff pack ok in 59ms (unsigned); external sign-off still open"
 }

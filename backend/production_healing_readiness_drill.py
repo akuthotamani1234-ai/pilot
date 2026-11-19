@@ -27,6 +27,7 @@ CHECKS = (
     ("production_healing_seed_catalog_drill.json", "Seed catalog (local)"),
     ("production_healing_fixture_coverage_drill.json", "Fixture coverage map"),
     ("production_healing_rollback_policy_drill.json", "Rollback / no-apply policy"),
+    ("production_healing_human_loop_contract_drill.json", "Human-in-the-loop contract"),
 )
 
 

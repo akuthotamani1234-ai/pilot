@@ -1,0 +1,51 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_human_loop_contract",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "kind": "contract_local_only",
+  "classes": [
+    {
+      "id": "locator",
+      "auto_apply": true,
+      "human_required": false
+    },
+    {
+      "id": "flaky",
+      "auto_apply": false,
+      "human_required": true
+    },
+    {
+      "id": "auth_problem",
+      "auto_apply": false,
+      "human_required": true
+    },
+    {
+      "id": "infrastructure",
+      "auto_apply": false,
+      "human_required": true
+    },
+    {
+      "id": "product_defect",
+      "auto_apply": false,
+      "human_required": true
+    },
+    {
+      "id": "timeout",
+      "auto_apply": false,
+      "human_required": true
+    }
+  ],
+  "approval_channel": "studio_approvals",
+  "production_suite_executed": false,
+  "local_partial_present": [
+    "production_healing_flaky_policy_drill.json",
+    "production_healing_rollback_policy_drill.json",
+    "production_healing_taxonomy_drill.json",
+    "production_healing_acceptance_gate_drill.json",
+    "production_healing_third_party_sla_drill.json",
+    "healing_regression_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Production healing human-loop contract recorded (6/6 local partials); production / third-party healing suite still open"
+}

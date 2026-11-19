@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_blocker_freeze",
-  "ran_at": "2026-11-19T05:41:05Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "kind": "unsigned_freeze",
   "freeze": {
     "open_count": 6,
@@ -27,7 +27,7 @@
         "gate": "E",
         "label": "Production failure matrix / healing suite",
         "status": "open",
-        "local_partial_count": 15,
+        "local_partial_count": 16,
         "local_partial_missing": []
       },
       {
@@ -51,13 +51,13 @@
         "gate": "G",
         "label": "Independent security/reliability review sign-off",
         "status": "open",
-        "local_partial_count": 18,
+        "local_partial_count": 19,
         "local_partial_missing": []
       }
     ]
   },
-  "freeze_sha256": "0e6365c84c1d38f50f0338c710bcc48aa0059b364e717ddb53fc375b881675e0",
+  "freeze_sha256": "9402083e8485a9836e4c035424f4f94deac0834d1fbedc244f53aea65e804a95",
   "signed_off": false,
   "ok": true,
-  "reason": "Blocker freeze 0e6365c84c1d\u2026 (6 open); external sign-off still open"
+  "reason": "Blocker freeze 9402083e8485\u2026 (6 open); external sign-off still open"
 }

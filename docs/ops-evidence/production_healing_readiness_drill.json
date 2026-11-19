@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_readiness",
-  "ran_at": "2026-11-19T05:37:35Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "kind": "readiness_score_only",
-  "score": 13,
-  "score_of": 13,
+  "score": 14,
+  "score_of": 14,
   "checks": [
     {
       "artifact": "live_failure_matrix_drill.json",
@@ -70,9 +70,14 @@
       "artifact": "production_healing_rollback_policy_drill.json",
       "label": "Rollback / no-apply policy",
       "ready": true
+    },
+    {
+      "artifact": "production_healing_human_loop_contract_drill.json",
+      "label": "Human-in-the-loop contract",
+      "ready": true
     }
   ],
   "production_suite_executed": false,
   "ok": true,
-  "reason": "Production healing readiness 13/13; production / third-party healing suite still open"
+  "reason": "Production healing readiness 14/14; production / third-party healing suite still open"
 }

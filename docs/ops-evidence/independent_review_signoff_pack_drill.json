@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_signoff_pack",
-  "ran_at": "2026-11-19T05:36:15Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "kind": "unsigned_ops_pack",
   "parts": {
     "catalog": true,
@@ -9,7 +9,7 @@
     "attestation": true
   },
   "signed_off": false,
-  "elapsed_ms": 32,
+  "elapsed_ms": 33,
   "ok": true,
-  "reason": "Independent review sign-off pack ok in 32ms (unsigned); external sign-off still open"
+  "reason": "Independent review sign-off pack ok in 33ms (unsigned); external sign-off still open"
 }
