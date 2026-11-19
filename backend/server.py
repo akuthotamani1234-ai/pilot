@@ -113,8 +113,9 @@ DASHBOARD_DIST = STATIC / "dashboard" / "dist"
 @app.get("/dashboard/")
 def dashboard_home():
     """Gate I React/TS dashboard. Serves the Vite build when present."""
+    from .finalization import folder_is_linked
     index = DASHBOARD_DIST / "index.html"
-    if index.is_file():
+    if not folder_is_linked(index) and index.is_file():
         return FileResponse(index)
     return HTMLResponse(
         "<!doctype html><title>Qpilot Enterprise</title>"
@@ -681,10 +682,26 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
 
 # ------------------------------------------------------------------ API
 
+def _studio_file(name: str) -> Path | None:
+    """A real Studio file. A link, or a name that leaves the frontend folder, is refused."""
+    from .finalization import folder_is_linked
+    path = STATIC / name
+    if (not name or Path(name).is_absolute() or ".." in Path(name).parts
+            or folder_is_linked(path) or not path.is_file()):
+        return None
+    return path
+
+
 def _ui_asset_digests() -> dict[str, str]:
     names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css", "qpilot.css",
              "execution.js", "repository.js", "workspace.js", "android-workspace.js", "android-scenarios.js", "mcp-settings.js")
-    return {name: hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12] for name in names}
+    out = {}
+    for name in names:
+        path = _studio_file(name)
+        if path is None:
+            continue
+        out[name] = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    return out
 
 
 @app.get("/api/ui-build")
@@ -697,7 +714,10 @@ def ui_build():
 @app.get("/")
 def home():
     """Chat page: type a URL, pick the AI, follow the to-do list as each step gets its tick."""
-    html = (STATIC / "chat.html").read_text(encoding="utf-8")
+    page = _studio_file("chat.html")
+    if page is None:
+        raise HTTPException(404, "The Studio page is a link.")
+    html = page.read_text(encoding="utf-8")
     digests = _ui_asset_digests()
     for name, digest in digests.items():
         html = html.replace("/static/" + name, "/static/" + name + "?v=" + digest)
@@ -4747,7 +4767,10 @@ def _take_over(port: int) -> str:
 
 @app.get("/qa-lab")
 def qa_lab():
-    return FileResponse(STATIC / "qa-lab.html")
+    page = _studio_file("qa-lab.html")
+    if page is None:
+        raise HTTPException(404, "The Studio page is a link.")
+    return FileResponse(page)
 
 
 @app.get("/api/contracts/schema")
