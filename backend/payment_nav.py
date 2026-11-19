@@ -23,28 +23,38 @@ def _response_html(response) -> str:
     return raw
 
 
-def _refresh_target(value: str, base: str) -> str:
-    """The address in a refresh delay, or '' when it is missing or not immediate."""
+def _refresh_target(value: str, base: str, *, payment_any_delay: bool = False) -> str:
+    """The address in a refresh delay, or '' when it is missing or not immediate.
+
+    A refresh into checkout is returned even when the delay is longer than a second.
+    A slow refresh to any other page stays ignored.
+    """
     from urllib.parse import urljoin
 
     delay = re.match(r"\s*(\d+)", value or "")
-    if delay and int(delay.group(1)) > 1:
-        return ""
+    slow = bool(delay and int(delay.group(1)) > 1)
     target = _REFRESH_URL.search(value or "")
     if not target:
         return ""
-    return urljoin(base, target.group(1).strip())
+    found = urljoin(base, target.group(1).strip())
+    if slow:
+        if not payment_any_delay:
+            return ""
+        from .swarm import is_payment_url
+        if not is_payment_url(found):
+            return ""
+    return found
 
 
-def header_refresh_url(response, base: str) -> str:
+def header_refresh_url(response, base: str, *, payment_any_delay: bool = False) -> str:
     """The address in a Refresh response header, or '' when the header is absent."""
     headers = getattr(response, "headers", None) or {}
     raw = headers.get("refresh") or headers.get("Refresh") or ""
-    return _refresh_target(str(raw), base)
+    return _refresh_target(str(raw), base, payment_any_delay=payment_any_delay)
 
 
-def meta_refresh_url(html: str, base: str) -> str:
-    """The immediate meta-refresh address, or '' when the page does not refresh."""
+def meta_refresh_url(html: str, base: str, *, payment_any_delay: bool = False) -> str:
+    """The immediate meta-refresh address, or a later one when it enters checkout."""
     if not html or "refresh" not in html.lower():
         return ""
     for attrs in _META_TAG.findall(html):
@@ -54,7 +64,7 @@ def meta_refresh_url(html: str, base: str) -> str:
         if not found:
             continue
         value = found.group(2) if found.group(2) is not None else (found.group(3) or "")
-        target = _refresh_target(value, base)
+        target = _refresh_target(value, base, payment_any_delay=payment_any_delay)
         if target:
             return target
     return ""
@@ -77,8 +87,8 @@ def _walk(fetch, address: str, *, base: str = "", timeout: int = 10000):
     for _hop in range(5):
         response = fetch(current, max_redirects=0, timeout=timeout)
         if getattr(response, "status", None) not in {301, 302, 303, 307, 308}:
-            nxt = header_refresh_url(response, current) or meta_refresh_url(
-                _response_html(response), current)
+            nxt = header_refresh_url(response, current, payment_any_delay=True) or meta_refresh_url(
+                _response_html(response), current, payment_any_delay=True)
             if not nxt or nxt == current:
                 return current, "", response
             if is_payment_url(nxt):
@@ -159,7 +169,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
 
     The browser's own navigation is the request that can be cancelled, so an
     HTTP 204 still reaches Chrome and the crawl can try the page once more.
-    A redirect or immediate refresh into checkout is aborted before that
+    A redirect or a refresh into checkout is aborted before that
     document is requested. A URL that is already checkout is opened as-is.
     """
     from urllib.parse import urljoin
@@ -216,7 +226,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
                 return
             _fulfill(route, response)
             return
-        nxt = header_refresh_url(response, req.url)
+        nxt = header_refresh_url(response, req.url, payment_any_delay=True)
         if status in (204, 205):
             if nxt and nxt != req.url and is_payment_url(nxt):
                 blocked["url"] = nxt
@@ -232,7 +242,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
         except Exception:
             body = b""
         html = body[:8000].decode("utf-8", "replace")
-        nxt = nxt or meta_refresh_url(html, req.url)
+        nxt = nxt or meta_refresh_url(html, req.url, payment_any_delay=True)
         if nxt and nxt != req.url and is_payment_url(nxt):
             blocked["url"] = nxt
             try:
