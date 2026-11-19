@@ -1979,6 +1979,21 @@ def ops_independent_review_scope_matrix():
     return {"gate_g_complete": False, "independent_review_scope_matrix": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-blocker-freeze")
+def ops_independent_review_blocker_freeze():
+    """Gate G: freeze hard-open blockers inventory hash (unsigned)."""
+    from backend.independent_review_blocker_freeze_drill import (
+        run_independent_review_blocker_freeze_drill,
+    )
+    evidence = run_independent_review_blocker_freeze_drill()
+    _audit(
+        "ops_independent_review_blocker_freeze",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_blocker_freeze": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
@@ -2067,6 +2082,21 @@ def ops_hosted_dr_cutover_checklist():
         live=bool(evidence.get("live_hosted_dr")),
     )
     return {"gate_h_complete": False, "hosted_dr_cutover_checklist": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-rota-contract")
+def ops_hosted_oncall_rota_contract():
+    """Gate H: hosted on-call rota contract (hosted paging still open)."""
+    from backend.hosted_oncall_rota_contract_drill import (
+        run_hosted_oncall_rota_contract_drill,
+    )
+    evidence = run_hosted_oncall_rota_contract_drill()
+    _audit(
+        "ops_hosted_oncall_rota_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_rota_contract": evidence}
 
 
 @app.post("/api/ops/drills/hosted-ci-artifact-gate-pack")

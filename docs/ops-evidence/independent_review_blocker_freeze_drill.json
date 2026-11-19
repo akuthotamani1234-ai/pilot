@@ -1,0 +1,63 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_blocker_freeze",
+  "ran_at": "2026-11-19T05:00:31Z",
+  "kind": "unsigned_freeze",
+  "freeze": {
+    "open_count": 6,
+    "blockers": [
+      {
+        "id": "H-drills",
+        "gate": "H",
+        "label": "Live hosted multi-region DR / on-call paging",
+        "status": "open",
+        "local_partial_count": 16,
+        "local_partial_missing": []
+      },
+      {
+        "id": "I-auth",
+        "gate": "I",
+        "label": "Live hosted IdP Studio SSO login + multi-tenant ACLs",
+        "status": "open",
+        "local_partial_count": 17,
+        "local_partial_missing": []
+      },
+      {
+        "id": "E-live-matrix",
+        "gate": "E",
+        "label": "Production failure matrix / healing suite",
+        "status": "open",
+        "local_partial_count": 12,
+        "local_partial_missing": []
+      },
+      {
+        "id": "D-android",
+        "gate": "D",
+        "label": "Broad multi-device CI Appium product-matrix artifacts",
+        "status": "open",
+        "local_partial_count": 14,
+        "local_partial_missing": []
+      },
+      {
+        "id": "F-live-ci",
+        "gate": "F",
+        "label": "Broad hosted multi-browser portfolio CI artifacts",
+        "status": "open",
+        "local_partial_count": 11,
+        "local_partial_missing": []
+      },
+      {
+        "id": "G-review",
+        "gate": "G",
+        "label": "Independent security/reliability review sign-off",
+        "status": "open",
+        "local_partial_count": 16,
+        "local_partial_missing": []
+      }
+    ]
+  },
+  "freeze_sha256": "8050cd1e7ef04ffbf185dd36703b37e593ffa8394a0d05373d80ad5df45e9a29",
+  "signed_off": false,
+  "ok": true,
+  "reason": "Blocker freeze 8050cd1e7ef0\u2026 (6 open); external sign-off still open"
+}

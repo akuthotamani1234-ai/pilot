@@ -26,6 +26,7 @@ CHECKS = (
     ("dual_region_store_health_probe_drill.json", "Dual-region store health probe"),
     ("hosted_dr_cutover_checklist_drill.json", "Hosted DR cutover checklist"),
     ("multi_region_dr_readiness_pack_drill.json", "Multi-region DR readiness pack"),
+    ("hosted_oncall_rota_contract_drill.json", "Hosted on-call rota contract"),
 )
 
 

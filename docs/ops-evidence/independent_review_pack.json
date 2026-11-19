@@ -1,16 +1,16 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T04:02:48Z",
+  "ran_at": "2026-11-19T05:00:31Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 123,
+  "artifact_count": 133,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
       "bytes": 464,
-      "sha256": "a2c5703a97dcf1687b0d617dcdc27a73cbe971e0a1e4114e53b2e8ae1aa6c549"
+      "sha256": "c06c422f192aa729811d95db7cc4201d56c3aa118b84d7d243db2765a05d2c20"
     },
     {
       "name": "admin_portal_lifecycle_drill.json",
@@ -39,8 +39,8 @@
     },
     {
       "name": "android_device_ci_readiness_pack_drill.json",
-      "bytes": 1415,
-      "sha256": "d26290df5d06a7e0e09cde92bd104e08e78be6a68f459f6bcacaa1117247c945"
+      "bytes": 1556,
+      "sha256": "f77e9c5ab472b457772510c3522e18058ab95b2fda832d92cbb8bd929f1731df"
     },
     {
       "name": "android_emulator_smoke_api24_drill.json",
@@ -84,13 +84,13 @@
     },
     {
       "name": "browser_portfolio_ci_readiness_pack_drill.json",
-      "bytes": 1570,
-      "sha256": "43c5ac002b14ad133c5fe077ca89a414d775cad3c35e73f9e871f033b475ecab"
+      "bytes": 1715,
+      "sha256": "76406744dab66238c57680c2c5900e65581067c95c2d6d098688a5af1a9dc83f"
     },
     {
       "name": "ci_artifact_upload_rehearsal_drill.json",
       "bytes": 3196,
-      "sha256": "101a91e629eb840d0702fb1556733bf4273f9b3087f5e3cdc0947476bc99fddc"
+      "sha256": "98b3bf69e2240b4b2bf44a50545547abf4e25641d5bb6600245c90cf121de031"
     },
     {
       "name": "ci_rollback_rehearsal.json",
@@ -115,7 +115,7 @@
     {
       "name": "compatibility_portfolio_drill.json",
       "bytes": 792,
-      "sha256": "8e6d913034c53b5e4247e668d13dd8e3181a968a24f0744cf1602a283397f044"
+      "sha256": "8e033bc08f71473c501bcd5de0ae636c21e48d413003d0bb0e2ceae865b863e9"
     },
     {
       "name": "controlled_soak_drill.json",
@@ -170,7 +170,7 @@
     {
       "name": "dual_region_store_health_probe_drill.json",
       "bytes": 525,
-      "sha256": "ae5511541c2df1be4f98f0a5bd54a49335c2449902e11cefcdb63173899f5fe1"
+      "sha256": "6cd04f01a8d89bc0a3df3a039de098ad4e9453834ac0d5d41934bf74e024a6ab"
     },
     {
       "name": "dual_tenant_oidc_acl_drill.json",
@@ -180,7 +180,7 @@
     {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
-      "sha256": "21ffda8466467e0c494996df6a96c80d87528422466ab24d920c56ebbeb46334"
+      "sha256": "df362ce200fa8eb102ef9c80624ebf55024e97739716b0f25c3c1116da1a8230"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -200,7 +200,7 @@
     {
       "name": "hosted_ci_artifact_gate_pack_drill.json",
       "bytes": 445,
-      "sha256": "a02802354bf798674faeb1aa6b2ea69b7feeb87c194efb04e811a85fc4401c38"
+      "sha256": "8256c52a4f130c9dd20cb3af86c7d19efa5d4a9d881dff6924364de891cc58d0"
     },
     {
       "name": "hosted_ci_runner_matrix_drill.json",
@@ -210,42 +210,62 @@
     {
       "name": "hosted_dispatch_payload_rehearsal_drill.json",
       "bytes": 1035,
-      "sha256": "a89701ce23844b24998537382f5cf459215b71103042f793a02a2760ca6ef774"
+      "sha256": "1b02551f34d910bfea6dc7a6a7705128019e47307027f736654fb0385f5a4dfb"
+    },
+    {
+      "name": "hosted_dr_cutover_checklist_drill.json",
+      "bytes": 1869,
+      "sha256": "8c6d7f27d917ca3ef295e7a34bbebd8d97c49ffd8dda904701b8d7576e6a46d2"
+    },
+    {
+      "name": "hosted_idp_claim_map_completeness_drill.json",
+      "bytes": 1569,
+      "sha256": "c6a67f6cbd714c3017a09c7c8d3288f571e1d30a6ba9b7765c2e6feb6e757729"
     },
     {
       "name": "hosted_idp_contract_drill.json",
       "bytes": 1442,
-      "sha256": "630b684ef9853b2acacaf8ffbea63c8c6ced32bf61abefb9a2ad9e79d481679f"
+      "sha256": "5ee88b764015ed220faec824150424a0ceba913f0bfebd0a14f01c74b3d11768"
     },
     {
       "name": "hosted_idp_readiness_drill.json",
       "bytes": 1880,
-      "sha256": "c43f21663c2bb960272fd38d8e2f7b261bbb6ec8872c0e12d8fdd0ebfac24625"
+      "sha256": "f845a89f6f26f41400aeb84197dde952ea0e26bcc5d75bdae0bb81ac2a5b8ecb"
     },
     {
       "name": "hosted_idp_sso_readiness_pack_drill.json",
-      "bytes": 448,
-      "sha256": "0474b5ef955e93134c2b661648008b187b0c9c954f5f9ead7331c8ddb2467ea6"
+      "bytes": 471,
+      "sha256": "7eac2eb0617cf55cbe0118af46af6dec2e4f1aaa41c7d8963d6117125a611397"
     },
     {
       "name": "hosted_oncall_contract_drill.json",
       "bytes": 1156,
-      "sha256": "f755b2418e16df927e770ce8f3af0a2be71c2043955e7f53ef478f35ddc4dd0b"
+      "sha256": "25ec9623f1c741b3dead1066e0d4aed66c49eb0249f8b98b65333721e57c65ea"
     },
     {
       "name": "hosted_oncall_readiness_drill.json",
-      "bytes": 1676,
-      "sha256": "80a28445e988d8928092d5e4f00288512e39615a57b0e8008f8acd406cb11ca5"
+      "bytes": 2245,
+      "sha256": "980f636a19180b0840813dbc08dddf8f22745185cf5620f2fa568a67e81a6ab2"
     },
     {
       "name": "hosted_oncall_readiness_pack_drill.json",
-      "bytes": 390,
-      "sha256": "8659a75fe3bde7c9a83f3af9d2b9396dd0ab378b2e1e7d387a520da476e4e0aa"
+      "bytes": 392,
+      "sha256": "7a94df2ebba1b2c4c194395c1a3715fd812ff7b57445b68aa45de0859c406f17"
+    },
+    {
+      "name": "hosted_oncall_rota_contract_drill.json",
+      "bytes": 1315,
+      "sha256": "d9fa27366a71bdf31d7d68a3f265fca6bbe8971e33715771a5aa6b8569d8c800"
     },
     {
       "name": "hosted_runner_readiness_drill.json",
-      "bytes": 2535,
-      "sha256": "8667b381bad5557da25170c7365b34dd9296dcf4c97811951983ea88ccc5312b"
+      "bytes": 3165,
+      "sha256": "36c2fb249faf80bb5d98a21b683e1bad7cc89da9fad382e90f3e6bbe3f90a372"
+    },
+    {
+      "name": "hosted_workflow_runner_audit_drill.json",
+      "bytes": 1206,
+      "sha256": "ac3d07f25be88c11156650b37b6901c5971f6231ed1da7b0d5e08448b5a05b3d"
     },
     {
       "name": "incident_tabletop_drill.json",
@@ -260,7 +280,12 @@
     {
       "name": "independent_review_attestation_drill.json",
       "bytes": 799,
-      "sha256": "09c96adb8dd8d2fe44852dc1c00aaa25d73c67fc9933956ccb92df9c90529dee"
+      "sha256": "672dec18e91bd198458f3f4362d6d5ef35a90c8b34f2e22ebe309277f2bf7be6"
+    },
+    {
+      "name": "independent_review_blocker_freeze_drill.json",
+      "bytes": 1802,
+      "sha256": "ffbf58850be7e60e3ce6bbfd92f0ca0c89594699a9bc67e5f0a27c0b6c970dc4"
     },
     {
       "name": "independent_review_checklist.json",
@@ -269,33 +294,48 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 16473,
-      "sha256": "b99546908450cbd1fb02ee2453ac892604bb966355656e181fa03e594a44bbaa"
+      "bytes": 17948,
+      "sha256": "70d8f372c59c6930dc4e1181af2a608c0f7539c6bed9b87eab9f3193d1f0a213"
+    },
+    {
+      "name": "independent_review_findings_template_drill.json",
+      "bytes": 357,
+      "sha256": "57d9de1e0a06d35ec4d3360d2b7765aed240babe055cdeda71f65d13e20f2ac1"
+    },
+    {
+      "name": "independent_review_handoff_pack_drill.json",
+      "bytes": 384,
+      "sha256": "35fc8fbadbd37d1b7fb7a59054fec3d95b833f4d01a348fab6480d2c3bc8d0c2"
     },
     {
       "name": "independent_review_integrity_drill.json",
-      "bytes": 1668,
-      "sha256": "908c7bc4f7fb60c4ce37e98d709c48f520fef9ab64960492ecd782697925ec82"
+      "bytes": 1669,
+      "sha256": "1fc729193ade222c20d47b0753cc452d57dc345a4b4a80e1e358dbec1e226fa2"
     },
     {
       "name": "independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "be5a43b08196bfa4fcd5d3c7567107f97f9105d0ed5efffae3ca59cf618e7a3d"
+      "sha256": "c61353bbcd1cd9208cb2dbb559f6ce37037c7181e609b67aef10d059b41d2f0e"
     },
     {
       "name": "independent_review_request_drill.json",
       "bytes": 1454,
-      "sha256": "654dd651dbc04d4e3a1490f92fb6c7589693a965e071b75aba082a9859974716"
+      "sha256": "c975d11790982a92f34ce34c393e2b883c3759952d8e49cc530e550ee6a6314f"
+    },
+    {
+      "name": "independent_review_scope_matrix_drill.json",
+      "bytes": 3959,
+      "sha256": "dc4e0e4a46c4b6882775b393d2c890c2a2ebaf356f62b36ebdbefe62206a57a8"
     },
     {
       "name": "independent_review_signoff_pack_drill.json",
       "bytes": 386,
-      "sha256": "32970b05564be3f820bc92ab3a4d25124fc988941a296e70c5e5511b01799d8a"
+      "sha256": "ddb67f047d1e2346e4dcede20072153b50ced5c67c403ae4a09b3f45dacf9fc7"
     },
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
-      "sha256": "f2cdf570ee067d1fc10bc74aba6a1cc815a015658ce3cce2398364245a274ab1"
+      "sha256": "72052f4f2750be5add64427a228336cf480e9a5cfae26d04673ed59ca15efb55"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -320,7 +360,7 @@
     {
       "name": "locale_portfolio_drill.json",
       "bytes": 639,
-      "sha256": "47ad4132c072908b5234e7a41b2756f3452b992b2e1baeb2de84e44a18fd2bdb"
+      "sha256": "b1ce4b551e451c8d870744279cdbf6fa097dbbc2cbeb67c1fb8bdca82bcc745d"
     },
     {
       "name": "loopback_auth_code_sso_drill.json",
@@ -345,7 +385,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "42baa8502ba6d455902eb55d975bbaed81ff2bc9ffb7d2130bd04162f94e2f69"
+      "sha256": "c5d8a086b947839c92f2908b4c22d98cfdcef051001e9b9ce886abbea67cef8f"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -360,7 +400,7 @@
     {
       "name": "multi_app_healing_suite_drill.json",
       "bytes": 3020,
-      "sha256": "956f44b387ef86243295b56dd0bcf0e25aaa593cfb15d32621bbaa3cf109c1bc"
+      "sha256": "765e305f4a454f4b7857aac8841aa56b5b3413ef091876f91a2caf06b8ee748e"
     },
     {
       "name": "multi_browser_ci_contract.json",
@@ -370,7 +410,7 @@
     {
       "name": "multi_browser_portfolio_suite_drill.json",
       "bytes": 520,
-      "sha256": "e1a36a5a8e12b709343471bd5a09fbf2d1f562010c99116a096a93a1d44e6cc7"
+      "sha256": "e4266e26ed39cbeb87af0ac141564e58d1ff01dda49f09572fae7cecd02291a1"
     },
     {
       "name": "multi_device_ci_contract.json",
@@ -385,22 +425,22 @@
     {
       "name": "multi_region_cutover_rehearsal_drill.json",
       "bytes": 499,
-      "sha256": "20bcf51d46f7e3727b95b704673b628f2c85d94c02389541504cba841eb5e3bd"
+      "sha256": "05df9e166f6565fca11bd91676d902dbd41d2aacae1e4a97ee3b13a62ba82b6e"
     },
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "e2c1cba0f9ff6950cc23cebfd2f0776eb58ec9d371d8d17ab8262e952f9c4125"
+      "sha256": "9fe9a15cd8e9d7394560ece6dd80b64bb8e4678b3056d5f44ef453f0bb785f60"
     },
     {
       "name": "multi_region_dr_readiness_pack_drill.json",
       "bytes": 425,
-      "sha256": "4d429645e7e9fda88768e02f5d49c0aea0476420cc6ba24731e3efcb55ecf809"
+      "sha256": "9ccbec04eee1c213da2f0178c5684cab7c521d7cec1ed9dec507eea243bb70d7"
     },
     {
       "name": "multi_store_dr_drill.json",
       "bytes": 1003,
-      "sha256": "afc32d09d548923bb63bfc55daf9119588b354c977be4873f0a63be74d1aeefb"
+      "sha256": "4da5749903063ec0a620c4317386ca9210ad46b0a44b81229b454aea7f4a3563"
     },
     {
       "name": "mutation_score_drill.json",
@@ -415,27 +455,27 @@
     {
       "name": "oidc_acl_matrix_pack_drill.json",
       "bytes": 387,
-      "sha256": "ac791f2fc416e8bae8058174badac52cb391b8adfdbd159b295e673ddc711881"
+      "sha256": "e26ecd4e5f41a0f06cea63853950dd05b743573c94b70ccef0976dbbe78a2a13"
     },
     {
       "name": "oidc_email_domain_tenant_acl_drill.json",
       "bytes": 889,
-      "sha256": "0e3ab3df44860e61a90dc525b938e4f21df6211779dc3f987e35ef0536889478"
+      "sha256": "198482c9cff9ce3f82574b4b231be3f0b2d5eaaa82fdebab3ba4853bc574cbb4"
     },
     {
       "name": "oidc_groups_role_acl_drill.json",
       "bytes": 979,
-      "sha256": "e91bcf20054c22fde4ddb2993568368f872e238593c9ea9859b6738613947f5c"
+      "sha256": "874640e55c157ef643f14c255a24d08fbbdc6ae19cba05a332e2405f57a84e6f"
     },
     {
       "name": "oidc_org_tenant_acl_drill.json",
       "bytes": 908,
-      "sha256": "da9cba944ddbb6c07f5330af6c2134b761d296df6e5d12d604ffd1defb809a13"
+      "sha256": "196f66641232d92975b37b247930539e2b8ea0bf0e10b5a1f22a0f8611c884f2"
     },
     {
       "name": "oidc_tid_tenant_acl_drill.json",
       "bytes": 689,
-      "sha256": "038da261af4587b9fc50d42224e8fe134f7a5881913d8c4d9f25a88f8fd2aa4a"
+      "sha256": "991000ad1223a258451e5327641fb89bd73e5de1d95f83ada0ccbba5ab93db89"
     },
     {
       "name": "oracle_spec_drill.json",
@@ -445,17 +485,17 @@
     {
       "name": "paging_ack_drill.json",
       "bytes": 365,
-      "sha256": "c35119a9e160a8a089da5fe8cb69a5b4cbe77945789416ab275e15fdfbc24e86"
+      "sha256": "0620af093d0bae2cd02b1e1bff27831472edfbacbc092755312cb19e47bb1a2e"
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 309,
-      "sha256": "00f9e5e6c6d91fd4663e5082abff569f231fdd3f1704302f217f595b536cffc2"
+      "bytes": 311,
+      "sha256": "11a699a4ba4dc74c95830d9739187c4edef2aab4ba9c418539cc7c4961408060"
     },
     {
       "name": "paging_escalation_drill.json",
       "bytes": 463,
-      "sha256": "ae4d45656e0ed9094463e5e2f10642f6f5569d0e71d8d3e3ef22b34e35e6100b"
+      "sha256": "a037e7e0da83656858bbe3bad613d337e0c9b2d4343ba2afedba16db56b3ef31"
     },
     {
       "name": "paging_rehearsal.json",
@@ -465,7 +505,7 @@
     {
       "name": "perf_portfolio_drill.json",
       "bytes": 774,
-      "sha256": "ad52e86b5aa1b614960457b2a9b0869de4a5b580e6029a4458d50ff18fe4a4f2"
+      "sha256": "866e41433535e25dccd71e5b294650cedc2b507d3c45f5bff5eff1f568504f0d"
     },
     {
       "name": "pg_tenancy_drill.json",
@@ -488,14 +528,19 @@
       "sha256": "831b8880522f5dd1cfac1f1c82401bb928758b20d94c47b3ce3f02bdf4aceb0f"
     },
     {
+      "name": "production_healing_acceptance_gate_drill.json",
+      "bytes": 1893,
+      "sha256": "fffd0f039e830b0cf204cb0ba6ca9705d4a0c9cd8c10834594c57ebb9b33d820"
+    },
+    {
       "name": "production_healing_contract_drill.json",
       "bytes": 1567,
-      "sha256": "f186d39fcdb9befbaa4f39810c8ac4fea9e3ea4dba6229aff7cc5c978f2bf856"
+      "sha256": "4198df5c67cadb15fea5825e3d49390f7307cd079bfc07d332a6b29a2afe3657"
     },
     {
       "name": "production_healing_flaky_policy_drill.json",
       "bytes": 1364,
-      "sha256": "c08664edb28d3a87f9d070638779e4e9ff0a45503fc690a24d0286cfed8be8e4"
+      "sha256": "b1264d8798e9b6a2d61762bb08fc4eca48a91b4cdcd829bd775fae61917b54f5"
     },
     {
       "name": "production_healing_matrix_drill.json",
@@ -504,23 +549,23 @@
     },
     {
       "name": "production_healing_readiness_drill.json",
-      "bytes": 1444,
-      "sha256": "c2285a7297f917b5d2eddf459f16aa8c6e42b5b7821f5a76405f0a40461eab6e"
+      "bytes": 1732,
+      "sha256": "39bb7d99fba1c6a314d9ec530c650f1395fc4b47882f658c1dd8ae05cbba8a7d"
     },
     {
       "name": "production_healing_replay_pack_drill.json",
       "bytes": 1749,
-      "sha256": "c39dc9d8ee1f38070eb98cf911d1a75592a5f84a5f1d59538e56fcb4e5d93c55"
+      "sha256": "d9666ffa49bdc411316b7377b792c50b17025d84c327e00f26cf7f2c0aadb162"
     },
     {
       "name": "production_healing_suite_pack_drill.json",
       "bytes": 459,
-      "sha256": "6744d6af0e26e4f62842d43dae6a86d7b451f0bdb97a2c3678e1e021a8f35059"
+      "sha256": "873768291022e96a9c3d98fd15bb4b1fcab1154e9bf5bc9e4ba7684b5812fa9f"
     },
     {
       "name": "production_healing_taxonomy_drill.json",
       "bytes": 1930,
-      "sha256": "ebc97210c749d6c81d88a7c5546a3ea35a5935432b5d1e8be10500d7a7b8a62a"
+      "sha256": "c118572cc9beb7500d02589d8f89f664b0dd3f83498b799bd43bbdd876b9ff6b"
     },
     {
       "name": "production_healing_third_party_sla_drill.json",
@@ -550,7 +595,7 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "0276870bf2034399fb0c4a71971699671f0c5f4809cf40631c5a17aa95405c36"
+      "sha256": "b51999e2f11675e287d2ec9e743c82a7c192f7b7fff44ca917c72b3483ad6e51"
     },
     {
       "name": "redis_swarm_contention_drill.json",
@@ -559,13 +604,13 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 8911,
-      "sha256": "edb05258eba240846b5eb8d91d9224d7fa6ad8cf2d51b9518fd2fc68e57362aa"
+      "bytes": 10045,
+      "sha256": "54bddc6bd86d7d6c791256f585f137f1f4038c6c0384820cb9d5610783e56aa3"
     },
     {
       "name": "security_portfolio_drill.json",
       "bytes": 939,
-      "sha256": "3fa2de1b362afa49a989fee339cd7872949842f62b67a5b3ac2d598fa882fe25"
+      "sha256": "9ce95c5cfb2da14432cf650fa6017a34ee8a4339f1bd167f2216c58615e22c63"
     },
     {
       "name": "sso_contract_drill.json",
@@ -583,9 +628,14 @@
       "sha256": "1b78845c995980d618302d8d0c7e5cbfb74944beba25ed8f7880e250c0ac9635"
     },
     {
+      "name": "studio_sso_login_path_drill.json",
+      "bytes": 2017,
+      "sha256": "37ce92c13e65957613c77ab443ec49a49e876e538cd8b1bf9d211bc08d702df3"
+    },
+    {
       "name": "studio_sso_principal_bootstrap_drill.json",
       "bytes": 472,
-      "sha256": "bc92562a9f3de25dd8d47da974f0d66918a294df9c2e785cc9ab2f4d407a0fd0"
+      "sha256": "4cf2ded662c2a9859289ed4795783b6a571e628c45308c84408893b5e78b48db"
     },
     {
       "name": "swarm_control_drill.json",
@@ -615,14 +665,14 @@
     {
       "name": "visual_portfolio_drill.json",
       "bytes": 476,
-      "sha256": "d37559e7de2c826b77efaafeeda5bbde93362074799fc88ac2ba17892d6b41f2"
+      "sha256": "bcb2fa0a1afd36d0a8a05c69bd0adc826c7b063592e869f2f6dda68b9f36932a"
     },
     {
       "name": "workflow_dispatch_contract_drill.json",
       "bytes": 1101,
-      "sha256": "8c564e9bdc11ec53144e8f104d6f94ecb739cce15bdfde7be24d124d80671673"
+      "sha256": "fa8a83e82b6cbaaac1962ee0815a4bd003bc03004e3b221b13f2d43265a074ad"
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (123 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (133 artifacts hashed); independent human/reviewer sign-off still pending"
 }

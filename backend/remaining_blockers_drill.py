@@ -33,6 +33,7 @@ BLOCKERS = (
             "multi_region_dr_readiness_pack_drill.json",
             "dual_region_store_health_probe_drill.json",
             "hosted_dr_cutover_checklist_drill.json",
+            "hosted_oncall_rota_contract_drill.json",
         ],
     },
     {
@@ -134,6 +135,7 @@ BLOCKERS = (
             "independent_review_handoff_pack_drill.json",
             "independent_review_findings_template_drill.json",
             "independent_review_scope_matrix_drill.json",
+            "independent_review_blocker_freeze_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
             "INDEPENDENT_REVIEW_ATTESTATION.md",
             "INDEPENDENT_REVIEW_FINDINGS.md",
