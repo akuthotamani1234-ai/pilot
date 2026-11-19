@@ -331,6 +331,28 @@ def _coverage():
     return _CDP()
 
 
+def test_a_test_coverage_note_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-coverage"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    save = _load_cov_save()
+    save(linked / "runs" / "run", _coverage())
+    assert not (nested / "jscov").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    save(real, _coverage())
+    written = (real / "jscov" / "tests_main.jsonl").read_bytes()
+    assert b"shop.example" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_an_android_result_line_does_not_follow_a_link_into_another_folder(tmp_path):
     secret = b'{"id":"tenant-b-only"}\n'
     other = tmp_path / "other"
