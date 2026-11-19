@@ -375,6 +375,42 @@ def test_an_android_result_line_does_not_follow_a_link_into_another_folder(tmp_p
     assert (nested / "android_results.jsonl").read_bytes() == secret
 
 
+def test_an_android_case_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path("backend/templates/android_mobile_test.py").read_text(encoding="utf-8"))
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_load_mobile_json")
+    ns = {"Path": Path, "json": json}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), "android_mobile_test.py", "exec"), ns)
+    load = ns["_load_mobile_json"]
+    secret = "tenant-b-only-case"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    case_file = nested / "android_test_cases.json"
+    case_file.write_text(json.dumps({"id": secret, "title": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    try:
+        load(linked / "runs" / "run" / "android_test_cases.json")
+    except RuntimeError as exc:
+        assert "link" in str(exc)
+    else:
+        raise AssertionError("a linked Android case file was read")
+    assert secret in case_file.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = real / "android_test_cases.json"
+    own.write_text(json.dumps({"id": "home-own", "title": "Home"}), encoding="utf-8")
+    loaded = load(own)
+    assert loaded["id"] == "home-own"
+    assert secret not in json.dumps(loaded)
+    assert secret in case_file.read_text(encoding="utf-8")
+
+
 def _load_append():
     import ast
     from pathlib import Path

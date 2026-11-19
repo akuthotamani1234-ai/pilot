@@ -7,8 +7,17 @@ import pytest
 
 from backend.android import create_session, inspect_driver
 
-CONFIG = json.loads(Path(os.environ["ANDROID_MOBILE_CONFIG"]).read_text(encoding="utf-8"))
-CASES = json.loads(Path(os.environ["ANDROID_MOBILE_CASES"]).read_text(encoding="utf-8"))
+
+def _load_mobile_json(path: Path):
+    """Read one Android test file. A link is refused before the file is opened."""
+    path = Path(path)
+    if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+        raise RuntimeError("The Android test file is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+CONFIG = _load_mobile_json(Path(os.environ["ANDROID_MOBILE_CONFIG"]))
+CASES = _load_mobile_json(Path(os.environ["ANDROID_MOBILE_CASES"]))
 
 
 def _find(driver, locator):
