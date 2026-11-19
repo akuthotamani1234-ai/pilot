@@ -1369,6 +1369,18 @@ def click_actions_allowed(url: str) -> bool:
     return not is_payment_url(url)
 
 
+def click_page(requested: str, final: str = "") -> str:
+    """The address whose controls may be clicked.
+
+    A checkout or payment landing wins over the address that was requested,
+    so a redirect onto checkout is not clicked.
+    """
+    landed = (final or requested or "").strip()
+    if landed and not click_actions_allowed(landed):
+        return landed
+    return (requested or landed).strip()
+
+
 def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool = False,
                priorities: list[str] | None = None, failed: bool = False, uncertain: bool = False) -> bool:
     """Queue one normal link by its next-page score. Menu links stay in the menu band.
@@ -2782,12 +2794,13 @@ def discovery_agent(state: QAState) -> QAState:
                 # 'Add to cart' -> the cart link) leads to are queued, controls revealed by an action are added,
                 # and a page an action changed (the menu says 'Cart (1)' now) is read again.
                 # (errors caused by these actions don't count for this page - its own tests check them)
-                if inside and not entry.get("error") and not click_actions_allowed(url):
+                acted = click_page(url, str(entry.get("final_url") or ""))
+                if inside and not entry.get("error") and not click_actions_allowed(acted):
                     entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
-                    print(f"  [discovery] {_normalize(url)} is a checkout or payment page - seen, not clicked",
+                    print(f"  [discovery] {_normalize(acted)} is a checkout or payment page - seen, not clicked",
                           flush=True)
                     current["console"], current["failed"] = [], []
-                    explorer.explore(page, url, entry)
+                    explorer.explore(page, acted, entry)
                 elif inside and not entry.get("error"):
                     current["console"], current["failed"] = [], []
                     if slug in looks:  # (what the AI saw on this page: the explorer tries it too - waited for 15 s
@@ -2815,10 +2828,11 @@ def discovery_agent(state: QAState) -> QAState:
                             reread.add((nxt, auth))
                             queue.appendleft((nxt, done["depth"], True, auth))
                             print(f"  [discovery] an action changed {nxt} - it is read again")
-            if mode == "page" and inside and not entry.get("error") and not click_actions_allowed(url):
+            acted = click_page(url, str(entry.get("final_url") or ""))
+            if mode == "page" and inside and not entry.get("error") and not click_actions_allowed(acted):
                 entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
                 current["console"], current["failed"] = [], []
-                explorer.explore(page, url, entry)
+                explorer.explore(page, acted, entry)
             elif mode == "page" and inside and not entry.get("error"):
                 # a specific page: what its controls do is learned too (the pages they lead to are listed, not opened)
                 current["console"], current["failed"] = [], []
