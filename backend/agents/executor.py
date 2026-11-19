@@ -340,10 +340,17 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     return {"timed_out": timed_out, "stopped": stopped, "returncode": proc.returncode, "sandbox": sandbox}
 
 
+def _write_run_json(run_dir: Path, name: str, payload) -> None:
+    from .change_detection import run_path_is_linked
+    if run_path_is_linked(run_dir, name):
+        return
+    (run_dir / name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _read(results_file: Path) -> list[dict]:
     out = []
     for f in [results_file] + _worker_files(results_file):
-        if f.exists():
+        if not f.is_symlink() and f.exists():
             for line in f.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
@@ -530,10 +537,10 @@ def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path)
     results += list(fresh.values())
     _clean_up_again(state, run_dir, test_dir, shot_dir)
 
-    (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    _write_run_json(run_dir, "results.json", results)
     from ..run_rules import apply_execution
     apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment}, finish=True)
-    (run_dir / "healing_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")  # (with the verdicts)
+    _write_run_json(run_dir, "healing_log.json", log)  # (with the verdicts)
     count = {s: sum(1 for h in entries if h["status"] == s) for s in ("healed", "repaired", "reverted", "still failing")}
     return {"results": results, "rerun_only": [], "healing_log": log,
             "unhealable": sorted(set(state.get("unhealable", [])) | undone),
@@ -588,9 +595,8 @@ def execution_agent(state: QAState) -> QAState:
                     result.get("outcome"), "Inconclusive")
                 case["actual_result"] = result.get("error") or result.get("outcome", "unknown")
         run_dir = Path(state["run_dir"])
-        (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-        (run_dir / "execution.json").write_text(json.dumps({"tests": len(results), "timed_out": False,
-                                                               "stopped": False}, indent=2), encoding="utf-8")
+        _write_run_json(run_dir, "results.json", results)
+        _write_run_json(run_dir, "execution.json", {"tests": len(results), "timed_out": False, "stopped": False})
         passed = sum(r.get("outcome") == "passed" for r in results)
         failed = sum(r.get("outcome") in ("failed", "error") for r in results)
         from ..run_rules import apply_execution
@@ -633,9 +639,8 @@ def execution_agent(state: QAState) -> QAState:
             results = list(prior.values())
             info = {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "resume-kept",
                     "resume_kept": len(prior)}
-            (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-            (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2),
-                                                    encoding="utf-8")
+            _write_run_json(run_dir, "results.json", results)
+            _write_run_json(run_dir, "execution.json", dict(info, tests=len(results)))
             from ..run_rules import apply_execution
             apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment}, finish=True)
             note = (f"Execution resume: kept {len(prior)} completed result(s); no pending tests — "
@@ -694,8 +699,8 @@ def execution_agent(state: QAState) -> QAState:
     if down:
         since = re.search(r"since (\d\d:\d\d)", down[0]["error"])
         info["website_down"] = {"tests": len(down), "since": since.group(1) if since else ""}
-    (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2), encoding="utf-8")
+    _write_run_json(run_dir, "results.json", results)
+    _write_run_json(run_dir, "execution.json", dict(info, tests=len(results)))
     passed = sum(r["outcome"] == "passed" for r in results)
     failed = sum(r["outcome"] in ("failed", "error") for r in results)
     skipped = sum(r["outcome"] == "skipped" for r in results)
