@@ -269,6 +269,66 @@ def test_a_safe_redirect_is_opened_at_its_landing():
     assert opened == ["https://shop.example/new"]
 
 
+def test_a_page_that_refreshes_into_checkout_is_not_opened():
+    from backend.swarm import open_guarded
+
+    opened = []
+    fetched = []
+
+    class Probe:
+        def __init__(self, status, body="", location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+            self._body = body
+
+        def text(self):
+            return self._body
+
+    class Page:
+        url = ""
+
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            fetched.append(str(url))
+            if str(url).endswith("/product"):
+                return Probe(200, '<html><meta http-equiv="refresh" content="0;url=/checkout"></html>')
+            if str(url).endswith("/promo"):
+                return Probe(200, '<html><meta http-equiv="refresh" content="0; url=/checkout"></html>')
+            if str(url).endswith("/bridge"):
+                return Probe(200, '<html><meta http-equiv="refresh" content="0;url=/promo"></html>')
+            if str(url).endswith("/cart"):
+                return Probe(
+                    200,
+                    '<html><meta http-equiv="refresh" content="0;url=/index.php?rt=checkout/cart"></html>',
+                )
+            return Probe(200, "<html>ok</html>")
+
+        @property
+        def request(self):
+            return self
+
+        def goto(self, url, **kwargs):
+            opened.append(url)
+            self.url = url
+            return type("Response", (), {"status": 200})()
+
+    page = Page()
+    _response, blocked = open_guarded(page, "https://shop.example/product")
+    assert blocked["status"] == "blocked"
+    assert blocked["final_url"].endswith("/checkout")
+    assert opened == []
+    assert fetched == ["https://shop.example/product"]
+    fetched.clear()
+    _response, blocked = open_guarded(page, "https://shop.example/bridge")
+    assert blocked["status"] == "blocked"
+    assert "/checkout" not in fetched
+    assert opened == []
+    fetched.clear()
+    response, cart = open_guarded(page, "https://shop.example/cart")
+    assert cart is None and response.status == 200
+    assert opened == ["https://shop.example/index.php?rt=checkout/cart"]
+
+
 def test_a_probe_that_cannot_reach_the_host_still_opens_the_page():
     from backend.swarm import open_guarded
 

@@ -1,6 +1,50 @@
 """GET redirect probe that refuses a checkout document before it is loaded."""
 from __future__ import annotations
 
+import re
+
+_META_TAG = re.compile(r"<meta\b([^>]*)>", re.I)
+_HTTP_EQUIV = re.compile(r"""http-equiv\s*=\s*['"]?\s*refresh\b""", re.I)
+_CONTENT = re.compile(r"""content\s*=\s*(?:(['"])(.*?)\1|([^\s>]+))""", re.I)
+_REFRESH_URL = re.compile(r"""url\s*=\s*['"]?([^'";>\s]+)""", re.I)
+
+
+def _response_html(response) -> str:
+    """A short prefix of the response body, or '' when the probe has no body."""
+    text = getattr(response, "text", None)
+    try:
+        raw = text() if callable(text) else (text or "")
+    except Exception:
+        return ""
+    if isinstance(raw, bytes):
+        raw = raw[:8000].decode("utf-8", "replace")
+    else:
+        raw = str(raw)[:8000]
+    return raw
+
+
+def meta_refresh_url(html: str, base: str) -> str:
+    """The immediate meta-refresh address, or '' when the page does not refresh."""
+    from urllib.parse import urljoin
+
+    if not html or "refresh" not in html.lower():
+        return ""
+    for attrs in _META_TAG.findall(html):
+        if not _HTTP_EQUIV.search(attrs):
+            continue
+        found = _CONTENT.search(attrs)
+        if not found:
+            continue
+        value = found.group(2) if found.group(2) is not None else (found.group(3) or "")
+        delay = re.match(r"\s*(\d+)", value)
+        if delay and int(delay.group(1)) > 1:
+            continue
+        target = _REFRESH_URL.search(value)
+        if not target:
+            continue
+        return urljoin(base, target.group(1).strip())
+    return ""
+
 
 def _walk(fetch, address: str, *, base: str = "", timeout: int = 10000):
     """Return ``(open_url, blocked_url, response)`` without requesting checkout."""
@@ -19,7 +63,13 @@ def _walk(fetch, address: str, *, base: str = "", timeout: int = 10000):
     for _hop in range(5):
         response = fetch(current, max_redirects=0, timeout=timeout)
         if getattr(response, "status", None) not in {301, 302, 303, 307, 308}:
-            return current, "", response
+            nxt = meta_refresh_url(_response_html(response), current)
+            if not nxt or nxt == current:
+                return current, "", response
+            if is_payment_url(nxt):
+                return "", nxt, None
+            current = nxt
+            continue
         headers = getattr(response, "headers", None) or {}
         location = headers.get("location") or headers.get("Location") or ""
         if not location:
