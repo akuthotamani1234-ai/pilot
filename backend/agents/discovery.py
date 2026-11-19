@@ -1527,8 +1527,8 @@ def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
     if operations is None:
         return False
     folder = Path(run_dir)
-    from ..finalization import write_text_unless_linked
-    if folder.is_symlink():
+    from ..finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(folder):
         return False
     folder.mkdir(parents=True, exist_ok=True)
     return write_text_unless_linked(
