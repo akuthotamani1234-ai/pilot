@@ -399,6 +399,33 @@ def test_a_submit_button_formaction_to_checkout_is_not_filled():
     assert names[8] == "index.php?rt=checkout/confirm"
 
 
+def test_a_live_click_uses_the_buttons_checkout_address():
+    import time
+
+    from playwright.sync_api import sync_playwright
+
+    from backend.observe import Explorer
+
+    page_url = "https://shop.example/contact"
+    explorer = Explorer("", lambda *_a, **_k: None, time.time() + 30)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            tab = browser.new_page()
+            tab.set_content(
+                '<form action="/contact">'
+                '<button id="go" formaction="index.php?rt=checkout/confirm">Continue</button>'
+                '<button id="cart" formaction="index.php?rt=checkout/cart">Cart</button>'
+                "</form>"
+            )
+            blocked = explorer._payment_click(tab, {"selector": "#go", "form_action": "/contact"}, page_url)
+            cart = explorer._payment_click(tab, {"selector": "#cart", "form_action": "/contact"}, page_url)
+        finally:
+            browser.close()
+    assert "never" in blocked
+    assert cart == ""
+
+
 def test_a_form_that_posts_to_checkout_is_not_filled():
     from backend.form_rules import pair_cases
     from backend.forms import data_forms, form_cases
