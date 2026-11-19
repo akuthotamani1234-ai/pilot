@@ -19,6 +19,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+from .oidc_auth_code_grant import authorization_code_grant_error
+
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "loopback_pkce_sso_drill.json"
 
@@ -120,6 +122,10 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                 state = (qs.get("state") or [""])[0]
                 challenge = (qs.get("code_challenge") or [""])[0]
                 method = (qs.get("code_challenge_method") or [""])[0]
+                if (qs.get("client_id") or [""])[0] != client_id:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
                 if not challenge or method != "S256":
                     self.send_response(400)
                     self.end_headers()
@@ -131,6 +137,7 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
                     "client_id": client_id,
                     "code_challenge": challenge,
                     "redirect_uri": redirect,
+                    "issued_at": time.time(),
                 }
                 loc = (
                     f"{redirect}?code={urllib.parse.quote(code)}"
@@ -156,16 +163,22 @@ def run_loopback_pkce_sso_drill(*, ops_dir: Path | None = None) -> dict:
             grant = (form.get("grant_type") or [""])[0]
             verifier = (form.get("code_verifier") or [""])[0]
             redirect_uri = (form.get("redirect_uri") or [""])[0]
+            posted_client = (form.get("client_id") or [""])[0]
             entry = codes.pop(code, None)
-            expected = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
-            if (
-                grant != "authorization_code"
-                or not entry
-                or not verifier
-                or expected != entry.get("code_challenge")
-                or redirect_uri != entry.get("redirect_uri")
-            ):
-                body = json.dumps({"error": "invalid_grant"}).encode()
+            verifier_ok = False
+            if entry and verifier:
+                expected = _b64url(hashlib.sha256(verifier.encode("ascii")).digest())
+                verifier_ok = expected == entry.get("code_challenge")
+            error = authorization_code_grant_error(
+                entry,
+                grant=grant,
+                client_id=posted_client,
+                redirect_uri=redirect_uri,
+                now=time.time(),
+                verifier_ok=verifier_ok,
+            )
+            if error:
+                body = json.dumps({"error": error}).encode()
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
