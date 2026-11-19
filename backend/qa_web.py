@@ -124,18 +124,19 @@ class BrowserContractAdapter:
 
 def _contract_paths_linked(run_dir) -> bool:
     """True when the contract or its result files follow a link out of this run."""
+    from .finalization import folder_is_linked
     run = Path(run_dir)
     private = run / ".private"
-    if run.is_symlink() or private.is_symlink():
+    if folder_is_linked(run) or private.is_symlink():
         return True
     return any(path.is_symlink() for path in (
         private / "qa_contract.json", run / "qa_contracts.json", run / "contract_results.json"))
 
 
 def _write_contract_text(run_dir, name: str, text: str) -> bool:
-    from .finalization import write_text_unless_linked
+    from .finalization import folder_is_linked, write_text_unless_linked
     folder = Path(run_dir)
-    if folder.is_symlink():
+    if folder_is_linked(folder):
         return False
     return write_text_unless_linked(folder, name, text)
 
