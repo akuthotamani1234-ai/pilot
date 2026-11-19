@@ -34,6 +34,29 @@ def test_invalid_cursor_is_an_explicit_error(tmp_path):
         read_events(tmp_path, "not a cursor!")
 
 
+def test_a_live_event_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-event"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "events.worker.jsonl").write_text(
+        json.dumps({"id": secret, "timestamp": 1, "text": secret}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert read_events(linked / "run")["events"] == []
+    assert secret in (nested / "events.worker.jsonl").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "events.worker.jsonl").write_text(
+        json.dumps({"id": "home-own", "timestamp": 1, "text": "kept"}) + "\n", encoding="utf-8")
+    events = read_events(real)["events"]
+    assert [event["id"] for event in events] == ["home-own"]
+    assert secret not in json.dumps(events)
+    assert secret in (nested / "events.worker.jsonl").read_text(encoding="utf-8")
+
+
 def test_reference_navigation_does_not_authorize_payment_controls():
     from backend.actions import action_class
     context = {"tag": "a", "role": "menuitem", "in_form": False, "href": "#"}
