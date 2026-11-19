@@ -124,6 +124,8 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
         "jti": payload.get("jti"),
         "nbf": payload.get("nbf"),
     }
+    if "groups" in payload:
+        out["claims"]["groups"] = payload.get("groups")
     if cfg["issuer"] and str(payload.get("iss") or "") != cfg["issuer"]:
         out["reason"] = f"iss mismatch (want {cfg['issuer']})"
         return out

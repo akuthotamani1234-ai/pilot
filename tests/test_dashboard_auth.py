@@ -66,7 +66,7 @@ def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
         raw = json.dumps(obj, separators=(",", ":")).encode()
         return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
-    def token(sub: str, tid: str | None = None) -> str:
+    def token(sub: str, tid: str | None = None, groups: list[str] | None = None) -> str:
         payload = {
             "iss": "https://idp.example",
             "aud": "qpilot-dashboard",
@@ -75,6 +75,8 @@ def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
         }
         if tid:
             payload["tid"] = tid
+        if groups is not None:
+            payload["groups"] = groups
         return f"{enc({'alg': 'none', 'typ': 'JWT'})}.{enc(payload)}.sig"
 
     missing = authorize(f"Bearer {token('nobody')}")
@@ -92,3 +94,8 @@ def test_oidc_mode_requires_a_principal_role(monkeypatch, tmp_path):
     assert mismatch["reason"] == "token tenant does not match principal"
     bad = authorize("Bearer not-a-jwt")
     assert bad["ok"] is False
+    upsert_principal("admin-1", "t1", "admin@ex.test", "admin", db_path=db)
+    assert authorize(f"Bearer {token('admin-1', groups=['qpilot-viewers'])}")["ok"] is False
+    assert authorize(f"Bearer {token('admin-1', groups=['qpilot-admins'])}")["ok"] is True
+    assert authorize(f"Bearer {token('admin-1', groups=['other-team'])}")["ok"] is False
+    assert authorize(f"Bearer {token('admin-1')}")["ok"] is True

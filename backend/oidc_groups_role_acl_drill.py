@@ -12,20 +12,14 @@ import tempfile
 import time
 from pathlib import Path
 
+from .dashboard_auth import GROUP_ROLE, role_for_groups
+
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "oidc_groups_role_acl_drill.json"
 
-GROUP_ROLE = {
-    "qpilot-admins": "admin",
-    "qpilot-viewers": "viewer",
-}
-
 
 def _role_for_groups(groups: list[str]) -> str | None:
-    for name in groups:
-        if name in GROUP_ROLE:
-            return GROUP_ROLE[name]
-    return None
+    return role_for_groups(groups)
 
 
 def run_oidc_groups_role_acl_drill(*, ops_dir: Path | None = None) -> dict:
@@ -84,6 +78,7 @@ def run_oidc_groups_role_acl_drill(*, ops_dir: Path | None = None) -> dict:
                     )
                 with loopback_oidc_session(
                     sub=case["sub"], email=case["email"],
+                    extra_claims={"groups": list(case["groups"])},
                 ) as session:
                     # Attach groups into validated claims for mapping evidence.
                     claims = dict(session.get("claims") or {})
@@ -99,10 +94,6 @@ def run_oidc_groups_role_acl_drill(*, ops_dir: Path | None = None) -> dict:
                         audit=False,
                     ) if role != "none" else {"allowed": False}
                     write_ok = bool(authz.get("ok")) and bool(access.get("allowed"))
-                    # Viewer principal is authenticated but not granted admin write
-                    # via role mapping — treat role==viewer/none as write denied.
-                    if mapped == "viewer" or mapped is None:
-                        write_ok = False
                     results.append({
                         "sub": case["sub"],
                         "groups": list(case["groups"]),
