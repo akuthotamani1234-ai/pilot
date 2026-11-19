@@ -30,13 +30,12 @@ def run_studio_sso_principal_bootstrap_drill(*, ops_dir: Path | None = None) -> 
         _write(evidence, ops_dir)
         return evidence
 
-    from .dashboard_auth import authorize
+    from .dashboard_auth import authorize, bind_login_principal
     from .loopback_sso_drill import loopback_oidc_session
     from .tenancy_store import (
         assert_run_access,
         get_principal,
         index_run,
-        upsert_principal,
         upsert_tenant,
     )
 
@@ -56,17 +55,11 @@ def run_studio_sso_principal_bootstrap_drill(*, ops_dir: Path | None = None) -> 
         tenancy.DEFAULT_DB = db
         try:
             with loopback_oidc_session(
-                sub=sub, email=email, extra_claims={"tid": tid},
+                sub=sub, email=email,
+                extra_claims={"tid": tid, "groups": ["qpilot-admins"]},
             ) as session:
                 claims = session.get("claims") or {}
-                # First-login bootstrap: create principal from claims.
-                created = upsert_principal(
-                    str(claims.get("sub") or sub),
-                    str(claims.get("tid") or tid),
-                    str(claims.get("email") or email),
-                    "admin",
-                    db_path=db,
-                )
+                created = bind_login_principal(claims, db_path=db)
                 after = get_principal(sub, db_path=db)
                 authz = authorize(
                     f"Bearer {session['token']}", action="review.write",
@@ -81,7 +74,9 @@ def run_studio_sso_principal_bootstrap_drill(*, ops_dir: Path | None = None) -> 
                     and after.get("email") == email
                     and bool(authz.get("ok"))
                     and bool(own.get("allowed"))
-                    and created.get("principal_id") == sub
+                    and created.get("created") is True
+                    and created.get("role") == "admin"
+                    and after.get("role") == "admin"
                 )
                 evidence = {
                     "gate_i_complete": False,

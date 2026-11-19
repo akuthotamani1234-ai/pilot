@@ -66,6 +66,50 @@ def role_for_groups(groups) -> str | None:
     return None
 
 
+def bind_login_principal(claims: dict, *, db_path=None) -> dict:
+    """Create a principal from known IdP groups.
+
+    An existing principal is left as stored. A login cannot raise, demote, or
+    move that row. A first login with no known group creates nothing.
+    """
+    sub = str((claims or {}).get("sub") or "").strip()
+    tid = str((claims or {}).get("tid") or "").strip()
+    email = str((claims or {}).get("email") or "").strip()
+    if not sub or not tid:
+        return {
+            "principal_bound": False,
+            "created": False,
+            "reason": "token subject and tenant are required",
+        }
+    mapped = role_for_groups((claims or {}).get("groups"))
+    from .tenancy_store import get_principal, upsert_principal, upsert_tenant
+    existing = get_principal(sub, db_path=db_path)
+    if existing is not None:
+        return {
+            "principal_bound": True,
+            "created": False,
+            "role": existing.get("role"),
+            "tenant_id": existing.get("tenant_id"),
+            "role_unchanged": True,
+            "reason": "existing principal kept",
+        }
+    if not mapped:
+        return {
+            "principal_bound": False,
+            "created": False,
+            "reason": "token groups are not a known role",
+        }
+    upsert_tenant(tid, tid, db_path=db_path)
+    row = upsert_principal(sub, tid, email, mapped, db_path=db_path)
+    return {
+        "principal_bound": True,
+        "created": True,
+        "role": row["role"],
+        "tenant_id": row["tenant_id"],
+        "reason": "principal created from token groups",
+    }
+
+
 def _oidc_principal(claims: dict, *, action: str, mode: str, verdict: dict) -> dict:
     """A valid JWT is not enough. The subject must be a principal whose role allows the action."""
     sub = str(claims.get("sub") or "").strip()

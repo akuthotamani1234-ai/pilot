@@ -181,6 +181,7 @@ def exchange_code(
     client_id: str | None = None,
     state: str = "",
     code_verifier: str = "",
+    db_path=None,
 ) -> dict:
     """POST authorization_code grant; validate access/id token when present."""
     from .oidc_jwt import validate_bearer
@@ -261,6 +262,10 @@ def exchange_code(
     nonce_check = validate_sso_nonce(str(claims.get("nonce") or ""))
     if nonce_check.get("nonce_enforced") and not nonce_check.get("ok"):
         return nonce_check
+    bound: dict = {}
+    if validated.get("ok"):
+        from .dashboard_auth import bind_login_principal
+        bound = bind_login_principal(claims, db_path=db_path)
     return {
         "ok": bool(validated.get("ok")),
         "gate_i_complete": False,
@@ -272,6 +277,11 @@ def exchange_code(
         "nonce_enforced": bool(nonce_check.get("nonce_enforced")),
         "nonce_ok": nonce_check.get("nonce_ok"),
         "signature_verified": bool(validated.get("signature_verified")),
+        "principal_bound": bool(bound.get("principal_bound")),
+        "principal_created": bool(bound.get("created")),
+        "role": bound.get("role"),
+        "tenant_id": bound.get("tenant_id"),
+        "principal_reason": bound.get("reason"),
         "reason": (
             "Studio OIDC callback exchanged code + validated JWT; hosted IdP SSO still open"
             if validated.get("ok") else
