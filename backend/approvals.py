@@ -34,15 +34,19 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
             answer TEXT NOT NULL DEFAULT '',
             reason TEXT NOT NULL DEFAULT '',
             created_at REAL NOT NULL,
-            decided_at REAL
+            decided_at REAL,
+            tenant_id TEXT NOT NULL DEFAULT ''
         )
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
+    if "tenant_id" not in columns:
+        conn.execute("ALTER TABLE approvals ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''")
     conn.commit()
     return conn
 
 
-def create(kind: str, subject: str, *, detail: str = "", path: Path | None = None) -> dict:
+def create(kind: str, subject: str, *, detail: str = "", tenant_id: str = "", path: Path | None = None) -> dict:
     """Enqueue one approval. Unknown kinds are rejected."""
     name = (kind or "").strip().lower()
     if name not in WAITING:
@@ -57,33 +61,54 @@ def create(kind: str, subject: str, *, detail: str = "", path: Path | None = Non
         "reason": "waiting for a person",
         "created_at": time.time(),
         "decided_at": None,
+        "tenant_id": (tenant_id or "").strip(),
     }
     with _connect(path) as conn:
         conn.execute(
-            "INSERT INTO approvals (id, kind, subject, detail, status, answer, reason, created_at, decided_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO approvals (id, kind, subject, detail, status, answer, reason, created_at, decided_at, tenant_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (row["id"], row["kind"], row["subject"], row["detail"], row["status"],
-             row["answer"], row["reason"], row["created_at"], row["decided_at"]),
+             row["answer"], row["reason"], row["created_at"], row["decided_at"], row["tenant_id"]),
         )
         conn.commit()
     return row
 
 
-def list_approvals(*, status: str = "pending", limit: int = 50, path: Path | None = None) -> list[dict]:
-    """Newest first. status=all returns every row."""
+def list_approvals(*, status: str = "pending", limit: int = 50, tenant_id: str | None = None,
+                   path: Path | None = None) -> list[dict]:
+    """Newest first. status=all returns every row. A tenant id keeps other tenants out."""
     want = (status or "pending").strip().lower()
     lim = min(200, max(1, int(limit or 50)))
+    clauses, args = [], []
+    if want != "all":
+        clauses.append("status = ?")
+        args.append(want)
+    if tenant_id is not None:
+        clauses.append("tenant_id = ?")
+        args.append(tenant_id)
+    sql = "SELECT * FROM approvals"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    args.append(lim)
     with _connect(path) as conn:
-        if want == "all":
-            rows = conn.execute(
-                "SELECT * FROM approvals ORDER BY created_at DESC LIMIT ?", (lim,)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM approvals WHERE status = ? ORDER BY created_at DESC LIMIT ?",
-                (want, lim),
-            ).fetchall()
+        rows = conn.execute(sql, tuple(args)).fetchall()
     return [dict(r) for r in rows]
+
+
+def _heal_run_in_tenant(detail: str, tenant_id: str) -> bool:
+    """A heal with a script path may write only that tenant's indexed run."""
+    try:
+        payload = json.loads(detail or "")
+    except json.JSONDecodeError:
+        return True
+    if not isinstance(payload, dict):
+        return True
+    run_raw = str(payload.get("run_dir") or "").strip()
+    if not run_raw:
+        return True
+    from .tenancy_store import get_run_tenant
+    return get_run_tenant(Path(run_raw).name) == tenant_id
 
 
 def heal_detail_allowed(detail: str) -> dict:
@@ -167,7 +192,8 @@ def apply_approved_heal(detail: str, token: str = "") -> dict:
     return {"ok": True, "applied": True, "reason": ""}
 
 
-def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) -> dict:
+def decide_approval(approval_id: str, answer: str, *, tenant_id: str | None = None,
+                    path: Path | None = None) -> dict:
     """Apply human_review.decide and persist the outcome.
 
     An accepted ``heal`` still has to pass the locator-only healing policy.
@@ -177,6 +203,8 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
         if row is None:
             raise KeyError(approval_id)
         current = dict(row)
+        if tenant_id is not None and str(current.get("tenant_id") or "") != tenant_id:
+            raise PermissionError("tenant isolation")
         if current["status"] != "pending":
             return current
         verdict = decide(current["kind"], answer)
@@ -188,30 +216,34 @@ def decide_approval(approval_id: str, answer: str, *, path: Path | None = None) 
         heal_token = ""
         heal_applied = False
         if status == "accepted" and current["kind"] == "heal":
-            policy = heal_detail_allowed(current["detail"])
-            if not policy["allowed"]:
+            if tenant_id is not None and not _heal_run_in_tenant(current["detail"], tenant_id):
                 status = "rejected"
-                reason = str(policy["reason"])
+                reason = "tenant isolation"
             else:
-                heal_token = str(policy.get("token") or "")
-                applied = apply_approved_heal(current["detail"], heal_token)
-                heal_applied = bool(applied.get("applied"))
-                if not applied.get("ok"):
+                policy = heal_detail_allowed(current["detail"])
+                if not policy["allowed"]:
                     status = "rejected"
-                    reason = str(applied.get("reason") or "approved repair was not written")
-                    heal_token = ""
-                elif heal_token and not heal_applied:
-                    from .healing_policy import review_repair
-                    payload = json.loads(current["detail"])
-                    spent = review_repair(
-                        payload["old_code"], payload["new_code"],
-                        failure_class=str(payload.get("failure_class") or ""),
-                        approval_token=heal_token, consume=True,
-                    )
-                    if not spent.get("allowed"):
+                    reason = str(policy["reason"])
+                else:
+                    heal_token = str(policy.get("token") or "")
+                    applied = apply_approved_heal(current["detail"], heal_token)
+                    heal_applied = bool(applied.get("applied"))
+                    if not applied.get("ok"):
                         status = "rejected"
-                        reason = str(spent.get("reason") or "healing approval already used")
+                        reason = str(applied.get("reason") or "approved repair was not written")
                         heal_token = ""
+                    elif heal_token and not heal_applied:
+                        from .healing_policy import review_repair
+                        payload = json.loads(current["detail"])
+                        spent = review_repair(
+                            payload["old_code"], payload["new_code"],
+                            failure_class=str(payload.get("failure_class") or ""),
+                            approval_token=heal_token, consume=True,
+                        )
+                        if not spent.get("allowed"):
+                            status = "rejected"
+                            reason = str(spent.get("reason") or "healing approval already used")
+                            heal_token = ""
         decided_at = time.time()
         conn.execute(
             "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ? WHERE id = ?",

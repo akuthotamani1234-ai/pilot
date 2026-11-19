@@ -118,3 +118,81 @@ def test_an_accepted_heal_writes_the_script_once(tmp_path: Path):
 def test_unknown_kind_rejected(tmp_path: Path):
     with pytest.raises(ValueError):
         create("ordinary", "x", path=tmp_path / "a.sqlite")
+
+
+def test_an_old_approval_db_gains_a_tenant_column(tmp_path: Path):
+    import sqlite3
+
+    db = tmp_path / "old.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE approvals (id TEXT PRIMARY KEY, kind TEXT NOT NULL, subject TEXT NOT NULL, "
+            "detail TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, answer TEXT NOT NULL DEFAULT '', "
+            "reason TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL, decided_at REAL)"
+        )
+    row = create("sensitive", "keep", path=db)
+    assert row["tenant_id"] == ""
+    assert list_approvals(path=db, tenant_id="")[0]["id"] == row["id"]
+    assert list_approvals(path=db, tenant_id="t1") == []
+
+
+def test_an_approval_stays_in_its_tenant_and_cannot_rewrite_another_test(monkeypatch, tmp_path: Path):
+    from fastapi.testclient import TestClient
+
+    import backend.approvals as approvals
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "approvals.sqlite"
+    runs = tmp_path / "runs"
+    script = runs / "run-b" / "generated_tests" / "test_x.py"
+    script.parent.mkdir(parents=True)
+    script.write_text(_OLD, encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(approvals, "DEFAULT_DB", db)
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", tmp_path / "tenancy.sqlite")
+    tenancy.upsert_tenant("t1", "One")
+    tenancy.upsert_tenant("t2", "Two")
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer")
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin")
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin")
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Ready")
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1"}
+    made = client.post(
+        "/api/approvals", headers={**header, "Authorization": "Bearer admin-1"},
+        json={"kind": "sensitive", "subject": "delete the account"},
+    )
+    assert made.status_code == 200
+    approval_id = made.json()["id"]
+    hidden = client.get("/api/approvals", headers={"Authorization": "Bearer admin-2"})
+    assert hidden.status_code == 200 and hidden.json()["approvals"] == []
+    assert client.get("/api/approvals", headers={"Authorization": "Bearer view-1"}).status_code == 403
+    other = client.post(
+        f"/api/approvals/{approval_id}/decide",
+        headers={**header, "Authorization": "Bearer admin-2"}, json={"answer": "yes"},
+    )
+    assert other.status_code == 403
+    assert list_approvals(path=db)[0]["status"] == "pending"
+    owner = client.post(
+        f"/api/approvals/{approval_id}/decide",
+        headers={**header, "Authorization": "Bearer admin-1"}, json={"answer": "yes"},
+    )
+    assert owner.status_code == 200 and owner.json()["status"] == "accepted"
+    detail = json.dumps({
+        "old_code": _OLD, "new_code": _GOOD, "failure_class": "auth_problem",
+        "run_dir": str(runs / "run-b"), "file": "test_x.py",
+    })
+    heal = client.post(
+        "/api/approvals", headers={**header, "Authorization": "Bearer admin-1"},
+        json={"kind": "heal", "subject": "other tenant script", "detail": detail},
+    )
+    assert heal.status_code == 200
+    refused = client.post(
+        f"/api/approvals/{heal.json()['id']}/decide",
+        headers={**header, "Authorization": "Bearer admin-1"}, json={"answer": "yes"},
+    )
+    assert refused.status_code == 200
+    assert refused.json()["status"] == "rejected"
+    assert refused.json()["reason"] == "tenant isolation"
+    assert script.read_text(encoding="utf-8") == _OLD

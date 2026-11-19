@@ -2974,15 +2974,16 @@ def ops_paging_escalation():
     return {"gate_h_complete": False, "paging_escalation": evidence}
 
 
-def _require_dashboard_auth(
-    authorization: str | None = Header(default=None),
-    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
-) -> None:
-    """Optional dashboard auth (bearer / webhook token / principal+RBAC)."""
-    from backend.dashboard_auth import authorize
-    verdict = authorize(authorization, x_qa_token=x_qa_token)
-    if not verdict["ok"]:
-        raise HTTPException(401, verdict["reason"])
+def _approval_scope(authorization: str | None, x_qa_token: str | None):
+    """None lists every approval. A tenant id keeps the queue inside that tenant."""
+    from backend.dashboard_auth import auth_mode, authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="review.write")
+    if not verdict.get("ok"):
+        status = 403 if verdict.get("role") else 401
+        return JSONResponse({"detail": verdict.get("reason") or "unauthorized"}, status_code=status)
+    if auth_mode() not in ("principal", "oidc"):
+        return None
+    return str(verdict.get("tenant_id") or "")
 
 
 @app.get("/api/approvals")
@@ -2993,9 +2994,11 @@ def list_approval_queue(
     x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Gate I: list human-review approvals (pending by default)."""
-    _require_dashboard_auth(authorization, x_qa_token)
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
     from backend.approvals import list_approvals
-    return {"approvals": list_approvals(status=status, limit=limit), "gate_i_complete": False}
+    return {"approvals": list_approvals(status=status, limit=limit, tenant_id=scope), "gate_i_complete": False}
 
 
 class CreateApproval(BaseModel):
@@ -3011,10 +3014,12 @@ def create_approval(
     x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Enqueue an uncertain_assertion / heal / sensitive item for a person."""
-    _require_dashboard_auth(authorization, x_qa_token)
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
     from backend.approvals import create
     try:
-        row = create(req.kind, req.subject, detail=req.detail or "")
+        row = create(req.kind, req.subject, detail=req.detail or "", tenant_id=scope or "")
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     _audit("approval_create", approval=row["id"], kind=row["kind"])
@@ -3033,10 +3038,14 @@ def decide_approval_api(
     x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Record a person's answer via human_review.decide."""
-    _require_dashboard_auth(authorization, x_qa_token)
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
     from backend.approvals import decide_approval
     try:
-        row = decide_approval(approval_id, req.answer)
+        row = decide_approval(approval_id, req.answer, tenant_id=scope)
+    except PermissionError as e:
+        raise HTTPException(403, "tenant isolation") from e
     except KeyError as e:
         raise HTTPException(404, "Approval not found.") from e
     _audit("approval_decide", approval=approval_id, status=row.get("status"))
