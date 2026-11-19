@@ -25,6 +25,26 @@ def _now() -> float:
     return time.time()
 
 
+def queue_path_is_linked(path: str | Path) -> bool:
+    """True when this queue file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_absolute():
+        cursor = Path(path.anchor)
+        parts = path.parts[1:]
+    else:
+        cursor = Path()
+        parts = path.parts
+    for part in parts:
+        if not part or part in {".", ".."}:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+        if not cursor.exists():
+            return False
+    return False
+
+
 def lease_is_current(row, worker_id: str, now: float) -> bool:
     """True when ``worker_id`` still holds an unexpired lease."""
     if not row:
@@ -48,7 +68,11 @@ class DurableQueue:
 
     def __init__(self, path: str | Path, *, lease_seconds: int = 90, max_attempts: int = 3) -> None:
         self.path = Path(path)
+        if queue_path_is_linked(self.path):
+            raise ValueError("The swarm queue is a link.")
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.path.is_symlink():
+            raise ValueError("The swarm queue is a link.")
         self.lease_seconds = int(lease_seconds)
         self.max_attempts = int(max_attempts)
         self._db = sqlite3.connect(self.path, check_same_thread=False)

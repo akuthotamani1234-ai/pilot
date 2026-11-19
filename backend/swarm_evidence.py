@@ -17,7 +17,7 @@ from .swarm_supervisor import drain, enqueue_plan, open_queue, plan_run, queue_b
 def mirror_listing(run_dir: str | Path, listing_tasks: list[dict], *, run_id: str = "") -> dict:
     """Enqueue SiteSwarm listing handoffs into the durable queue (no drain yet)."""
     path = Path(run_dir)
-    if path.is_symlink():
+    if path.is_symlink() or (path / "swarm_queue.sqlite").is_symlink():
         return {"mirrored": 0, "run_id": run_id or path.name or "run", "backend": "none"}
     path.mkdir(parents=True, exist_ok=True)
     rid = (run_id or path.name or "run").strip()
@@ -53,8 +53,8 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
                  listing_tasks: list[dict] | None = None) -> dict:
     """Plan + drain durable tasks for safe URLs. Optionally enqueue listing tasks first."""
     path = Path(run_dir)
-    if path.is_symlink():
-        return {"gate_b_complete": False, "ran": False, "reason": "The run folder is a link.",
+    if path.is_symlink() or (path / "swarm_queue.sqlite").is_symlink():
+        return {"gate_b_complete": False, "ran": False, "reason": "The swarm queue is a link.",
                 "backend": "none", "processed": 0, "tasks": [], "listing_mirrored": 0}
     path.mkdir(parents=True, exist_ok=True)
     rid = (run_id or path.name or "run").strip()

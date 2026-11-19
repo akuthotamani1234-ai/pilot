@@ -23,7 +23,10 @@ def open_durable_queue(uri: str | None = None, *, default_path: str | Path = "ru
             path = raw[5:] or default_path
         elif raw.startswith("local:"):
             path = raw[6:] or default_path
-        queue = DurableQueue(path, lease_seconds=lease_seconds, max_attempts=max_attempts)
+        try:
+            queue = DurableQueue(path, lease_seconds=lease_seconds, max_attempts=max_attempts)
+        except ValueError as exc:
+            return {"ready": False, "backend": "sqlite", "queue": None, "reason": str(exc)}
         return {"ready": True, "backend": "sqlite", "queue": queue, "reason": ""}
     if raw.startswith(("redis://", "rediss://")):
         try:
