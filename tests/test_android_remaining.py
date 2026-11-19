@@ -249,6 +249,67 @@ def test_permission_actions_cannot_control_a_phone_or_bypass_irreversible_action
     assert not driver.changes
 
 
+def test_an_approved_android_flow_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-flow"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    touched = []
+
+    class Driver:
+        def __getattr__(self, name):
+            touched.append(name)
+            raise AssertionError(name)
+
+    config = {"package_name": PACKAGE, "device_id": "emulator-5554"}
+    adapter = AndroidContractAdapter(Driver(), config, None, run / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as flow:
+        adapter.guard()
+    assert secret not in str(flow.value)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.relaunch()
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.device_action("back")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.permissions.check_stop()
+    assert touched == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    session = PermissionSession(Driver(), config, None, lambda: None, linked / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as permission:
+        session.check_stop()
+    assert secret not in str(permission.value)
+    assert touched == []
+    assert not (other / "screenshots").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    real_adapter = AndroidContractAdapter(Driver(), config, None, real / "STOP")
+    with pytest.raises(InterruptedError, match="approved Android flow was stopped"):
+        real_adapter.guard()
+    with pytest.raises(InterruptedError, match="relaunch was stopped"):
+        real_adapter.relaunch()
+    with pytest.raises(InterruptedError, match="approved Android flow was stopped"):
+        real_adapter.device_action("back")
+    with pytest.raises(InterruptedError, match="permission test was stopped"):
+        real_adapter.permissions.check_stop()
+    assert touched == []
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_permission_changes_are_restored_after_a_failed_assertion(monkeypatch):
     contract = parse_contract({'test_environment': True,
         'android_permissions': {'approved': True, 'app_label': 'Fixture App', 'allowed': [CAMERA]},
