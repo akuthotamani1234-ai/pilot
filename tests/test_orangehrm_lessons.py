@@ -205,3 +205,45 @@ def test_a_slow_start_page_is_a_risk_when_the_website_was_tested():
     assert verdict != "Insufficient Evidence" or "start page" not in " ".join(reasons)  # (was: the only reason)
     state["app_map"] = state["app_map"][:1]  # nothing else opened either: still not enough evidence
     assert decide_verdict(state)[0] == "Insufficient Evidence"
+
+
+def test_a_screenshot_check_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import json
+    import zipfile
+
+    from backend import vision
+
+    secret = b"tenant-b-only-shot"
+    other = tmp_path / "other.png"
+    other.write_bytes(secret)
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "shot.png").symlink_to(other)
+    (run / "ok.png").write_bytes(b"ours-shot")
+    assert vision._read(run, "shot.png") is None
+    assert vision._read(run, "../other.png") is None
+    assert vision._read(run, "ok.png") == b"ours-shot"
+    assert other.read_bytes() == secret
+
+    trace = tmp_path / "trace.zip"
+    with zipfile.ZipFile(trace, "w") as archive:
+        archive.writestr("0.trace", "tenant-b-only-shot")
+    (run / "trace.zip").symlink_to(trace)
+    assert vision.before_picture(run / "trace.zip") is None
+    assert b"tenant-b-only-shot" in trace.read_bytes()
+
+    cache = tmp_path / "cache.json"
+    cache.write_text(json.dumps({"secret": "tenant-b-only-shot"}), encoding="utf-8")
+    (run / "vision_failures.json").symlink_to(cache)
+    monkeypatch.setattr(vision, "vision_enabled", lambda: True)
+    monkeypatch.setattr(vision, "ask_structured", lambda *a, **k: (_ for _ in ()).throw(AssertionError("looked")))
+    seen = vision.review_results({
+        "run_dir": str(run), "app_map": [], "test_cases": [],
+        "results": [{
+            "nodeid": "test_home.py::test_check", "outcome": "failed", "test": "test_check",
+            "file": "test_home.py", "screenshot": "shot.png", "trace": "trace.zip",
+            "error": "E   AssertionError: the picture changed", "url": "https://shop.test/home",
+        }],
+    })
+    assert seen == 0
+    assert json.loads(cache.read_text(encoding="utf-8"))["secret"] == "tenant-b-only-shot"
