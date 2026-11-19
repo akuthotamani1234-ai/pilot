@@ -148,6 +148,36 @@ def test_a_finding_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (other / "failures.json").read_bytes() == secret
 
 
+def test_a_reconciled_result_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.finalization import reconcile
+
+    secret = b"tenant-b-only-reconcile"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    for name in ("results.json", "failures.json", "test_cases.json", "pending_cases.json"):
+        (nested / name).write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    row = {"nodeid": "test_home.py::test_home", "test": "test_home", "file": "test_home.py",
+           "outcome": "failed", "error": "button missing", "url": "https://shop.test/home"}
+    state = {"run_dir": str(linked / "run"), "results": [row], "failures": [], "test_cases": []}
+    reconcile(state)
+    reconcile({"run_dir": str(linked / "fresh"), "results": [row], "failures": [], "test_cases": []})
+    assert not (other / "fresh").exists()
+    for name in ("results.json", "failures.json", "test_cases.json", "pending_cases.json", "keep.txt"):
+        assert (nested / name).read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = reconcile({"run_dir": str(real), "results": [row], "failures": [], "test_cases": []})
+    written = (real / "results.json").read_bytes()
+    assert b"https://shop.test/home" in written and secret not in written
+    assert own["results"][0]["nodeid"] == "test_home.py::test_home"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_finding_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
     from backend.agents.executor import _read, _write_run_json

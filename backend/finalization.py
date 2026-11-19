@@ -119,7 +119,7 @@ def finding_nodes(finding: dict) -> set[str]:
 def ingest_results(state: dict, *, recover: bool = True) -> list[dict]:
     """Keep final aggregates authoritative; recover missing worker records and torn JSONL safely."""
     root = Path(state["run_dir"])
-    if root.is_symlink():
+    if folder_is_linked(root):
         return [] if recover or "results" not in state else list(state.get("results") or [])
     if not recover and "results" in state:
         return list(state.get("results") or [])
@@ -150,7 +150,7 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
     from .excel import case_hits
 
     root = Path(state["run_dir"])
-    if root.is_symlink():
+    if folder_is_linked(root):
         return dict(state)
     results = ingest_results(state, recover=recover)
     cases = state.get("test_cases") or read_json(root / "test_cases.json", [])
@@ -213,7 +213,7 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
                             ("pending_cases.json", {"pending": pending, "completed_nodeids": sorted(
                                 r["nodeid"] for r in results)})):
             dest = root / name
-            if dest.is_symlink():
+            if folder_is_linked(root) or dest.is_symlink():
                 continue
             dest.write_text(json.dumps(value, indent=2), encoding="utf-8")
     return recovered
