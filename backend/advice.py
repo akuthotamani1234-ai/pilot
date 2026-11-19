@@ -222,5 +222,8 @@ def build_fixes(state: dict, *, enrich: bool = True) -> list[dict]:
     if enrich:
         ai_fill(fixes)
 
-    Path(state["run_dir"], "fixes.json").write_text(json.dumps(fixes, indent=2), encoding="utf-8")
+    from .finalization import folder_is_linked
+    dest = Path(state["run_dir"]) / "fixes.json"
+    if not folder_is_linked(dest):
+        dest.write_text(json.dumps(fixes, indent=2), encoding="utf-8")
     return fixes
