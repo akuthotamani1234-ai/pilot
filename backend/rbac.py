@@ -28,9 +28,10 @@ def allow(*, role: str, action: str, tenant_id: str = "", resource_tenant: str =
         return {"allowed": False, "reason": "action not permitted for role", "role": role_key, "action": act}
     want = (tenant_id or "").strip()
     own = (resource_tenant or "").strip()
-    if want and own and want != own:
+    # One side alone is not a boundary. Both empty stays the single-tenant path.
+    if bool(want) != bool(own) or (want and own and want != own):
         return {"allowed": False, "reason": "tenant isolation", "role": role_key, "action": act,
-                "tenant_id": want, "resource_tenant": own}
+                "tenant_id": want or None, "resource_tenant": own or None}
     return {"allowed": True, "reason": "", "role": role_key, "action": act,
             "tenant_id": want or None}
 

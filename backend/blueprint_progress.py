@@ -79,6 +79,7 @@ def progress() -> dict:
         {"id": "B-specialists", "label": "Coverage/oracle specialist plan+drain", "status": "done"},
         {"id": "E-persist-replay", "label": "Persist replay packages before run_saved", "status": "done"},
         {"id": "G-tenancy-sqlite", "label": "SQLite tenants/principals/run_index helpers", "status": "done"},
+        {"id": "G-tenant-both", "label": "A tenant check needs both the actor and the resource", "status": "done"},
         {"id": "G-live-pg-redis", "label": "Live Postgres isolation + Redis lease drills", "status": "done"},
         {"id": "B-redis-queue", "label": "Redis DurableQueue adapter + plan/drain drill", "status": "done"},
         {"id": "G-minio", "label": "Live MinIO object-store drill", "status": "done"},
