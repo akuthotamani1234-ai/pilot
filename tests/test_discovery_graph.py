@@ -41,6 +41,50 @@ def test_build_graph_attaches_provenance_and_never_claims_gate_a_complete():
     assert all("provenance" in edge for edge in graph["edges"])
 
 
+def test_a_discovery_graph_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.discovery_report import discovery_report
+    from backend.locale_check import write_locale
+
+    secret = b"tenant-b-only-graph"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "discovery_graph.json").write_bytes(secret)
+    (other / "locale.json").write_bytes(secret)
+    (other / "summary.json").write_bytes(secret)
+    (other / "report.html").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    page = {
+        "url": "http://shop.test/", "slug": "home", "page_type": "home", "auth": False,
+        "title": "Home", "status": 200, "buttons": [], "links": [], "inputs": [], "forms": [],
+        "itemLinks": {"links": [], "selector": ""},
+    }
+    write_graph(linked / "run", [page])
+    write_locale(linked / "run", {"currency": "USD"})
+    discovery_report({"run_id": "linked", "run_dir": str(linked / "run"), "url": "https://shop.test",
+                      "app_map": [page], "crawl": {}, "log": []})
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "discovery_graph.json").read_bytes() == secret
+    assert (other / "locale.json").read_bytes() == secret
+    assert (other / "summary.json").read_bytes() == secret
+    assert (other / "report.html").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    write_graph(real, [page])
+    assert b"shop.test" in (real / "discovery_graph.json").read_bytes()
+    assert secret not in (real / "discovery_graph.json").read_bytes()
+    assert write_locale(real, {"currency": "USD"})["observed"]["currency"] == "USD"
+    assert secret not in (real / "locale.json").read_bytes()
+    discovery_report({"run_id": "real", "run_dir": str(real), "url": "https://shop.test",
+                      "app_map": [page], "crawl": {}, "log": []})
+    assert "Component discovery" in (real / "report.html").read_text(encoding="utf-8")
+    assert secret not in (real / "summary.json").read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_write_graph_creates_discovery_graph_json(tmp_path: Path):
     graph = write_graph(tmp_path, [{
         "url": "http://shop.test/", "slug": "home", "page_type": "home", "auth": False,

@@ -81,8 +81,8 @@ def write_graph(run_dir: str | Path, app_map: list[dict], crawl: dict | None = N
     path = Path(run_dir)
     graph = build_graph(app_map, crawl)
     graph["surfaces"] = summarize_surfaces(app_map, crawl)
-    from .finalization import write_text_unless_linked
-    if not path.is_symlink():
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if not folder_is_linked(path):
         path.mkdir(parents=True, exist_ok=True)
         write_text_unless_linked(path, "discovery_graph.json", json.dumps(graph, indent=2))
         write_text_unless_linked(path, "surface_coverage.json", json.dumps(graph["surfaces"], indent=2))

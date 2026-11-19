@@ -8,6 +8,14 @@ from .safety import redact
 ADVERSE = {"failed", "error", "inconclusive"}
 
 
+def folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def path_unless_linked(folder: Path, name: str) -> Path | None:
     """A real file path in this folder. A link, or a name that leaves the folder, is refused."""
     folder = Path(folder)
