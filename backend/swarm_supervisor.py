@@ -172,6 +172,10 @@ def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
     import os
 
     path = Path(run_dir)
+    from .swarm_queue import queue_path_is_linked
+    queue_file = path / "swarm_queue.sqlite"
+    if queue_path_is_linked(path) or queue_path_is_linked(queue_file):
+        raise RuntimeError("The swarm queue is a link.")
     path.mkdir(parents=True, exist_ok=True)
     redis_uri = (os.getenv("REDIS_URL") or os.getenv("QPILOT_REDIS_URL") or "").strip()
     if redis_uri.startswith(("redis://", "rediss://")):

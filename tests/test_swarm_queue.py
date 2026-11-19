@@ -2,6 +2,8 @@
 import threading
 import time
 
+import pytest
+
 from backend.swarm_queue import DurableQueue
 
 
@@ -136,3 +138,39 @@ def test_cancel_blocks_further_claims(tmp_path):
     assert q.claim(worker_id="w1") is None
     assert q.get(task["task_id"])["status"] == "cancelled"
     q.close()
+
+
+def test_a_swarm_queue_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    from backend.swarm_evidence import record_swarm
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("QPILOT_REDIS_URL", raising=False)
+    secret = b"tenant-b-only-queue"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "swarm_queue.sqlite"
+    victim.write_bytes(secret)
+    (other / "note.txt").write_text("tenant-b-only-queue", encoding="utf-8")
+
+    linked_dir = tmp_path / "linked-dir"
+    linked_dir.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError):
+        DurableQueue(linked_dir / "swarm_queue.sqlite")
+    assert victim.read_bytes() == secret
+    assert not (other / "swarm_queue.sqlite-wal").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "swarm_queue.sqlite").symlink_to(victim)
+    with pytest.raises(ValueError):
+        DurableQueue(real / "swarm_queue.sqlite")
+    evidence = record_swarm(real, ["https://shop.example/saree"], run_id="real")
+    assert evidence["ran"] is False
+    assert victim.read_bytes() == secret
+    assert (other / "note.txt").read_text(encoding="utf-8") == "tenant-b-only-queue"
+
+    fresh = tmp_path / "fresh"
+    saved = record_swarm(fresh, ["https://shop.example/saree"], run_id="fresh")
+    assert saved["ran"] is True
+    queue = fresh / "swarm_queue.sqlite"
+    assert queue.is_file() and not queue.is_symlink()
+    assert secret not in queue.read_bytes()
