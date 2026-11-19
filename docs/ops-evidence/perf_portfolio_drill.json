@@ -1,7 +1,7 @@
 {
   "gate_f_complete": false,
   "drill": "demo_store_perf_portfolio",
-  "ran_at": "2026-11-19T04:15:29Z",
+  "ran_at": "2026-11-19T05:38:41Z",
   "fixture": "DemoStore",
   "pages_walked": [
     "/",
@@ -11,9 +11,9 @@
     "/signin"
   ],
   "timings": {
-    "dom_content_loaded_ms": 10.743919003289193,
-    "load_ms": 11.365572005161084,
-    "largest_contentful_paint_ms": 10.743919003289193,
+    "dom_content_loaded_ms": 9.280679994844832,
+    "load_ms": 10.956876998534426,
+    "largest_contentful_paint_ms": 9.280679994844832,
     "samples": 5
   },
   "portfolio": {

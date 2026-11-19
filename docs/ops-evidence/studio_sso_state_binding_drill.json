@@ -1,0 +1,14 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_state_binding",
+  "ran_at": "2026-11-19T05:41:01Z",
+  "kind": "state_binding_local",
+  "expected_state": "studio-sso-state-1",
+  "good_ok": true,
+  "bad_rejected": true,
+  "unset_passthrough": true,
+  "bad_reason": "state mismatch",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO state binding ok (match accepted, mismatch rejected); live hosted IdP Studio SSO still open"
+}

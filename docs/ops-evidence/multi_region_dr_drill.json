@@ -1,7 +1,7 @@
 {
   "gate_h_complete": false,
   "drill": "multi_region_postgres_failover",
-  "ran_at": "2026-11-19T05:32:04Z",
+  "ran_at": "2026-11-19T05:41:03Z",
   "ok": true,
   "region_a": "qpilot_region_a",
   "region_b": "qpilot_region_b",

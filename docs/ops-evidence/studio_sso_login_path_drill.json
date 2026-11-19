@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "studio_sso_login_path",
-  "ran_at": "2026-11-19T05:11:39Z",
+  "ran_at": "2026-11-19T05:41:01Z",
   "kind": "login_path_contract",
   "path": {
     "authorize": "/authorize",
@@ -55,6 +55,27 @@
       "hosted_verified": false
     },
     {
+      "step": "audience",
+      "artifact": "studio_sso_audience_binding_drill.json",
+      "label": "Audience binding",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "expiry",
+      "artifact": "studio_sso_token_expiry_drill.json",
+      "label": "Token expiry rejection",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "state",
+      "artifact": "studio_sso_state_binding_drill.json",
+      "label": "State binding",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
       "step": "acl_matrix",
       "artifact": "oidc_acl_matrix_pack_drill.json",
       "label": "Claim ACL matrix",
@@ -76,9 +97,9 @@
       "hosted_verified": false
     }
   ],
-  "score": 9,
-  "score_of": 9,
+  "score": 12,
+  "score_of": 12,
   "live_hosted_sso": false,
   "ok": true,
-  "reason": "Studio SSO login-path 9/9; live hosted IdP Studio SSO still open"
+  "reason": "Studio SSO login-path 12/12; live hosted IdP Studio SSO still open"
 }
