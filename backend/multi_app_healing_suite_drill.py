@@ -85,7 +85,23 @@ def _provoke_and_heal(page, app_id: str) -> dict:
     }
 
 
+def _linked_suite() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "multi_app_healing_suite",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_multi_app_healing_suite_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "multi_app_healing_suite_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_suite()
+
     from importlib import import_module
 
     from playwright.sync_api import sync_playwright
@@ -128,12 +144,15 @@ def run_multi_app_healing_suite_drill(*, ops_dir: Path | None = None) -> dict:
             "production / third-party healing suite still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_suite()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "multi_app_healing_suite_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_suite()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "multi_app_healing_suite_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
