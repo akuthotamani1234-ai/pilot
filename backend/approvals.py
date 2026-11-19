@@ -123,8 +123,9 @@ def _heal_run_in_tenant(detail: str, tenant_id: str) -> bool:
         return False
     studio = Path(settings.runs_dir) / run_name
     # Resolving a symlink named like the run still matches the studio path, and the
-    # write would follow it. The run folder itself has to be a real directory.
-    if studio.is_symlink() or not studio.is_dir():
+    # write would follow it. A folder on the way to the run is the same.
+    from .finalization import folder_is_linked
+    if folder_is_linked(studio) or not studio.is_dir():
         return False
     try:
         resolved = Path(run_raw).resolve()

@@ -361,3 +361,31 @@ def test_an_approved_repair_does_not_follow_a_link_into_another_folder(tmp_path)
     assert own["applied"] is True
     assert b"#b" in written and secret not in written
     assert script.read_bytes() == secret
+
+
+def test_a_heal_approval_does_not_follow_a_run_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.approvals import _heal_run_in_tenant
+
+    secret = "tenant-b-only-heal"
+    other = tmp_path / "other"
+    nested = other / "home-own"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "runs"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr("backend.config.settings.runs_dir", linked)
+    monkeypatch.setattr("backend.tenancy_store.get_run_tenant", lambda name: "tenant-a")
+    detail = json.dumps({"run_dir": str(linked / "home-own")})
+    assert _heal_run_in_tenant(detail, "tenant-a") is False
+    assert secret not in detail
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real_runs = tmp_path / "real-runs"
+    real = real_runs / "home-own"
+    real.mkdir(parents=True)
+    (real / "keep.txt").write_text("home-own", encoding="utf-8")
+    monkeypatch.setattr("backend.config.settings.runs_dir", real_runs)
+    assert _heal_run_in_tenant(json.dumps({"run_dir": str(real)}), "tenant-a") is True
+    assert (nested / "keep.txt").read_text(encoding="utf-8") == secret
+    assert (real / "keep.txt").read_text(encoding="utf-8") == "home-own"
