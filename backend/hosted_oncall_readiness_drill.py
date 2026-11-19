@@ -18,6 +18,7 @@ CHECKS = (
     ("redis_multi_region_drill.json", "Local Redis dual-DB failover"),
     ("multi_store_dr_drill.json", "Combined multi-store DR pack"),
     ("failover_rto_drill.json", "Local failover RTO measurement"),
+    ("multi_region_cutover_rehearsal_drill.json", "Local multi-region cutover pack"),
     ("paging_escalation_drill.json", "Loopback primary→secondary paging"),
     ("paging_ack_drill.json", "Loopback paging ack→resolve"),
     ("observability_probe_drill.json", "Local observability probe"),

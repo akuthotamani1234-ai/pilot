@@ -48,6 +48,7 @@ def loopback_oidc_session(
     sub: str = "loopback-user-1",
     email: str = "loopback@example.test",
     audience: str = "qpilot-loopback",
+    extra_claims: dict | None = None,
 ):
     """Yield ``{token, issuer, audience, claims, validate}`` while JWKS is live."""
     import jwt
@@ -110,6 +111,8 @@ def loopback_oidc_session(
             "exp": now + 600,
             "iat": now,
         }
+        if extra_claims:
+            claims.update(extra_claims)
         token = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
         from .oidc_jwt import validate_bearer
 

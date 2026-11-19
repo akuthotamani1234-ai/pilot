@@ -1671,6 +1671,35 @@ def ops_independent_review_integrity():
     return {"gate_g_complete": False, "independent_review_integrity": evidence}
 
 
+@app.post("/api/ops/drills/oidc-tid-tenant-acl")
+def ops_oidc_tid_tenant_acl():
+    """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
+    from backend.oidc_tid_tenant_acl_drill import run_oidc_tid_tenant_acl_drill
+    evidence = run_oidc_tid_tenant_acl_drill()
+    _audit(
+        "ops_oidc_tid_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_tid_tenant_acl": evidence}
+
+
+@app.post("/api/ops/drills/multi-region-cutover-rehearsal")
+def ops_multi_region_cutover_rehearsal():
+    """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""
+    from backend.multi_region_cutover_rehearsal_drill import (
+        run_multi_region_cutover_rehearsal_drill,
+    )
+    evidence = run_multi_region_cutover_rehearsal_drill()
+    _audit(
+        "ops_multi_region_cutover_rehearsal",
+        ok=bool(evidence.get("ok")),
+        steps_passed=int(evidence.get("steps_passed") or 0),
+        elapsed_ms=int(evidence.get("elapsed_ms") or 0),
+    )
+    return {"gate_h_complete": False, "multi_region_cutover_rehearsal": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
