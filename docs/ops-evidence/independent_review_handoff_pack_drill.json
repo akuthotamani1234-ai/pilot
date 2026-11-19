@@ -1,0 +1,15 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_handoff_pack",
+  "ran_at": "2026-11-19T04:02:48Z",
+  "kind": "unsigned_ops_pack",
+  "parts": {
+    "request": true,
+    "signoff_pack": true,
+    "summary": true
+  },
+  "signed_off": false,
+  "elapsed_ms": 56,
+  "ok": true,
+  "reason": "Independent review handoff pack ok in 56ms (unsigned); external sign-off still open"
+}

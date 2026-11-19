@@ -1,7 +1,7 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_evidence_catalog",
-  "ran_at": "2026-11-19T03:40:22Z",
+  "ran_at": "2026-11-19T04:02:48Z",
   "signed_off": false,
   "entries": [
     {
@@ -13,7 +13,7 @@
     },
     {
       "name": "INDEPENDENT_REVIEW_SUMMARY.md",
-      "bytes": 1204,
+      "bytes": 1206,
       "gates": [
         "gate_g"
       ]
@@ -56,6 +56,13 @@
     {
       "name": "android_appium_product_matrix_drill.json",
       "bytes": 2724,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_device_ci_readiness_pack_drill.json",
+      "bytes": 1415,
       "gates": [
         "gate_d"
       ]
@@ -114,6 +121,13 @@
       "bytes": 402,
       "gates": [
         "untagged"
+      ]
+    },
+    {
+      "name": "browser_portfolio_ci_readiness_pack_drill.json",
+      "bytes": 1570,
+      "gates": [
+        "gate_f"
       ]
     },
     {
@@ -234,6 +248,13 @@
       ]
     },
     {
+      "name": "dual_region_store_health_probe_drill.json",
+      "bytes": 525,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
       "name": "dual_tenant_oidc_acl_drill.json",
       "bytes": 705,
       "gates": [
@@ -291,21 +312,21 @@
     },
     {
       "name": "hosted_idp_contract_drill.json",
-      "bytes": 1121,
+      "bytes": 1442,
       "gates": [
         "gate_i"
       ]
     },
     {
       "name": "hosted_idp_readiness_drill.json",
-      "bytes": 1474,
+      "bytes": 1880,
       "gates": [
         "gate_i"
       ]
     },
     {
       "name": "hosted_idp_sso_readiness_pack_drill.json",
-      "bytes": 424,
+      "bytes": 448,
       "gates": [
         "gate_i"
       ]
@@ -326,7 +347,7 @@
     },
     {
       "name": "hosted_oncall_readiness_pack_drill.json",
-      "bytes": 392,
+      "bytes": 390,
       "gates": [
         "gate_h"
       ]
@@ -368,7 +389,7 @@
     },
     {
       "name": "independent_review_evidence_catalog_drill.json",
-      "bytes": 15661,
+      "bytes": 16473,
       "gates": [
         "gate_g"
       ]
@@ -382,7 +403,7 @@
     },
     {
       "name": "independent_review_pack.json",
-      "bytes": 19759,
+      "bytes": 20814,
       "gates": [
         "gate_g"
       ]
@@ -397,6 +418,13 @@
     {
       "name": "independent_review_request_drill.json",
       "bytes": 1454,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_signoff_pack_drill.json",
+      "bytes": 386,
       "gates": [
         "gate_g"
       ]
@@ -570,6 +598,13 @@
       ]
     },
     {
+      "name": "oidc_acl_matrix_pack_drill.json",
+      "bytes": 387,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
       "name": "oidc_email_domain_tenant_acl_drill.json",
       "bytes": 889,
       "gates": [
@@ -613,7 +648,7 @@
     },
     {
       "name": "paging_escalation_ack_pack_drill.json",
-      "bytes": 311,
+      "bytes": 309,
       "gates": [
         "gate_h"
       ]
@@ -634,7 +669,7 @@
     },
     {
       "name": "perf_portfolio_drill.json",
-      "bytes": 773,
+      "bytes": 774,
       "gates": [
         "gate_f"
       ]
@@ -717,6 +752,13 @@
       ]
     },
     {
+      "name": "production_healing_third_party_sla_drill.json",
+      "bytes": 1458,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
       "name": "qx_capabilities_drill.json",
       "bytes": 3349,
       "gates": [
@@ -762,7 +804,7 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 8271,
+      "bytes": 8911,
       "gates": [
         "gate_g"
       ]
@@ -853,20 +895,20 @@
       ]
     }
   ],
-  "entry_count": 120,
+  "entry_count": 126,
   "by_gate": {
-    "gate_g": 12,
-    "gate_f": 9,
+    "gate_g": 13,
+    "gate_f": 10,
     "gate_c": 6,
-    "gate_d": 13,
-    "untagged": 23,
+    "gate_d": 14,
+    "untagged": 24,
     "gate_j": 4,
     "gate_b": 6,
-    "gate_i": 16,
-    "gate_e": 12,
+    "gate_i": 17,
+    "gate_e": 13,
     "gate_h": 21,
     "gate_a": 6
   },
   "ok": true,
-  "reason": "Independent review evidence catalog 120 files; signed_off remains False until external review"
+  "reason": "Independent review evidence catalog 126 files; signed_off remains False until external review"
 }

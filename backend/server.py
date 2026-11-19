@@ -1717,6 +1717,21 @@ def ops_production_healing_suite_pack():
     return {"gate_e_complete": False, "production_healing_suite_pack": evidence}
 
 
+@app.post("/api/ops/drills/production-healing-third-party-sla")
+def ops_production_healing_third_party_sla():
+    """Gate E: third-party healing SLA contract (production suite still open)."""
+    from backend.production_healing_third_party_sla_drill import (
+        run_production_healing_third_party_sla_drill,
+    )
+    evidence = run_production_healing_third_party_sla_drill()
+    _audit(
+        "ops_production_healing_third_party_sla",
+        ok=bool(evidence.get("ok")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_third_party_sla": evidence}
+
+
 @app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
 def ops_hosted_dispatch_payload_rehearsal():
     """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""
@@ -1872,6 +1887,21 @@ def ops_independent_review_signoff_pack():
     return {"gate_g_complete": False, "independent_review_signoff_pack": evidence}
 
 
+@app.post("/api/ops/drills/independent-review-handoff-pack")
+def ops_independent_review_handoff_pack():
+    """Gate G: request+signoff+summary handoff pack (unsigned)."""
+    from backend.independent_review_handoff_pack_drill import (
+        run_independent_review_handoff_pack_drill,
+    )
+    evidence = run_independent_review_handoff_pack_drill()
+    _audit(
+        "ops_independent_review_handoff_pack",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_handoff_pack": evidence}
+
+
 @app.post("/api/ops/drills/oidc-tid-tenant-acl")
 def ops_oidc_tid_tenant_acl():
     """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
@@ -1928,6 +1958,22 @@ def ops_multi_region_dr_readiness_pack():
         live=bool(evidence.get("live_hosted_dr")),
     )
     return {"gate_h_complete": False, "multi_region_dr_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/dual-region-store-health-probe")
+def ops_dual_region_store_health_probe():
+    """Gate H: local dual-region store TCP health probe (hosted DR still open)."""
+    from backend.dual_region_store_health_probe_drill import (
+        run_dual_region_store_health_probe_drill,
+    )
+    evidence = run_dual_region_store_health_probe_drill()
+    _audit(
+        "ops_dual_region_store_health_probe",
+        ok=bool(evidence.get("ok")),
+        primary_up=int(evidence.get("primary_up") or 0),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_store_health_probe": evidence}
 
 
 @app.post("/api/ops/drills/hosted-ci-artifact-gate-pack")

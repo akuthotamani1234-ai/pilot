@@ -1,0 +1,22 @@
+{
+  "gate_h_complete": false,
+  "drill": "dual_region_store_health_probe",
+  "ran_at": "2026-11-19T04:02:48Z",
+  "kind": "local_health_probe",
+  "primary": {
+    "postgres": true,
+    "redis": true,
+    "minio": true
+  },
+  "secondary": {
+    "postgres": false,
+    "redis": false,
+    "minio": false
+  },
+  "primary_up": 3,
+  "secondary_up": 0,
+  "live_hosted_dr": false,
+  "elapsed_ms": 1,
+  "ok": true,
+  "reason": "Dual-region store health probe primary 3/3 secondary 0/3 in 1ms; live hosted multi-region DR still open"
+}
