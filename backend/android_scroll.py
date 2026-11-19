@@ -120,6 +120,17 @@ def _guard(screen, current):
         raise AndroidEnvironmentError('Scrolling left the verified native screen; remaining controls were not touched')
 
 
+def _user_stopped(stop_path):
+    """True when the user wrote a real stop file. A link is refused."""
+    if not stop_path:
+        return False
+    from .android_runtime import stop_file_note
+    note = stop_file_note(stop_path)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
+    return bool(note)
+
+
 def seek_observed(driver, screen, element, config, stop_path=None, limit=8):
     hint = element.get('scroll_hint')
     if not hint or not _stable_route(screen):
@@ -130,7 +141,7 @@ def seek_observed(driver, screen, element, config, stop_path=None, limit=8):
     total_attempts = 0
     for direction in directions:
         for _ in range(limit + 1):
-            if stop_path and stop_path.exists():
+            if _user_stopped(stop_path):
                 raise AndroidEnvironmentError('The Android run was stopped by the user')
             _guard(screen, inspect_driver(driver, config))
             for locator in element['locators']:
@@ -156,6 +167,8 @@ def seek_observed(driver, screen, element, config, stop_path=None, limit=8):
 
 def discover_viewports(driver, screen, config, budget, deadline, run_dir):
     """Explore rendered scroll containers with reversible, observable, bounded gestures."""
+    from pathlib import Path
+    _user_stopped(Path(run_dir) / "STOP")
     if config.get('app_mode') == 'web' or config.get('contract_only') or screen.get('identity', [])[:1] == ['embedded_webview']:
         return []
     scrollables = [e for e in screen['elements'] if e.get('visible') and e.get('scrollable')
@@ -235,8 +248,8 @@ def discover_viewports(driver, screen, config, budget, deadline, run_dir):
                 ('right', 'left'), ('left', 'right')
             ]
             for forward, reverse in directions:
-                if budget.get('scroll', 0) >= maximum or time.monotonic() >= deadline or stop_path.exists():
-                    reason = ('Stop requested during viewport discovery' if stop_path.exists() else
+                if budget.get('scroll', 0) >= maximum or time.monotonic() >= deadline or _user_stopped(stop_path):
+                    reason = ('Stop requested during viewport discovery' if _user_stopped(stop_path) else
                               'Discovery time limit reached; more content may remain' if time.monotonic() >= deadline else
                               'The per-screen or global discovery scroll limit was reached; more content may remain')
                     add_gap(label, reason)
@@ -250,7 +263,7 @@ def discover_viewports(driver, screen, config, budget, deadline, run_dir):
                 steps, inconclusive = 0, False
 
                 while time.monotonic() < deadline:
-                    if stop_path.exists():
+                    if _user_stopped(stop_path):
                         add_gap(label, 'Stop requested during viewport discovery')
                         abort_screen = True
                         break
@@ -287,7 +300,7 @@ def discover_viewports(driver, screen, config, budget, deadline, run_dir):
                 # Restore the exact starting viewport before trying another direction or container.
                 attempts = 0
                 while current_signature != start_signature and attempts < max(2, steps + 2):
-                    if stop_path.exists() or time.monotonic() >= deadline or budget.get('scroll', 0) >= maximum:
+                    if _user_stopped(stop_path) or time.monotonic() >= deadline or budget.get('scroll', 0) >= maximum:
                         break
                     before_signature = current_signature
                     more = _scroll(driver, target, reverse)

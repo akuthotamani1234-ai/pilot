@@ -33,18 +33,23 @@ def device_unavailable(error):
     return False
 
 
-def stop_note(run_dir) -> str:
-    """Why this run should stop, or empty when it should continue.
+def stop_file_note(stop) -> str:
+    """Why this stop file should halt the run, or empty when it should continue.
 
     A stop file reached through a link is not a user stop.
     """
     from .finalization import folder_is_linked
-    stop = Path(run_dir) / "STOP"
+    stop = Path(stop)
     if folder_is_linked(stop):
         return "The Android run is a link."
     if stop.is_file():
         return "The mobile run was stopped by the user."
     return ""
+
+
+def stop_note(run_dir) -> str:
+    """Why this run should stop, or empty when it should continue."""
+    return stop_file_note(Path(run_dir) / "STOP")
 
 
 def screen_key(screen):
