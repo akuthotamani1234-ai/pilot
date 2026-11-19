@@ -62,8 +62,8 @@ def _provoke_and_heal(page, app_id: str) -> dict:
         f"    page.locator(\"#qpilot-missing-{app_id}\").click()\n"
         "    assert True\n"
     )
-    allow = review_repair(old, healed)
-    deny = review_repair(old, weakened)
+    allow = review_repair(old, healed, failure_class=category)
+    deny = review_repair(old, weakened, failure_class=category)
     ok = (
         bool(live.get("missing_locator"))
         and bool(allow.get("allowed"))

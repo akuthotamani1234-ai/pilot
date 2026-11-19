@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_readiness",
-  "ran_at": "2026-11-19T05:50:24Z",
+  "ran_at": "2026-11-19T07:32:33Z",
   "kind": "readiness_score_only",
-  "score": 16,
-  "score_of": 16,
+  "score": 17,
+  "score_of": 17,
   "checks": [
     {
       "artifact": "live_failure_matrix_drill.json",
@@ -85,9 +85,14 @@
       "artifact": "production_healing_escalation_ladder_drill.json",
       "label": "Escalation ladder contract",
       "ready": true
+    },
+    {
+      "artifact": "production_healing_escalation_enforcement_drill.json",
+      "label": "Escalation enforced on repair path",
+      "ready": true
     }
   ],
   "production_suite_executed": false,
   "ok": true,
-  "reason": "Production healing readiness 16/16; production / third-party healing suite still open"
+  "reason": "Production healing readiness 17/17; production / third-party healing suite still open"
 }
