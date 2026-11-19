@@ -17,13 +17,24 @@ from .. import cost
 from ..config import settings
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+
+
+def _prompt_file(name: str) -> Path:
+    """A real prompt file. A link, or a name that leaves the prompt folder, is refused."""
+    from ..finalization import folder_is_linked
+    path = PROMPTS_DIR / f"{name}.txt"
+    if not name or Path(name).is_absolute() or ".." in Path(name).parts or folder_is_linked(path):
+        raise OSError("The prompt is a link.")
+    return path
+
+
 # added to every request: text copied from the website under test may try to give the AI orders (prompt injection)
-UNTRUSTED = (PROMPTS_DIR / "untrusted.txt").read_text(encoding="utf-8").strip()
+UNTRUSTED = _prompt_file("untrusted").read_text(encoding="utf-8").strip()
 
 
 def load_prompt(name: str) -> str:
     """Read an AI instruction file from backend/llm/prompts/<name>.txt"""
-    return (PROMPTS_DIR / f"{name}.txt").read_text(encoding="utf-8")
+    return _prompt_file(name).read_text(encoding="utf-8")
 
 
 class LLMError(Exception):
