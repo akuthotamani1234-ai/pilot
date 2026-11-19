@@ -4374,6 +4374,12 @@ def _save_schedules(items: list[dict]) -> None:
     SCHEDULES.write_text(json.dumps(items, indent=1), encoding="utf-8")
 
 
+def _same_schedule_slot(old: dict, new: dict) -> bool:
+    """One tenant replaces only their own repeat of a website. Another tenant keeps theirs."""
+    return (old.get("source") == new.get("source") and old.get("every") == new.get("every")
+            and str(old.get("tenant_id") or "") == str(new.get("tenant_id") or ""))
+
+
 def _require_run_change(authorization: str | None, x_qa_token: str | None, run: str, action: str = "run.write"):
     """None when the change may proceed. A signed-in principal must own the run."""
     reader = _signed_in_reader(authorization, x_qa_token, action)
@@ -4430,14 +4436,14 @@ def add_schedule(
     if isinstance(reader, str):
         from backend.tenancy_store import get_principal
         tenant = str((get_principal(reader) or {}).get("tenant_id") or "")
-    s = {"id": f"S{int(time.time())}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
+    s = {"id": f"S{time.time_ns()}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
          "tenant_id": tenant if re.fullmatch(r"[\w.-]+", tenant) else "",
          "settings": {"llm_provider": prov or None, "llm_model": st.get("llm_model") or None, "environment": env_,
                       "production_confirmed": env_ == "production", "max_pages": int(st.get("max_pages") or 0),
                       "writes_confirmed": bool(st.get("confirm_writes"))},
          "from_run": req.run, "created": datetime.now().isoformat(timespec="minutes")}
     s["next"] = _next_time(s, datetime.now()).isoformat(timespec="minutes")
-    items = [x for x in _schedules() if not (x["source"] == s["source"] and x["every"] == s["every"])] + [s]
+    items = [x for x in _schedules() if not _same_schedule_slot(x, s)] + [s]
     _save_schedules(items)
     _audit("add_schedule", schedule=s["id"], every=s["every"], at=s["at"])
     return s
