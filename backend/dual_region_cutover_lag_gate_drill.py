@@ -43,8 +43,23 @@ def evaluate_cutover_lag(stores: list[dict]) -> dict:
     }
 
 
+def _linked_lag() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "dual_region_cutover_lag_gate",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_dual_region_cutover_lag_gate_drill(*, ops_dir: Path | None = None) -> dict:
     from .failover_rto_drill import run_failover_rto_drill
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "dual_region_cutover_lag_gate_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_lag()
 
     measured = run_failover_rto_drill(ops_dir=ops_dir)
     decision = evaluate_cutover_lag(list(measured.get("stores") or []))
@@ -69,15 +84,15 @@ def run_dual_region_cutover_lag_gate_drill(*, ops_dir: Path | None = None) -> di
             "Local cutover lag gate incomplete; hosted multi-region DR still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_lag()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "dual_region_cutover_lag_gate_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_lag()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "dual_region_cutover_lag_gate_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
