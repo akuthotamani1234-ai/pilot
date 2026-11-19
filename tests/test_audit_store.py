@@ -251,6 +251,8 @@ def test_a_viewer_cannot_recheck_a_run(monkeypatch, tmp_path):
 
 
 def test_a_schedule_cannot_repeat_another_tenants_run(monkeypatch, tmp_path):
+    import json
+
     from fastapi.testclient import TestClient
 
     import backend.audit_store as audit_store
@@ -285,11 +287,23 @@ def test_a_schedule_cannot_repeat_another_tenants_run(monkeypatch, tmp_path):
     created = client.post("/api/schedules", headers={**header, "Authorization": "Bearer admin-1"}, json=body)
     assert created.status_code == 200
     assert created.json()["from_run"] == "run-a"
+    other = client.post(
+        "/api/schedules", headers={**header, "Authorization": "Bearer admin-2"},
+        json={"run": "run-b", "every": "daily", "at": "08:00"},
+    )
+    assert other.status_code == 200
+    again = client.post(
+        "/api/schedules", headers={**header, "Authorization": "Bearer admin-1"},
+        json={"run": "run-a", "every": "daily", "at": "09:00"},
+    )
+    assert again.status_code == 200
     listed = client.get("/api/schedules", headers={"Authorization": "Bearer view-1"})
-    assert [item["from_run"] for item in listed.json()] == ["run-a"]
-    hidden = client.get("/api/schedules", headers={"Authorization": "Bearer admin-2"})
-    assert hidden.json() == []
-    sid = created.json()["id"]
+    assert [item["at"] for item in listed.json()] == ["09:00"]
+    theirs = client.get("/api/schedules", headers={"Authorization": "Bearer admin-2"})
+    assert [item["at"] for item in theirs.json()] == ["08:00"]
+    stored = json.loads((tmp_path / "schedules.json").read_text(encoding="utf-8"))
+    assert {item["tenant_id"] for item in stored} == {"t1", "t2"}
+    sid = again.json()["id"]
     assert client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer admin-2"}).status_code == 403
     assert client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer view-1"}).status_code == 403
     removed = client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer admin-1"})
