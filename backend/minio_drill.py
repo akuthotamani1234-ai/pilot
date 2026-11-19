@@ -10,7 +10,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "minio_object_store_drill.json"
 
 
-def object_store_drill(*, uri: str | None = None) -> dict:
+def _linked_store() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "drill": "minio_put_get_delete",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def object_store_drill(*, uri: str | None = None, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "minio_object_store_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_store()
+
     from .object_store import open_object_store
 
     target = (
@@ -64,9 +80,15 @@ def object_store_drill(*, uri: str | None = None) -> dict:
             if ok else "MinIO drill assertions failed"
         ),
     })
-    EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
-    EVIDENCE.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    art = ROOT / "artifacts" / "ops" / "minio_object_store_drill.json"
-    art.parent.mkdir(parents=True, exist_ok=True)
-    art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_store()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_store()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
