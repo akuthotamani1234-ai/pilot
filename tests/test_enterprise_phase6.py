@@ -49,6 +49,31 @@ def test_local_object_store_roundtrip(tmp_path):
     reset_local_store(root)
 
 
+def test_an_object_key_does_not_follow_a_link_out_of_the_store(tmp_path):
+    secret = b"tenant-t1-only-object"
+    root = tmp_path / "store"
+    theirs = root / "t1" / "note.txt"
+    theirs.parent.mkdir(parents=True)
+    theirs.write_bytes(secret)
+    sibling = tmp_path / "store-backup" / "note.txt"
+    sibling.parent.mkdir()
+    sibling.write_bytes(secret)
+    (root / "t2").symlink_to(root / "t1", target_is_directory=True)
+    (root / "link").symlink_to(sibling.parent, target_is_directory=True)
+    store = open_object_store(f"local:{root}")["store"]
+    assert store.list_keys("t1/") == ["t1/note.txt"]
+    assert "t2/note.txt" not in store.list_keys()
+    for key in ("t2/note.txt", "link/note.txt", "../store-backup/note.txt"):
+        with pytest.raises(ObjectStoreError):
+            store.get(key)
+        with pytest.raises(ObjectStoreError):
+            store.put(key, b"overwrite")
+        with pytest.raises(ObjectStoreError):
+            store.delete(key)
+    assert theirs.read_bytes() == secret
+    assert sibling.read_bytes() == secret
+
+
 def test_remote_object_store_is_not_silently_ready():
     opened = open_object_store("minio://example.local/bucket")
     assert opened["ready"] is False
