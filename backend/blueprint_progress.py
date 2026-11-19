@@ -266,6 +266,7 @@ def progress() -> dict:
         {"id": "G-link-script-link", "label": "A link script is not read through a link into another folder", "status": "done"},
         {"id": "G-automation-script-link", "label": "An automation check does not follow a link into another folder", "status": "done"},
         {"id": "G-coverage-sheet-link", "label": "A coverage sheet does not follow a link into another folder", "status": "done"},
+        {"id": "G-feature-sheet-link", "label": "A feature sheet does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
