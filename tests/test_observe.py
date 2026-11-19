@@ -48,14 +48,24 @@ def test_a_redirect_onto_checkout_is_not_clicked():
 
     from backend.observe import Explorer
 
+    class Probe:
+        status = 302
+        headers = {"location": "https://shop.example/checkout"}
+
     class Page:
         def __init__(self):
             self.url = "https://shop.example/product/1"
             self.clicks = 0
+            self.gotos = []
             self.context = type("Ctx", (), {"pages": []})()
+            self.request = self
+
+        def get(self, url, **kwargs):
+            return Probe()
 
         def goto(self, url, **kwargs):
-            self.url = "https://shop.example/checkout"
+            self.gotos.append(url)
+            self.url = url
 
         def evaluate(self, *args, **kwargs):
             return ""
@@ -73,13 +83,17 @@ def test_a_redirect_onto_checkout_is_not_clicked():
     )
     assert str(result.get("blocked") or "").startswith("protected")
     assert page.clicks == 0
+    assert page.gotos == []
+    assert page.url == "https://shop.example/product/1"
     entry = {"forms": [{
         "selector": "form", "action": "/save",
         "fields": [{"selector": "#name", "name": "name", "label": "Name", "type": "text"}],
         "submit": {"text": "Save", "selector": "#save"},
     }]}
     assert explorer.fill_forms(page, "https://shop.example/product/1", entry) == []
-    assert "form_fills" not in entry
+    assert entry["form_fills"][0]["filled"] == []
+    assert entry["form_fills"][0]["sent"] is False
+    assert page.gotos == []
 
 
 def test_a_click_that_lands_on_checkout_is_not_learned():
