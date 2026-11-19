@@ -28,6 +28,15 @@ def _http_get(url: str) -> int:
         return int(getattr(resp, "status", 200) or 200)
 
 
+def _linked_soak() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "controlled_fixture_soak",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_controlled_soak(
     *,
     duration_s: float = 20.0,
@@ -35,7 +44,15 @@ def run_controlled_soak(
     base_url: str | None = None,
 ) -> dict:
     """Soak a local AdminPortal (or ``base_url``) for ``duration_s`` seconds."""
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     base = Path(ops_dir) if ops_dir else OPS_DIR
+    out_name = "controlled_soak_drill.json"
+    docs = ROOT / "docs" / "ops-evidence"
+    if folder_is_linked(base) or folder_is_linked(base / out_name):
+        return _linked_soak()
+    if ops_dir is None and folder_is_linked(docs / out_name):
+        return _linked_soak()
     base.mkdir(parents=True, exist_ok=True)
     portal = None
     url = (base_url or "").rstrip("/")
@@ -102,10 +119,12 @@ def run_controlled_soak(
             "Controlled AdminPortal soak verified locally; hosted/prod-like load + on-call still open"
         ),
     }
-    out = base / "controlled_soak_drill.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    if ops_dir is None:
-        docs = ROOT / "docs" / "ops-evidence"
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(base) or folder_is_linked(base / out_name):
+        return _linked_soak()
+    if not write_text_unless_linked(base, out_name, text):
+        return _linked_soak()
+    if ops_dir is None and not folder_is_linked(docs) and not folder_is_linked(docs / out_name):
         docs.mkdir(parents=True, exist_ok=True)
-        (docs / "controlled_soak_drill.json").write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        write_text_unless_linked(docs, out_name, text)
     return evidence

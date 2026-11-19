@@ -495,6 +495,7 @@ def progress() -> dict:
         {"id": "G-redis-queue-link", "label": "A Redis queue drill does not follow a link into another folder", "status": "done"},
         {"id": "G-minio-store-link", "label": "A MinIO object drill does not follow a link into another folder", "status": "done"},
         {"id": "G-minio-backup-link", "label": "A MinIO backup does not follow a link into another folder", "status": "done"},
+        {"id": "G-soak-link", "label": "A controlled soak does not follow a link into another folder", "status": "done"},
         {"id": "G-schedule-baseline", "label": "A scheduled run and an approved look stay in that tenant's baseline", "status": "done"},
         {"id": "A-slow-refresh", "label": "A page that waits and then refreshes into checkout is not opened", "status": "done"},
         {"id": "A-probe-fail", "label": "A failed address check does not open checkout", "status": "done"},
