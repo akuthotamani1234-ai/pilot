@@ -43,12 +43,12 @@ NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)
 HUMAN_RE = re.compile(r"^::human::(\{.*\})$")  # the login needs a person (one-time code / CAPTCHA) - and the outcome
 RUN_NAME = re.compile(r"^[\w.\-]+$")
-# Run reads that carry another tenant's findings. Job ids and the tenancy API are not in this list.
+# Run reads that carry another tenant's findings. Job ids are checked on the job, not as a folder name.
 _SCOPED_RUN = re.compile(
     r"^/api/(?:report|coverage|pages|components)/([^/]+)"
     r"|^/api/(?:cases|excel)/([^/]+)"
     r"|^/api/android/runs/([^/]+)/"
-    r"|^/api/runs/([^/]+)/(?:repo-fix|recheck|review)"
+    r"|^/api/runs/([^/]+)/(?:repo-fix|recheck)"
     r"|^/api/visual/([^/]+)/"
     r"|^/runs/([^/]+)/"
 )
@@ -349,6 +349,23 @@ def _job_or_404(job_id: int) -> dict:
     if not job:
         raise HTTPException(404, "job not found")
     return job
+
+
+def _refuse_job(job: dict, reader, action: str = "run.read"):
+    """None when this caller may use the live test. Open mode always may."""
+    if reader is None:
+        return None
+    if not isinstance(reader, str):
+        return reader
+    if str(job.get("principal_id") or "") == reader:
+        return None
+    run = str(job.get("run") or "")
+    if run:
+        from backend.tenancy_store import assert_run_access
+        access = assert_run_access(principal_id=reader, run_id=run, audit=action != "run.read")
+        if access.get("allowed"):
+            return None
+    return JSONResponse({"detail": "tenant isolation"}, status_code=403)
 
 
 def _read_json(path: Path, default):
@@ -3248,7 +3265,20 @@ def _validate(req: RunRequest, source: str) -> None:
 
 
 @app.post("/api/runs")
-def start_run(req: RunRequest):
+def start_run(
+    req: RunRequest,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
+    if caller and req.reuse_from_run:
+        from backend.tenancy_store import assert_run_access
+        reused = Path(req.reuse_from_run).name
+        access = assert_run_access(principal_id=caller, run_id=reused, audit=True)
+        if not access.get("allowed"):
+            return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
     from backend.agents.discovery import unwrap_link
     from backend.safety import API_KEY_ENV, safe_url_for_display
     req.llm_provider = _privacy_provider(req.llm_provider, req.privacy_mode)
@@ -3400,7 +3430,7 @@ def start_run(req: RunRequest):
         jobs[job_id] = {"id": job_id, "source": source, "status": "running", "proc": proc, "lines": start_lines,
                         "pages": [], "stages": {}, "current": None, "run": None, "started": time.time(), "llm": llm,
                         "secrets": secrets, "discovery_only": req.discovery_only,
-                        "thorough": apply_thorough,
+                        "thorough": apply_thorough, "principal_id": caller or "",
                         "workflow": req.workflow, "privacy_mode": privacy["mode"]}  # (kept in memory only, to hide them in the live log)
     _audit("start_test", job=job_id, source=safe_url_for_display(source), environment=req.environment,
            authorized=True, allow_signup=req.allow_signup, test_account=bool(req.test_username),
@@ -3503,8 +3533,13 @@ async def start_mobile_run(
     llm_provider: str | None = Form(None),
     llm_model: str | None = Form(None),
     apk: Annotated[UploadFile | None, File()] = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Start an isolated native Appium run from a private APK upload or installed package."""
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     from backend.android import (
         MAX_APK_BYTES,
         AndroidEnvironmentError,
@@ -3671,7 +3706,8 @@ async def start_mobile_run(
                         "secrets": [env[k] for k in KEY_ENV.values() if k and env.get(k)]
                         + [value for value in (test_username, test_password) if value]
                         + list(private_inputs['secrets'].values()), "target_type": "android",
-                         "workflow": workflow, "privacy_mode": privacy["mode"]}
+                         "workflow": workflow, "privacy_mode": privacy["mode"],
+                         "principal_id": caller or ""}
     _audit("start_android_test", job=job_id, run=run_id, app_mode=app_mode, device=device_id,
            package=package_name if app_mode == "installed" else "", authorized=True)
     threading.Thread(target=_reader, args=(jobs[job_id],), daemon=True).start()
@@ -3679,8 +3715,15 @@ async def start_mobile_run(
 
 
 @app.get("/api/runs/latest")
-def latest_run():
-    return _public(jobs[max(jobs)]) if jobs else None
+def latest_run(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    visible = [job for job in jobs.values() if _refuse_job(job, caller) is None]
+    return _public(max(visible, key=lambda job: job["id"])) if visible else None
 
 
 @app.get("/api/android/runs/{run}/coverage")
@@ -3693,7 +3736,14 @@ def android_coverage_dashboard(run: str):
 
 
 @app.post("/api/android/runs/{run}/resume")
-async def resume_android_run(run: str):
+async def resume_android_run(
+    run: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     from .android_resume import snapshot
     d = _run_dir(run)
     config_path = d / ".private/android_config.json"
@@ -3730,15 +3780,27 @@ async def resume_android_run(run: str):
         jobs[job_id] = {"id": job_id, "source": "Resume Android " + run, "status": "running", "proc": proc,
                         "lines": [], "pages": [], "stages": {}, "current": None, "run": run, "started": time.time(),
                         "llm": {"provider": "none", "model": ""}, "secrets": list(inputs["secrets"].values()),
-                        "target_type": "android", "workflow": "standard", "privacy_mode": privacy["mode"]}
+                        "target_type": "android", "workflow": "standard", "privacy_mode": privacy["mode"],
+                        "principal_id": caller or ""}
     _audit("resume_android_test", job=job_id, run=run)
     threading.Thread(target=_reader, args=(jobs[job_id],), daemon=True).start()
     return _public(jobs[job_id])
 
 
 @app.get("/api/runs/{job_id}")
-def run_status(job_id: int, since: int = 0, psince: int = 0):
-    return _public(_job_or_404(job_id), since, psince)
+def run_status(
+    job_id: int, since: int = 0, psince: int = 0,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    return _public(job, since, psince)
 
 
 @app.get("/api/pages/{run}")
@@ -3775,9 +3837,19 @@ class ReviewAnswers(BaseModel):
 
 
 @app.get("/api/runs/{job_id}/events")
-def run_events(job_id: int, after: str = "", limit: int = Query(default=150, ge=1, le=500)):
+def run_events(
+    job_id: int, after: str = "", limit: int = Query(default=150, ge=1, le=500),
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     from backend.execution_events import read_events
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
     job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
     if not job.get("run"):
         return {"events": [], "cursor": after}
     try:
@@ -3787,9 +3859,18 @@ def run_events(job_id: int, after: str = "", limit: int = Query(default=150, ge=
 
 
 @app.get("/api/runs/{job_id}/review")
-def get_review(job_id: int):
+def get_review(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """The questions a running test asks you (what it can't know: is what it saw correct, is a rule allowed)."""
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
     job = jobs.get(job_id)
+    if job and (refused := _refuse_job(job, caller)) is not None:
+        return refused
     if not job or not job.get("run"):
         raise HTTPException(404, "no such test")
     req = _read_json(RUNS / job["run"] / "review_request.json", None)
@@ -3799,8 +3880,17 @@ def get_review(job_id: int):
 
 
 @app.post("/api/runs/{job_id}/review")
-def post_review(job_id: int, body: ReviewAnswers):
+def post_review(
+    job_id: int, body: ReviewAnswers,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     job = jobs.get(job_id)
+    if job and (refused := _refuse_job(job, caller, "run.write")) is not None:
+        return refused
     if not job:
         raise HTTPException(404, "no such test")
     if not job.get("run") or job["status"] != "running":
@@ -3818,8 +3908,18 @@ def post_review(job_id: int, body: ReviewAnswers):
 
 
 @app.post("/api/runs/{job_id}/stop")
-def stop_run(job_id: int):
+def stop_run(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller, "run.write")
+    if refused is not None:
+        return refused
     if job["status"] != "running":
         raise HTTPException(400, "not running")
     job["stopping"] = True

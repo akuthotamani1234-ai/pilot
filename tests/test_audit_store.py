@@ -228,6 +228,64 @@ def test_a_schedule_cannot_repeat_another_tenants_run(monkeypatch, tmp_path):
     assert removed.status_code == 200 and removed.json()["deleted"] == 1
 
 
+def test_a_signed_in_principal_cannot_stop_or_read_another_tenants_live_test(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.audit_store as audit_store
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    (runs / "run-a").mkdir(parents=True)
+    (runs / "run-a" / "review_request.json").write_text('{"questions": [{"id": "q1"}]}', encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(audit_store, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Ready", db_path=db)
+    saved = dict(server.jobs)
+    server.jobs.clear()
+    try:
+        proc = type("Proc", (), {"poll": lambda self: 0, "pid": 1})()
+        server.jobs[1] = {"id": 1, "source": "https://a.test", "status": "running", "proc": proc,
+                          "lines": ["secret log"], "pages": [], "stages": {}, "current": None,
+                          "run": "run-a", "started": 1, "llm": {}, "secrets": [], "principal_id": "admin-1"}
+        server.jobs[2] = {"id": 2, "source": "https://b.test", "status": "running", "proc": proc,
+                          "lines": [], "pages": [], "stages": {}, "current": None,
+                          "run": "run-b", "started": 2, "llm": {}, "secrets": [], "principal_id": "admin-2"}
+        client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+        header = {"X-Agentic-QA": "1"}
+        assert client.get("/api/runs/1", headers={"Authorization": "Bearer admin-2"}).status_code == 403
+        assert client.get("/api/runs/1/events", headers={"Authorization": "Bearer admin-2"}).status_code == 403
+        assert client.get("/api/runs/1/review", headers={"Authorization": "Bearer admin-2"}).status_code == 403
+        assert client.post("/api/runs/1/stop", headers={**header, "Authorization": "Bearer admin-2"}).status_code == 403
+        assert client.post("/api/runs/1/stop", headers={**header, "Authorization": "Bearer view-1"}).status_code == 403
+        assert server.jobs[1]["status"] == "running"
+        assert client.get("/api/runs/latest", headers={"Authorization": "Bearer admin-2"}).json()["id"] == 2
+        seen = client.get("/api/runs/1/review", headers={"Authorization": "Bearer view-1"})
+        assert seen.status_code == 200 and seen.json()["questions"][0]["id"] == "q1"
+        stopped = client.post("/api/runs/1/stop", headers={**header, "Authorization": "Bearer admin-1"})
+        assert stopped.status_code == 200
+        assert server.jobs[1]["stopping"] is True
+        reused = client.post(
+            "/api/runs",
+            headers={**header, "Authorization": "Bearer admin-1"},
+            json={"source": "https://a.test", "authorized": True, "reuse_tests": True, "reuse_from_run": "run-b"},
+        )
+        assert reused.status_code == 403
+        assert set(server.jobs) == {1, 2}
+    finally:
+        server.jobs.clear()
+        server.jobs.update(saved)
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)
