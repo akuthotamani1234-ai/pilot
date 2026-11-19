@@ -76,24 +76,32 @@ def _local_appium_url(server_url: str) -> str:
 
 
 def _adb_path() -> str | None:
+    from .finalization import folder_is_linked
     found = shutil.which("adb")
     if found:
         return found
     sdk = _sdk_path()
     if sdk:
         candidate = Path(sdk) / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
-        if candidate.is_file():
+        if not folder_is_linked(candidate) and candidate.is_file():
             return str(candidate)
     return None
 
 
 def _sdk_path() -> str | None:
+    from .finalization import folder_is_linked
     sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")
-    if sdk and Path(sdk).is_dir():
+    sdk_path = Path(sdk) if sdk else None
+    if sdk_path and folder_is_linked(sdk_path):
+        sdk = None
+        sdk_path = None
+    if sdk_path and sdk_path.is_dir():
         return sdk
     local = os.environ.get("LOCALAPPDATA")
     candidate = Path(local) / "Android" / "Sdk" if local else None
-    return str(candidate) if candidate and candidate.is_dir() else sdk
+    if candidate and not folder_is_linked(candidate) and candidate.is_dir():
+        return str(candidate)
+    return sdk
 
 
 def _appium_path() -> str | None:
