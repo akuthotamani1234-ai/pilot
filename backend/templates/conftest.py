@@ -635,8 +635,16 @@ def _patched_goto(real):
         try:
             return _open(self, url, kwargs)
         except _pw.Error as e:
-            _did_not_open(url, e)
-            raise
+            # The browser cancelled the load while the website was still moving. Once more,
+            # as the crawl does. A second cancellation is a page that did not open.
+            if not re.search(r"net::ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation", str(e)):
+                _did_not_open(url, e)
+                raise
+            try:
+                return _open(self, url, kwargs)
+            except _pw.Error as again:
+                _did_not_open(url, again)
+                raise
 
     def _open(self, url, kwargs):
         # Checkout is recorded by the crawl. A later test must not open it again.
