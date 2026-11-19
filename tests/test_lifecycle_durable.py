@@ -120,6 +120,40 @@ def test_created_jsonl_delete_refuses_uncleared_records(tmp_path):
     save_lifecycle(tmp_path, life)
 
 
+def test_a_phase_record_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import record_created
+    from backend.scheduling import record_phase
+
+    secret = b"tenant-b-only-phase"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "phase_timings.jsonl").write_bytes(secret)
+    (nested / "created.jsonl").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "runs" / "run"
+    record_phase(run, "discovery", 0, "done")
+    assert record_created(run, "order", "shop", "/orders") is False
+    record_phase(linked / "runs" / "fresh", "discovery", 0, "done")
+    assert record_created(linked / "runs" / "fresh", "order", "shop", "/orders") is False
+    assert not (other / "runs" / "fresh").exists()
+    assert (nested / "phase_timings.jsonl").read_bytes() == secret
+    assert (nested / "created.jsonl").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    record_phase(real, "discovery", 0, "done")
+    assert record_created(real, "order", "shop-tag", "/orders") is True
+    timings = (real / "phase_timings.jsonl").read_bytes()
+    created = (real / "created.jsonl").read_bytes()
+    assert b"discovery" in timings and secret not in timings
+    assert b"shop-tag" in created and secret not in created
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_live_log_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import os
 
