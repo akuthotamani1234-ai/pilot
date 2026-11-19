@@ -6,6 +6,15 @@ from backend.blueprint_progress import progress
 
 
 def test_a_demostore_oracle_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    calls = {"n": 0}
+    real_attach = drill.attach_assertion
+
+    def _attach(*args, **kwargs):
+        calls["n"] += 1
+        return real_attach(*args, **kwargs)
+
+    monkeypatch.setattr(drill, "attach_assertion", _attach)
+
     secret = "tenant-b-only-oracle-spec"
     other = tmp_path / "other"
     other.mkdir()
@@ -21,29 +30,42 @@ def test_a_demostore_oracle_does_not_follow_a_link_into_another_folder(tmp_path,
     assert "link" in evidence["reason"]
     assert evidence["ok"] is False
     assert evidence["gate_c_complete"] is False
+    assert calls["n"] == 0
     assert secret not in str(evidence)
     assert secret_file.read_bytes() == original
     assert [path.name for path in other.iterdir()] == ["secret.json"]
 
-    real = tmp_path / "real"
-    real.mkdir()
-    linked_truth = real / "linked-truth.json"
+    folder = tmp_path / "real"
+    folder.mkdir()
+    planted = folder / "oracle_spec_drill.json"
+    planted.symlink_to(secret_file)
+    skipped = drill.run_oracle_spec_drill(ops_dir=folder)
+    assert skipped["ok"] is False
+    assert calls["n"] == 0
+    assert secret not in str(skipped)
+    assert secret_file.read_bytes() == original
+    assert planted.is_symlink()
+    planted.unlink()
+
+    linked_truth = folder / "linked-truth.json"
     linked_truth.symlink_to(secret_file)
     monkeypatch.setattr(drill, "TRUTH", linked_truth)
-    leaked = drill.run_oracle_spec_drill(ops_dir=real)
+    leaked = drill.run_oracle_spec_drill(ops_dir=folder)
     assert leaked["ok"] is False
     assert leaked["gate_c_complete"] is False
     assert secret not in str(leaked)
     assert secret_file.read_bytes() == original
-    assert not (real / "oracle_spec_drill.json").exists()
+    assert calls["n"] == 0
+    assert not (folder / "oracle_spec_drill.json").exists()
 
-    truth = real / "truth.json"
+    truth = folder / "truth.json"
     truth.write_text(json.dumps({
         "features": [{"id": "this-install-feature", "test": "visible", "page": "/"}],
     }), encoding="utf-8")
     monkeypatch.setattr(drill, "TRUTH", truth)
-    saved = drill.run_oracle_spec_drill(ops_dir=real)
-    written = (real / "oracle_spec_drill.json").read_text(encoding="utf-8")
+    saved = drill.run_oracle_spec_drill(ops_dir=folder)
+    written = (folder / "oracle_spec_drill.json").read_text(encoding="utf-8")
+    assert calls["n"] >= 1
     assert saved["ok"] is True
     assert saved["gate_c_complete"] is False
     assert saved["features_bound"] >= 1
