@@ -23,9 +23,28 @@ LOCAL_PARTIAL = (
 )
 
 
+def _linked_redirects() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "hosted_idp_redirect_uri_allowlist",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_idp_redirect_uri_allowlist_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "hosted_idp_redirect_uri_allowlist_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_redirects()
+
     ops = ROOT / "docs" / "ops-evidence"
-    present = [n for n in LOCAL_PARTIAL if (ops / n).is_file()]
+    present = [
+        n for n in LOCAL_PARTIAL
+        if not folder_is_linked(ops / n) and (ops / n).is_file()
+    ]
     configured = (
         os.environ.get("QPILOT_OIDC_REDIRECT_URI")
         or os.environ.get("OIDC_REDIRECT_URI")
@@ -60,17 +79,15 @@ def run_hosted_idp_redirect_uri_allowlist_drill(*, ops_dir: Path | None = None) 
             "live hosted IdP Studio SSO still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_redirects()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_idp_redirect_uri_allowlist_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_redirects()
     if ops_dir is None:
-        art = (
-            ROOT / "artifacts" / "ops" / "hosted_idp_redirect_uri_allowlist_drill.json"
-        )
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
