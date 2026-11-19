@@ -1827,6 +1827,40 @@ def ops_hosted_oncall_readiness_pack():
     return {"gate_h_complete": False, "hosted_oncall_readiness_pack": evidence}
 
 
+@app.post("/api/ops/drills/multi-region-dr-readiness-pack")
+def ops_multi_region_dr_readiness_pack():
+    """Gate H: multi-store DR + cutover + on-call pack (hosted DR still open)."""
+    from backend.multi_region_dr_readiness_pack_drill import (
+        run_multi_region_dr_readiness_pack_drill,
+    )
+    evidence = run_multi_region_dr_readiness_pack_drill()
+    _audit(
+        "ops_multi_region_dr_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "multi_region_dr_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-artifact-gate-pack")
+def ops_hosted_ci_artifact_gate_pack():
+    """Gates D/F: readiness+dispatch+upload pack (hosted runners still open)."""
+    from backend.hosted_ci_artifact_gate_pack_drill import (
+        run_hosted_ci_artifact_gate_pack_drill,
+    )
+    evidence = run_hosted_ci_artifact_gate_pack_drill()
+    _audit(
+        "ops_hosted_ci_artifact_gate_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_artifact_gate_pack": evidence,
+    }
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

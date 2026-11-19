@@ -2,7 +2,7 @@
   "gate_d_complete": false,
   "gate_f_complete": false,
   "drill": "hosted_runner_readiness",
-  "ran_at": "2026-11-19T02:22:31Z",
+  "ran_at": "2026-11-19T03:19:21Z",
   "kind": "readiness_score_only",
   "multi_device": {
     "score": 8,

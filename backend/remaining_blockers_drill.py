@@ -30,6 +30,7 @@ BLOCKERS = (
             "hosted_oncall_contract_drill.json",
             "hosted_oncall_readiness_drill.json",
             "hosted_oncall_readiness_pack_drill.json",
+            "multi_region_dr_readiness_pack_drill.json",
         ],
     },
     {
@@ -84,6 +85,7 @@ BLOCKERS = (
             "ci_artifact_upload_rehearsal_drill.json",
             "hosted_runner_readiness_drill.json",
             "hosted_dispatch_payload_rehearsal_drill.json",
+            "hosted_ci_artifact_gate_pack_drill.json",
         ],
     },
     {
@@ -99,6 +101,7 @@ BLOCKERS = (
             "ci_artifact_upload_rehearsal_drill.json",
             "hosted_runner_readiness_drill.json",
             "hosted_dispatch_payload_rehearsal_drill.json",
+            "hosted_ci_artifact_gate_pack_drill.json",
         ],
     },
     {

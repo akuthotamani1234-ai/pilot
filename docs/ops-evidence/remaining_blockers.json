@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T03:07:28Z",
+  "ran_at": "2026-11-19T03:19:21Z",
   "ok": true,
   "blockers": [
     {
@@ -20,7 +20,8 @@
         "paging_escalation_ack_pack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json",
-        "hosted_oncall_readiness_pack_drill.json"
+        "hosted_oncall_readiness_pack_drill.json",
+        "multi_region_dr_readiness_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -35,7 +36,8 @@
         "paging_escalation_ack_pack_drill.json",
         "hosted_oncall_contract_drill.json",
         "hosted_oncall_readiness_drill.json",
-        "hosted_oncall_readiness_pack_drill.json"
+        "hosted_oncall_readiness_pack_drill.json",
+        "multi_region_dr_readiness_pack_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -120,7 +122,8 @@
         "hosted_ci_runner_matrix_drill.json",
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
-        "hosted_dispatch_payload_rehearsal_drill.json"
+        "hosted_dispatch_payload_rehearsal_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -134,7 +137,8 @@
         "hosted_ci_runner_matrix_drill.json",
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
-        "hosted_dispatch_payload_rehearsal_drill.json"
+        "hosted_dispatch_payload_rehearsal_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
       ],
       "local_partial_missing": []
     },
@@ -150,7 +154,8 @@
         "hosted_ci_runner_matrix_drill.json",
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
-        "hosted_dispatch_payload_rehearsal_drill.json"
+        "hosted_dispatch_payload_rehearsal_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
       ],
       "status": "open",
       "local_partial_present": [
@@ -161,7 +166,8 @@
         "hosted_ci_runner_matrix_drill.json",
         "ci_artifact_upload_rehearsal_drill.json",
         "hosted_runner_readiness_drill.json",
-        "hosted_dispatch_payload_rehearsal_drill.json"
+        "hosted_dispatch_payload_rehearsal_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
       ],
       "local_partial_missing": []
     },
