@@ -354,6 +354,7 @@ def progress() -> dict:
         {"id": "B-crawl-redirect", "label": "A crawl that lands on checkout does not click that page", "status": "done"},
         {"id": "B-checkpoint-resume", "label": "A retried swarm task resumes from the checkpoint it saved", "status": "done"},
         {"id": "B-fresh-redirect", "label": "A control is not clicked when its fresh page lands on checkout", "status": "done"},
+        {"id": "B-test-page-landing", "label": "A generated test does not click a control on a checkout page", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

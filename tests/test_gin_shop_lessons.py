@@ -175,16 +175,41 @@ def _guard(monkeypatch):
     monkeypatch.setenv("QA_SAFE_TEXT_RX", SAFE_TEXT.pattern)
     monkeypatch.setenv("QA_WRITE_RX", WRITE.pattern)
     tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
-    want = {"PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX", "_risky"}
+    want = {
+        "PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX",
+        "_payment_target", "_risky", "_refuse_protected",
+    }
     nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in want)
              or (isinstance(n, ast.FunctionDef) and n.name in want)]
-    ns = {"re": re, "os": os}
+    ns = {"re": re, "os": os, "pytest": pytest, "Locator": type("Locator", (), {"_qa_guard": True})}
     exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
-    return ns["_risky"]
+    return ns
+
+
+def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
+    guard = _guard(monkeypatch)
+
+    class OnCheckout:
+        class page:
+            url = "https://shop.example/checkout"
+
+    with pytest.raises(pytest.skip.Exception, match="checkout or payment"):
+        guard["_refuse_protected"](OnCheckout())
+
+    class OnProduct:
+        class page:
+            url = "https://shop.example/product/1"
+
+        class first:
+            @staticmethod
+            def evaluate(*_args, **_kwargs):
+                return ["Continue", "", "", "/product/1", "", "button", "", "", "", ""]
+
+    guard["_refuse_protected"](OnProduct())
 
 
 def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
-    risky = _guard(monkeypatch)
+    risky = _guard(monkeypatch)["_risky"]
     assert not risky(["VIEW POST", "", "", "/blog/post?postId=3"])  # (was: Blocked - a protected action)
     assert not risky(["Share", "", "", "https://social.example/share?u=1"])
     assert risky(["POST COMMENT", "", "", ""])  # a button that sends: still blocked
