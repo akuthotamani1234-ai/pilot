@@ -13,7 +13,17 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "hosted_idp_sso_readiness_pack_drill.json"
 
 
+def _linked_pack() -> dict:
+    return {
+        "gate_i_complete": False,
+        "ok": False,
+        "drill": "hosted_idp_sso_readiness_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_hosted_idp_sso_readiness_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     from .hosted_idp_claim_map_completeness_drill import (
         run_hosted_idp_claim_map_completeness_drill,
     )
@@ -26,6 +36,11 @@ def run_hosted_idp_sso_readiness_pack_drill(*, ops_dir: Path | None = None) -> d
     from .studio_sso_principal_bootstrap_drill import (
         run_studio_sso_principal_bootstrap_drill,
     )
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "hosted_idp_sso_readiness_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_pack()
 
     started = time.perf_counter()
     parts = {}
@@ -59,15 +74,15 @@ def run_hosted_idp_sso_readiness_pack_drill(*, ops_dir: Path | None = None) -> d
             "Hosted IdP SSO readiness pack incomplete; hosted IdP still open"
         ),
     }
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_pack()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (
-        (Path(ops_dir) / "hosted_idp_sso_readiness_pack_drill.json")
-        if ops_dir else EVIDENCE
-    )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_pack()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "hosted_idp_sso_readiness_pack_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
     return evidence
