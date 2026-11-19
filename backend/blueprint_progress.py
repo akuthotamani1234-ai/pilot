@@ -339,6 +339,7 @@ def progress() -> dict:
         {"id": "B-crawl-no-click", "label": "A checkout page is recorded and its controls are not clicked", "status": "done"},
         {"id": "I-callback-token", "label": "SSO callback returns a token only after a principal is bound", "status": "done"},
         {"id": "E-selector-per-file", "label": "A shared selector repaired in one file does not stand in for another file", "status": "done"},
+        {"id": "I-dashboard-pkce-fields", "label": "Studio sends state, PKCE verifier, and redirect URI on code exchange", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(
