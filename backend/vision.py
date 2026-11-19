@@ -278,9 +278,12 @@ def review_results(state: dict) -> int:
     if not vision_enabled() or not state.get("run_dir"):
         return 0
     from .agents.failure_analysis import _rule_classify
+    from .finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
     cache_file = run_dir / "vision_failures.json"
-    cache_linked = run_dir.is_symlink() or cache_file.is_symlink()
+    if folder_is_linked(run_dir) or cache_file.is_symlink():
+        return 0
+    cache_linked = False
     try:
         cache = {} if cache_linked or not cache_file.is_file() else json.loads(
             cache_file.read_text(encoding="utf-8"))

@@ -43,6 +43,36 @@ def test_a_visual_capture_does_not_follow_a_link_into_another_folder(tmp_path):
     assert (other / "keep.txt").read_bytes() == secret
 
 
+def test_a_failure_look_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend import vision
+
+    secret = b"tenant-b-only-vision"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "vision_failures.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(vision, "vision_enabled", lambda: True)
+    failed = {"outcome": "failed", "nodeid": "test_home", "error": "boom", "test": "test_home"}
+    refused = dict(failed)
+    assert vision.review_results({"run_dir": str(linked / "run"), "results": [refused], "app_map": [], "test_cases": []}) == 0
+    assert "vision" not in refused
+    assert (nested / "vision_failures.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    key = vision._key(failed)
+    (real / "vision_failures.json").write_text(json.dumps({key: {"verdict": "website_bug"}}), encoding="utf-8")
+    seen = dict(failed)
+    assert vision.review_results({"run_dir": str(real), "results": [seen], "app_map": [], "test_cases": []}) == 0
+    assert seen["vision"]["verdict"] == "website_bug"
+    assert secret not in (real / "vision_failures.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_a_saved_look_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.visual import save_capture, visual_check_agent
