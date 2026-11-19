@@ -1,11 +1,11 @@
 {
   "gate_g_complete": false,
   "drill": "independent_review_pack",
-  "ran_at": "2026-11-19T02:33:41Z",
+  "ran_at": "2026-11-19T02:39:45Z",
   "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
   "checklist_present": true,
   "signed_off": false,
-  "artifact_count": 106,
+  "artifact_count": 107,
   "artifacts": [
     {
       "name": "a11y_portfolio_drill.json",
@@ -165,7 +165,7 @@
     {
       "name": "failover_rto_drill.json",
       "bytes": 1061,
-      "sha256": "20d63ac63aa71787b31c7c4545e04f77108d4147d9ffda1dc3e0dc0064e940c1"
+      "sha256": "2ae0a10c94d566cd183a12c599ded35c419a413e97beccb2fdfb642273e99cc0"
     },
     {
       "name": "failure_matrix_drill.json",
@@ -228,24 +228,29 @@
       "sha256": "258bf9967941e88b9ed45ddd6f57ef797374e25162d17e249bc02c0f882ddeac"
     },
     {
+      "name": "independent_review_evidence_catalog_drill.json",
+      "bytes": 14067,
+      "sha256": "6e885db35e52617ad9f3f12d0dec6a6df7203898e43dca1ae1b8fc963a0d6763"
+    },
+    {
       "name": "independent_review_integrity_drill.json",
       "bytes": 1668,
-      "sha256": "39c93830bb4a0ab06924108696104a3c64f9cd7327f378b2052f777a343579df"
+      "sha256": "7482d6620c2886e8dbe5818617a187d8aa0b3e2dd3fa1e0e9b7235cdcf873502"
     },
     {
       "name": "independent_review_readiness_drill.json",
       "bytes": 493,
-      "sha256": "25274df784d4ac83a29f28b19e3a4d8214ea28b21c173a0b5071a132f334a863"
+      "sha256": "b8226cc86d12599f7497623191998aece788ae0373ad3c5f49b185dfd84f25a6"
     },
     {
       "name": "independent_review_request_drill.json",
       "bytes": 1454,
-      "sha256": "49e6f097fdda2be4ef4c35b4ce2f70c8af3dc7e8418a25ffbba7c283152b20f2"
+      "sha256": "944e16d6832f01abd74b660cfa7f9e70a6ebe08b667127480a14bf57949e906b"
     },
     {
       "name": "independent_review_summary_drill.json",
       "bytes": 392,
-      "sha256": "4c38c2bafa976890bfdb34ee731f44942401d71e343583570836757603755d8d"
+      "sha256": "c8cfb4f033aabdfe9c20443685b2d5edf7350c8a119ad8242f3ae361d23952b8"
     },
     {
       "name": "lifecycle_cleanup_drill.json",
@@ -295,7 +300,7 @@
     {
       "name": "minio_multi_region_drill.json",
       "bytes": 582,
-      "sha256": "d4518a711d3a10832504e3ffccb969d303f30e54d4b4e85b30f47059a44e78df"
+      "sha256": "3924bdecf737008d215e8a2c4ec53cfd16d6aa49bc4f0b131e33596422f908d0"
     },
     {
       "name": "minio_object_store_drill.json",
@@ -335,17 +340,17 @@
     {
       "name": "multi_region_cutover_rehearsal_drill.json",
       "bytes": 499,
-      "sha256": "b92a0eb419cd57ba47ce9b87732acbd4ab25f79c8142c8c3a48977745b95027a"
+      "sha256": "a6a69ec080033b6972df9f2ba90d43122a7b931debc7db687066a32ca3be0726"
     },
     {
       "name": "multi_region_dr_drill.json",
       "bytes": 1078,
-      "sha256": "425c6dec14830f11729768977bf701f02a23083cb7be836aaec92e9b110d1c85"
+      "sha256": "60b57bcbb05c05511fd1f99c490665718515ddeb913e24d6435ae3e5224606e7"
     },
     {
       "name": "multi_store_dr_drill.json",
       "bytes": 1003,
-      "sha256": "a61ba88f83965c12fd2f8f39fae157f31ea0ec1d4179d42f88c2dd6c6a239cf0"
+      "sha256": "ff1fb7e933644d8a816f70679cc9bd03675975ca967e2531d4800c374edd2253"
     },
     {
       "name": "mutation_score_drill.json",
@@ -465,7 +470,7 @@
     {
       "name": "redis_multi_region_drill.json",
       "bytes": 868,
-      "sha256": "0dbdb9f21bb5b9ff38921142859a302a1674494c75e4cf311a6e3ec1d0b8029a"
+      "sha256": "f0e1c9d251054bf2264b097f35ab59c0a96ce5c01a2ea03179d22a2d98c23573"
     },
     {
       "name": "redis_swarm_contention_drill.json",
@@ -474,8 +479,8 @@
     },
     {
       "name": "remaining_blockers.json",
-      "bytes": 6713,
-      "sha256": "8e0796c98b255ad508f0a8bab855ca6365cb4778a9bbd82f995e5589e2a7d3e9"
+      "bytes": 6829,
+      "sha256": "37e47e5cea07f73dd5415b522638e775d3c0b3778970210210cbd8241d7b49fc"
     },
     {
       "name": "security_portfolio_drill.json",
@@ -539,5 +544,5 @@
     }
   ],
   "ok": true,
-  "reason": "Evidence pack ready (106 artifacts hashed); independent human/reviewer sign-off still pending"
+  "reason": "Evidence pack ready (107 artifacts hashed); independent human/reviewer sign-off still pending"
 }

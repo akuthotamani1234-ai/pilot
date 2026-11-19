@@ -106,6 +106,7 @@ BLOCKERS = (
             "independent_review_summary_drill.json",
             "independent_review_request_drill.json",
             "independent_review_integrity_drill.json",
+            "independent_review_evidence_catalog_drill.json",
             "INDEPENDENT_REVIEW_SUMMARY.md",
         ],
     },

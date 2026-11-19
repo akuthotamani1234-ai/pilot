@@ -1,0 +1,788 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_evidence_catalog",
+  "ran_at": "2026-11-19T02:39:45Z",
+  "signed_off": false,
+  "entries": [
+    {
+      "name": "INDEPENDENT_REVIEW_SUMMARY.md",
+      "bytes": 1200,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "a11y_portfolio_drill.json",
+      "bytes": 464,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "admin_portal_lifecycle_drill.json",
+      "bytes": 475,
+      "gates": [
+        "gate_c"
+      ]
+    },
+    {
+      "name": "admin_portal_surface_coverage.json",
+      "bytes": 2754,
+      "gates": [
+        "gate_c"
+      ]
+    },
+    {
+      "name": "android_adb_probe.json",
+      "bytes": 510,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_appium_ci_contract.json",
+      "bytes": 1186,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_appium_product_matrix_drill.json",
+      "bytes": 2724,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_emulator_smoke_api24_drill.json",
+      "bytes": 899,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_emulator_smoke_drill.json",
+      "bytes": 793,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "android_live_matrix_rows.json",
+      "bytes": 575,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "api_version_contract.json",
+      "bytes": 1037,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "apidemos_interaction_drill.json",
+      "bytes": 777,
+      "gates": [
+        "gate_j"
+      ]
+    },
+    {
+      "name": "approvals_drill.json",
+      "bytes": 448,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "audit_export_drill.json",
+      "bytes": 511,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "backup_restore_drill.json",
+      "bytes": 402,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "ci_artifact_upload_rehearsal_drill.json",
+      "bytes": 3196,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "ci_rollback_rehearsal.json",
+      "bytes": 421,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "classic_mutation_score_drill.json",
+      "bytes": 662,
+      "gates": [
+        "gate_b",
+        "gate_c"
+      ]
+    },
+    {
+      "name": "classic_shop_cart_lifecycle_drill.json",
+      "bytes": 484,
+      "gates": [
+        "gate_c"
+      ]
+    },
+    {
+      "name": "classic_shop_surface_coverage.json",
+      "bytes": 2763,
+      "gates": [
+        "gate_c"
+      ]
+    },
+    {
+      "name": "compatibility_portfolio_drill.json",
+      "bytes": 792,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "controlled_soak_drill.json",
+      "bytes": 578,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "cross_platform_journey_drill.json",
+      "bytes": 1429,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "dashboard_auth_matrix_drill.json",
+      "bytes": 1809,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "demo_store_cart_lifecycle_drill.json",
+      "bytes": 524,
+      "gates": [
+        "gate_b",
+        "gate_j"
+      ]
+    },
+    {
+      "name": "demo_store_healing_live_drill.json",
+      "bytes": 982,
+      "gates": [
+        "gate_b",
+        "gate_e",
+        "gate_j"
+      ]
+    },
+    {
+      "name": "demo_store_surface_coverage.json",
+      "bytes": 2689,
+      "gates": [
+        "gate_b",
+        "gate_j"
+      ]
+    },
+    {
+      "name": "device_artifact_manifest_drill.json",
+      "bytes": 2753,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "device_matrix_drill.json",
+      "bytes": 1859,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "discovery_score_drill.json",
+      "bytes": 1195,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "discovery_surface_matrix_drill.json",
+      "bytes": 2428,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "dual_tenant_oidc_acl_drill.json",
+      "bytes": 705,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "failover_rto_drill.json",
+      "bytes": 1061,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "failure_matrix_drill.json",
+      "bytes": 3763,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "fixture_mutation_suite_drill.json",
+      "bytes": 1516,
+      "gates": [
+        "gate_b"
+      ]
+    },
+    {
+      "name": "healing_regression_drill.json",
+      "bytes": 1554,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "hosted_ci_runner_matrix_drill.json",
+      "bytes": 1139,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "hosted_idp_contract_drill.json",
+      "bytes": 1121,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "hosted_idp_readiness_drill.json",
+      "bytes": 1474,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "hosted_oncall_contract_drill.json",
+      "bytes": 1156,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "hosted_oncall_readiness_drill.json",
+      "bytes": 1676,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "hosted_runner_readiness_drill.json",
+      "bytes": 2535,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "incident_tabletop_drill.json",
+      "bytes": 1158,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "incident_tabletop_stub.json",
+      "bytes": 458,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "independent_review_checklist.json",
+      "bytes": 329,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_integrity_drill.json",
+      "bytes": 1668,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_pack.json",
+      "bytes": 17843,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_readiness_drill.json",
+      "bytes": 493,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_request_drill.json",
+      "bytes": 1454,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "independent_review_summary_drill.json",
+      "bytes": 392,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "lifecycle_cleanup_drill.json",
+      "bytes": 746,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "live_failure_matrix_drill.json",
+      "bytes": 1348,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "local_load_probe.json",
+      "bytes": 310,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "local_metrics_snapshot.json",
+      "bytes": 299,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "locale_portfolio_drill.json",
+      "bytes": 639,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "loopback_auth_code_sso_drill.json",
+      "bytes": 658,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "loopback_pkce_sso_drill.json",
+      "bytes": 736,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "loopback_sso_drill.json",
+      "bytes": 644,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "minio_backup_restore_drill.json",
+      "bytes": 477,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "minio_multi_region_drill.json",
+      "bytes": 582,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "minio_object_store_drill.json",
+      "bytes": 442,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "multi_api_android_matrix_drill.json",
+      "bytes": 1601,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "multi_app_healing_suite_drill.json",
+      "bytes": 3020,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "multi_browser_ci_contract.json",
+      "bytes": 1211,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "multi_browser_portfolio_suite_drill.json",
+      "bytes": 520,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "multi_device_ci_contract.json",
+      "bytes": 1131,
+      "gates": [
+        "gate_d"
+      ]
+    },
+    {
+      "name": "multi_portal_oracle_drill.json",
+      "bytes": 2529,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "multi_region_cutover_rehearsal_drill.json",
+      "bytes": 499,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "multi_region_dr_drill.json",
+      "bytes": 1078,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "multi_store_dr_drill.json",
+      "bytes": 1003,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "mutation_score_drill.json",
+      "bytes": 847,
+      "gates": [
+        "gate_b"
+      ]
+    },
+    {
+      "name": "observability_probe_drill.json",
+      "bytes": 806,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "oidc_groups_role_acl_drill.json",
+      "bytes": 979,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "oidc_tid_tenant_acl_drill.json",
+      "bytes": 689,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "oracle_spec_drill.json",
+      "bytes": 1555,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "paging_ack_drill.json",
+      "bytes": 365,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "paging_escalation_ack_pack_drill.json",
+      "bytes": 311,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "paging_escalation_drill.json",
+      "bytes": 463,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "paging_rehearsal.json",
+      "bytes": 296,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "perf_portfolio_drill.json",
+      "bytes": 773,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "pg_tenancy_drill.json",
+      "bytes": 673,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "portfolio_artifact_manifest_drill.json",
+      "bytes": 2706,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "postgres_dr_drill.json",
+      "bytes": 676,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "postgres_isolation_drill.json",
+      "bytes": 530,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "production_healing_contract_drill.json",
+      "bytes": 1567,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "production_healing_flaky_policy_drill.json",
+      "bytes": 1364,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "production_healing_matrix_drill.json",
+      "bytes": 8693,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "production_healing_replay_pack_drill.json",
+      "bytes": 1749,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "production_healing_taxonomy_drill.json",
+      "bytes": 1930,
+      "gates": [
+        "gate_e"
+      ]
+    },
+    {
+      "name": "qx_capabilities_drill.json",
+      "bytes": 3349,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "qx_core_capabilities_drill.json",
+      "bytes": 2688,
+      "gates": [
+        "untagged"
+      ]
+    },
+    {
+      "name": "redis_durable_queue_drill.json",
+      "bytes": 558,
+      "gates": [
+        "gate_a",
+        "gate_h"
+      ]
+    },
+    {
+      "name": "redis_lease_drill.json",
+      "bytes": 369,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "redis_multi_region_drill.json",
+      "bytes": 868,
+      "gates": [
+        "gate_h"
+      ]
+    },
+    {
+      "name": "redis_swarm_contention_drill.json",
+      "bytes": 574,
+      "gates": [
+        "gate_a",
+        "gate_h"
+      ]
+    },
+    {
+      "name": "remaining_blockers.json",
+      "bytes": 6713,
+      "gates": [
+        "gate_g"
+      ]
+    },
+    {
+      "name": "security_portfolio_drill.json",
+      "bytes": 939,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "sso_contract_drill.json",
+      "bytes": 439,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "sso_tenant_acl_drill.json",
+      "bytes": 816,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "studio_oidc_callback_drill.json",
+      "bytes": 428,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "studio_sso_principal_bootstrap_drill.json",
+      "bytes": 472,
+      "gates": [
+        "gate_i"
+      ]
+    },
+    {
+      "name": "swarm_control_drill.json",
+      "bytes": 531,
+      "gates": [
+        "gate_a"
+      ]
+    },
+    {
+      "name": "swarm_redis_default.json",
+      "bytes": 1228,
+      "gates": [
+        "gate_a",
+        "gate_h"
+      ]
+    },
+    {
+      "name": "swarm_retry_drill.json",
+      "bytes": 604,
+      "gates": [
+        "gate_a"
+      ]
+    },
+    {
+      "name": "swarm_review_checklist.json",
+      "bytes": 621,
+      "gates": [
+        "gate_a"
+      ]
+    },
+    {
+      "name": "travel_site_surface_coverage.json",
+      "bytes": 2695,
+      "gates": [
+        "gate_c"
+      ]
+    },
+    {
+      "name": "visual_portfolio_drill.json",
+      "bytes": 476,
+      "gates": [
+        "gate_f"
+      ]
+    },
+    {
+      "name": "workflow_dispatch_contract_drill.json",
+      "bytes": 1101,
+      "gates": [
+        "untagged"
+      ]
+    }
+  ],
+  "entry_count": 108,
+  "by_gate": {
+    "gate_g": 9,
+    "gate_f": 9,
+    "gate_c": 6,
+    "gate_d": 12,
+    "untagged": 22,
+    "gate_j": 4,
+    "gate_b": 6,
+    "gate_i": 13,
+    "gate_e": 10,
+    "gate_h": 19,
+    "gate_a": 6
+  },
+  "ok": true,
+  "reason": "Independent review evidence catalog 108 files; signed_off remains False until external review"
+}

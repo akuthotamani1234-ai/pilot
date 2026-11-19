@@ -1,7 +1,7 @@
 {
   "complete": false,
   "drill": "remaining_blockers",
-  "ran_at": "2026-11-19T02:33:50Z",
+  "ran_at": "2026-11-19T02:39:45Z",
   "ok": true,
   "blockers": [
     {
@@ -164,6 +164,7 @@
         "independent_review_summary_drill.json",
         "independent_review_request_drill.json",
         "independent_review_integrity_drill.json",
+        "independent_review_evidence_catalog_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md"
       ],
       "status": "open",
@@ -174,6 +175,7 @@
         "independent_review_summary_drill.json",
         "independent_review_request_drill.json",
         "independent_review_integrity_drill.json",
+        "independent_review_evidence_catalog_drill.json",
         "INDEPENDENT_REVIEW_SUMMARY.md"
       ],
       "local_partial_missing": []
