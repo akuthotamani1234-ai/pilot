@@ -182,6 +182,52 @@ def test_a_viewer_cannot_recheck_a_run(monkeypatch, tmp_path):
     assert "Nothing to re-check" in owner.json()["detail"]
 
 
+def test_a_schedule_cannot_repeat_another_tenants_run(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.audit_store as audit_store
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    args = '{"source": "https://a.test/", "settings": {"llm_provider": "none", "environment": "test", "max_pages": 5}}'
+    for name in ("run-a", "run-b"):
+        folder = runs / name
+        folder.mkdir()
+        (folder / "run_args.json").write_text(args, encoding="utf-8")
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(audit_store, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    monkeypatch.setattr(server, "SCHEDULES", tmp_path / "schedules.json")
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Ready", db_path=db)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+    header = {"X-Agentic-QA": "1"}
+    body = {"run": "run-a", "every": "daily", "at": "07:00"}
+    assert client.post("/api/schedules", headers={**header, "Authorization": "Bearer view-1"}, json=body).status_code == 403
+    assert client.post("/api/schedules", headers={**header, "Authorization": "Bearer admin-2"}, json=body).status_code == 403
+    created = client.post("/api/schedules", headers={**header, "Authorization": "Bearer admin-1"}, json=body)
+    assert created.status_code == 200
+    assert created.json()["from_run"] == "run-a"
+    listed = client.get("/api/schedules", headers={"Authorization": "Bearer view-1"})
+    assert [item["from_run"] for item in listed.json()] == ["run-a"]
+    hidden = client.get("/api/schedules", headers={"Authorization": "Bearer admin-2"})
+    assert hidden.json() == []
+    sid = created.json()["id"]
+    assert client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer admin-2"}).status_code == 403
+    assert client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer view-1"}).status_code == 403
+    removed = client.delete(f"/api/schedules/{sid}", headers={**header, "Authorization": "Bearer admin-1"})
+    assert removed.status_code == 200 and removed.json()["deleted"] == 1
+
+
 def test_tenant_scoped_list_and_export(tmp_path):
     db = tmp_path / "audit.sqlite"
     record_audit(actor="a", action="run.read", allowed=True, tenant_id="t1", db_path=db)
