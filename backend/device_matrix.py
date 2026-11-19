@@ -54,25 +54,29 @@ def android_evidence_from_run(run_dir: str | Path | None = None, *, config: dict
     cfg = dict(config or {})
     env = {}
     if run_dir:
-        path = Path(run_dir) / "android_environment.json"
-        if path.is_file():
+        root = Path(run_dir)
+        from .finalization import folder_is_linked
+        linked = folder_is_linked(root)
+        path = root / "android_environment.json"
+        if not linked and not path.is_symlink() and path.is_file():
             try:
                 loaded = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(loaded, dict):
                     env = loaded
             except (OSError, ValueError):
                 env = {}
-        if not cfg:
+        if not cfg and not linked:
             for name in ("android_config.json", ".private/android_config.json"):
-                cfg_path = Path(run_dir) / name
-                if cfg_path.is_file():
-                    try:
-                        loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
-                        if isinstance(loaded, dict):
-                            cfg = loaded
-                            break
-                    except (OSError, ValueError):
-                        continue
+                cfg_path = root / name
+                if folder_is_linked(cfg_path.parent) or cfg_path.is_symlink() or not cfg_path.is_file():
+                    continue
+                try:
+                    loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        cfg = loaded
+                        break
+                except (OSError, ValueError):
+                    continue
     device_id = str(cfg.get("device_id") or cfg.get("udid") or "").strip()
     if not device_id and isinstance(env.get("devices"), list):
         # Prefer an emulator that was online during the probe.
