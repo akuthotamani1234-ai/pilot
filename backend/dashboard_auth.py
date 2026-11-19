@@ -49,6 +49,56 @@ def _extract_bearer(authorization: str | None) -> str:
     return given
 
 
+def _oidc_principal(claims: dict, *, action: str, mode: str, verdict: dict) -> dict:
+    """A valid JWT is not enough. The subject must be a principal whose role allows the action."""
+    sub = str(claims.get("sub") or "").strip()
+    base = {
+        "required": True,
+        "mode": mode,
+        "claims": claims,
+        "signature_verified": bool(verdict.get("signature_verified")),
+        "gate_i_complete": False,
+        "principal_id": sub,
+    }
+    if not sub:
+        return {**base, "ok": False, "reason": "OIDC token has no subject"}
+    try:
+        from .rbac import allow
+        from .tenancy_store import get_principal
+        row = get_principal(sub)
+    except Exception as exc:
+        return {**base, "ok": False, "reason": f"principal auth failed: {exc}"}
+    if row is None:
+        return {**base, "ok": False, "reason": "unknown principal"}
+    tid = str(claims.get("tid") or "").strip()
+    if tid and tid != str(row.get("tenant_id") or ""):
+        return {
+            **base,
+            "ok": False,
+            "reason": "token tenant does not match principal",
+            "tenant_id": row.get("tenant_id"),
+        }
+    decision = allow(
+        role=row["role"], action=action,
+        tenant_id=row["tenant_id"], resource_tenant=row["tenant_id"],
+    )
+    if not decision.get("allowed"):
+        return {
+            **base,
+            "ok": False,
+            "reason": decision.get("reason") or "RBAC denied",
+            "role": row["role"],
+            "tenant_id": row["tenant_id"],
+        }
+    return {
+        **base,
+        "ok": True,
+        "reason": "OIDC principal RBAC accepted (live hosted SSO still open)",
+        "role": row["role"],
+        "tenant_id": row["tenant_id"],
+    }
+
+
 def authorize(authorization: str | None, *, x_qa_token: str | None = None,
               action: str = "review.write") -> dict:
     """Return {ok, reason, mode, principal?}."""
@@ -95,23 +145,17 @@ def authorize(authorization: str | None, *, x_qa_token: str | None = None,
                 "reason": "Authorization Bearer <jwt> required for OIDC dashboard auth",
             }
         verdict = validate_bearer(bearer, verify_signature=True)
+        claims = verdict.get("claims") or {}
         if not verdict.get("ok"):
             return {
                 "ok": False,
                 "required": True,
                 "mode": mode,
                 "reason": verdict.get("reason") or "OIDC JWT rejected",
-                "claims": verdict.get("claims") or {},
+                "claims": claims,
+                "gate_i_complete": False,
             }
-        return {
-            "ok": True,
-            "required": True,
-            "mode": mode,
-            "reason": "OIDC JWT claims accepted (live hosted SSO still open)",
-            "claims": verdict.get("claims") or {},
-            "signature_verified": bool(verdict.get("signature_verified")),
-            "gate_i_complete": False,
-        }
+        return _oidc_principal(claims, action=action, mode=mode, verdict=verdict)
 
     if mode != "principal":
         return {

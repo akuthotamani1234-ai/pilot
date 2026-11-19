@@ -119,6 +119,7 @@ def validate_bearer(token: str, *, verify_signature: bool = True) -> dict:
         "sub": payload.get("sub"),
         "exp": payload.get("exp"),
         "email": payload.get("email"),
+        "tid": payload.get("tid"),
         "nonce": payload.get("nonce"),
         "jti": payload.get("jti"),
         "nbf": payload.get("nbf"),
