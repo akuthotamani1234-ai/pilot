@@ -95,6 +95,8 @@ def test_a_generated_test_folder_does_not_follow_a_link_into_another_folder(tmp_
     assert sorted(path.name for path in other.iterdir()) == before
 
     (tests / "linked").unlink()
+    # This half checks that a real suite is started. Windows Job Object limits are covered elsewhere.
+    monkeypatch.setattr("backend.agents.executor.IS_WINDOWS", False)
     started = []
 
     class Finished:
