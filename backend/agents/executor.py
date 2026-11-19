@@ -451,6 +451,8 @@ def _clean_up_again(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Pat
     """Staging: a retry or a healing re-run of a form test sends the form again AFTER test_cleanup.py ran - what it
     created is removed by running the cleanup once more, at the very end (nothing tagged with the run may stay)."""
     f = run_dir / "created.jsonl"
+    if run_dir.is_symlink() or f.is_symlink():
+        return
     if not (test_dir / "test_cleanup.py").exists() or not f.exists() or runctl.stopping():
         return
     latest = {}
