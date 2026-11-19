@@ -21,8 +21,9 @@ def _private_dest(run_dir: Path, name: str) -> Path:
 
 
 def _save_private(path: Path, text: str) -> None:
+    from .finalization import folder_is_linked
     from .repo_fix import RepoFixError
-    if path.is_symlink() or path.parent.is_symlink():
+    if folder_is_linked(path):
         raise RepoFixError("The reviewed proposal is a link, so it was not published.")
     path.write_text(text, encoding="utf-8")
 

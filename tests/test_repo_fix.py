@@ -223,6 +223,32 @@ def test_a_reviewed_proposal_does_not_follow_a_link_into_another_folder(tmp_path
     assert secret in (nested / "fixes.json").read_text(encoding="utf-8")
 
 
+def test_a_published_proposal_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.repo_fix import RepoFixError
+    from backend.repo_publication import _save_private
+
+    secret = "tenant-b-only-publish"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    (other / "repo_fix_publication.json").write_text(secret, encoding="utf-8")
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    with pytest.raises(RepoFixError, match="link"):
+        _save_private(parent / "repo_fix_publication.json", "home-own")
+    assert (other / "repo_fix_publication.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _save_private(real / "repo_fix_publication.json", "home-own")
+    assert (real / "repo_fix_publication.json").read_text(encoding="utf-8") == "home-own"
+    assert secret not in (real / "repo_fix_publication.json").read_text(encoding="utf-8")
+    assert (other / "repo_fix_publication.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_a_published_proposal_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
     import base64
 
