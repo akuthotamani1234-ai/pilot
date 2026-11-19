@@ -324,6 +324,30 @@ def test_a_merged_summary_does_not_follow_a_link_into_another_folder(tmp_path):
     assert secret in summary.read_text(encoding="utf-8")
 
 
+def test_an_accuracy_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.accuracy import write_report
+
+    secret = "tenant-b-only-count"
+    other = tmp_path / "other"
+    nested = other / "reports"
+    nested.mkdir(parents=True)
+    target = nested / "accuracy.json"
+    target.write_text(json.dumps({"note": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert write_report(linked / "reports" / "accuracy.json", {"note": "ours"}) is False
+    assert write_report(linked / "fresh" / "accuracy.json", {"note": "ours"}) is False
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / "accuracy.json"
+    assert write_report(own, {"note": "home-own"}) is True
+    assert json.loads(own.read_text(encoding="utf-8"))["note"] == "home-own"
+    assert secret not in own.read_text(encoding="utf-8")
+    assert secret in target.read_text(encoding="utf-8")
+
+
 def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     from backend.config import settings
     from backend.integrations import create_jira_issues, integrations_agent
