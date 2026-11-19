@@ -23,11 +23,26 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "apidemos_interaction_drill.json"
 
 
+def _linked_apidemos() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "apidemos_interaction",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_apidemos_interaction_drill(
     *,
     ops_dir: Path | None = None,
     appium_url: str = DEFAULT_APPIUM,
 ) -> dict:
+    from .finalization import folder_is_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / "apidemos_interaction_drill.json"):
+        return _linked_apidemos()
+
     env = android_environment(appium_url)
     online = _online_emulators(env)
     appium_ok = _appium_ready(appium_url)
@@ -41,7 +56,8 @@ def run_apidemos_interaction_drill(
             "devices_online": len(online),
             "reason": "Emulator/Appium unavailable for ApiDemos interaction drill",
         }
-        _write(evidence, ops_dir)
+        if not _write(evidence, ops_dir):
+            return _linked_apidemos()
         return evidence
 
     device = online[0]
@@ -155,16 +171,25 @@ def run_apidemos_interaction_drill(
                 close_session(driver)
             except Exception:
                 pass
-    _write(evidence, ops_dir)
+    if not _write(evidence, ops_dir):
+        return _linked_apidemos()
     return evidence
 
 
-def _write(evidence: dict, ops_dir: Path | None) -> None:
+def _write(evidence: dict, ops_dir: Path | None) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "apidemos_interaction_drill.json"
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return False
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "apidemos_interaction_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return False
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "apidemos_interaction_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return True
