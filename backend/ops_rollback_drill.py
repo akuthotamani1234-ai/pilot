@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "ci_rollback_rehearsal.json"
+OPS_DIR = ROOT / "artifacts" / "ops"
 
 
 def _git_head() -> str:
@@ -33,22 +34,54 @@ def _git_head() -> str:
 
 
 def _workflow_fingerprint() -> dict:
+    from .finalization import folder_is_linked
     rows = {}
     wf = ROOT / ".github" / "workflows"
-    if not wf.is_dir():
+    if folder_is_linked(wf) or not wf.is_dir():
         return rows
     for path in sorted(wf.glob("*.yml")) + sorted(wf.glob("*.yaml")):
+        if folder_is_linked(path) or not path.is_file():
+            continue
         data = path.read_bytes()
         rows[path.name] = hashlib.sha256(data).hexdigest()[:16]
     return rows
 
 
+def _ops_folder(ops_dir: Path | None) -> Path | None:
+    """This rehearsal's folder. A link is not this install's evidence folder."""
+    from .finalization import folder_is_linked
+    base = Path(ops_dir) if ops_dir is not None else OPS_DIR
+    if folder_is_linked(base):
+        return None
+    return base
+
+
+def _linked_rehearsal() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "ci_rollback_rehearsal",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def _write_json(folder: Path, name: str, payload: dict) -> bool:
+    from .finalization import write_text_unless_linked
+    return write_text_unless_linked(folder, name, json.dumps(payload, indent=2))
+
+
 def run_ci_rollback_rehearsal(*, ops_dir: Path | None = None) -> dict:
-    base = Path(ops_dir) if ops_dir else ROOT / "artifacts" / "ops"
+    from .finalization import folder_is_linked
+    base = _ops_folder(ops_dir)
+    if base is None:
+        return _linked_rehearsal()
     base.mkdir(parents=True, exist_ok=True)
     good_dir = base / "rollback_good"
     bad_dir = base / "rollback_bad"
     restore_dir = base / "rollback_restored"
+    evidence_path = base / "ci_rollback_rehearsal.json"
+    if any(folder_is_linked(path) for path in (good_dir, bad_dir, restore_dir, evidence_path)):
+        return _linked_rehearsal()
     for d in (good_dir, bad_dir, restore_dir):
         if d.exists():
             shutil.rmtree(d)
@@ -62,7 +95,8 @@ def run_ci_rollback_rehearsal(*, ops_dir: Path | None = None) -> dict:
         "workflows": workflows,
         "status": "known_good",
     }
-    (good_dir / "artifact.json").write_text(json.dumps(good, indent=2), encoding="utf-8")
+    if not _write_json(good_dir, "artifact.json", good):
+        return _linked_rehearsal()
 
     bad = {
         "kind": "deploy_artifact",
@@ -71,11 +105,17 @@ def run_ci_rollback_rehearsal(*, ops_dir: Path | None = None) -> dict:
         "status": "broken",
         "note": "simulated bad deploy for Gate H rehearsal",
     }
-    (bad_dir / "artifact.json").write_text(json.dumps(bad, indent=2), encoding="utf-8")
+    if not _write_json(bad_dir, "artifact.json", bad):
+        return _linked_rehearsal()
 
     # Rollback: restore known-good into isolated folder (do not overwrite live paths).
-    shutil.copy2(good_dir / "artifact.json", restore_dir / "artifact.json")
-    restored = json.loads((restore_dir / "artifact.json").read_text(encoding="utf-8"))
+    restored_path = restore_dir / "artifact.json"
+    if folder_is_linked(restored_path):
+        return _linked_rehearsal()
+    shutil.copy2(good_dir / "artifact.json", restored_path)
+    if folder_is_linked(restored_path):
+        return _linked_rehearsal()
+    restored = json.loads(restored_path.read_text(encoding="utf-8"))
     ok = restored.get("status") == "known_good" and restored.get("revision") == head
 
     evidence = {
@@ -93,9 +133,9 @@ def run_ci_rollback_rehearsal(*, ops_dir: Path | None = None) -> dict:
             "Rollback rehearsal assertions failed"
         ),
     }
-    out = base / "ci_rollback_rehearsal.json"
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-    if ops_dir is None:
+    if not _write_json(base, "ci_rollback_rehearsal.json", evidence):
+        return _linked_rehearsal()
+    if ops_dir is None and not folder_is_linked(EVIDENCE) and not folder_is_linked(EVIDENCE.parent):
         EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
-        EVIDENCE.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        _write_json(EVIDENCE.parent, EVIDENCE.name, evidence)
     return evidence
