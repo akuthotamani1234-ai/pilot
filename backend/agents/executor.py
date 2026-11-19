@@ -257,6 +257,21 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
     return env
 
 
+def _suite_tree_is_linked(test_dir: Path) -> bool:
+    """True when a generated test, or a folder on the way to it, is a link."""
+    test_dir = Path(test_dir)
+    if not test_dir.exists():
+        return False
+    if test_dir.is_symlink():
+        return True
+    for dirpath, dirnames, filenames in os.walk(test_dir, followlinks=False):
+        here = Path(dirpath)
+        for name in dirnames + filenames:
+            if (here / name).is_symlink():
+                return True
+    return False
+
+
 def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Path,
                 select: list[str] | None = None, traces: bool = False, headless: bool | None = None) -> dict:
     """Run pytest in the sandbox. Returns {"timed_out", "stopped", "returncode", "sandbox"}.
@@ -284,7 +299,7 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
               shot_dir, run_dir, run_dir / "traces", run_dir / "videos", private, private / "auth.json",
               *role_files)
     if (unsafe_role or folder_is_linked(run_dir) or folder_is_linked(results_file.parent)
-            or any(path.is_symlink() for path in linked)):
+            or _suite_tree_is_linked(test_dir) or any(path.is_symlink() for path in linked)):
         print("  [execution] the test results are a link, so the suite was not started", flush=True)
         return {"timed_out": False, "stopped": True, "returncode": -1, "sandbox": sandbox}
     # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
@@ -478,8 +493,9 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
     must go back (an AI rewrite, or another test broke) it is restored from the copy made before the round."""
     path = test_dir / file
     from ..finalization import folder_is_linked
-    if (folder_is_linked(test_dir) or folder_is_linked(run_dir) or test_dir.is_symlink()
-            or path.is_symlink() or Path(file).is_absolute() or ".." in Path(file).parts):
+    if (folder_is_linked(test_dir) or folder_is_linked(run_dir) or folder_is_linked(path)
+            or test_dir.is_symlink() or path.is_symlink() or Path(file).is_absolute()
+            or ".." in Path(file).parts):
         return
     kept = [h for h in entries if h["status"] in ("healed", "repaired")]
     undo = [h for h in entries if h["status"] == "reverted"]

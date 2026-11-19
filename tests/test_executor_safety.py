@@ -71,6 +71,84 @@ def test_windows_job_object_failure_stops_generated_pytest(tmp_path, monkeypatch
         assert job.closed
 
 
+def test_a_generated_test_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _run_pytest
+
+    secret = b"tenant-b-only-generated-test"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_secret.py").write_bytes(secret)
+    before = sorted(path.name for path in other.iterdir())
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "linked").symlink_to(other, target_is_directory=True)
+    (tests / "test_home.py").write_text("def test_home():\n    assert 'home-own' == 'home-own'\n", encoding="utf-8")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", explode)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    assert (other / "test_secret.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    (tests / "linked").unlink()
+    started = []
+
+    class Finished:
+        returncode = 0
+        pid = 4242
+
+        def communicate(self, timeout=None):
+            return ("home-own-suite\n", None)
+
+    def record(cmd, **_kwargs):
+        started.append(cmd)
+        return Finished()
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", record)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["returncode"] == 0 and info["stopped"] is False
+    assert started and any("test_home.py" in str(part) or str(tests) in str(part) for part in started[0])
+    assert secret.decode() not in " ".join(str(part) for part in started[0])
+    assert (other / "test_secret.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+    written = (run / "results_pytest_output.txt").read_text(encoding="utf-8")
+    assert "home-own-suite" in written and secret.decode() not in written
+
+
+def test_an_undone_script_folder_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"click('new')\nSECRET-TENANT-B-FOLDER"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_home.py").write_bytes(secret)
+    before = sorted(path.name for path in other.iterdir())
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "linked").symlink_to(other, target_is_directory=True)
+    entries = [
+        {"status": "reverted", "method": "selector-match", "from": "old", "to": "new", "why": "still failing"},
+        {"status": "healed", "method": "selector-match", "from": "keep", "to": "kept", "why": ""},
+    ]
+    _undo(tests, run, "linked/test_home.py", entries)
+    assert (other / "test_home.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("click('new')\n", encoding="utf-8")
+    _undo(real, tmp_path / "real", "test_home.py", entries)
+    written = (real / "test_home.py").read_text(encoding="utf-8")
+    assert written == "click('old')\n"
+    assert b"SECRET-TENANT-B-FOLDER" not in written.encode()
+    assert (other / "test_home.py").read_bytes() == secret
+
+
 def test_a_test_result_does_not_follow_a_link_into_another_folder(tmp_path):
     from backend.agents.executor import _run_pytest, _write_run_json
 
