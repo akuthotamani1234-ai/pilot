@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_acceptance_gate",
-  "ran_at": "2026-11-19T05:37:35Z",
+  "ran_at": "2026-11-19T05:42:46Z",
   "kind": "acceptance_gate_local_only",
-  "score": 11,
-  "score_of": 11,
+  "score": 12,
+  "score_of": 12,
   "criteria": [
     {
       "id": "contract",
@@ -82,10 +82,17 @@
       "label": "Rollback policy",
       "ready": true,
       "accepted": false
+    },
+    {
+      "id": "human_loop",
+      "artifact": "production_healing_human_loop_contract_drill.json",
+      "label": "Human-loop contract",
+      "ready": true,
+      "accepted": false
     }
   ],
   "production_suite_executed": false,
   "accepted": false,
   "ok": true,
-  "reason": "Production healing acceptance gate local 11/11; production / third-party suite still open (not accepted)"
+  "reason": "Production healing acceptance gate local 12/12; production / third-party suite still open (not accepted)"
 }

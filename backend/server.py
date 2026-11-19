@@ -2351,6 +2351,36 @@ def ops_hosted_ci_timeout_budget():
     }
 
 
+@app.post("/api/ops/drills/production-healing-human-loop-contract")
+def ops_production_healing_human_loop_contract():
+    """Gate E: human-in-the-loop healing contract (production suite still open)."""
+    from backend.production_healing_human_loop_contract_drill import (
+        run_production_healing_human_loop_contract_drill,
+    )
+    evidence = run_production_healing_human_loop_contract_drill()
+    _audit(
+        "ops_production_healing_human_loop_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_human_loop_contract": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-findings-freeze")
+def ops_independent_review_findings_freeze():
+    """Gate G: findings + blocker freeze hash (unsigned)."""
+    from backend.independent_review_findings_freeze_drill import (
+        run_independent_review_findings_freeze_drill,
+    )
+    evidence = run_independent_review_findings_freeze_drill()
+    _audit(
+        "ops_independent_review_findings_freeze",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_findings_freeze": evidence}
+
+
 @app.post("/api/ops/drills/multi-region-cutover-rehearsal")
 def ops_multi_region_cutover_rehearsal():
     """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""

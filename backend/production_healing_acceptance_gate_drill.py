@@ -24,6 +24,7 @@ CRITERIA = (
     ("seed_catalog", "production_healing_seed_catalog_drill.json", "Seed catalog ready"),
     ("fixture_coverage", "production_healing_fixture_coverage_drill.json", "Fixture coverage map"),
     ("rollback_policy", "production_healing_rollback_policy_drill.json", "Rollback policy"),
+    ("human_loop", "production_healing_human_loop_contract_drill.json", "Human-loop contract"),
 )
 
 
