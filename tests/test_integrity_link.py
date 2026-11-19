@@ -9,11 +9,11 @@ def test_an_integrity_receipt_does_not_follow_a_link_into_another_folder(tmp_pat
     import backend.independent_review_request_drill as req
 
     calls = {"n": 0}
-    real = req.run_independent_review_request_drill
+    real_request = req.run_independent_review_request_drill
 
     def _request(*args, **kwargs):
         calls["n"] += 1
-        return real(*args, **kwargs)
+        return real_request(*args, **kwargs)
 
     monkeypatch.setattr(req, "run_independent_review_request_drill", _request)
 
