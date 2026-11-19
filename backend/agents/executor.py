@@ -394,6 +394,8 @@ def _related(results: list[dict], file: str, test_dir: Path) -> list[str]:
     callers = set()
     if file.startswith("steps_"):
         for f in test_dir.glob("test_*.py"):
+            if f.is_symlink():
+                continue
             current = None
             for line in f.read_text(encoding="utf-8").splitlines():
                 m = re.match(r"def (test_\w+)\(", line)
@@ -407,12 +409,16 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
     """Take back the repairs of one file that are not kept: a swapped selector is swapped back; when the whole file
     must go back (an AI rewrite, or another test broke) it is restored from the copy made before the round."""
     path = test_dir / file
+    if test_dir.is_symlink() or path.is_symlink() or Path(file).is_absolute() or ".." in Path(file).parts:
+        return
     kept = [h for h in entries if h["status"] in ("healed", "repaired")]
     undo = [h for h in entries if h["status"] == "reverted"]
     whole = any(h["method"] == "llm" or not h.get("to") or "broke" in (h.get("why") or "") for h in undo) or not kept
     if whole:
         backup = run_dir / (undo[0].get("backup") or "")
-        if undo[0].get("backup") and backup.exists():
+        backup_name = Path(undo[0].get("backup") or "")
+        if (undo[0].get("backup") and not backup_name.is_absolute() and ".." not in backup_name.parts
+                and not backup.is_symlink() and backup.exists()):
             shutil.copy(backup, path)
         for h in kept:  # (their test ran with the file that is now taken back)
             h["status"], h["why"] = "reverted", "undone together with the other repairs of this file"

@@ -53,12 +53,24 @@ def _page_with_selector(selector: str, app_map: list[dict]) -> dict | None:
     return next((p for p in app_map if _find_old_element(selector, p)), None)
 
 
+def _script_is_linked(test_dir: Path, name: str) -> bool:
+    """A generated script that is a link, or a name that leaves the run, is not this run's file."""
+    path = Path(name)
+    if not name or path.is_absolute() or ".." in path.parts or test_dir.is_symlink():
+        return True
+    return (test_dir / name).is_symlink()
+
+
 def _file_with(selector: str, test_dir: Path, failed_file: str) -> str | None:
     """Which generated file holds the broken selector: the failing file, else the step module it calls."""
-    names = [failed_file] + sorted(f.name for f in test_dir.glob("steps_*.py")) \
-        + sorted(f.name for f in test_dir.glob("test_*.py"))
+    if test_dir.is_symlink():
+        return None
+    names = [failed_file] + sorted(f.name for f in test_dir.glob("steps_*.py") if not f.is_symlink()) \
+        + sorted(f.name for f in test_dir.glob("test_*.py") if not f.is_symlink())
     for name in dict.fromkeys(names):
         f = test_dir / name
+        if _script_is_linked(test_dir, name):
+            continue
         if f.exists():
             code = f.read_text(encoding="utf-8")
             if repr(selector) in code or json.dumps(selector) in code:
@@ -303,7 +315,10 @@ def self_healing_agent(state: QAState) -> QAState:
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
     backup_dir = run_dir / "healing"
-    backup_dir.mkdir(exist_ok=True)
+    if run_dir.is_symlink():
+        return state
+    if not backup_dir.is_symlink():
+        backup_dir.mkdir(exist_ok=True)
     rnd = state.get("heal_round", 0) + 1
     unhealable = list(state.get("unhealable", []))
     log = list(state.get("healing_log", []))
@@ -326,6 +341,12 @@ def self_healing_agent(state: QAState) -> QAState:
                  "backup": None, "from": None, "to": None, "related": [], "rerun": None}
         # the broken selector may live in another file than the failing test (e.g. steps_<page>.py)
         holder = (_file_with(bad, test_dir, f["file"]) if bad else None) or f["file"]
+        if _script_is_linked(test_dir, holder):
+            entry["status"] = "could not heal"
+            entry["change"] = "the script is a link"
+            unhealable.append(f["nodeid"])
+            log.append(entry)
+            continue
         if bad and bad in fixed and fixed[bad]["file"] == holder:
             # The same file was already repaired. A different file keeps its own repair,
             # so a later failure there cannot undo the first file.
@@ -421,10 +442,18 @@ def self_healing_agent(state: QAState) -> QAState:
             unhealable.append(f["nodeid"])
             print(f"  [self-healing] X {f['file']}::{f['test']} - {entry['change']}")
         else:
-            backup = backup_dir / f"{path.stem}.round{rnd}.before.py"
-            if not backup.exists():  # the file as it was before THIS round (kept: evidence, and to undo the repair)
-                shutil.copy(path, backup)
-            entry["backup"] = backup.relative_to(run_dir).as_posix()
+            if _script_is_linked(test_dir, holder):
+                entry["status"] = "could not heal"
+                entry["change"] = "the script is a link"
+                unhealable.append(f["nodeid"])
+                log.append(entry)
+                continue
+            if not backup_dir.is_symlink():
+                backup = backup_dir / f"{path.stem}.round{rnd}.before.py"
+                if not backup.is_symlink() and not backup.exists():
+                    shutil.copy(path, backup)
+                if not backup.is_symlink():
+                    entry["backup"] = backup.relative_to(run_dir).as_posix()
             path.write_text(after, encoding="utf-8")
             entry.update(proposal_fields(f.get("error") or ""))
             entry["diff"] = "".join(difflib.unified_diff(
@@ -440,7 +469,9 @@ def self_healing_agent(state: QAState) -> QAState:
             print(f"  [self-healing] candidate {f['file']}::{f['test']} - {entry['change']} (runs again to decide)")
         log.append(entry)
 
-    (run_dir / "healing_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")
+    log_path = run_dir / "healing_log.json"
+    if not log_path.is_symlink():
+        log_path.write_text(json.dumps(log, indent=2), encoding="utf-8")
     msg = (f"Self-healing round {rnd}: {len(to_rerun)} repair candidate(s) - they run again before anything is "
            f"called repaired; no safe repair for {len(targets) - len(to_rerun)}.")
     return {"heal_round": rnd, "rerun_only": to_rerun, "healing_log": log, "unhealable": unhealable,
