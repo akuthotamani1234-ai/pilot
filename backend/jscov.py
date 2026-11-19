@@ -79,9 +79,9 @@ def append(run_dir: Path, name: str, data: dict) -> None:
         return
     run = Path(run_dir)
     folder = run / "jscov"
-    if run.is_symlink() or folder.is_symlink():
+    from .finalization import append_text_unless_linked, folder_is_linked
+    if folder_is_linked(run) or folder.is_symlink():
         return
-    from .finalization import append_text_unless_linked
     append_text_unless_linked(folder / f"{key}.jsonl", json.dumps(data) + "\n")
 
 
@@ -99,7 +99,8 @@ def summary(run_dir: Path, host: str) -> dict | None:
     """Every take of the run merged: the share of the website's OWN JavaScript that ran, and its least-used scripts."""
     run = Path(run_dir)
     d = run / "jscov"
-    if run.is_symlink() or d.is_symlink() or not d.is_dir():
+    from .finalization import folder_is_linked
+    if folder_is_linked(run) or d.is_symlink() or not d.is_dir():
         return None
     scripts: dict[str, dict] = {}
     for f in d.glob("*.jsonl"):

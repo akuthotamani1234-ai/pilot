@@ -224,6 +224,34 @@ def test_a_live_log_does_not_follow_a_link_into_another_run(tmp_path, monkeypatc
     assert "shop.example" in coverage and secret not in coverage
 
 
+def test_javascript_coverage_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.jscov import append, summary
+
+    secret = b"tenant-b-only-jscov"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "jscov.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    sample = {"https://shop.example/app.js": {"length": 8, "covered": [[0, 4]]}}
+    append(linked / "run", "crawl", sample)
+    assert summary(linked / "run", "shop.example") is None
+    assert not (nested / "jscov").exists()
+    assert (nested / "jscov.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    append(real, "crawl", sample)
+    saved = summary(real, "shop.example")
+    assert saved is not None and saved["own_scripts"] == 1
+    assert secret not in (real / "jscov.json").read_bytes()
+    assert secret not in (real / "jscov" / "crawl.jsonl").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def _coverage():
     class _CDP:
         def send(self, method):
