@@ -1,0 +1,53 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_oncall_readiness",
+  "ran_at": "2026-11-19T00:12:24Z",
+  "kind": "readiness_score_only",
+  "score": 8,
+  "score_of": 8,
+  "checks": [
+    {
+      "artifact": "multi_region_dr_drill.json",
+      "label": "Local dual-region Postgres failover",
+      "ready": true
+    },
+    {
+      "artifact": "minio_multi_region_drill.json",
+      "label": "Local MinIO dual-bucket failover",
+      "ready": true
+    },
+    {
+      "artifact": "redis_multi_region_drill.json",
+      "label": "Local Redis dual-DB failover",
+      "ready": true
+    },
+    {
+      "artifact": "multi_store_dr_drill.json",
+      "label": "Combined multi-store DR pack",
+      "ready": true
+    },
+    {
+      "artifact": "failover_rto_drill.json",
+      "label": "Local failover RTO measurement",
+      "ready": true
+    },
+    {
+      "artifact": "paging_escalation_drill.json",
+      "label": "Loopback primary\u2192secondary paging",
+      "ready": true
+    },
+    {
+      "artifact": "observability_probe_drill.json",
+      "label": "Local observability probe",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_oncall_contract_drill.json",
+      "label": "Hosted on-call contract snapshot",
+      "ready": true
+    }
+  ],
+  "live_hosted_paging": false,
+  "ok": true,
+  "reason": "Hosted DR/on-call readiness 8/8; live hosted multi-region DR / on-call paging still open"
+}

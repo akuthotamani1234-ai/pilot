@@ -1564,6 +1564,36 @@ def ops_hosted_ci_runner_matrix():
     }
 
 
+@app.post("/api/ops/drills/hosted-idp-readiness")
+def ops_hosted_idp_readiness():
+    """Gate I: hosted IdP readiness score (live SSO still open)."""
+    from backend.hosted_idp_readiness_drill import run_hosted_idp_readiness_drill
+    evidence = run_hosted_idp_readiness_drill()
+    _audit(
+        "ops_hosted_idp_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_i_complete": False, "hosted_idp_readiness": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-readiness")
+def ops_hosted_oncall_readiness():
+    """Gate H: hosted DR/on-call readiness score (live paging still open)."""
+    from backend.hosted_oncall_readiness_drill import (
+        run_hosted_oncall_readiness_drill,
+    )
+    evidence = run_hosted_oncall_readiness_drill()
+    _audit(
+        "ops_hosted_oncall_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_readiness": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

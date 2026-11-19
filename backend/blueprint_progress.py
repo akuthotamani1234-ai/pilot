@@ -189,6 +189,8 @@ def progress() -> dict:
         {"id": "I-pkce-sso", "label": "Loopback OIDC PKCE S256 authorization-code", "status": "done"},
         {"id": "I-hosted-idp-contract", "label": "Hosted IdP SSO contract snapshot (not live)", "status": "done"},
         {"id": "I-dual-tenant-acl", "label": "Dual-tenant loopback OIDC ACL roundtrip", "status": "done"},
+        {"id": "I-hosted-idp-readiness", "label": "Hosted IdP readiness score (not live SSO)", "status": "done"},
+        {"id": "H-oncall-readiness", "label": "Hosted DR/on-call readiness score (not live paging)", "status": "done"},
         {"id": "I-auth", "gate": "I", "label": "Live hosted IdP SSO login + multi-tenant ACLs", "status": "open"},
         {"id": "E-demo-healing-live", "label": "Live DemoStore missing-locator + healing policy drill", "status": "done"},
         {"id": "E-live-failure-matrix", "label": "Live DemoStore provoked failure matrix + healing", "status": "done"},

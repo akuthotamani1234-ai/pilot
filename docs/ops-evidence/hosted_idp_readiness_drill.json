@@ -1,0 +1,48 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_readiness",
+  "ran_at": "2026-11-19T00:12:24Z",
+  "kind": "readiness_score_only",
+  "score": 7,
+  "score_of": 7,
+  "checks": [
+    {
+      "artifact": "loopback_sso_drill.json",
+      "label": "Loopback JWKS + RS256 JWT",
+      "ready": true
+    },
+    {
+      "artifact": "loopback_auth_code_sso_drill.json",
+      "label": "Authorization-code \u2192 dashboard oidc",
+      "ready": true
+    },
+    {
+      "artifact": "loopback_pkce_sso_drill.json",
+      "label": "PKCE S256 authorization-code",
+      "ready": true
+    },
+    {
+      "artifact": "studio_oidc_callback_drill.json",
+      "label": "Studio /api/sso/callback",
+      "ready": true
+    },
+    {
+      "artifact": "sso_tenant_acl_drill.json",
+      "label": "OIDC JWT + tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "dual_tenant_oidc_acl_drill.json",
+      "label": "Dual-tenant OIDC ACL",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_idp_contract_drill.json",
+      "label": "Hosted IdP contract snapshot",
+      "ready": true
+    }
+  ],
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Hosted IdP readiness 7/7; live hosted IdP Studio SSO login still open"
+}

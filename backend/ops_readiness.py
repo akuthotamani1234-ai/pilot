@@ -642,6 +642,22 @@ def readiness() -> dict:
                 else "No hosted CI runner matrix snapshot"
             ),
         },
+        "hosted_idp_readiness_drill": {
+            "ready": _ops_evidence("hosted_idp_readiness_drill.json"),
+            "reason": (
+                "Hosted IdP readiness score present; live hosted SSO still open"
+                if _ops_evidence("hosted_idp_readiness_drill.json")
+                else "No hosted IdP readiness score"
+            ),
+        },
+        "hosted_oncall_readiness_drill": {
+            "ready": _ops_evidence("hosted_oncall_readiness_drill.json"),
+            "reason": (
+                "Hosted on-call readiness score present; live paging still open"
+                if _ops_evidence("hosted_oncall_readiness_drill.json")
+                else "No hosted on-call readiness score"
+            ),
+        },
         "sso_tenant_acl_drill": {
             "ready": _ops_evidence("sso_tenant_acl_drill.json"),
             "reason": (
