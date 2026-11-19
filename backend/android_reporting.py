@@ -91,7 +91,8 @@ def analyze(state: dict) -> dict:
                 else "Check device connectivity and the foreground screen; inspect the original locator evidence.",
             }
         )
-    (Path(state["run_dir"]) / "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(Path(state["run_dir"]), "failures.json", json.dumps(failures, indent=2))
     return {"failures": failures}
 
 

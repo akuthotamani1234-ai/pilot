@@ -525,6 +525,53 @@ def test_a_recording_is_written_only_as_failure_evidence(tmp_path):
     assert (tmp_path / "videos" / "case_bad.mp4").read_bytes() == b"mp4-bytes"
 
 
+def test_android_evidence_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import base64
+
+    from backend.android_design import generate_scripts
+    from backend.android_dynamic import ActionRecovery
+    from backend.android_evidence import save_log, stop_recording
+    from backend.android_reporting import analyze
+
+    secret = "tenant-b-only-evidence"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "case.txt").write_text(secret, encoding="utf-8")
+    (other / "case.mp4").write_bytes(secret.encode())
+    (other / "dynamic.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "failures.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "test_android_generated.py").write_text(f"# {secret}\n", encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "logcat").symlink_to(other, target_is_directory=True)
+    (run / "videos").symlink_to(other, target_is_directory=True)
+    (run / "dynamic.json").symlink_to(other / "dynamic.json")
+    (run / "failures.json").symlink_to(other / "failures.json")
+    (run / "generated_tests").symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr("backend.android_evidence._adb", lambda: None)
+    monkeypatch.setattr("backend.android_design.llm.llm_enabled", lambda: False)
+    assert save_log(run, "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    driver = SimpleNamespace(stop_recording_screen=lambda: base64.b64encode(b"ours").decode())
+    assert stop_recording(driver, run, "case", keep=True) is None
+    ActionRecovery().record(run, {"action": "note", "message": secret})
+    analyze({"run_dir": str(run), "test_cases": [], "results": [
+        {"id": "c", "outcome": "failed", "exception_type": "AppCrash", "error": "crashed"}]})
+    refused = generate_scripts({"run_dir": str(run), "test_cases": [
+        {"id": "home", "plan": [["open_screen", ["S1"]]]}]})
+    assert "link" in refused["script_errors"][0]
+    assert (other / "case.txt").read_text(encoding="utf-8") == secret
+    assert (other / "case.mp4").read_bytes() == secret.encode()
+    assert json.loads((other / "dynamic.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "failures.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "test_android_generated.py").read_text(encoding="utf-8") == f"# {secret}\n"
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    saved = save_log(plain, "case", CRASH_LOG, PACKAGE, "emulator-5554")
+    assert saved == "logcat/case.txt" and "Cart is null" in (plain / saved).read_text(encoding="utf-8")
+
+
 def test_a_crash_is_reported_as_a_high_severity_app_defect(tmp_path):
     from backend.android_reporting import analyze, classify_failure
     result = {"id": "c", "outcome": "failed", "exception_type": "AppCrash", "error": "The app crashed during this test",

@@ -173,6 +173,35 @@ def test_existing_account_validation_and_creation_permission():
                                 "device_id": "emulator-5554", "account_mode": "create"})
 
 
+def test_a_private_account_does_not_follow_a_link_into_another_run(tmp_path):
+    from types import SimpleNamespace
+
+    from backend.android_accounts import initialize, persist
+
+    secret = "tenant-b-only-account"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auto_secrets.json").write_text(json.dumps({"password": secret}), encoding="utf-8")
+    (other / "account_setup.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    (run / "account_setup.json").symlink_to(other / "account_setup.json")
+    session = SimpleNamespace(
+        account_mode="create",
+        account_setup={"mode": "create", "status": "created"},
+        secrets={"username": "ours"},
+        device=SimpleNamespace(stop_path=run / "STOP", config={"account_mode": "create"}),
+        account=None,
+        given_account=False,
+    )
+    persist(session)
+    initialize(session)
+    assert json.loads((other / "auto_secrets.json").read_text(encoding="utf-8"))["password"] == secret
+    assert (other / "account_setup.json").read_text(encoding="utf-8") == json.dumps({"secret": secret})
+    assert secret not in json.dumps(session.secrets)
+
+
 def test_unconfirmed_registration_is_not_repeated_after_resume(tmp_path):
     from backend.android_accounts import begin_registration
     session, app, _, _ = account_session(tmp_path)

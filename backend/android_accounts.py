@@ -1,6 +1,7 @@
 """An explicit account policy and one private identity for each Android run."""
 
 import json
+from pathlib import Path
 
 from .android import AndroidEnvironmentError
 
@@ -41,6 +42,8 @@ def initialize(session) -> None:
     session.given_account = False
     root = session.device.stop_path.parent
     public, private = root / "account_setup.json", root / ".private" / "auto_secrets.json"
+    if (root.is_symlink() or public.is_symlink() or private.is_symlink() or (root / ".private").is_symlink()):
+        return
     if public.is_file():
         saved = json.loads(public.read_text(encoding="utf-8"))
         if saved.get("mode") != "create":
@@ -58,13 +61,17 @@ def persist(session) -> None:
 
     if session.account_mode != "create":
         return
-    root = session.device.stop_path.parent
-    private = root / ".private"
-    private.mkdir(parents=True, exist_ok=True)
+    from .finalization import private_file, write_text_unless_linked
+    root = Path(session.device.stop_path.parent)
+    if not root.is_symlink():
+        root.mkdir(parents=True, exist_ok=True)
+    secret_path = private_file(root, "auto_secrets.json")
+    public = json.dumps(session.account_setup)
+    if secret_path is None or not write_text_unless_linked(root, "account_setup.json", public):
+        return
     refs = (ACCOUNT_USERNAME, ACCOUNT_PASSWORD, SIGNUP_EMAIL, SIGNUP_USERNAME, STRONG_PASSWORD)
-    (private / "auto_secrets.json").write_text(json.dumps({key: session.secrets[key] for key in refs
-                                                         if key in session.secrets}), encoding="utf-8")
-    (root / "account_setup.json").write_text(json.dumps(session.account_setup), encoding="utf-8")
+    secret_path.write_text(json.dumps({key: session.secrets[key] for key in refs
+                                       if key in session.secrets}), encoding="utf-8")
 
 
 def begin_registration(session) -> bool:
