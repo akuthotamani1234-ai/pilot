@@ -312,6 +312,38 @@ def test_benchmark_does_not_count_infrastructure_as_detected_defect_and_measures
         qa_benchmark.run_path(tmp_path, "../outside")
 
 
+def test_a_benchmark_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-case"
+    other = tmp_path / "other"
+    run = other / "runs" / "runb"
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(json.dumps([{
+        "id": secret, "outcome": "failed", "exception_type": "AssertionError", "checks": 1,
+    }]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="inside runs"):
+        qa_benchmark.measure(linked / "runs", {
+            "groups": [{"name": "check", "runs": ["runb"], "expected": {"home-own": "failed"}}],
+        })
+    assert secret in (run / "results.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / "runa"
+    own.mkdir(parents=True)
+    (own / "results.json").write_text(json.dumps([{
+        "id": "home-own", "outcome": "failed", "exception_type": "AssertionError", "checks": 1,
+    }]), encoding="utf-8")
+    counted = qa_benchmark.measure(real, {
+        "groups": [{"name": "check", "runs": ["runa"], "expected": {"home-own": "failed"}}],
+    })
+    assert counted["rows"][0]["case_id"] == "home-own"
+    assert counted["counts"]["tp"] == 1
+    assert secret not in json.dumps(counted)
+    assert secret in (run / "results.json").read_text(encoding="utf-8")
+
+
 def test_contract_schema_lab_and_invalid_contract_api_are_available():
     client = TestClient(server.app, base_url="http://127.0.0.1:8000")
     assert client.get("/qa-lab").status_code == 200
