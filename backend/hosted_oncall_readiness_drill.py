@@ -19,6 +19,7 @@ CHECKS = (
     ("multi_store_dr_drill.json", "Combined multi-store DR pack"),
     ("failover_rto_drill.json", "Local failover RTO measurement"),
     ("paging_escalation_drill.json", "Loopback primary→secondary paging"),
+    ("paging_ack_drill.json", "Loopback paging ack→resolve"),
     ("observability_probe_drill.json", "Local observability probe"),
     ("hosted_oncall_contract_drill.json", "Hosted on-call contract snapshot"),
 )

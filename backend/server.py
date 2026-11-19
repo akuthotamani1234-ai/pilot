@@ -1594,6 +1594,32 @@ def ops_hosted_oncall_readiness():
     return {"gate_h_complete": False, "hosted_oncall_readiness": evidence}
 
 
+@app.post("/api/ops/drills/oidc-groups-role-acl")
+def ops_oidc_groups_role_acl():
+    """Gate I: OIDC groups→role ACL mapping (hosted IdP still open)."""
+    from backend.oidc_groups_role_acl_drill import run_oidc_groups_role_acl_drill
+    evidence = run_oidc_groups_role_acl_drill()
+    _audit(
+        "ops_oidc_groups_role_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_groups_role_acl": evidence}
+
+
+@app.post("/api/ops/drills/paging-ack")
+def ops_paging_ack():
+    """Gate H: loopback paging ack→resolve lifecycle (hosted on-call still open)."""
+    from backend.paging_ack_drill import run_paging_ack_drill
+    evidence = run_paging_ack_drill()
+    _audit(
+        "ops_paging_ack",
+        ok=bool(evidence.get("ok")),
+        incident_id=str(evidence.get("incident_id") or ""),
+    )
+    return {"gate_h_complete": False, "paging_ack": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""
