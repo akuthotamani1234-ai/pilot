@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_sso_readiness_pack",
-  "ran_at": "2026-11-19T04:33:56Z",
+  "ran_at": "2026-11-19T05:11:39Z",
   "kind": "local_ops_pack",
   "parts": {
     "acl_matrix": true,
@@ -12,7 +12,7 @@
     "email_domain_acl": true
   },
   "live_hosted_sso": false,
-  "elapsed_ms": 6662,
+  "elapsed_ms": 6391,
   "ok": true,
-  "reason": "Hosted IdP SSO readiness pack ok in 6662ms; live hosted IdP Studio SSO still open"
+  "reason": "Hosted IdP SSO readiness pack ok in 6391ms; live hosted IdP Studio SSO still open"
 }

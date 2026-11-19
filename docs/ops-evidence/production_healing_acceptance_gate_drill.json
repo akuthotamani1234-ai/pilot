@@ -1,10 +1,10 @@
 {
   "gate_e_complete": false,
   "drill": "production_healing_acceptance_gate",
-  "ran_at": "2026-11-19T04:22:00Z",
+  "ran_at": "2026-11-19T05:11:21Z",
   "kind": "acceptance_gate_local_only",
-  "score": 8,
-  "score_of": 8,
+  "score": 9,
+  "score_of": 9,
   "criteria": [
     {
       "id": "contract",
@@ -61,10 +61,17 @@
       "label": "Locator-only regression",
       "ready": true,
       "accepted": false
+    },
+    {
+      "id": "seed_catalog",
+      "artifact": "production_healing_seed_catalog_drill.json",
+      "label": "Seed catalog ready",
+      "ready": true,
+      "accepted": false
     }
   ],
   "production_suite_executed": false,
   "accepted": false,
   "ok": true,
-  "reason": "Production healing acceptance gate local 8/8; production / third-party suite still open (not accepted)"
+  "reason": "Production healing acceptance gate local 9/9; production / third-party suite still open (not accepted)"
 }

@@ -21,6 +21,7 @@ CRITERIA = (
     ("suite_pack", "production_healing_suite_pack_drill.json", "Local suite pack green"),
     ("multi_app", "multi_app_healing_suite_drill.json", "Multi-app fixture suite"),
     ("regression", "healing_regression_drill.json", "Locator-only regression"),
+    ("seed_catalog", "production_healing_seed_catalog_drill.json", "Seed catalog ready"),
 )
 
 
