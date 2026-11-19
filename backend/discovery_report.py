@@ -11,8 +11,9 @@ from .state import QAState
 
 
 def discovery_report(state: QAState) -> dict:
+    from .finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
-    if run_dir.is_symlink():
+    if folder_is_linked(run_dir):
         note = "This run's folder is a link, so the discovery report was not written."
         return {"verdict": "Insufficient Evidence", "report_path": "",
                 "log": state.get("log", []) + [note]}
