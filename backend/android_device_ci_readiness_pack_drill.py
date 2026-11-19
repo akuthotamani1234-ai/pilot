@@ -1,0 +1,61 @@
+"""Gate D: Android device CI readiness pack (local contracts, not hosted).
+
+Bundles Appium matrix, API24 smoke, multi-API matrix, device manifest,
+workflow_dispatch contract, and CI upload rehearsal. Does **not** run hosted
+multi-device runners — ``gate_d_complete`` stays False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "android_device_ci_readiness_pack_drill.json"
+
+ARTIFACTS = (
+    ("android_appium_product_matrix_drill.json", "Appium product matrix"),
+    ("android_emulator_smoke_api24_drill.json", "Dedicated API24 smoke"),
+    ("multi_api_android_matrix_drill.json", "Multi-API Android matrix"),
+    ("device_artifact_manifest_drill.json", "Device artifact manifest"),
+    ("multi_device_ci_contract.json", "Multi-device CI contract"),
+    ("workflow_dispatch_contract_drill.json", "workflow_dispatch contracts"),
+    ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
+    ("hosted_ci_artifact_gate_pack_drill.json", "Hosted CI artifact gate pack"),
+)
+
+
+def run_android_device_ci_readiness_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    ops = Path(ops_dir) if ops_dir else (ROOT / "docs" / "ops-evidence")
+    rows = []
+    for name, label in ARTIFACTS:
+        ready = (ops / name).is_file()
+        rows.append({"artifact": name, "label": label, "ready": ready})
+    score = sum(1 for row in rows if row["ready"])
+    evidence = {
+        "gate_d_complete": False,
+        "drill": "android_device_ci_readiness_pack",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "readiness_score_only",
+        "score": score,
+        "score_of": len(ARTIFACTS),
+        "checks": rows,
+        "live_hosted_runners": False,
+        "ok": score == len(ARTIFACTS),
+        "reason": (
+            f"Android device CI readiness {score}/{len(ARTIFACTS)}; "
+            "broad hosted multi-device Appium runners still open"
+        ),
+    }
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    dest.mkdir(parents=True, exist_ok=True)
+    out = (
+        (Path(ops_dir) / "android_device_ci_readiness_pack_drill.json")
+        if ops_dir else EVIDENCE
+    )
+    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops" / "android_device_ci_readiness_pack_drill.json"
+        art.parent.mkdir(parents=True, exist_ok=True)
+        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    return evidence

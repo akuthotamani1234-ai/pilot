@@ -16,6 +16,7 @@ EVIDENCE = ROOT / "docs" / "ops-evidence" / "hosted_idp_sso_readiness_pack_drill
 def run_hosted_idp_sso_readiness_pack_drill(*, ops_dir: Path | None = None) -> dict:
     from .hosted_idp_contract_drill import run_hosted_idp_contract_drill
     from .hosted_idp_readiness_drill import run_hosted_idp_readiness_drill
+    from .oidc_acl_matrix_pack_drill import run_oidc_acl_matrix_pack_drill
     from .oidc_email_domain_tenant_acl_drill import (
         run_oidc_email_domain_tenant_acl_drill,
     )
@@ -26,6 +27,7 @@ def run_hosted_idp_sso_readiness_pack_drill(*, ops_dir: Path | None = None) -> d
     started = time.perf_counter()
     parts = {}
     for key, fn in (
+        ("acl_matrix", run_oidc_acl_matrix_pack_drill),
         ("contract", run_hosted_idp_contract_drill),
         ("readiness", run_hosted_idp_readiness_drill),
         ("principal_bootstrap", run_studio_sso_principal_bootstrap_drill),

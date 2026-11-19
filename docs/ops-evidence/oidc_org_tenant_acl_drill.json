@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "oidc_org_tenant_acl",
-  "ran_at": "2026-11-19T03:40:22Z",
+  "ran_at": "2026-11-19T03:53:12Z",
   "org_map": {
     "acme-corp": "tenant-acme",
     "globex-inc": "tenant-globex"

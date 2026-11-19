@@ -1,7 +1,7 @@
 {
   "gate_i_complete": false,
   "drill": "hosted_idp_contract",
-  "ran_at": "2026-11-19T03:07:26Z",
+  "ran_at": "2026-11-19T03:53:13Z",
   "kind": "contract_only",
   "contract": {
     "discovery": "/.well-known/openid-configuration",
@@ -21,11 +21,19 @@
     "optional_claims": [
       "email",
       "tid",
-      "groups"
+      "groups",
+      "org",
+      "hd"
     ],
     "studio_callback": "/api/sso/callback",
     "dashboard_auth_mode": "oidc",
-    "tenant_acl": "SQLite/Postgres principal scoping required"
+    "tenant_acl": "SQLite/Postgres principal scoping required",
+    "acl_matrix": [
+      "tid",
+      "email_domain",
+      "org_hd",
+      "groups"
+    ]
   },
   "local_partial_present": [
     "loopback_sso_drill.json",
@@ -33,9 +41,14 @@
     "loopback_pkce_sso_drill.json",
     "studio_oidc_callback_drill.json",
     "sso_tenant_acl_drill.json",
-    "dual_tenant_oidc_acl_drill.json"
+    "dual_tenant_oidc_acl_drill.json",
+    "oidc_groups_role_acl_drill.json",
+    "oidc_tid_tenant_acl_drill.json",
+    "oidc_email_domain_tenant_acl_drill.json",
+    "oidc_org_tenant_acl_drill.json",
+    "oidc_acl_matrix_pack_drill.json"
   ],
   "local_partial_missing": [],
   "ok": true,
-  "reason": "Hosted IdP SSO contract recorded (6/6 local partials present); live hosted IdP Studio SSO login still open"
+  "reason": "Hosted IdP SSO contract recorded (11/11 local partials present); live hosted IdP Studio SSO login still open"
 }

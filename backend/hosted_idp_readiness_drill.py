@@ -21,6 +21,9 @@ CHECKS = (
     ("dual_tenant_oidc_acl_drill.json", "Dual-tenant OIDC ACL"),
     ("oidc_groups_role_acl_drill.json", "OIDC groups→role ACL"),
     ("oidc_tid_tenant_acl_drill.json", "OIDC tid→tenant ACL"),
+    ("oidc_email_domain_tenant_acl_drill.json", "OIDC email-domain→tenant ACL"),
+    ("oidc_org_tenant_acl_drill.json", "OIDC org/hd→tenant ACL"),
+    ("oidc_acl_matrix_pack_drill.json", "OIDC ACL matrix pack"),
     ("hosted_idp_contract_drill.json", "Hosted IdP contract snapshot"),
 )
 
