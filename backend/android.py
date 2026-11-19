@@ -105,6 +105,7 @@ def _sdk_path() -> str | None:
 
 
 def _appium_path() -> str | None:
+    from .finalization import folder_is_linked
     found = shutil.which("appium")
     if found:
         return found
@@ -119,7 +120,9 @@ def _appium_path() -> str | None:
         if local
         else None
     )
-    return str(candidate) if candidate and candidate.is_file() else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
+        return str(candidate)
+    return None
 
 
 def _java_path() -> str | None:
