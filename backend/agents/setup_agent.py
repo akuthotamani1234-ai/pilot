@@ -178,17 +178,27 @@ def _find_python_app(root: Path, marker: str) -> str | None:
     return None
 
 
+def _real_project_file(path: Path) -> bool:
+    """A real file in this project. A link into another folder is not that file."""
+    from ..finalization import folder_is_linked
+    return not folder_is_linked(path) and path.is_file()
+
+
 def detect_project(root: Path, port: int) -> dict:
     """Decide how to install and start the project."""
+    from ..finalization import folder_is_linked
+    root = Path(root)
+    if folder_is_linked(root):
+        raise RuntimeError("The project folder is a link.")
     py = f'"{sys.executable}"'
     req = root / "requirements.txt"
-    pip = [f"{py} -m pip install -r requirements.txt"] if req.exists() else []
+    pip = [f"{py} -m pip install -r requirements.txt"] if _real_project_file(req) else []
 
     if settings.start_cmd:
         return {"type": "custom", "install": [], "start": settings.start_cmd.replace("{port}", str(port))}
 
     pkg = root / "package.json"
-    if pkg.exists():
+    if _real_project_file(pkg):
         scripts = json.loads(pkg.read_text(encoding="utf-8")).get("scripts", {})
         install = ["npm install"]
         if "dev" in scripts:
@@ -202,7 +212,7 @@ def detect_project(root: Path, port: int) -> dict:
         if "serve" in scripts:
             return {"type": "node (npm run serve)", "install": install, "start": f"npm run serve -- --port {port}"}
 
-    if (root / "manage.py").exists():
+    if _real_project_file(root / "manage.py"):
         return {"type": "django", "install": pip + [f"{py} manage.py migrate --noinput"],
                 "start": f"{py} manage.py runserver 127.0.0.1:{port} --noreload"}
 
@@ -216,7 +226,7 @@ def detect_project(root: Path, port: int) -> dict:
                 "start": f"{py} -m uvicorn {mod}:app --port {port}"}
 
     for d in ("", "dist", "build", "public", "docs", "site", "www", "src"):
-        if (root / d / "index.html").exists():
+        if _real_project_file(root / d / "index.html"):
             folder = root / d
             return {"type": "static html", "install": [],
                     "start": f'{py} -m http.server {port} --bind 127.0.0.1 --directory "{folder}"'}
