@@ -145,11 +145,25 @@ def _exercise_app(*, device_id: str, package: str, appium_url: str, api_level: i
                 pass
 
 
+def _linked_matrix() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "android_appium_product_matrix",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_android_appium_product_matrix_drill(
     *,
     ops_dir: Path | None = None,
     appium_url: str = DEFAULT_APPIUM,
 ) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_matrix()
+
     env = android_environment(appium_url)
     online = _online_emulators(env)
     appium_ok = _appium_ready(appium_url)
@@ -296,24 +310,32 @@ def run_android_appium_product_matrix_drill(
                 ),
             }
 
+    text = json.dumps(evidence, indent=2)
+    name = "android_appium_product_matrix_drill.json"
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_matrix()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "android_appium_product_matrix_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_matrix()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "android_appium_product_matrix_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
-        rows_path = ROOT / "docs" / "ops-evidence" / "android_live_matrix_rows.json"
-        # Merge with prior smoke rows when present.
-        prior: list = []
-        if rows_path.is_file():
-            try:
-                loaded = json.loads(rows_path.read_text(encoding="utf-8"))
-                if isinstance(loaded, list):
-                    prior = loaded
-            except (OSError, ValueError):
-                prior = []
-        merged = list(prior) + list(evidence.get("matrix_rows") or [])
-        rows_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
+        rows_name = "android_live_matrix_rows.json"
+        rows_dir = ROOT / "docs" / "ops-evidence"
+        rows_path = rows_dir / rows_name
+        if not folder_is_linked(rows_path) and not folder_is_linked(rows_dir):
+            prior: list = []
+            if rows_path.is_file():
+                try:
+                    loaded = json.loads(rows_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, list):
+                        prior = loaded
+                except (OSError, ValueError):
+                    prior = []
+            merged = list(prior) + list(evidence.get("matrix_rows") or [])
+            rows_dir.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(rows_dir, rows_name, json.dumps(merged, indent=2))
     return evidence
