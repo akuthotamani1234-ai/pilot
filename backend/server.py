@@ -67,12 +67,33 @@ _PRIVATE_RUN_FILES = frozenset({
 })
 
 
+def _run_path_is_linked(root: Path, path: Path) -> bool:
+    """True when a path under runs/<name> follows a symlink.
+
+    Starlette keeps a resolved path that is still inside runs/, so a link named
+    like one run can serve another run in the same folder. Any link is refused.
+    """
+    try:
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return False
+    cursor = Path(root)
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
 class RunFiles(StaticFiles):
     """runs/ as files for the report pages - except private inputs, APKs, auth and hidden files."""
 
     async def get_response(self, path: str, scope):
         parts = Path(path).parts
         if any(p.startswith(".") for p in parts) or (parts and parts[-1].lower() in _PRIVATE_RUN_FILES):
+            raise HTTPException(404, "not found")
+        root = Path(self.directory)
+        if parts and _run_path_is_linked(root, root / path):
             raise HTTPException(404, "not found")
         return await super().get_response(path, scope)
 
@@ -349,6 +370,8 @@ def _run_dir(run: str) -> Path:
     if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
         raise HTTPException(400, "bad run name")
     d = RUNS / run
+    if d.is_symlink() or _run_path_is_linked(RUNS, d):
+        raise HTTPException(400, "Run directory must stay inside runs.")
     if d.resolve().parent != RUNS.resolve():
         raise HTTPException(400, "Run directory must stay inside runs.")
     if not d.is_dir():
@@ -383,13 +406,20 @@ def _refuse_job(job: dict, reader, action: str = "run.read"):
 
 def _read_json(path: Path, default):
     try:
+        if _run_path_is_linked(RUNS, path):
+            return default
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
 
 
+def _run_file(path: Path) -> bool:
+    """A real file inside its run. A symlink is not that file."""
+    return path.is_file() and not _run_path_is_linked(RUNS, path)
+
+
 def _excel_file(d: Path) -> Path | None:
-    files = [f for f in (d / "test_cases.xlsx", d / "test_cases_results.xlsx") if f.exists()]
+    files = [f for f in (d / "test_cases.xlsx", d / "test_cases_results.xlsx") if _run_file(f)]
     return max(files, key=lambda f: f.stat().st_mtime) if files else None
 
 
@@ -459,7 +489,7 @@ def _live_cost(d: Path | None) -> dict:
 
 def _read_jsonl(path: Path) -> list[dict]:
     out = []
-    if path.exists():
+    if _run_file(path):
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 out.append(json.loads(line))
@@ -4004,7 +4034,9 @@ def history(
     reader = _signed_in_reader(authorization, x_qa_token)
     if isinstance(reader, JSONResponse):
         return reader
-    folders = sorted((p for p in RUNS.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)
+    folders = sorted(
+        (p for p in RUNS.iterdir() if p.is_dir() and not p.is_symlink()),
+        key=lambda p: p.stat().st_mtime, reverse=True)
     if reader:
         from backend.tenancy_store import assert_run_access
         folders = [d for d in folders
@@ -4043,7 +4075,7 @@ def report(run: str):
     return {
         "run": run,
         "summary": _read_json(d / "summary.json", None),
-        "cases_available": (d / "test_cases.json").is_file(),
+        "cases_available": _run_file(d / "test_cases.json"),
         "components_count": (_read_json(d / "components.json", {}) or {}).get("total_components"),
         "fixes": _read_json(d / "fixes.json", []),
         "failures": _read_json(d / "failures.json", []),
@@ -4051,7 +4083,7 @@ def report(run: str):
         "cost": _read_json(d / "cost.json", None),
         "healing": _read_json(d / "healing_log.json", []),
         "coverage": _read_json(d / "coverage.json", None),
-        "components_report": f"/runs/{run}/components.html" if (d / "components.html").exists() else None,
+        "components_report": f"/runs/{run}/components.html" if _run_file(d / "components.html") else None,
         "comparison": _read_json(d / "comparison.json", None),
         "crawl": _read_json(d / "crawl.json", None),
         "login": _read_json(d / "login.json", None),
@@ -4061,9 +4093,11 @@ def report(run: str):
         "recheck": _read_json(d / "recheck.json", {}),
         "pages": pages,
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
-        "report_html": f"/runs/{run}/report.html" if (d / "report.html").exists() else None,
-        "videos": [f"/runs/{run}/videos/{v.name}" for v in sorted((d / "videos").glob("*.webm"))],
-        "console": console.read_text(encoding="utf-8", errors="replace").splitlines()[-400:] if console.exists() else [],
+        "report_html": f"/runs/{run}/report.html" if _run_file(d / "report.html") else None,
+        "videos": [f"/runs/{run}/videos/{v.name}" for v in sorted((d / "videos").glob("*.webm"))
+                   if _run_file(v)] if (d / "videos").is_dir() and not (d / "videos").is_symlink() else [],
+        "console": console.read_text(encoding="utf-8", errors="replace").splitlines()[-400:]
+        if _run_file(console) else [],
     }
 
 
@@ -4077,9 +4111,10 @@ def coverage(run: str):
 def cases_download(run: str):
     """The structured test cases (with their results) as JSON - to keep, review or reuse."""
     d = _run_dir(run)
-    if not (d / "test_cases.json").exists():
+    cases = d / "test_cases.json"
+    if not _run_file(cases):
         raise HTTPException(404, "no test cases yet")
-    return FileResponse(d / "test_cases.json", filename=f"test_cases_{run}.json", media_type="application/json")
+    return FileResponse(cases, filename=f"test_cases_{run}.json", media_type="application/json")
 
 
 @app.get("/api/cases/{run}")
@@ -4091,10 +4126,10 @@ def case_progress(run: str):
     progress = _case_progress(d, executing)
     summary = _read_json(d / "summary.json", {}) or {}
     progress.update({
-        "available": (d / "test_cases.json").is_file(),
+        "available": _run_file(d / "test_cases.json"),
         "excel_available": _excel_file(d) is not None,
         "discovery_only": bool(summary.get("discovery_only") or summary.get("mode") == "discovery"),
-        "complete": (d / "summary.json").is_file(),
+        "complete": _run_file(d / "summary.json"),
         "empty_reason": summary.get("setup_error") or summary.get("incomplete_reason") or "",
     })
     return progress

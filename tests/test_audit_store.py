@@ -82,6 +82,74 @@ def test_a_signed_in_principal_cannot_read_another_tenants_run(monkeypatch, tmp_
     assert stolen.status_code == 403
 
 
+def test_a_linked_run_does_not_open_another_tenants_report(monkeypatch, tmp_path):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    runs = server.RUNS
+    name_a = "zz_link_a_20260101_000000"
+    name_b = "zz_link_b_20260101_000000"
+    name_c = "zz_link_c_20260101_000000"
+    secret = "tenant-a-only-finding"
+    folder_a, folder_b, folder_c = runs / name_a, runs / name_b, runs / name_c
+    try:
+        folder_a.mkdir()
+        (folder_a / "report.html").write_text(f"<p>{secret}</p>", encoding="utf-8")
+        (folder_a / "summary.json").write_text(
+            json.dumps({"url": "https://a.test", "verdict": "Ready", "note": secret}), encoding="utf-8")
+        folder_b.symlink_to(folder_a, target_is_directory=True)
+        folder_c.mkdir()
+        (folder_c / "summary.json").symlink_to(folder_a / "summary.json")
+        (folder_c / "report.html").symlink_to(folder_a / "report.html")
+        tenancy.upsert_tenant("t1", "One", db_path=db)
+        tenancy.upsert_tenant("t2", "Two", db_path=db)
+        tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+        tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+        tenancy.index_run(name_a, "t1", source="https://a.test", verdict="Ready", db_path=db)
+        tenancy.index_run(name_b, "t2", source="https://b.test", verdict="Ready", db_path=db)
+        tenancy.index_run(name_c, "t2", source="https://c.test", verdict="Ready", db_path=db)
+        client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+        other = {"Authorization": "Bearer admin-2"}
+        owner = {"Authorization": "Bearer view-1"}
+        linked = client.get(f"/api/report/{name_b}", headers=other)
+        assert linked.status_code == 400
+        assert secret not in linked.text
+        page = client.get(f"/runs/{name_b}/report.html", headers=other)
+        assert page.status_code == 404
+        assert secret not in page.text
+        copied = client.get(f"/api/report/{name_c}", headers=other)
+        assert copied.status_code == 200
+        assert secret not in copied.text
+        assert copied.json()["summary"] is None
+        copied_page = client.get(f"/runs/{name_c}/report.html", headers=other)
+        assert copied_page.status_code == 404
+        assert secret not in copied_page.text
+        own = client.get(f"/api/report/{name_a}", headers=owner)
+        assert own.status_code == 200
+        assert secret in own.text
+        own_page = client.get(f"/runs/{name_a}/report.html", headers=owner)
+        assert own_page.status_code == 200
+        assert secret in own_page.text
+        listed = client.get("/api/history", headers=other)
+        assert listed.status_code == 200
+        assert secret not in listed.text
+        assert name_b not in {row["run"] for row in listed.json()}
+    finally:
+        if folder_b.is_symlink():
+            folder_b.unlink()
+        for folder in (folder_a, folder_c):
+            if folder.exists() and not folder.is_symlink():
+                import shutil
+                shutil.rmtree(folder, ignore_errors=True)
+
+
 def test_the_run_list_hides_another_tenants_runs(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
