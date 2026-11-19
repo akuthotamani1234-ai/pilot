@@ -487,3 +487,39 @@ def test_a_coverage_sheet_does_not_follow_a_link_into_another_folder(tmp_path):
     assert "home-own" in text
     assert secret not in text
     assert secret in coverage.read_text(encoding="utf-8")
+
+
+def test_a_feature_sheet_does_not_follow_a_link_into_another_folder(tmp_path):
+    from openpyxl import Workbook
+
+    from backend.excel import _registry_sheet
+
+    secret = "tenant-b-only-feature"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    registry = nested / "registry.json"
+    registry.write_text(json.dumps({"features": {"f1": {
+        "id": "f1", "level": "control", "kind": "button", "name": secret,
+        "pages": ["https://other.test/"], "status": "verified", "tests": [],
+    }}}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = Workbook()
+    _registry_sheet(refused, linked / "runs" / "run")
+    assert "Features" not in refused.sheetnames
+    assert secret in registry.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "registry.json").write_text(json.dumps({"features": {"f1": {
+        "id": "home", "level": "control", "kind": "button", "name": "home-own",
+        "pages": ["https://home.test/"], "status": "verified", "tests": [],
+    }}}), encoding="utf-8")
+    book = Workbook()
+    _registry_sheet(book, real)
+    text = " ".join(str(cell.value) for row in book["Features"].iter_rows() for cell in row if cell.value)
+    assert "home-own" in text
+    assert secret not in text
+    assert secret in registry.read_text(encoding="utf-8")

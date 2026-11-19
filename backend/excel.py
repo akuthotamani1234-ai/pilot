@@ -334,7 +334,8 @@ def _registry_sheet(wb, run_dir: Path, cases: list[dict] | None = None):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "registry.json"
-    if Path(run_dir).is_symlink() or f.is_symlink() or not f.is_file():
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(run_dir)) or f.is_symlink() or not f.is_file():
         return
     reg = json.loads(f.read_text(encoding="utf-8-sig"))
     ws = wb.create_sheet("Features")
