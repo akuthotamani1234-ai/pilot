@@ -11,9 +11,10 @@ from pathlib import Path
 
 def capture_visual(run_dir: str | Path, app_map: list[dict] | None = None) -> dict:
     """Write or reuse visual.json. Existing pixel reports are left untouched."""
+    from .finalization import folder_is_linked
     path = Path(run_dir)
     existing = path / "visual.json"
-    if path.is_symlink() or existing.is_symlink():
+    if folder_is_linked(path) or existing.is_symlink():
         return {
             "first_run": False, "pages": [], "changed": [], "same": [],
             "source": "discovery_screenshots", "note": "the visual report is a link",
@@ -50,7 +51,7 @@ def capture_visual(run_dir: str | Path, app_map: list[dict] | None = None) -> di
         "note": "pixel diff not run; pages recorded as first-run evidence only",
     }
     from .finalization import write_text_unless_linked
-    if not path.is_symlink():
+    if not folder_is_linked(path):
         path.mkdir(parents=True, exist_ok=True)
         write_text_unless_linked(path, "visual.json", json.dumps(report, indent=2))
     return report
