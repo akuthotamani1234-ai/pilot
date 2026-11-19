@@ -18,9 +18,11 @@ BROWSERS = ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml"
 
 
 def _checks(path: Path, *, need_dispatch: bool, job_hint: str, artifact_hints: list[str]) -> dict:
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    from .finalization import folder_is_linked
+    linked = folder_is_linked(path)
+    text = "" if linked or not path.is_file() else path.read_text(encoding="utf-8")
     present = {
-        "file_exists": path.is_file(),
+        "file_exists": (not linked) and path.is_file(),
         "workflow_dispatch": "workflow_dispatch" in text,
         "job_hint": job_hint in text,
         "upload_artifact": "upload-artifact" in text,
@@ -36,7 +38,20 @@ def _checks(path: Path, *, need_dispatch: bool, job_hint: str, artifact_hints: l
     return {"path": str(path.relative_to(ROOT)), "ok": ok, "checks": present}
 
 
+def _linked_contract() -> dict:
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ok": False,
+        "drill": "workflow_dispatch_contract",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_workflow_dispatch_contract_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if ops_dir is not None and folder_is_linked(Path(ops_dir)):
+        return _linked_contract()
     android = _checks(
         ANDROID,
         need_dispatch=True,
@@ -73,14 +88,18 @@ def run_workflow_dispatch_contract_drill(*, ops_dir: Path | None = None) -> dict
         ),
     }
     dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "workflow_dispatch_contract_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_contract()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_contract()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "workflow_dispatch_contract_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
