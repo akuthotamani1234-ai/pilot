@@ -72,28 +72,50 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
 
     ``work(task) -> dict`` must return a result envelope. Raise with ``error_class``
     attribute for classified failures, or return {"error_class": "..."}.
+    A rejected ack (expired lease) stops this drain. The task stays leased so
+    recovery can requeue it. Gate B stays incomplete.
     """
     processed = 0
+    lease_lost: list[str] = []
     while True:
         task = queue.claim(worker_id=worker_id, run_id=run_id)
         if not task:
             break
         if task["payload"].get("status") == "completed" and task["role"] == "leader":
-            queue.complete(task["task_id"], worker_id, {"evidence": task["payload"].get("evidence") or []})
-            processed += 1
-            continue
-        try:
-            result = work(task)
-            if isinstance(result, dict) and result.get("error_class"):
-                queue.fail(task["task_id"], worker_id, error_class=result["error_class"],
-                          detail=str(result.get("detail") or ""))
-            else:
-                queue.complete(task["task_id"], worker_id, result if isinstance(result, dict) else {"ok": True})
-        except Exception as exc:
-            error_class = getattr(exc, "error_class", "worker_crash")
-            queue.fail(task["task_id"], worker_id, error_class=str(error_class), detail=str(exc))
+            ok, _reason = queue.complete(
+                task["task_id"], worker_id,
+                {"evidence": task["payload"].get("evidence") or []},
+            )
+        else:
+            try:
+                result = work(task)
+                if isinstance(result, dict) and result.get("error_class"):
+                    ok, _reason = queue.fail(
+                        task["task_id"], worker_id,
+                        error_class=result["error_class"],
+                        detail=str(result.get("detail") or ""),
+                    )
+                else:
+                    ok, _reason = queue.complete(
+                        task["task_id"], worker_id,
+                        result if isinstance(result, dict) else {"ok": True},
+                    )
+            except Exception as exc:
+                error_class = getattr(exc, "error_class", "worker_crash")
+                ok, _reason = queue.fail(
+                    task["task_id"], worker_id,
+                    error_class=str(error_class), detail=str(exc),
+                )
+        if not ok:
+            lease_lost.append(task["task_id"])
+            break
         processed += 1
-    return {"processed": processed, "tasks": queue.list_run(run_id)}
+    return {
+        "processed": processed,
+        "lease_lost": lease_lost,
+        "gate_b_complete": False,
+        "tasks": queue.list_run(run_id),
+    }
 
 
 def queue_backend_name(queue) -> str:
