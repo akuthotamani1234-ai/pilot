@@ -25,6 +25,24 @@ def _now() -> float:
     return time.time()
 
 
+def lease_is_current(row, worker_id: str, now: float) -> bool:
+    """True when ``worker_id`` still holds an unexpired lease."""
+    if not row:
+        return False
+    try:
+        status = row["status"]
+        owner = row["lease_owner"]
+        until = row["lease_until"]
+    except (KeyError, IndexError, TypeError):
+        return False
+    if status != "leased" or owner != worker_id or until is None:
+        return False
+    try:
+        return float(until) >= float(now)
+    except (TypeError, ValueError):
+        return False
+
+
 class DurableQueue:
     """SQLite-backed task queue with leases, attempts, and checkpoints."""
 
@@ -140,8 +158,8 @@ class DurableQueue:
         until = now + self.lease_seconds
         cur = self._db.execute(
             """UPDATE tasks SET lease_until=?, updated_at=?
-               WHERE task_id=? AND lease_owner=? AND status='leased'""",
-            (until, now, task_id, worker_id),
+               WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
+            (until, now, task_id, worker_id, now),
         )
         self._db.commit()
         return cur.rowcount == 1
@@ -151,28 +169,29 @@ class DurableQueue:
         now = _now()
         cur = self._db.execute(
             """UPDATE tasks SET checkpoint_json=?, updated_at=?
-               WHERE task_id=? AND lease_owner=? AND status='leased'""",
-            (json.dumps(checkpoint), now, task_id, worker_id),
+               WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
+            (json.dumps(checkpoint), now, task_id, worker_id, now),
         )
         self._db.commit()
         return cur.rowcount == 1
 
     def complete(self, task_id: str, worker_id: str, result: dict) -> tuple[bool, str]:
-        """Ack success once. Duplicate acks for the same attempt are ignored safely."""
+        """Ack success once. An expired lease cannot ack."""
         row = self._db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
         if not row:
             return False, "missing task"
         if row["status"] == "succeeded":
             return True, "already succeeded"
-        if row["lease_owner"] != worker_id or row["status"] != "leased":
-            return False, "worker does not own this lease"
         now = _now()
-        self._db.execute(
+        cur = self._db.execute(
             """UPDATE tasks SET status='succeeded', result_json=?, lease_owner=NULL, lease_until=NULL,
-                   error_class=NULL, updated_at=? WHERE task_id=?""",
-            (json.dumps(result), now, task_id),
+                   error_class=NULL, updated_at=?
+               WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
+            (json.dumps(result), now, task_id, worker_id, now),
         )
         self._db.commit()
+        if cur.rowcount != 1:
+            return False, "worker does not own this lease"
         return True, ""
 
     def fail(self, task_id: str, worker_id: str, *, error_class: str, detail: str = "") -> tuple[bool, str]:
@@ -180,9 +199,9 @@ class DurableQueue:
         row = self._db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
         if not row:
             return False, "missing task"
-        if row["lease_owner"] != worker_id or row["status"] != "leased":
-            return False, "worker does not own this lease"
         now = _now()
+        if not lease_is_current(row, worker_id, now):
+            return False, "worker does not own this lease"
         attempt = int(row["attempt"])
         max_attempts = int(row["max_attempts"])
         transient = error_class in TRANSIENT
@@ -193,12 +212,15 @@ class DurableQueue:
             status = "failed"
             msg = "permanent failure" if not transient else "attempts exhausted"
         result = {"error_class": error_class, "detail": detail, "attempt": attempt}
-        self._db.execute(
+        cur = self._db.execute(
             """UPDATE tasks SET status=?, result_json=?, error_class=?, lease_owner=NULL, lease_until=NULL,
-                   updated_at=? WHERE task_id=?""",
-            (status, json.dumps(result), error_class, now, task_id),
+                   updated_at=?
+               WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
+            (status, json.dumps(result), error_class, now, task_id, worker_id, now),
         )
         self._db.commit()
+        if cur.rowcount != 1:
+            return False, "worker does not own this lease"
         return True, msg
 
     def mark_blocked(self, task_id: str, reason: str = "") -> bool:

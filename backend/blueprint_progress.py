@@ -319,6 +319,7 @@ def progress() -> dict:
         {"id": "I-loopback-redirect-bind", "label": "Loopback IdP rejects a token redirect_uri that does not match the code", "status": "done"},
         {"id": "I-loopback-client-expiry", "label": "Loopback IdP rejects a wrong client_id and an expired code", "status": "done"},
         {"id": "I-loopback-registered-redirect", "label": "Loopback IdP only issues codes to registered redirect URIs", "status": "done"},
+        {"id": "B-lease-expiry-ack", "label": "Expired swarm lease cannot ack success or failure", "status": "done"},
         {"id": "G-review", "gate": "G", "label": "Independent security/reliability review sign-off", "status": "open"},
     ]
     blockers = _blocker_rows_with_scores(

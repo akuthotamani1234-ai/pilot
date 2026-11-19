@@ -46,6 +46,29 @@ def test_expired_lease_is_requeued_then_retryable(tmp_path):
     q.close()
 
 
+def test_expired_lease_cannot_ack(tmp_path):
+    q = DurableQueue(tmp_path / "swarm.db", lease_seconds=30, max_attempts=3)
+    q.enqueue(run_id="run-1", role="worker", payload={"url": "/a"}, idempotency_key="a")
+    claimed = q.claim(worker_id="w1")
+    q._db.execute(
+        "UPDATE tasks SET lease_until=? WHERE task_id=?",
+        (time.time() - 1, claimed["task_id"]),
+    )
+    q._db.commit()
+    ok, reason = q.complete(claimed["task_id"], "w1", {"evidence": ["late"]})
+    assert ok is False and reason == "worker does not own this lease"
+    assert q.heartbeat(claimed["task_id"], "w1") is False
+    assert q.checkpoint(claimed["task_id"], "w1", {"step": 1}) is False
+    failed, fail_reason = q.fail(
+        claimed["task_id"], "w1", error_class="network", detail="late",
+    )
+    assert failed is False and fail_reason == "worker does not own this lease"
+    assert q.get(claimed["task_id"])["status"] == "leased"
+    assert claimed["task_id"] in q.recover_expired()
+    assert q.get(claimed["task_id"])["status"] == "retry_wait"
+    q.close()
+
+
 def test_transient_failure_retries_until_budget(tmp_path):
     q = DurableQueue(tmp_path / "swarm.db", lease_seconds=30, max_attempts=2)
     q.enqueue(run_id="run-1", role="crawler", payload={"url": "/x"}, idempotency_key="x")
