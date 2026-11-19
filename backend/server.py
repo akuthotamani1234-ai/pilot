@@ -1640,6 +1640,37 @@ def ops_ci_artifact_upload_rehearsal():
     }
 
 
+@app.post("/api/ops/drills/production-healing-flaky-policy")
+def ops_production_healing_flaky_policy():
+    """Gate E: flaky/auth/infra no-auto-apply policy (production suite still open)."""
+    from backend.production_healing_flaky_policy_drill import (
+        run_production_healing_flaky_policy_drill,
+    )
+    evidence = run_production_healing_flaky_policy_drill()
+    _audit(
+        "ops_production_healing_flaky_policy",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_flaky_policy": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-integrity")
+def ops_independent_review_integrity():
+    """Gate G: unsigned integrity checksum over review artifacts."""
+    from backend.independent_review_integrity_drill import (
+        run_independent_review_integrity_drill,
+    )
+    evidence = run_independent_review_integrity_drill()
+    _audit(
+        "ops_independent_review_integrity",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        artifacts=len(evidence.get("artifacts") or []),
+    )
+    return {"gate_g_complete": False, "independent_review_integrity": evidence}
+
+
 @app.post("/api/ops/drills/observability-probe")
 def ops_observability_probe():
     """Gate H: local observability probe (central metrics stack still open)."""

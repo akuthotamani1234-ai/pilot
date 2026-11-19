@@ -1,0 +1,45 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_flaky_policy",
+  "ran_at": "2026-11-19T01:55:47Z",
+  "policy": {
+    "locator_repair_allowed": true,
+    "assertion_weaken_denied": true,
+    "flaky_auth_infra_auto_apply": false
+  },
+  "samples": [
+    {
+      "id": "flaky-timeout",
+      "category": "flaky",
+      "expect": "flaky",
+      "match": true,
+      "confidence": "medium",
+      "why": "Failed first, passed on retry - timing or an unstable element.",
+      "auto_apply": false,
+      "auto_apply_expected": false
+    },
+    {
+      "id": "auth-redirect",
+      "category": "auth_problem",
+      "expect": "auth_problem",
+      "match": true,
+      "confidence": "medium",
+      "why": "The login was refused or did not hold (sent back to the login page / 401 / 403).",
+      "auto_apply": false,
+      "auto_apply_expected": false
+    },
+    {
+      "id": "infra-down",
+      "category": "infrastructure",
+      "expect": "infrastructure",
+      "match": true,
+      "confidence": "medium",
+      "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic.",
+      "auto_apply": false,
+      "auto_apply_expected": false
+    }
+  ],
+  "passed": 3,
+  "ok": true,
+  "reason": "Flaky/auth/infra healing policy 3/3 (no auto-apply; locator-only heal ok); production suite still open"
+}

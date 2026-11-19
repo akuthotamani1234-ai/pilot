@@ -1,0 +1,48 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_integrity",
+  "ran_at": "2026-11-19T01:55:47Z",
+  "signed_off": false,
+  "artifacts": [
+    {
+      "path": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
+      "bytes": 2440,
+      "sha256": "c2474452094368f803bd44079b715bbc2c149723be75f03487b3025fac808649"
+    },
+    {
+      "path": "docs/ops-evidence/independent_review_pack.json",
+      "bytes": 16815,
+      "sha256": "c1fc0b607195cf214173327841cf643bbcc3d46a18f6e13327fe7808c7cdc163"
+    },
+    {
+      "path": "docs/ops-evidence/independent_review_readiness_drill.json",
+      "bytes": 493,
+      "sha256": "de0d107717acae3e755e8394946703872c69a47fbf85121a44a11de93fb85f0b"
+    },
+    {
+      "path": "docs/ops-evidence/independent_review_summary_drill.json",
+      "bytes": 392,
+      "sha256": "4c38c2bafa976890bfdb34ee731f44942401d71e343583570836757603755d8d"
+    },
+    {
+      "path": "docs/ops-evidence/INDEPENDENT_REVIEW_SUMMARY.md",
+      "bytes": 1194,
+      "sha256": "0f9e71466e10054ae74f027c033c71546f9c2f8f1bac03487254ebddc060049c"
+    },
+    {
+      "path": "docs/ops-evidence/independent_review_request_drill.json",
+      "bytes": 1454,
+      "sha256": "49e6f097fdda2be4ef4c35b4ce2f70c8af3dc7e8418a25ffbba7c283152b20f2"
+    },
+    {
+      "path": "docs/ops-evidence/remaining_blockers.json",
+      "bytes": 6141,
+      "sha256": "61563cbd9ef370d91fb2b819597b752c6b01d1de645c4917438abf20586e768e"
+    }
+  ],
+  "missing": [],
+  "integrity_sha256": "75d4f185d91ca8841f2eac690e6985ea832b8e16917c33ff5b5ecbb1eed77c96",
+  "request_ok": true,
+  "ok": true,
+  "reason": "Independent review integrity over 7 artifacts; human sign-off still pending"
+}
