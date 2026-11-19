@@ -78,11 +78,13 @@ def decision_for_result(case: dict | None, result: dict | None = None) -> dict |
     if not isinstance(case, dict):
         case = {}
     result = result if isinstance(result, dict) else {}
-    if isinstance(case.get("assertion"), dict):
+    if _unapproved_label(case):
+        # A leftover contract assertion must not hide an explicit AI label.
+        case.pop("assertion", None)
+        attach_assertion(case)
         holder = case
-    elif _unapproved_label(case):
+    elif isinstance(case.get("assertion"), dict):
         holder = case
-        attach_assertion(holder)
     elif _unapproved_label(result):
         holder = {
             "oracle": _unapproved_label(result),
