@@ -158,6 +158,29 @@ def test_a_covered_control_is_not_clicked_through(tmp_path):
     assert pressed == []
 
 
+def test_a_dynamic_note_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-note"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "dynamic.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    ActionRecovery().record(linked / "run", {"action": "note", "message": "shop button"})
+    ActionRecovery().record(linked / "fresh", {"action": "note", "message": "shop button"})
+    assert not (other / "fresh").exists()
+    assert (nested / "dynamic.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    ActionRecovery().record(real, {"action": "note", "message": "shop button"})
+    written = (real / "dynamic.json").read_bytes()
+    assert b"shop button" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_scroll_stops_when_content_does_not_change():
     stalls, stop = scroll_stalled(1000, 1000, 0, 2)
     assert not stop and stalls == 1
