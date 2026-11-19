@@ -23,11 +23,22 @@ _SOURCE_MAP = {
 }
 
 
+_UNAPPROVED = frozenset({"ai", "llm", "model", "observed", "convention"})
+
+
 def resolve_source(case: dict) -> str:
+    """An explicit AI or observed expectation stays unapproved.
+
+    A contract id on the same case does not promote that guess into a
+    contract oracle. A person accepting it makes the source human.
+    """
     raw = str(case.get("expected_source") or case.get("oracle") or "").strip().lower()
+    accepted = bool(case.get("reviewed") or case.get("human_accepted"))
+    if raw in _UNAPPROVED:
+        return "human" if accepted else "ai"
     if case.get("script_source") == "contract" or case.get("contract_id"):
         return "contract"
-    if case.get("reviewed") or case.get("human_accepted"):
+    if accepted:
         return "human"
     return _SOURCE_MAP.get(raw, raw or "ai")
 
@@ -55,7 +66,14 @@ def attach_assertions(cases: list[dict]) -> list[dict]:
 
 def decision_for_result(case: dict | None, result: dict | None = None) -> dict | None:
     """Decide observation for a bound case. Unaccepted assertions never become defects."""
-    if not isinstance(case, dict) or not isinstance(case.get("assertion"), dict):
+    if not isinstance(case, dict):
+        return None
+    if not isinstance(case.get("assertion"), dict):
+        raw = str(case.get("expected_source") or case.get("oracle") or "").strip().lower()
+        if raw not in _UNAPPROVED:
+            return None
+        attach_assertion(case)
+    if not isinstance(case.get("assertion"), dict):
         return None
     assertion = case["assertion"]
     result = result or {}
