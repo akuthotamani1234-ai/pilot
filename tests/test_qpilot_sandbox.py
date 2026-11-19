@@ -58,3 +58,28 @@ def test_input(page):
     assert any(e["status"] == "running" and "Type" in e["text"] for e in events)
     assert any(e["status"] == "passed" for e in events)
     assert secret not in json.dumps(events)
+
+
+def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = b"tenant-b-only-suite"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "results.jsonl").write_bytes(secret)
+    (other / "results_junit.xml").write_bytes(secret)
+    (other / "results_pytest_output.txt").write_bytes(secret)
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (run / "results.jsonl").symlink_to(other / "results.jsonl")
+    (run / "results_junit.xml").symlink_to(other / "results_junit.xml")
+    (run / "results_pytest_output.txt").symlink_to(other / "results_pytest_output.txt")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", explode)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    assert (other / "results.jsonl").read_bytes() == secret
+    assert (other / "results_junit.xml").read_bytes() == secret
+    assert (other / "results_pytest_output.txt").read_bytes() == secret
