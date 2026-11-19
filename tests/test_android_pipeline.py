@@ -217,6 +217,52 @@ def test_android_setup_does_not_follow_a_link_into_another_folder(tmp_path, monk
     assert (other / "keep.txt").read_bytes() == secret
 
 
+def test_an_android_config_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import pytest
+
+    import backend.android_runner as runner
+    from backend.android import AndroidEnvironmentError
+    from backend.android_runner import _read_config
+
+    secret = b"tenant-b-only-config"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "android_config.json").write_bytes(secret)
+    (other / "app.apk").write_bytes(secret)
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    monkeypatch.setattr(runner, "RUNS", runs)
+
+    linked_private = runs / "run-a" / ".private"
+    linked_private.parent.mkdir()
+    linked_private.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        _read_config(linked_private / "android_config.json")
+    assert (other / "android_config.json").read_bytes() == secret
+
+    real = runs / "run-b" / ".private"
+    real.mkdir(parents=True)
+    config = {
+        "app_mode": "installed", "package_name": "com.example",
+        "device_id": "emulator-5554", "appium_url": "http://127.0.0.1:4723",
+    }
+    (real / "android_config.json").write_text(json.dumps(config), encoding="utf-8")
+    loaded, run_dir = _read_config(real / "android_config.json")
+    assert loaded["package_name"] == "com.example"
+    assert run_dir == runs / "run-b"
+    assert secret not in (real / "android_config.json").read_bytes()
+
+    apk_dir = runs / "run-c" / ".private"
+    apk_dir.mkdir(parents=True)
+    (apk_dir / "app.apk").symlink_to(other / "app.apk")
+    (apk_dir / "android_config.json").write_text(json.dumps({
+        **config, "app_mode": "apk", "package_name": "", "apk_path": str(apk_dir / "app.apk"),
+    }), encoding="utf-8")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        _read_config(apk_dir / "android_config.json")
+    assert (other / "app.apk").read_bytes() == secret
+
+
 def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
     import datetime as dt
     from pathlib import Path

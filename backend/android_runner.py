@@ -31,21 +31,34 @@ def prepare_android_run(runs: Path, run_id: str) -> Path:
     return directory
 
 
+def _path_is_linked(path: Path) -> bool:
+    """True when this file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def _read_config(path: Path) -> tuple[dict, Path]:
-    path = path.resolve()
+    path = Path(path)
+    if _path_is_linked(path):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    resolved = path.resolve()
     try:
-        relative = path.relative_to(RUNS.resolve())
+        relative = resolved.relative_to(RUNS.resolve())
     except ValueError as e:
         raise AndroidEnvironmentError("Android run configuration must be inside the runs folder.") from e
-    if path.parent.name != ".private" or not path.is_file() or len(relative.parts) != 3:
+    if resolved.parent.name != ".private" or not resolved.is_file() or len(relative.parts) != 3:
         raise AndroidEnvironmentError("Android run configuration is missing or is not in a private run folder.")
-    run_dir = path.parent.parent
+    run_dir = resolved.parent.parent
     config = json.loads(path.read_text(encoding="utf-8"))
     config = validate_mobile_config(config)
     if config["app_mode"] == "apk":
-        apk = Path(config.get("apk_path", "")).resolve()
+        apk = Path(config.get("apk_path", ""))
+        if _path_is_linked(apk):
+            raise AndroidEnvironmentError("The Android run is a link.")
         try:
-            apk.relative_to((run_dir / ".private").resolve())
+            apk.resolve().relative_to((run_dir / ".private").resolve())
         except ValueError as e:
             raise AndroidEnvironmentError("The APK must be stored in this run's private upload folder.") from e
     return config, run_dir
