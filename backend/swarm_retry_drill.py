@@ -37,9 +37,28 @@ def _force_lease_expired(queue, task_id: str) -> bool:
     return False
 
 
+def _linked_retry() -> dict:
+    return {
+        "gate_b_complete": False,
+        "ok": False,
+        "drill": "swarm_lease_expiry_retry",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_swarm_retry_drill(*, ops_dir: Path | None = None, run_id: str | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "swarm_retry_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_retry()
+
     rid = run_id or f"swarm-retry-{int(time.time())}"
-    db_path = ROOT / "artifacts" / "ops" / f"{rid}.sqlite"
+    db_parent = ROOT / "artifacts" / "ops"
+    db_path = db_parent / f"{rid}.sqlite"
+    if folder_is_linked(db_parent) or folder_is_linked(db_path):
+        return _linked_retry()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     opened = open_durable_queue(default_path=db_path, lease_seconds=30, max_attempts=3)
     if not opened.get("ready") or opened.get("queue") is None:
@@ -111,12 +130,15 @@ def run_swarm_retry_drill(*, ops_dir: Path | None = None, run_id: str | None = N
         ),
     }
 
-    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_retry()
     dest.mkdir(parents=True, exist_ok=True)
-    out = (Path(ops_dir) / "swarm_retry_drill.json") if ops_dir else EVIDENCE
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_retry()
     if ops_dir is None:
-        art = ROOT / "artifacts" / "ops" / "swarm_retry_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
     return evidence
