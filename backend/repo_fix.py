@@ -108,6 +108,9 @@ def _local_copy(repo_url: str, token: str, run_dir: Path) -> Path:
 
 
 def _source_files(root: Path) -> list[Path]:
+    from .finalization import folder_is_linked
+    if folder_is_linked(root):
+        return []
     files = []
     for p in root.rglob("*"):
         rel = p.relative_to(root).parts
