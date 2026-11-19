@@ -524,11 +524,22 @@ class Explorer:
             return blocked_reason("pay")
         return ""
 
+    def _on_payment_page(self, page) -> bool:
+        """True when this navigation has already landed on checkout or payment."""
+        from .swarm import is_payment_url
+        try:
+            landed = page.url or ""
+        except Exception:
+            landed = ""
+        return is_payment_url(landed)
+
     def _try(self, page, url: str, entry: dict, t: dict, opener: dict | None, risk: str, guard=None) -> dict:
         """guard(page, t) -> why not ('' = go on): checked on the fresh page, just before the action."""
         item_sel = (entry.get("itemLinks") or {}).get("selector")
         try:
             self._fresh(page, url, bool(entry.get("lazy")))
+            if self._on_payment_page(page):
+                return {"blocked": blocked_reason("pay")}
             if opener and not page.locator(t["selector"]).first.is_visible():
                 chain, visited, current = [], set(), opener
                 while current:
@@ -546,6 +557,8 @@ class Explorer:
                     why = why or self._seen_guard(page, ancestor)
                     if why:
                         return {"blocked": "Cannot replay opener: " + why}
+                    if self._on_payment_page(page):
+                        return {"blocked": blocked_reason("pay")}
                     self._act(page, ancestor)
                     self._last_replay_count += 1
                     self.counts["opener_replays"] += 1
@@ -555,6 +568,8 @@ class Explorer:
             why_not = guard(page, t) if guard else ""
             if why_not:
                 return {"blocked": why_not}
+            if self._on_payment_page(page):
+                return {"blocked": blocked_reason("pay")}
             why_pay = self._payment_click(page, t, url)
             if why_pay:
                 return {"blocked": why_pay}
@@ -813,7 +828,9 @@ class Explorer:
             return []
         from .actions import DELETE, action_class
         from .forms import SEARCHY, is_login_form, keep_form_field
-        from .swarm import control_opens_payment
+        from .swarm import control_opens_payment, is_payment_url
+        if is_payment_url(url) or is_payment_url(getattr(page, "url", "") or ""):
+            return []
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):

@@ -43,6 +43,45 @@ def _learned(page, control):
     return next(b for b in page.get("behaviour", []) if b["control"] == control)
 
 
+def test_a_redirect_onto_checkout_is_not_clicked():
+    import time
+
+    from backend.observe import Explorer
+
+    class Page:
+        def __init__(self):
+            self.url = "https://shop.example/product/1"
+            self.clicks = 0
+            self.context = type("Ctx", (), {"pages": []})()
+
+        def goto(self, url, **kwargs):
+            self.url = "https://shop.example/checkout"
+
+        def evaluate(self, *args, **kwargs):
+            return ""
+
+        def locator(self, selector):
+            self.clicks += 1
+            raise AssertionError(selector)
+
+    page = Page()
+    explorer = Explorer("", lambda *args, **kwargs: None, time.time() + 30)
+    result = explorer._try(
+        page, "https://shop.example/product/1", {},
+        {"selector": "#continue", "action": "click", "text": "Continue", "name": "Continue"},
+        None, "safe",
+    )
+    assert str(result.get("blocked") or "").startswith("protected")
+    assert page.clicks == 0
+    entry = {"forms": [{
+        "selector": "form", "action": "/save",
+        "fields": [{"selector": "#name", "name": "name", "label": "Name", "type": "text"}],
+        "submit": {"text": "Save", "selector": "#save"},
+    }]}
+    assert explorer.fill_forms(page, "https://shop.example/product/1", entry) == []
+    assert "form_fills" not in entry
+
+
 def test_pages_only_an_action_or_scrolling_reveals_are_found(explored):
     out, crawl, store = explored
     paths = {p["url"].replace(store.url, "") or "/" for p in out["app_map"]}
