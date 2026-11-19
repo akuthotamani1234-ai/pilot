@@ -122,7 +122,8 @@ def case_hits(case: dict, results: list[dict]) -> list[dict]:
 
 def automation_status(case: dict, test_dir: Path | None) -> tuple[str, str]:
     """('Automated' | 'Not automated' | 'Pending', how) - looks for the case's test function in the scripts."""
-    if not test_dir or test_dir.is_symlink() or not test_dir.is_dir():
+    from .finalization import folder_is_linked
+    if not test_dir or folder_is_linked(test_dir) or not test_dir.is_dir():
         return "Pending", ""
     if case.get("kind") == "contract" and not case.get("blocked") and (test_dir.parent / "qa_contracts.json").exists():
         return "Automated", "Trusted QA contract runtime"
