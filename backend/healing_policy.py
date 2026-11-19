@@ -9,9 +9,12 @@ import hashlib
 from uuid import uuid4
 
 # Categories the failure classifier actually emits. Levels 3 and 4 never auto-apply.
+# An assertion failure, an inconclusive result, and an untriaged result are not
+# missing locators. A script change for them needs a person.
 _HUMAN = {
     "flaky", "auth_problem", "product_defect", "suspect",
-    "rule_violation", "test_mistake",
+    "rule_violation", "test_mistake", "assertion_failure",
+    "inconclusive", "untriaged",
 }
 _ABORT = {"infrastructure", "data_corruption", "security"}
 _USED_APPROVALS: set[str] = set()

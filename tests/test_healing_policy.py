@@ -69,6 +69,24 @@ def test_the_repair_digest_is_not_an_approval_token():
     )["allowed"] is True
 
 
+def test_an_assertion_failure_is_not_rewritten_without_a_person():
+    old = 'def test_x(page):\n    page.locator("#a").click()\n    assert page.locator("#ok").is_visible()\n'
+    good = 'def test_x(page):\n    page.locator("#b").click()\n    assert page.locator("#ok").is_visible()\n'
+    reset_healing_approvals()
+    for category in ("assertion_failure", "inconclusive", "untriaged"):
+        blocked = review_repair(old, good, failure_class=category)
+        assert blocked["allowed"] is False
+        assert blocked["escalation"]["level"] == 3
+        assert blocked["escalation"]["auto_apply"] is False
+    assert review_repair(old, good, failure_class="locator")["allowed"] is True
+    issued = issue_healing_approval(old, good, "assertion_failure")
+    assert issued["ok"] is True and issued["gate_e_complete"] is False
+    applied = review_repair(
+        old, good, failure_class="assertion_failure", approval_token=issued["token"],
+    )
+    assert applied["allowed"] is True
+
+
 def test_summarize_healing_stays_incomplete():
     snap = summarize_healing([{"method": "unique-locator", "status": "kept"},
                               {"proposal": True, "accepted": False}])
