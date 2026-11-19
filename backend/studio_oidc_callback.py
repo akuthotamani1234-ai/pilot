@@ -61,6 +61,38 @@ def validate_sso_state(state: str, *, expected: str | None = None) -> dict:
     }
 
 
+def validate_sso_nonce(nonce: str, *, expected: str | None = None) -> dict:
+    """Reject an ID-token ``nonce`` when an expected value is configured.
+
+    When ``QPILOT_SSO_EXPECTED_NONCE`` (or ``expected``) is empty, nonce is not
+    enforced — hosted IdP Studio SSO still open.
+    """
+    want = (expected if expected is not None else _env("QPILOT_SSO_EXPECTED_NONCE")).strip()
+    got = (nonce or "").strip()
+    if not want:
+        return {
+            "ok": True,
+            "gate_i_complete": False,
+            "nonce_enforced": False,
+            "reason": "SSO nonce not enforced (expected nonce unset)",
+        }
+    if got != want:
+        return {
+            "ok": False,
+            "gate_i_complete": False,
+            "nonce_enforced": True,
+            "nonce_ok": False,
+            "reason": "nonce mismatch",
+        }
+    return {
+        "ok": True,
+        "gate_i_complete": False,
+        "nonce_enforced": True,
+        "nonce_ok": True,
+        "reason": "SSO nonce matched expected value",
+    }
+
+
 def exchange_code(
     *,
     code: str,
@@ -117,10 +149,14 @@ def exchange_code(
             "gate_i_complete": False,
             "reason": f"token exchange failed: {exc}",
         }
-    token = body.get("access_token") or body.get("id_token") or ""
+    token = body.get("id_token") or body.get("access_token") or ""
     validated = validate_bearer(token, verify_signature=True) if token else {
         "ok": False, "reason": "no access_token/id_token in token response",
     }
+    claims = validated.get("claims") if isinstance(validated.get("claims"), dict) else {}
+    nonce_check = validate_sso_nonce(str(claims.get("nonce") or ""))
+    if nonce_check.get("nonce_enforced") and not nonce_check.get("ok"):
+        return nonce_check
     return {
         "ok": bool(validated.get("ok")),
         "gate_i_complete": False,
@@ -128,7 +164,9 @@ def exchange_code(
         "expires_in": body.get("expires_in"),
         "has_access_token": bool(body.get("access_token")),
         "has_id_token": bool(body.get("id_token")),
-        "claims": validated.get("claims") if isinstance(validated.get("claims"), dict) else {},
+        "claims": claims,
+        "nonce_enforced": bool(nonce_check.get("nonce_enforced")),
+        "nonce_ok": nonce_check.get("nonce_ok"),
         "signature_verified": bool(validated.get("signature_verified")),
         "reason": (
             "Studio OIDC callback exchanged code + validated JWT; hosted IdP SSO still open"

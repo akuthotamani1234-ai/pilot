@@ -203,6 +203,7 @@ def progress() -> dict:
         {"id": "I-sso-audience-binding", "label": "Studio SSO audience binding (wrong aud rejected)", "status": "done"},
         {"id": "I-sso-token-expiry", "label": "Studio SSO expired token rejection (loopback)", "status": "done"},
         {"id": "I-sso-state-binding", "label": "Studio SSO state binding (mismatch rejected)", "status": "done"},
+        {"id": "I-sso-nonce-binding", "label": "Studio SSO nonce binding (mismatch rejected)", "status": "done"},
         {"id": "I-idp-metadata-contract", "label": "Hosted IdP discovery metadata contract (not live)", "status": "done"},
         {"id": "I-idp-redirect-allowlist", "label": "Hosted IdP redirect URI allowlist contract", "status": "done"},
         {"id": "I-sso-principal-bootstrap", "label": "Studio SSO principal bootstrap from OIDC claims", "status": "done"},

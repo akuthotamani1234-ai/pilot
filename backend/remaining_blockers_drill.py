@@ -66,6 +66,7 @@ BLOCKERS = (
             "studio_sso_audience_binding_drill.json",
             "studio_sso_token_expiry_drill.json",
             "studio_sso_state_binding_drill.json",
+            "studio_sso_nonce_binding_drill.json",
             "hosted_idp_metadata_contract_drill.json",
             "hosted_idp_redirect_uri_allowlist_drill.json",
         ],
