@@ -36,12 +36,25 @@ def _tag_gates(name: str) -> list[str]:
     return tags or ["untagged"]
 
 
+def _linked_catalog() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "signed_off": False,
+        "drill": "independent_review_evidence_catalog",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
 def run_independent_review_evidence_catalog_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
     src = Path(ops_dir) if ops_dir else OPS
+    if folder_is_linked(src):
+        return _linked_catalog()
     entries = []
     if src.is_dir():
         for path in sorted(src.iterdir()):
-            if not path.is_file():
+            if folder_is_linked(path) or not path.is_file():
                 continue
             if path.suffix.lower() not in {".json", ".md"}:
                 continue
@@ -75,14 +88,18 @@ def run_independent_review_evidence_catalog_drill(*, ops_dir: Path | None = None
         ),
     }
     dest = Path(ops_dir) if ops_dir else OPS
-    dest.mkdir(parents=True, exist_ok=True)
     out = (
         (Path(ops_dir) / "independent_review_evidence_catalog_drill.json")
         if ops_dir else EVIDENCE
     )
-    out.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(out):
+        return _linked_catalog()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out.name, json.dumps(evidence, indent=2)):
+        return _linked_catalog()
     if ops_dir is None:
         art = ROOT / "artifacts" / "ops" / "independent_review_evidence_catalog_drill.json"
-        art.parent.mkdir(parents=True, exist_ok=True)
-        art.write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
     return evidence
