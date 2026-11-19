@@ -227,15 +227,24 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
     if settings.record_video:
         env["QA_VIDEO_DIR"] = str((run_dir / "videos").resolve())
     env["QA_ITEM_LISTS"] = json.dumps(_item_lists(state.get("app_map") or []))
+    from ..finalization import folder_is_linked
     auth = run_dir / ".private" / "auth.json"  # the crawler logged in with the test account -> tests start logged in
-    env["QA_AUTH_STATE"] = str(auth.resolve()) if auth.exists() else ""
-    env["QA_LOGIN_FORM"] = json.dumps(_login_recipe(state) if auth.exists() else {})
+    auth_ready = not folder_is_linked(auth) and auth.is_file()
+    env["QA_AUTH_STATE"] = str(auth.resolve()) if auth_ready else ""
+    env["QA_LOGIN_FORM"] = json.dumps(_login_recipe(state) if auth_ready else {})
     from .. import jscov  # (how much of the website's JavaScript the tests run: staging / a site on this PC)
     env["QA_JS_COVERAGE"] = "1" if jscov.enabled(env.get("QA_TARGET_LOCAL") == "1") else "0"
     # several user roles: each role's own saved login (its tests start in it - its password is never passed on)
     roles = ((state.get("roles") or {}).get("roles") or {})
-    env["QA_ROLE_STATES"] = json.dumps({r: str((run_dir / ".private" / v["state"]).resolve()) for r, v in roles.items()
-                                        if v.get("state") and (run_dir / ".private" / v["state"]).exists()})
+
+    def role_state(name: str) -> str:
+        path = run_dir / ".private" / name
+        if folder_is_linked(path) or not path.is_file():
+            return ""
+        return str(path.resolve())
+
+    env["QA_ROLE_STATES"] = json.dumps({r: role_state(v["state"]) for r, v in roles.items()
+                                        if isinstance(v, dict) and role_state(str(v.get("state") or ""))})
     return env
 
 
