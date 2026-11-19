@@ -19,6 +19,7 @@ or issue #22 Phase 7 review boxes can close.
 | Review readiness | Checklist + pack + blockers inventory scored (unsigned) | `independent_review_readiness_drill.json` |
 | Review summary | Human-readable Markdown summary for reviewers (unsigned) | `INDEPENDENT_REVIEW_SUMMARY.md` |
 | Review request | Reviewer handoff receipt (unsigned; starts human sign-off) | `independent_review_request_drill.json` |
+| Review integrity | SHA-256 integrity over checklist/pack/blockers (unsigned) | `independent_review_integrity_drill.json` |
 | Android | Appium product matrix honesty (API26+; API24 smoke separate) | `android_appium_product_matrix_drill.json` |
 | Portfolios | Multi-browser suite does not over-claim Gate F complete | `multi_browser_portfolio_suite_drill.json` |
 

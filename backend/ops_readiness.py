@@ -634,6 +634,22 @@ def readiness() -> dict:
                 else "No production healing replay pack"
             ),
         },
+        "production_healing_flaky_policy_drill": {
+            "ready": _ops_evidence("production_healing_flaky_policy_drill.json"),
+            "reason": (
+                "Flaky/auth/infra healing policy present; production suite still open"
+                if _ops_evidence("production_healing_flaky_policy_drill.json")
+                else "No flaky/auth/infra healing policy evidence"
+            ),
+        },
+        "independent_review_integrity_drill": {
+            "ready": _ops_evidence("independent_review_integrity_drill.json"),
+            "reason": (
+                "Independent review integrity receipt present; sign-off still pending"
+                if _ops_evidence("independent_review_integrity_drill.json")
+                else "No independent review integrity receipt"
+            ),
+        },
         "hosted_ci_runner_matrix_drill": {
             "ready": _ops_evidence("hosted_ci_runner_matrix_drill.json"),
             "reason": (
