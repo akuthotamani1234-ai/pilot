@@ -56,3 +56,27 @@ def test_a_test_mistake_is_not_written_until_it_is_approved(tmp_path, monkeypatc
     assert kept == CODE
     assert out["rerun_only"] == []
     assert "already used" in out["healing_log"][0]["change"]
+
+
+def test_the_same_selector_in_another_file_is_repaired_there(tmp_path, monkeypatch):
+    from backend.agents import self_healing
+    monkeypatch.setattr(self_healing, "llm_enabled", lambda: False)
+    tests = tmp_path / "generated_tests"
+    tests.mkdir()
+    other = CODE.replace("def test_ai_flow_6", "def test_ai_flow_7")
+    (tests / "test_flows_ai.py").write_text(CODE, encoding="utf-8")
+    (tests / "test_flows_b.py").write_text(other, encoding="utf-8")
+    failures = []
+    for file, test in (("test_flows_ai.py", "test_ai_flow_6"), ("test_flows_b.py", "test_ai_flow_7")):
+        failures.append({
+            "source": "test", "category": "test_defect",
+            "nodeid": f"{file}::{test}", "file": file, "test": test, "error": ERR,
+        })
+    out = self_healing_agent({"run_dir": str(tmp_path), "app_map": [], "failures": failures})
+    for name in ("test_flows_ai.py", "test_flows_b.py"):
+        text = (tests / name).read_text(encoding="utf-8")
+        assert "visible=true" in text and "to_be_hidden()" in text
+    assert {h["file"] for h in out["healing_log"]} == {"test_flows_ai.py", "test_flows_b.py"}
+    assert set(out["rerun_only"]) == {
+        "test_flows_ai.py::test_ai_flow_6", "test_flows_b.py::test_ai_flow_7",
+    }
