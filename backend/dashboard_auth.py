@@ -49,6 +49,23 @@ def _extract_bearer(authorization: str | None) -> str:
     return given
 
 
+GROUP_ROLE = {
+    "qpilot-admins": "admin",
+    "qpilot-viewers": "viewer",
+}
+
+
+def role_for_groups(groups) -> str | None:
+    """First known IdP group wins. Unknown or non-list claims map to no role."""
+    if not isinstance(groups, list):
+        return None
+    for name in groups:
+        role = GROUP_ROLE.get(str(name))
+        if role:
+            return role
+    return None
+
+
 def _oidc_principal(claims: dict, *, action: str, mode: str, verdict: dict) -> dict:
     """A valid JWT is not enough. The subject must be a principal whose role allows the action."""
     sub = str(claims.get("sub") or "").strip()
@@ -78,18 +95,31 @@ def _oidc_principal(claims: dict, *, action: str, mode: str, verdict: dict) -> d
             "reason": "token tenant does not match principal",
             "tenant_id": row.get("tenant_id"),
         }
-    decision = allow(
-        role=row["role"], action=action,
-        tenant_id=row["tenant_id"], resource_tenant=row["tenant_id"],
-    )
-    if not decision.get("allowed"):
-        return {
-            **base,
-            "ok": False,
-            "reason": decision.get("reason") or "RBAC denied",
-            "role": row["role"],
-            "tenant_id": row["tenant_id"],
-        }
+    roles = [row["role"]]
+    if "groups" in claims:
+        mapped = role_for_groups(claims.get("groups"))
+        if not mapped:
+            return {
+                **base,
+                "ok": False,
+                "reason": "token groups are not a known role",
+                "role": row["role"],
+                "tenant_id": row["tenant_id"],
+            }
+        roles.append(mapped)
+    for role in roles:
+        decision = allow(
+            role=role, action=action,
+            tenant_id=row["tenant_id"], resource_tenant=row["tenant_id"],
+        )
+        if not decision.get("allowed"):
+            return {
+                **base,
+                "ok": False,
+                "reason": decision.get("reason") or "RBAC denied",
+                "role": role,
+                "tenant_id": row["tenant_id"],
+            }
     return {
         **base,
         "ok": True,
