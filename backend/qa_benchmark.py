@@ -212,9 +212,11 @@ def repeat_android(config_file, repeats, root):
         current = dict(config)
         if current["app_mode"] == "apk":
             dest = private / "app.apk"
-            if dest.is_symlink():
+            apk = Path(current["apk_path"])
+            from .android_runner import _path_is_linked
+            if dest.is_symlink() or _path_is_linked(apk):
                 raise ValueError("The Android run is a link.")
-            shutil.copyfile(current["apk_path"], dest)
+            shutil.copyfile(apk, dest)
             current["apk_path"] = str(dest.absolute())
         if not write_text_unless_linked(private, "android_config.json", json.dumps(current)):
             raise ValueError("The Android run is a link.")
