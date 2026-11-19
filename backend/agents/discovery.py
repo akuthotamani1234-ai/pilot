@@ -1434,6 +1434,23 @@ def pending_visit(raw) -> tuple[str, bool]:
     return _normalize(str(raw or "")), False
 
 
+def refuse_checkout_redirect(page, url: str, timeout: int) -> str:
+    """Return the checkout address a safe URL would open, or '' when the crawl may open it.
+
+    A URL that is already checkout is left to the crawl, which records that page
+    once and does not click it. A probe that cannot reach the host returns ''
+    so the browser open still runs.
+    """
+    if is_payment_url(url):
+        return ""
+    try:
+        from ..payment_nav import follow_get
+        _open, blocked = follow_get(page.request.get, url, timeout=timeout)
+    except Exception:
+        return ""
+    return blocked or ""
+
+
 def click_page(requested: str, final: str = "") -> str:
     """The address whose controls may be clicked.
 
@@ -2259,6 +2276,13 @@ def discovery_agent(state: QAState) -> QAState:
             entry = {"url": url, "depth": depth, "slug": slug, "auth": auth,
                      "screenshot": shot_path.relative_to(run_dir).as_posix(),
                      "found_by": found_by.get(url, "start" if depth == 0 else "link")}
+            pay_to = refuse_checkout_redirect(page, url, settings.page_timeout_ms)
+            if pay_to:
+                used_slugs.discard(slug)
+                skipped[url] = "checkout, payment and placing an order are never tested"
+                routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
+                print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
+                continue
             t0 = time.time()
             try:
                 pace.wait()  # (polite speed: MAX_REQUESTS_PER_SEC, slower after HTTP 429 / 503)

@@ -11,6 +11,41 @@ from backend.features import page_features
 from backend.registry import build, link_tests, record_outcomes
 
 
+def test_the_crawl_does_not_follow_a_safe_address_into_checkout():
+    from backend.agents.discovery import refuse_checkout_redirect
+
+    seen = []
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        def get(self, url, **kwargs):
+            seen.append(url)
+            assert kwargs.get("max_redirects") == 0
+            if str(url).endswith("/product"):
+                return Probe(302, "https://shop.example/checkout")
+            if str(url).endswith("/old"):
+                return Probe(302, "https://shop.example/new")
+            if str(url).endswith("/new"):
+                return Probe(200)
+            raise OSError("getaddrinfo ENOTFOUND shop.test")
+
+        @property
+        def request(self):
+            return self
+
+    page = Page()
+    assert refuse_checkout_redirect(page, "https://shop.example/product", 10000).endswith("/checkout")
+    assert seen == ["https://shop.example/product"]
+    assert refuse_checkout_redirect(page, "https://shop.example/checkout", 10000) == ""
+    assert seen == ["https://shop.example/product"]
+    assert refuse_checkout_redirect(page, "https://shop.example/old", 10000) == ""
+    assert refuse_checkout_redirect(page, "https://shop.test/routed", 10000) == ""
+
+
 def test_cart_checkout_anchor_is_protected_feature():
     cart = {
         "url": "http://127.0.0.1/index.php?rt=checkout/cart",
