@@ -14,6 +14,21 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "multi_region_cutover_rehearsal_drill.json"
 
 
+def _safe_step(name: str, runner) -> dict:
+    try:
+        result = runner()
+        if isinstance(result, dict):
+            return result
+        return {"ok": False, "drill": name, "reason": "step returned non-dict"}
+    except Exception as exc:
+        return {
+            "ok": False,
+            "drill": name,
+            "gate_h_complete": False,
+            "reason": f"{name} unavailable: {exc}; hosted multi-region DR still open",
+        }
+
+
 def run_multi_region_cutover_rehearsal_drill(*, ops_dir: Path | None = None) -> dict:
     from .failover_rto_drill import run_failover_rto_drill
     from .minio_multi_region_drill import run_minio_multi_region_drill
@@ -23,11 +38,26 @@ def run_multi_region_cutover_rehearsal_drill(*, ops_dir: Path | None = None) -> 
 
     started = time.perf_counter()
     steps = {
-        "postgres_dual_region": run_multi_region_dr_drill(ops_dir=ops_dir),
-        "minio_dual_bucket": run_minio_multi_region_drill(ops_dir=ops_dir),
-        "redis_dual_db": run_redis_multi_region_drill(ops_dir=ops_dir),
-        "multi_store_pack": run_multi_store_dr_drill(ops_dir=ops_dir),
-        "failover_rto": run_failover_rto_drill(ops_dir=ops_dir),
+        "postgres_dual_region": _safe_step(
+            "postgres_dual_region",
+            lambda: run_multi_region_dr_drill(ops_dir=ops_dir),
+        ),
+        "minio_dual_bucket": _safe_step(
+            "minio_dual_bucket",
+            lambda: run_minio_multi_region_drill(ops_dir=ops_dir),
+        ),
+        "redis_dual_db": _safe_step(
+            "redis_dual_db",
+            lambda: run_redis_multi_region_drill(ops_dir=ops_dir),
+        ),
+        "multi_store_pack": _safe_step(
+            "multi_store_pack",
+            lambda: run_multi_store_dr_drill(ops_dir=ops_dir),
+        ),
+        "failover_rto": _safe_step(
+            "failover_rto",
+            lambda: run_failover_rto_drill(ops_dir=ops_dir),
+        ),
     }
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     passed = {name: bool(ev.get("ok")) for name, ev in steps.items()}
