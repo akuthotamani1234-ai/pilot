@@ -17,6 +17,14 @@ DASHBOARD = ("discovered", "tested", "passed", "failed", "blocked", "unknown")
 ROW = ("register", "inventory", "graph", "workers", "seed", "dashboard", "operations")
 
 
+def _folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def register_target(*, url: str, scope: str, page_budget: int, time_budget_s: int, authorized: bool) -> dict:
     """The first step. A run needs an authorized target, a scope, and a budget."""
     problems = []
@@ -50,7 +58,7 @@ def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
     pages: list[dict] = []
     pending: list[str] = []
     run_dir = Path(run_dir)
-    if run_dir.is_symlink():
+    if _folder_is_linked(run_dir):
         return pages, pending
     app_map = run_dir / "app_map.json"
     if not app_map.is_symlink():
@@ -84,7 +92,7 @@ def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list) -> None
     """Keep the inventory and the remaining queue so a stopped crawl can continue."""
     from .finalization import write_text_unless_linked
     run_dir = Path(run_dir)
-    if run_dir.is_symlink():
+    if _folder_is_linked(run_dir):
         return
     run_dir.mkdir(parents=True, exist_ok=True)
     write_text_unless_linked(run_dir, "app_map.json", json.dumps(pages, indent=2))
@@ -94,7 +102,7 @@ def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list) -> None
 def read_target(run_dir: Path) -> dict | None:
     """The stored registration, or None when this run has no target file."""
     path = Path(run_dir) / "target.json"
-    if Path(run_dir).is_symlink() or path.is_symlink():
+    if _folder_is_linked(Path(run_dir)) or path.is_symlink():
         return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -144,7 +152,7 @@ def record_step(run_dir: Path, step: str, payload: dict) -> dict:
         raise ValueError(step)
     current: dict = {}
     path = run_dir / "row.json"
-    if run_dir.is_symlink() or path.is_symlink():
+    if _folder_is_linked(run_dir) or path.is_symlink():
         return current
     if path.is_file():
         try:

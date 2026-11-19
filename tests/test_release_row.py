@@ -76,6 +76,36 @@ def test_the_row_file_stays_in_order_when_a_later_step_is_stored_first(tmp_path)
     assert record["template"] == "product" and record["elements"] == ["Add"]
 
 
+def test_a_release_row_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-release"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "row.json").write_bytes(secret)
+    (other / "app_map.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert record_step(linked / "run", "seed", {"ok": True, "reason": "local"}) == {}
+    save_crawl_progress(linked / "run", [{"url": "https://shop.example/saree"}], ["https://shop.example/cart"])
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "row.json").read_bytes() == secret
+    assert (other / "app_map.json").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    record_step(real, "seed", {"ok": True, "reason": "local"})
+    save_crawl_progress(real, [{"url": "https://shop.example/saree"}], ["https://shop.example/cart"])
+    stored = (real / "row.json").read_text(encoding="utf-8")
+    assert "local" in stored and secret.decode() not in stored
+    assert "saree" in (real / "app_map.json").read_text(encoding="utf-8")
+    pages, pending = load_saved_crawl(real)
+    assert pages[0]["url"].endswith("/saree")
+    assert pending == ["https://shop.example/cart"]
+    assert load_saved_crawl(linked / "run") == ([], [])
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_a_continue_button_that_opens_checkout_is_not_safe_work():
     record = page_record({
         "url": "https://shop.example/saree",
