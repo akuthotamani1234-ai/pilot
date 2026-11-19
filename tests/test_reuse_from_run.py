@@ -97,6 +97,52 @@ def test_saved_tests_does_not_follow_a_link_into_another_run(tmp_path, monkeypat
     assert got["meta"]["origin"] == ""
 
 
+def test_a_saved_baseline_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-script"
+    baseline = tmp_path / "baseline"
+    monkeypatch.setattr(settings, "runs_dir", tmp_path / "runs")
+    monkeypatch.setattr(settings, "baseline_dir", baseline)
+    other = baseline / "other"
+    (other / "tests").mkdir(parents=True)
+    (other / "tests" / "test_secret.py").write_text(f"SECRET = {secret!r}\n", encoding="utf-8")
+    (other / "test_cases.json").write_text(json.dumps([{"id": secret}]), encoding="utf-8")
+    (other / "meta.json").write_text(json.dumps({"origin": secret}), encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    site = baseline / "shop.test"
+    site.mkdir()
+    (site / "tests").symlink_to(other / "tests", target_is_directory=True)
+    (site / "test_cases.json").write_text(json.dumps([{"id": "home-own"}]), encoding="utf-8")
+    refused = saved_tests("shop.test")
+    assert refused is None
+    assert (other / "tests" / "test_secret.py").read_text(encoding="utf-8") == f"SECRET = {secret!r}\n"
+    assert not (other / "tests" / "test_new.py").exists()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    (site / "tests").unlink()
+    (site / "tests").mkdir()
+    (site / "tests" / "test_home.py").write_text("MARKER = 'home-own'\n", encoding="utf-8")
+    (site / "test_cases.json").unlink()
+    (site / "test_cases.json").symlink_to(other / "test_cases.json")
+    refused_cases = saved_tests("shop.test")
+    assert refused_cases is None
+    assert (other / "test_cases.json").read_text(encoding="utf-8") == json.dumps([{"id": secret}])
+    assert not (site / "fresh").exists()
+
+    (site / "test_cases.json").unlink()
+    (site / "test_cases.json").write_text(json.dumps([{"id": "home-own"}]), encoding="utf-8")
+    (site / "meta.json").symlink_to(other / "meta.json")
+    (site / "tests" / "test_secret.py").symlink_to(other / "tests" / "test_secret.py")
+    got = saved_tests("shop.test")
+    assert got is not None
+    assert got["cases"] == [{"id": "home-own"}]
+    assert {f.name for f in got["files"]} == {"test_home.py"}
+    assert "home-own" in got["files"][0].read_text(encoding="utf-8")
+    assert got["meta"] == {}
+    assert secret not in got["files"][0].read_text(encoding="utf-8")
+    assert (other / "meta.json").read_text(encoding="utf-8") == json.dumps({"origin": secret})
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_saved_tests_does_not_copy_another_tenants_run(tmp_path, monkeypatch):
     import backend.tenancy_store as tenancy
 
