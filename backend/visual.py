@@ -324,8 +324,14 @@ def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
 def keep_new_looks(run_dir: Path, site_key: str) -> int:
     """The run finished (save_baseline): the look of its NEW pages joins the approved look - and with
     VISUAL_AUTO_APPROVE the new look of its changed pages. Returns how many pages were kept."""
+    from .agents.change_detection import run_read_block
+    run_dir = Path(run_dir)
+    if run_read_block(run_dir, "visual.json"):
+        return 0
     try:
-        report = json.loads((Path(run_dir) / "visual.json").read_text(encoding="utf-8"))
+        if (run_dir / "visual.json").is_symlink():
+            return 0
+        report = json.loads((run_dir / "visual.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
     index, n = load_index(site_key), 0
@@ -341,7 +347,11 @@ def keep_new_looks(run_dir: Path, site_key: str) -> int:
 def approve(run_dir: Path, keys: list[str] | None = None) -> int:
     """A person approved the new look of these pages of this run (None = every changed page): it becomes the baseline
     the next runs compare with. Returns how many pages were approved."""
+    from .agents.change_detection import run_read_block
     run_dir = Path(run_dir)
+    blocked = run_read_block(run_dir, "visual.json", "run_args.json")
+    if blocked:
+        raise ValueError(blocked + " The look was not approved.")
     report = json.loads((run_dir / "visual.json").read_text(encoding="utf-8"))
     site = json.loads((run_dir / "run_args.json").read_text(encoding="utf-8"))["site_key"]
     index, n = load_index(site), 0

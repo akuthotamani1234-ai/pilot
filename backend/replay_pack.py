@@ -50,7 +50,13 @@ def replay(package: dict) -> dict:
 
 def saved_replays(run_dir: Path) -> list[dict]:
     """The replay decision stored for one run. An empty list means nothing was recorded."""
+    from .agents.change_detection import run_read_block
+    run_dir = Path(run_dir)
+    if run_read_block(run_dir, "qx_replay.json"):
+        return []
     try:
+        if (run_dir / "qx_replay.json").is_symlink():
+            return []
         payload = json.loads((run_dir / "qx_replay.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []

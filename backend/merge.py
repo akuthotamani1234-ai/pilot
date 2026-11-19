@@ -9,11 +9,15 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .agents.change_detection import run_read_block
+
 WORST = ["Ready", "Ready with Risks", "Insufficient Evidence", "Not Ready"]
 
 
 def _read(p: Path, default):
     try:
+        if Path(p).is_symlink():
+            return default
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
@@ -30,6 +34,10 @@ def merge_runs(run_dirs: list[Path], runs_dir: Path) -> Path:
     runs, card = [], {"pages": {}, "frames": {}, "features": {}, "tests": {}, "data": {}}
     kinds: dict = {}
     for d in run_dirs:
+        blocked = run_read_block(d, "summary.json", "crawl.json")
+        if blocked:
+            print(f"  [merge] {d.name}: {blocked} left out")
+            continue
         s = _read(d / "summary.json", None)
         if not s:
             print(f"  [merge] {d.name}: no summary.json - left out")
