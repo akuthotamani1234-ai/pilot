@@ -68,10 +68,41 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             "max_depth": 1,
             "max_test_cases": 10,
             "discovery_timeout_s": 120,
-            "account_mode": "existing",
-            "interaction_testing": True,
-            "max_interactions": 20,
-            "interaction_timeout_s": 300,
+            "qa_contract": {
+                "version": 1,
+                "test_environment": True,
+                "android_package": "com.qpilot.demo",
+                "flows": [
+                    {
+                        "id": "valid_login",
+                        "title": "Approved local demo account reaches Dashboard",
+                        "approved": True,
+                        "authentication": True,
+                        "steps": [
+                            {
+                                "action": "tap",
+                                "locator": {"strategy": "accessibility_id", "value": "Open login screen"},
+                            },
+                            {
+                                "action": "fill",
+                                "locator": {"strategy": "accessibility_id", "value": "Username"},
+                                "value": "demo",
+                            },
+                            {
+                                "action": "fill",
+                                "locator": {"strategy": "accessibility_id", "value": "Password"},
+                                "secret_ref": "BLOWAI_SECRET_DEMO_PASSWORD",
+                            },
+                            {
+                                "action": "tap",
+                                "locator": {"strategy": "accessibility_id", "value": "Login"},
+                                "purpose": "test_form",
+                            },
+                            {"action": "assert_screen", "value": "Dashboard"},
+                        ],
+                    }
+                ],
+            },
             "expected_destinations": {"about": "About", "open login screen": "Login"},
         }
     )
