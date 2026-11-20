@@ -1,0 +1,40 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "cross_platform_journey",
+  "ran_at": "2026-11-19T05:43:49Z",
+  "surfaces": [
+    "web.chromium",
+    "web.firefox",
+    "web.webkit"
+  ],
+  "steps_by_surface": {
+    "web.chromium": [
+      "open_home",
+      "open_about"
+    ],
+    "web.firefox": [
+      "open_home",
+      "open_about"
+    ],
+    "web.webkit": [
+      "open_home",
+      "open_about"
+    ]
+  },
+  "web_compare": {
+    "journey_id": "demostore_browse_about",
+    "differences": [],
+    "failed": false,
+    "status": "matched"
+  },
+  "full_compare": {
+    "journey_id": "demostore_plus_android",
+    "differences": [],
+    "failed": false,
+    "status": "matched"
+  },
+  "errors": [],
+  "ok": true,
+  "reason": "Cross-platform journey on web.chromium, web.firefox, web.webkit; web must_match=matched engines=3; broader release-journey matrix still open"
+}

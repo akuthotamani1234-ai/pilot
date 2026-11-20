@@ -1,0 +1,25 @@
+{
+  "gate_h_complete": false,
+  "drill": "observability_probe",
+  "ran_at": "2026-11-18T20:50:17Z",
+  "ops_readiness_complete": false,
+  "checks_ready": 58,
+  "checks_total": 59,
+  "evidence_artifacts": 61,
+  "artifact_names_sample": [
+    "a11y_portfolio_drill.json",
+    "admin_portal_lifecycle_drill.json",
+    "admin_portal_surface_coverage.json",
+    "android_adb_probe.json",
+    "android_appium_ci_contract.json",
+    "android_appium_product_matrix_drill.json",
+    "android_emulator_smoke_drill.json",
+    "android_live_matrix_rows.json",
+    "api_version_contract.json",
+    "approvals_drill.json",
+    "audit_export_drill.json",
+    "backup_restore_drill.json"
+  ],
+  "ok": true,
+  "reason": "Ops readiness 58/59 checks ready, 61 evidence artifacts; central metrics/tracing/alerting still open"
+}

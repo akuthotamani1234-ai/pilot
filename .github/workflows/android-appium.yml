@@ -1,0 +1,78 @@
+# Gate D: optional ubuntu+KVM Appium product-matrix job (not on every PR).
+# Manual only — needs nested KVM / Android SDK on the runner. Default CI stays
+# Windows quick tests in ci.yml. Evidence contract:
+# docs/ops-evidence/android_appium_ci_contract.json
+name: Android Appium matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_level:
+        description: "Android API level AVD (26+ required for modern UiAutomator2)"
+        type: string
+        default: "30"
+      include_api24_smoke:
+        description: "Also run dedicated API24 smoke evidence checks"
+        type: boolean
+        default: true
+      artifact_prefix:
+        description: "Prefix for uploaded Appium matrix artifacts"
+        type: string
+        default: "qpilot-android-matrix"
+
+permissions:
+  contents: read
+
+jobs:
+  appium-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install Appium-Python-Client
+
+      - name: Install Appium + UiAutomator2
+        run: |
+          npm install -g appium@3
+          appium driver install uiautomator2
+
+      - name: Note KVM / AVD requirement
+        run: |
+          echo "This job documents the Gate D Appium CI path."
+          echo "Full AVD boot + matrix requires KVM-capable runners;"
+          echo "local evidence already lives under docs/ops-evidence/android_appium_product_matrix_drill.json"
+          echo "Requested API level: ${{ inputs.api_level }}"
+          echo "include_api24_smoke: ${{ inputs.include_api24_smoke }}"
+          echo "artifact_prefix: ${{ inputs.artifact_prefix }}"
+          test -f docs/ops-evidence/android_appium_ci_contract.json
+          test -f docs/ops-evidence/android_appium_product_matrix_drill.json
+
+      - name: Upload contract + local matrix evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-appium-matrix-evidence
+          path: |
+            docs/ops-evidence/android_appium_ci_contract.json
+            docs/ops-evidence/android_appium_product_matrix_drill.json
+            docs/ops-evidence/android_emulator_smoke_drill.json
+            docs/ops-evidence/multi_api_android_matrix_drill.json
+            docs/ops-evidence/device_matrix_drill.json
+            docs/ops-evidence/device_artifact_manifest_drill.json
+            docs/ops-evidence/multi_device_ci_contract.json

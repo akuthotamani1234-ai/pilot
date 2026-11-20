@@ -77,6 +77,12 @@ def prepare_ai(run_dir: Path, root: Path, selected: list[str]) -> dict:
         raise RepoFixError("Prepare at most five findings at once.")
     if not llm_enabled():
         raise RepoFixError("Choose an available AI provider in configuration before preparing AI changes.")
+    if (Path(run_dir).is_symlink() or (Path(run_dir) / ".private").is_symlink()
+            or (Path(run_dir) / ".private" / "repo_fix_plan.json").is_symlink()):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
+    from .finalization import folder_is_linked
+    if folder_is_linked(root):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     paths = _source_files(root)
     hints = " ".join(json.dumps(item["finding"]) for item in selected_findings).lower()
     paths.sort(key=lambda p: (p.name.lower() not in hints, len(p.parts), p.as_posix()))
@@ -137,8 +143,11 @@ def prepare_ai(run_dir: Path, root: Path, selected: list[str]) -> dict:
         raise RepoFixError("Source snapshot has no pinned base commit")
     payload = json.dumps(plan, sort_keys=True)
     plan["proposal_id"] = hashlib.sha256(payload.encode()).hexdigest()
-    (run_dir / ".private").mkdir(exist_ok=True)
-    (run_dir / ".private" / "repo_fix_plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
+    from .finalization import private_file
+    saved = private_file(run_dir, "repo_fix_plan.json")
+    if saved is None:
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
+    saved.write_text(json.dumps(plan, indent=2), encoding="utf-8")
     return public_plan(plan)
 
 

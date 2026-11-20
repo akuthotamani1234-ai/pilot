@@ -1,0 +1,14 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_approval_gate",
+  "ran_at": "2026-11-19T07:46:51Z",
+  "kind": "human_approval_gate",
+  "auth_without_token_blocked": true,
+  "auth_with_token_allowed": true,
+  "token_reuse_blocked": true,
+  "assertion_change_blocked": true,
+  "infrastructure_not_approvable": true,
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Healing approval gate enforced (level-3 locator repair once, reuse and assertion edits refused, infrastructure not approvable); production / third-party healing suite still open"
+}

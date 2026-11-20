@@ -1,0 +1,138 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_readiness",
+  "ran_at": "2026-11-19T07:44:32Z",
+  "kind": "readiness_score_only",
+  "score": 25,
+  "score_of": 25,
+  "checks": [
+    {
+      "artifact": "loopback_sso_drill.json",
+      "label": "Loopback JWKS + RS256 JWT",
+      "ready": true
+    },
+    {
+      "artifact": "loopback_auth_code_sso_drill.json",
+      "label": "Authorization-code \u2192 dashboard oidc",
+      "ready": true
+    },
+    {
+      "artifact": "loopback_pkce_sso_drill.json",
+      "label": "PKCE S256 authorization-code",
+      "ready": true
+    },
+    {
+      "artifact": "studio_oidc_callback_drill.json",
+      "label": "Studio /api/sso/callback",
+      "ready": true
+    },
+    {
+      "artifact": "sso_tenant_acl_drill.json",
+      "label": "OIDC JWT + tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "dual_tenant_oidc_acl_drill.json",
+      "label": "Dual-tenant OIDC ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_groups_role_acl_drill.json",
+      "label": "OIDC groups\u2192role ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_tid_tenant_acl_drill.json",
+      "label": "OIDC tid\u2192tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_email_domain_tenant_acl_drill.json",
+      "label": "OIDC email-domain\u2192tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_org_tenant_acl_drill.json",
+      "label": "OIDC org/hd\u2192tenant ACL",
+      "ready": true
+    },
+    {
+      "artifact": "oidc_acl_matrix_pack_drill.json",
+      "label": "OIDC ACL matrix pack",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_idp_contract_drill.json",
+      "label": "Hosted IdP contract snapshot",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_login_path_drill.json",
+      "label": "Studio SSO login-path contract",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_session_rebind_drill.json",
+      "label": "Studio SSO session rebind",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_audience_binding_drill.json",
+      "label": "Studio SSO audience binding",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_token_expiry_drill.json",
+      "label": "Studio SSO token expiry rejection",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_state_binding_drill.json",
+      "label": "Studio SSO state binding",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_nonce_binding_drill.json",
+      "label": "Studio SSO nonce binding",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_jti_replay_drill.json",
+      "label": "Studio SSO jti replay rejection",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_nbf_drill.json",
+      "label": "Studio SSO nbf rejection",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_idp_metadata_contract_drill.json",
+      "label": "Hosted IdP metadata contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_idp_redirect_uri_allowlist_drill.json",
+      "label": "Redirect URI allowlist",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_redirect_allowlist_enforcement_drill.json",
+      "label": "Redirect URI enforcement",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_code_reuse_drill.json",
+      "label": "Authorization code single use",
+      "ready": true
+    },
+    {
+      "artifact": "studio_sso_pkce_verifier_drill.json",
+      "label": "Studio callback PKCE verifier",
+      "ready": true
+    }
+  ],
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Hosted IdP readiness 25/25; live hosted IdP Studio SSO login still open"
+}

@@ -61,6 +61,15 @@ def set_run_dir(run_dir: Path, resume: bool = False) -> None:
         _calls.extend(read_usage(run_dir))
 
 
+def _usage_file(run_dir: Path) -> Path | None:
+    from .finalization import folder_is_linked
+    run_dir = Path(run_dir)
+    path = run_dir / "llm_usage.jsonl"
+    if folder_is_linked(run_dir) or path.is_symlink():
+        return None
+    return path
+
+
 def record(agent: str, page: str, test: str, tokens_in: int, tokens_out: int, seconds: float, ok: bool) -> None:
     p_in, p_out = price()
     entry = {"agent": agent or "other", "page": page or GLOBAL, "test": test or "",
@@ -69,17 +78,18 @@ def record(agent: str, page: str, test: str, tokens_in: int, tokens_out: int, se
              "cost_usd": round((tokens_in * p_in + tokens_out * p_out) / 1_000_000, 6),
              "seconds": round(seconds, 2), "ok": ok}
     _calls.append(entry)
-    if _run_dir:
+    path = _usage_file(_run_dir) if _run_dir else None
+    if path is not None:
         try:
-            with (_run_dir / "llm_usage.jsonl").open("a", encoding="utf-8") as f:
+            with path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
         except OSError:
             pass
 
 
 def read_usage(run_dir: Path) -> list[dict]:
-    f = Path(run_dir) / "llm_usage.jsonl"
-    if not f.exists():
+    f = _usage_file(run_dir)
+    if f is None or not f.is_file():
         return []
     out = []
     for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -171,7 +181,10 @@ def write_report(run_dir: Path, cases: list[dict], results: list[dict] | None) -
         "by_agent": {a: totals(cs) for a, cs in agents.items()},
         "per_case": cases_cost,
     }
-    (Path(run_dir) / "cost.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    from .finalization import folder_is_linked
+    path = Path(run_dir) / "cost.json"
+    if not folder_is_linked(Path(run_dir)) and not path.is_symlink():
+        path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
 
 

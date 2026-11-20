@@ -115,6 +115,175 @@ def test_exact_reviewed_patch_is_published_once(tmp_path, monkeypatch):
     assert all(not (method == "PUT" or "/heads/main" in path and method != "GET") for method, path, _ in calls)
 
 
+def test_a_reviewed_fix_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = "tenant-b-only-fix"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "repo_fix_plan.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_publication.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_journal.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_source.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "repo_fix_status.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    monkeypatch.setattr(repo_fix, "_gh", lambda *a, **k: pytest.fail("github"))
+
+    snap = tmp_path / "snap"
+    snap.mkdir()
+    (snap / ".private").symlink_to(other, target_is_directory=True)
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        from backend.repo_source import snapshot
+        snapshot("https://github.com/fixture/app", "token", snap)
+    assert json.loads((other / "repo_source.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    prep = tmp_path / "prep"
+    prep.mkdir()
+    run, _root = _setup(prep)
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(repo_proposals, "llm_enabled", lambda: True)
+    monkeypatch.setattr(repo_proposals, "ask_structured", lambda *a, **k: pytest.fail("asked"))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_proposals.prepare_ai(run, prep / "source", ["finding-age"])
+    assert json.loads((other / "repo_fix_plan.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / "fixes.json").write_text("[]", encoding="utf-8")
+    (legacy / "repo_fix_plan.json").symlink_to(other / "repo_fix_plan.json")
+    monkeypatch.setattr(repo_fix, "_local_copy", lambda *a: prep / "source")
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.prepare(legacy, "https://github.com/fixture/app", "")
+    assert json.loads((other / "repo_fix_plan.json").read_text(encoding="utf-8"))["secret"] == secret
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_fix.create_pr(legacy, "token", "legacy-run")
+
+    published = tmp_path / "published"
+    published.mkdir()
+    saved, _root, plan = _prepare(published, monkeypatch)
+    private = saved / ".private"
+    (private / "repo_fix_publication.json").symlink_to(other / "repo_fix_publication.json")
+    (private / "repo_fix_journal.json").symlink_to(other / "repo_fix_journal.json")
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_publication.publish(saved, "token", plan["proposal_id"])
+    assert json.loads((other / "repo_fix_publication.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "repo_fix_journal.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / ".private").mkdir()
+    (job / ".private" / "repo_fix_status.json").symlink_to(other / "repo_fix_status.json")
+    monkeypatch.setattr("backend.repo_jobs.subprocess.Popen", lambda *a, **k: pytest.fail("started"))
+    from backend import repo_jobs
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        repo_jobs.start(job, "https://github.com/fixture/app", "token", ["finding-age"])
+    assert json.loads((other / "repo_fix_status.json").read_text(encoding="utf-8"))["secret"] == secret
+
+
+def test_a_proposal_status_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend import repo_jobs
+    from backend.repo_fix import RepoFixError
+
+    secret = b"tenant-b-only-proposal"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / ".private").mkdir()
+    (nested / ".private" / "repo_fix_status.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked / "run", {"status": "ready", "stage": "ours"})
+    monkeypatch.setattr(repo_jobs.subprocess, "Popen", lambda *args, **kwargs: pytest.fail("started"))
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs.start(linked / "run", "https://github.com/fixture/app", "token", ["finding-age"])
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked / "fresh", {"status": "ready"})
+    assert not (other / "fresh").exists()
+    assert (nested / ".private" / "repo_fix_status.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    repo_jobs._write(real, {"status": "ready", "stage": "Review the shop"})
+    written = (real / ".private" / "repo_fix_status.json").read_bytes()
+    assert b"Review the shop" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_proposal_status_does_not_follow_a_private_folder_link(tmp_path):
+    from backend import repo_jobs
+    from backend.repo_fix import RepoFixError
+
+    secret = b"tenant-b-only-private-status"
+    other = tmp_path / "other"
+    (other / ".private").mkdir(parents=True)
+    (other / ".private" / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    (linked / ".private").symlink_to(other / ".private", target_is_directory=True)
+    with pytest.raises(RepoFixError, match="link"):
+        repo_jobs._write(linked, {"status": "ready", "stage": "home-own-status"})
+    assert not (other / ".private" / "repo_fix_status.json").exists()
+    assert not (other / ".private" / "repo_fix_status.tmp").exists()
+    assert (other / ".private" / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    repo_jobs._write(real, {"status": "ready", "stage": "Review the shop"})
+    written = (real / ".private" / "repo_fix_status.json").read_bytes()
+    assert b"Review the shop" in written
+    assert secret not in written
+    assert (other / ".private" / "keep.txt").read_bytes() == secret
+
+
+def test_proposal_private_link_stays_on_the_sidebar():
+    from backend.blueprint_progress import progress
+
+    snap = progress()
+    row = next(item for item in snap["upcoming"] if item["id"] == "G-proposal-private-link")
+    assert row["status"] == "done"
+    assert next(gate for gate in snap["gates"] if gate["id"] == "G")["status"] != "done"
+    assert snap["complete"] is False
+
+
+def test_a_source_snapshot_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import io
+    import zipfile
+
+    secret = b"tenant-b-only-snapshot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(repo_fix, "_gh", lambda *args, **kwargs: pytest.fail("github"))
+    with pytest.raises(repo_fix.RepoFixError, match="link"):
+        from backend.repo_source import snapshot
+        snapshot("https://github.com/fixture/app", "token", linked / "run")
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "run").exists()
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("fixture-app/README.md", "mine\n")
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, _size):
+            yield archive.getvalue()
+
+    monkeypatch.setattr(repo_fix, "_gh", lambda *args, **kwargs: {"default_branch": "main", "object": {"sha": "abc"}})
+    monkeypatch.setattr("backend.repo_source.requests.get", lambda *args, **kwargs: _Response())
+    real = tmp_path / "real"
+    real.mkdir()
+    from backend.repo_source import snapshot
+    root = snapshot("https://github.com/fixture/app", "token", real)
+    assert (root / "README.md").read_text(encoding="utf-8") == "mine\n"
+    assert secret not in (root / "README.md").read_bytes()
+    assert (other / "keep.txt").read_bytes() == secret
+
+
 def test_legacy_tag_match_must_be_unique_across_files(tmp_path, monkeypatch):
     run, root = _setup(tmp_path)
     for name in ("first.html", "second.html"):

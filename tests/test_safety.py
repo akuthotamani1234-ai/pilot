@@ -7,6 +7,68 @@ import pytest
 from backend.safety import REDACTED, Scope, UrlError, check_target, clean_env, is_metadata_host, redact
 
 
+def test_a_checkout_frame_or_background_call_is_stopped():
+    from backend.safety import guard_context
+
+    class Frame:
+        def __init__(self, url, parent):
+            self.url = url
+            self.parent_frame = parent
+
+    class Req:
+        def __init__(self, url, frame):
+            self.url = url
+            self.frame = frame
+
+        def is_navigation_request(self):
+            return True
+
+    class Route:
+        def __init__(self, req):
+            self.request = req
+            self.done = ""
+
+        def abort(self, reason):
+            self.done = reason
+
+        def continue_(self):
+            self.done = "continue"
+
+    class Context:
+        def route(self, _pattern, handler):
+            self.handler = handler
+
+    ctx = Context()
+    blocked = []
+    guard_context(ctx, Scope("https://shop.example/"), blocked)
+    pay = "https://shop.example/checkout"
+    cart = "https://shop.example/index.php?rt=checkout/cart"
+    product = Frame("https://shop.example/product/1", None)
+
+    frame = Route(Req(pay, Frame("about:blank", product)))
+    ctx.handler(frame)
+    assert frame.done == "blockedbyclient"
+    assert blocked[-1]["url"] == pay
+
+    background = Route(Req(pay, product))
+    background.request.is_navigation_request = lambda: False
+    ctx.handler(background)
+    assert background.done == "blockedbyclient"
+
+    direct = Route(Req(pay, Frame("https://shop.example/", None)))
+    ctx.handler(direct)
+    assert direct.done == "continue"
+
+    own_asset = Route(Req(pay + "/app.js", Frame(pay, None)))
+    own_asset.request.is_navigation_request = lambda: False
+    ctx.handler(own_asset)
+    assert own_asset.done == "continue"
+
+    cart_frame = Route(Req(cart, Frame("about:blank", product)))
+    ctx.handler(cart_frame)
+    assert cart_frame.done == "continue"
+
+
 def test_only_http_websites_can_be_tested():
     assert check_target("https://shop.test/login", resolve=False) == "https://shop.test/login"
     for bad in ("ftp://shop.test", "file:///C:/Windows", "javascript:alert(1)", "shop.test"):
@@ -84,6 +146,65 @@ def test_generated_tests_and_started_apps_get_no_api_keys():
            "TEST_USERNAME": "u", "TEST_PASSWORD": "p"}
     assert clean_env(env) == {"PATH": "x"}
     assert clean_env(env, keep_test_account=True) == {"PATH": "x", "TEST_USERNAME": "u", "TEST_PASSWORD": "p"}
+
+
+def test_a_saved_account_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.secret_store import load_account, save_account
+
+    secret = b"tenant-b-only-account"
+    other = tmp_path / "other"
+    nested = other / "accounts"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "shop.test.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_account("shop.test", {"username": "ours", "password": "Qa@123456x9Z"}, linked / "accounts") is None
+    assert load_account("shop.test", linked / "accounts") is None
+    assert save_account("shop.test", {"username": "ours", "password": "Qa@123456x9Z"}, linked / "fresh") is None
+    assert not (other / "fresh").exists()
+    assert (nested / "shop.test.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    saved = save_account("shop.test", {"username": "ours@example.com", "password": "Qa@123456x9Z"}, real)
+    assert saved is not None and saved.is_file() and not saved.is_symlink()
+    loaded = load_account("shop.test", real)
+    assert loaded["username"] == "ours@example.com"
+    assert loaded["password"] == "Qa@123456x9Z"
+    assert secret not in saved.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_saved_account_does_not_follow_a_link(tmp_path):
+    from backend.secret_store import load_account, save_account
+    secret = "tenant-b-only-account-file"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "shop.test.json"
+    victim.write_text(json.dumps({"secret": secret, "username": "b", "password": secret}), encoding="utf-8")
+    linked = tmp_path / "accounts"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_account("shop.test", {"username": "a", "password": "new-secret"}, linked) is None
+    assert load_account("shop.test", linked) is None
+    assert json.loads(victim.read_text(encoding="utf-8"))["secret"] == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "shop.test.json").symlink_to(victim)
+    assert save_account("shop.test", {"username": "a", "password": "new-secret"}, real) is None
+    assert load_account("shop.test", real) is None
+    assert load_account("../other/shop.test", real) is None
+    assert load_account("..", real) is None
+    assert json.loads(victim.read_text(encoding="utf-8"))["secret"] == secret
+
+    saved = save_account("shop.test", {"username": "agentic.qa.1@example.com", "password": "Qa@123456x9Z"},
+                         tmp_path / "fresh")
+    assert saved is not None and saved.is_file() and not saved.is_symlink()
+    loaded = load_account("shop.test", tmp_path / "fresh")
+    assert loaded["username"] == "agentic.qa.1@example.com"
+    assert loaded["password"] == "Qa@123456x9Z"
+    assert secret not in saved.read_text(encoding="utf-8")
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="DPAPI is Windows-only")

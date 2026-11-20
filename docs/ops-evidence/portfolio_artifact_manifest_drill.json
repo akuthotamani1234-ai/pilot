@@ -1,0 +1,76 @@
+{
+  "gate_f_complete": false,
+  "drill": "portfolio_artifact_manifest",
+  "ran_at": "2026-11-19T00:47:19Z",
+  "kind": "manifest_only",
+  "required": [
+    "multi_browser_portfolio_suite_drill.json",
+    "compatibility_portfolio_drill.json",
+    "a11y_portfolio_drill.json",
+    "locale_portfolio_drill.json",
+    "security_portfolio_drill.json",
+    "perf_portfolio_drill.json",
+    "visual_portfolio_drill.json",
+    "multi_browser_ci_contract.json"
+  ],
+  "artifacts": [
+    {
+      "name": "multi_browser_portfolio_suite_drill.json",
+      "bytes": 520,
+      "sha256": "46fa32b8962478324a3e03612f78479d4aa3af61903bfa90c331bf16b72313a3",
+      "ci_upload_path": "docs/ops-evidence/multi_browser_portfolio_suite_drill.json"
+    },
+    {
+      "name": "compatibility_portfolio_drill.json",
+      "bytes": 792,
+      "sha256": "2d764f53b93261c12cd3dfd43c6e55cddd068697a84d2024c18f3dc462d915c4",
+      "ci_upload_path": "docs/ops-evidence/compatibility_portfolio_drill.json"
+    },
+    {
+      "name": "a11y_portfolio_drill.json",
+      "bytes": 464,
+      "sha256": "6076fb98d583c9fea2bd5311dafe3af868c7ac9279f4ae08ce171feb62b72d5f",
+      "ci_upload_path": "docs/ops-evidence/a11y_portfolio_drill.json"
+    },
+    {
+      "name": "locale_portfolio_drill.json",
+      "bytes": 639,
+      "sha256": "90f4a2d58c4cc32575f055b3640f3983740a8f234d645e04d12b17df9f3c1f07",
+      "ci_upload_path": "docs/ops-evidence/locale_portfolio_drill.json"
+    },
+    {
+      "name": "security_portfolio_drill.json",
+      "bytes": 939,
+      "sha256": "fe926c115b1a628bc367e2f50a21898a5bae1500254cdbcb0d411d6050153106",
+      "ci_upload_path": "docs/ops-evidence/security_portfolio_drill.json"
+    },
+    {
+      "name": "perf_portfolio_drill.json",
+      "bytes": 773,
+      "sha256": "1837ab8083532679631a3b692bc87fd153c973cfbea0bdb77d984741445566f7",
+      "ci_upload_path": "docs/ops-evidence/perf_portfolio_drill.json"
+    },
+    {
+      "name": "visual_portfolio_drill.json",
+      "bytes": 476,
+      "sha256": "e4838216f930b1c9bf099848789911ec52969781c1cac6f0b625addd303be418",
+      "ci_upload_path": "docs/ops-evidence/visual_portfolio_drill.json"
+    },
+    {
+      "name": "multi_browser_ci_contract.json",
+      "bytes": 1211,
+      "sha256": "e9fcf8f35f310b95a7c6cdf4a7f0427306cef984ede2b5ee1d8772b1f14407e0",
+      "ci_upload_path": "docs/ops-evidence/multi_browser_ci_contract.json"
+    }
+  ],
+  "missing": [],
+  "browsers": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "workflow": ".github/workflows/multi-browser-portfolios.yml",
+  "workflow_exists": true,
+  "ok": true,
+  "reason": "Portfolio artifact manifest 8/8 hashed for CI upload shape; broad hosted multi-browser runner matrix still open"
+}

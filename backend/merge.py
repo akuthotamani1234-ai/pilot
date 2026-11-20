@@ -9,10 +9,16 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from .agents.change_detection import run_read_block
+
 WORST = ["Ready", "Ready with Risks", "Insufficient Evidence", "Not Ready"]
 
 
 def _read(p: Path, default):
+    p = Path(p)
+    from .finalization import folder_is_linked
+    if p.is_symlink() or folder_is_linked(p.parent):
+        return default
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -30,6 +36,10 @@ def merge_runs(run_dirs: list[Path], runs_dir: Path) -> Path:
     runs, card = [], {"pages": {}, "frames": {}, "features": {}, "tests": {}, "data": {}}
     kinds: dict = {}
     for d in run_dirs:
+        blocked = run_read_block(d, "summary.json", "crawl.json")
+        if blocked:
+            print(f"  [merge] {d.name}: {blocked} left out")
+            continue
         s = _read(d / "summary.json", None)
         if not s:
             print(f"  [merge] {d.name}: no summary.json - left out")
@@ -44,18 +54,26 @@ def merge_runs(run_dirs: list[Path], runs_dir: Path) -> Path:
         runs.append({"run": d.name, "verdict": s.get("verdict"), "section": crawl.get("section") or "/",
                      "pages": s.get("pages"), "limits": c.get("limits_hit") or [], "reason": (s.get("reasons") or [""])[0]})
     verdict = max((r["verdict"] for r in runs if r["verdict"] in WORST), key=WORST.index, default="Insufficient Evidence")
+    from .finalization import folder_is_linked
+    runs_dir = Path(runs_dir)
+    if folder_is_linked(runs_dir):
+        raise ValueError("The runs folder is a link.")
     out = runs_dir / f"merged_{datetime.now():%Y%m%d_%H%M%S}"
+    if out.is_symlink() or (out / "summary.json").is_symlink() or (out / "report.html").is_symlink():
+        raise ValueError("The merged report is a link.")
     out.mkdir(parents=True, exist_ok=True)
     summary = {"merged": [r["run"] for r in runs], "verdict": verdict, "runs": runs,
                "coverage_card": dict(card, items=sorted(kinds.values(), key=lambda k: -k["found"]))}
-    (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(out, "summary.json", json.dumps(summary, indent=2)):
+        raise ValueError("The merged report is a link.")
     e = html.escape
     rows = "".join(f"<tr><td>{e(r['run'])}</td><td>{e(r['section'])}</td><td>{e(str(r['verdict']))}</td>"
                    f"<td>{r['pages']}</td><td>{e(', '.join(r['limits']) or '-')}</td></tr>" for r in runs)
     part = lambda name: " · ".join(f"<b>{v}</b> {e(k.replace('_', ' '))}" for k, v in card[name].items())  # noqa: E731
     items = "".join(f"<li>{e(k['kind'])}: {k['fully_tested']} fully tested, {k['smoke']} smoke-checked, "
                     f"{k['found']} found</li>" for k in summary["coverage_card"]["items"][:30])
-    (out / "report.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8">
+    document = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Qpilot - merged report</title></head>
 <body style="font-family:'Segoe UI',system-ui,sans-serif;max-width:980px;margin:32px auto;padding:0 16px;line-height:1.5">
 <h1>Merged report: {e(verdict)}</h1><p>{len(runs)} run(s), each testing its own part of the website. The worst verdict
@@ -65,6 +83,7 @@ counts; the numbers below are added up.</p>
 <h2>Coverage (all runs)</h2><ul><li>Pages: {part('pages')}</li><li>Frames: {part('frames')}</li>
 <li>Features: {part('features')}</li><li>Tests: {part('tests')}</li><li>Test data: {part('data')}</li></ul>
 {f'<h2>Per page type</h2><ul>{items}</ul>' if items else ''}
-<p style="color:#666">Each run's own report has the details: open runs/&lt;run&gt;/report.html.</p></body></html>""",
-                                      encoding="utf-8")
+<p style="color:#666">Each run's own report has the details: open runs/&lt;run&gt;/report.html.</p></body></html>"""
+    if not write_text_unless_linked(out, "report.html", document):
+        raise ValueError("The merged report is a link.")
     return out

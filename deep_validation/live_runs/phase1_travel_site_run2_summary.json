@@ -1,0 +1,38 @@
+{
+  "run": "travel_run2",
+  "site": "travel",
+  "mode": "first",
+  "ran_at": "2026-11-18T15:15:00Z",
+  "clean_summary": "pages 4/4 \u00b7 features detected 9/9 \u00b7 tested 9/9 \u00b7 verified 9/9 \u00b7 correct 9/9 \u00b7 false alarms 0",
+  "buggy_summary": "pages 4/4 \u00b7 features detected 9/9 \u00b7 tested 9/9 \u00b7 verified 3/9 \u00b7 correct 6/6 \u00b7 false alarms 0 \u00b7 bugs caught 6/6 (false passes: 0) \u00b7 questions 4",
+  "clean": {
+    "run": "127.0.0.1_37823_20261118_150636",
+    "pages_known": 4,
+    "pages_found": 4,
+    "pages_missing": [],
+    "features_correct": 9,
+    "features_known": 9,
+    "incorrect_rows": []
+  },
+  "buggy": {
+    "run": "127.0.0.1_37041_20261118_150743",
+    "bugs": {
+      "planted": 6,
+      "caught": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [],
+    "features_correct_judged": 6,
+    "features_judged": 6
+  },
+  "gate_j_complete": false,
+  "reason": "Travel after sort-select fix; Gate J still not globally complete (third-party/Android open)"
+}

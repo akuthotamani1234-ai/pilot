@@ -1,0 +1,23 @@
+{
+  "gate_c_complete": false,
+  "drill": "classic_shop_cart_lifecycle",
+  "ran_at": "2026-11-18T23:55:56Z",
+  "base_url": "http://127.0.0.1:41755",
+  "steps": [
+    {
+      "step": "open_home",
+      "ok": true
+    },
+    {
+      "step": "add_to_cart",
+      "ok": true
+    },
+    {
+      "step": "remove_from_cart",
+      "ok": true,
+      "remove_key": "1:"
+    }
+  ],
+  "ok": true,
+  "reason": "ClassicShop cart add\u2192remove lifecycle ok; broader live portal paths still open"
+}

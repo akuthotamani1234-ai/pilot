@@ -130,6 +130,14 @@ def _ingest_saved_evidence(state: dict, run_dir: Path) -> dict:
                 out["test_cases"] = loaded
         except (OSError, ValueError, TypeError):
             pass
+    # Discovery may have persisted app_map before a budget/stop cut the agent return.
+    if not out.get("app_map") and (run_dir / "app_map.json").exists():
+        try:
+            loaded = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+            if isinstance(loaded, list) and loaded:
+                out["app_map"] = loaded
+        except (OSError, ValueError, TypeError):
+            pass
     out["failures"] = ensure_findings_from_results(
         run_dir, out.get("results") or [], cases=out.get("test_cases"), app_map=out.get("app_map"),
         unhealable=out.get("unhealable"), healing_log=out.get("healing_log"))
@@ -371,8 +379,13 @@ def main():
                                or args.approve_visual or args.resume):
         ap.error("--discovery-only cannot be combined with baseline, test-editing or resume options; resume uses the saved mode.")
     if args.replay:
+        from backend.agents.change_detection import run_read_block
         from backend.replay_pack import saved_replays
         run_dir = settings.runs_dir / Path(args.replay).name
+        blocked = run_read_block(run_dir, "qx_replay.json")
+        if blocked:
+            print(f"\n{blocked} It was not replayed.")
+            sys.exit(2)
         rows = saved_replays(run_dir)
         if not rows:
             print(f"\n{run_dir.name} has no recorded replay packages.")
@@ -398,7 +411,12 @@ def main():
         return
     if args.recheck:
         from backend import recheck as rc
+        from backend.agents.change_detection import run_read_block
         run_dir = settings.runs_dir / Path(args.recheck[0]).name
+        blocked = run_read_block(run_dir, "failures.json", "generated_tests", "run_args.json", "recheck.json")
+        if blocked:
+            print(f"\n{blocked} It was not re-checked.")
+            sys.exit(2)
         tests = args.recheck[1:] or rc.tests_of(run_dir, [f.get("id") for f in rc._json(run_dir / "failures.json", [])])
         if not tests:
             print(f"\nNothing to re-check in {run_dir}: only bugs and open questions found by a test can be re-checked.")
@@ -422,7 +440,11 @@ def main():
         return
     if args.merge:
         from backend.merge import merge_runs
-        out = merge_runs([settings.runs_dir / Path(r).name for r in args.merge], settings.runs_dir)
+        try:
+            out = merge_runs([settings.runs_dir / Path(r).name for r in args.merge], settings.runs_dir)
+        except ValueError as e:
+            print(f"\nThe reports were not merged: {e}")
+            sys.exit(2)
         print(f"\nMerged {len(args.merge)} run(s): {out / 'report.html'}")
         return
     signal.signal(signal.SIGINT, _on_ctrl_c)
@@ -430,9 +452,17 @@ def main():
         signal.signal(signal.SIGBREAK, _on_ctrl_c)
 
     if args.resume:
+        from backend.agents.change_detection import run_read_block
         run_id = Path(args.resume).name
         run_dir = settings.runs_dir / run_id
+        blocked = run_read_block(run_dir, "run_args.json")
+        if blocked:
+            print(f"\n{blocked} It was not resumed.")
+            sys.exit(2)
         try:
+            if (run_dir / "run_args.json").is_symlink():
+                print("\nThis run's folder is a link. It was not resumed.")
+                sys.exit(2)
             saved = json.loads((run_dir / "run_args.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             print(f"\nThere is no run to resume at {run_dir} (run_args.json is missing).")
@@ -476,7 +506,7 @@ def main():
         from backend import my_tests
         if args.fresh:  # (your own tests are yours, not the last run's: they stay)
             keep = my_tests.load(site_key)
-            shutil.rmtree(settings.baseline_dir / site_key, ignore_errors=True)
+            shutil.rmtree(my_tests.baseline_folder(site_key), ignore_errors=True)
             if keep:
                 my_tests.save(site_key, [t["text"] for t in keep])
         if not settings.discovery_only and os.environ.get("QA_MY_TESTS_SET") == "1":  # (the chat's box: what is in it is the list)

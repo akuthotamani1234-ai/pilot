@@ -59,6 +59,79 @@ def _explorer():
     return Explorer(EXTRACT_JS, lambda page, ms=0: None, time.time() + 120, tag_base="123456")
 
 
+class _Click:
+    def __init__(self, info):
+        self.info = info
+        self.first = self
+        self.clicked = False
+
+    def is_visible(self):
+        return True
+
+    def evaluate(self, _js, timeout=None):
+        return self.info
+
+    def click(self, timeout=0):
+        self.clicked = True
+
+
+class _Page:
+    def __init__(self, info):
+        self.url = "http://shop.test/cart"
+        self.loc = _Click(info)
+        self.context = type("Ctx", (), {"pages": []})()
+
+    def locator(self, _selector):
+        return self.loc
+
+
+def test_continue_is_not_clicked_when_it_opens_checkout():
+    ex = _explorer()
+    page = "http://shop.test/cart"
+    risk, why = ex._eligible({
+        "text": "Continue", "name": "Continue", "selector": "a.cont",
+        "href": "/checkout.html",
+    }, page)
+    assert risk == "protected" and why.startswith("protected: payment")
+    cart_risk, cart_why = ex._eligible({
+        "text": "View cart", "name": "View cart", "selector": "a.cart",
+        "href": "index.php?rt=checkout/cart",
+    }, page)
+    assert cart_why == "" and cart_risk == "safe"
+    page_risk, page_why = ex._eligible({
+        "text": "Next", "name": "Next", "selector": "button.next",
+    }, "http://shop.test/checkout")
+    assert page_risk == "protected" and page_why.startswith("protected: payment")
+    fake = _Page({"href": "/checkout.html", "action": "", "onclick": ""})
+    ex._untouched = page
+    result = ex._try(fake, page, {"lazy": False}, {
+        "name": "Continue", "text": "Continue", "selector": "a.cont", "action": "click",
+    }, None, "safe")
+    assert result["blocked"].startswith("protected: payment")
+    assert fake.loc.clicked is False
+
+
+def test_a_checkout_form_is_not_filled():
+    ex = _explorer()
+    entry = {"forms": [{
+        "selector": "form.pay",
+        "action": "/checkout",
+        "fields": [{"selector": "#card", "label": "Card", "type": "text", "name": "card"}],
+        "submit": {"text": "Continue", "selector": "#go"},
+    }]}
+
+    class _Boom:
+        def goto(self, *_args, **_kwargs):
+            raise AssertionError("a payment form was opened")
+
+    assert ex.fill_forms(_Boom(), "http://shop.test/cart", entry) == []
+    skipped = entry["form_fills"][0]
+    assert skipped["sent"] is False
+    assert skipped["filled"] == []
+    assert "never filled" in skipped["not_sent"]
+    assert entry["form_fills"][0]["form"] == "form.pay"
+
+
 def test_the_menu_sections_are_visited_before_deeper_pages():
     q = _Frontier(("https://hr.test/", 0, True, True))
     q.popleft()

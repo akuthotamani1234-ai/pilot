@@ -20,6 +20,55 @@ def loc(value, strategy="css"):
     return {"strategy": strategy, "value": value}
 
 
+def test_an_approved_browser_flow_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.qa_web import BrowserContractAdapter
+
+    secret = "tenant-b-only-browser"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+
+    class Page:
+        def __init__(self):
+            self.reads = 0
+
+        @property
+        def url(self):
+            self.reads += 1
+            return "https://shop.example"
+
+    page = Page()
+    contract = parse_contract()
+    linked = BrowserContractAdapter(page, "https://shop.example", contract, run / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        linked.guard()
+    assert secret not in str(stopped.value)
+    assert page.reads == 0
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped_page = Page()
+    with pytest.raises(InterruptedError, match="stopped by the user"):
+        BrowserContractAdapter(stopped_page, "https://shop.example", contract, real / "STOP").guard()
+    assert stopped_page.reads == 0
+
+    open_page = Page()
+    BrowserContractAdapter(open_page, "https://shop.example", contract, real / "missing").guard()
+    assert open_page.reads == 1
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 @pytest.mark.parametrize("headless", [True, False])
 def test_pipeline_contracts_honor_browser_visibility_and_watch_speed(tmp_path, monkeypatch, headless):
     from playwright.sync_api import BrowserType
@@ -206,6 +255,59 @@ def test_sqlite_oracle_is_read_only_and_denies_attachment_and_file_functions(tmp
         assert connection.execute("SELECT value FROM evidence").fetchone() == (3,)
 
 
+def test_a_database_check_does_not_follow_a_link(tmp_path):
+    secret = b"tenant-b-only-oracle"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "data.sqlite"
+    victim.write_bytes(secret)
+    check = BackendCheck(
+        id="db", title="Read-only evidence", kind="sqlite", database_ref="BLOWAI_DB_TEST",
+        query="SELECT value FROM evidence", expected=3,
+    )
+    linked = tmp_path / "linked.sqlite"
+    linked.symlink_to(victim)
+    with pytest.raises(ValueError, match="link"):
+        check_sqlite(check, {"BLOWAI_DB_TEST": str(linked)})
+    folder = tmp_path / "folder"
+    folder.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        check_sqlite(check, {"BLOWAI_DB_TEST": str(folder / "data.sqlite")})
+    assert victim.read_bytes() == secret
+
+    path = tmp_path / "mine.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.execute("CREATE TABLE evidence(value INTEGER)")
+        connection.execute("INSERT INTO evidence VALUES (3)")
+    assert check_sqlite(check, {"BLOWAI_DB_TEST": str(path)})["read_only"] is True
+    assert secret not in path.read_bytes()
+
+
+def test_a_contract_does_not_follow_a_redirect_into_checkout(tmp_path):
+    with ContractFixture(tmp_path / "pay.sqlite") as fixture:
+        contract = {
+            "version": 1,
+            "test_environment": True,
+            "allowed_origins": [fixture.url],
+            "flows": [{
+                "id": "redirected_pay",
+                "title": "A redirect into checkout is not opened",
+                "approved": True,
+                "steps": [
+                    {"action": "open", "value": fixture.url + "/to-checkout"},
+                    {"action": "tap", "locator": loc("#go")},
+                    {"action": "assert_text", "locator": loc("#heading"), "value": "Paid"},
+                ],
+            }],
+        }
+        result = run_contracts(tmp_path, fixture.url, contract)
+    row = result["results"][0]
+    assert row["outcome"] == "error"
+    assert "never tested" in row["error"]
+    assert "/to-checkout" in fixture.requests
+    assert "/checkout" not in fixture.requests
+
+
 def test_http_oracle_never_follows_redirects_and_rejects_unapproved_origins(tmp_path):
     with ContractFixture(tmp_path / "api.sqlite") as fixture:
         check = BackendCheck(id="api", title="Read API", kind="http", url=fixture.url + "/redirect", expected=0)
@@ -257,6 +359,38 @@ def test_benchmark_does_not_count_infrastructure_as_detected_defect_and_measures
     assert len(result["unstable_cases"]) == 1
     with pytest.raises(ValueError):
         qa_benchmark.run_path(tmp_path, "../outside")
+
+
+def test_a_benchmark_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-case"
+    other = tmp_path / "other"
+    run = other / "runs" / "runb"
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(json.dumps([{
+        "id": secret, "outcome": "failed", "exception_type": "AssertionError", "checks": 1,
+    }]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="inside runs"):
+        qa_benchmark.measure(linked / "runs", {
+            "groups": [{"name": "check", "runs": ["runb"], "expected": {"home-own": "failed"}}],
+        })
+    assert secret in (run / "results.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / "runa"
+    own.mkdir(parents=True)
+    (own / "results.json").write_text(json.dumps([{
+        "id": "home-own", "outcome": "failed", "exception_type": "AssertionError", "checks": 1,
+    }]), encoding="utf-8")
+    counted = qa_benchmark.measure(real, {
+        "groups": [{"name": "check", "runs": ["runa"], "expected": {"home-own": "failed"}}],
+    })
+    assert counted["rows"][0]["case_id"] == "home-own"
+    assert counted["counts"]["tp"] == 1
+    assert secret not in json.dumps(counted)
+    assert secret in (run / "results.json").read_text(encoding="utf-8")
 
 
 def test_contract_schema_lab_and_invalid_contract_api_are_available():
@@ -322,6 +456,95 @@ def test_opening_a_login_screen_is_navigation_and_does_not_submit_credentials():
     runtime.execute("open_login")
     assert events == ["opened", "native"]
     assert runtime.checks == 1
+
+
+def test_a_contract_run_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = b"tenant-b-only-contract"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "qa_contracts.json").write_bytes(secret)
+    (nested / "contract_results.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("launched")
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", explode)
+    contract = {
+        "version": 1,
+        "test_environment": True,
+        "allowed_origins": ["https://shop.test"],
+        "flows": [{
+            "id": "home",
+            "title": "Home is shown",
+            "approved": True,
+            "steps": [{"action": "assert_text", "locator": loc("h1"), "value": "Home"}],
+        }],
+    }
+    refused = run_contracts(linked / "run", "https://shop.test/", contract)
+    missing = run_contracts(linked / "fresh", "https://shop.test/", contract)
+    assert refused == {"test_cases": [], "results": []}
+    assert missing == {"test_cases": [], "results": []}
+    assert not (other / "fresh").exists()
+    assert (nested / "qa_contracts.json").read_bytes() == secret
+    assert (nested / "contract_results.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    try:
+        run_contracts(real, "https://shop.test/", contract)
+    except AssertionError as exc:
+        assert str(exc) == "launched"
+    else:
+        raise AssertionError("the real contract did not reach the browser")
+    written = real / "qa_contracts.json"
+    assert written.is_file() and not written.is_symlink()
+    assert b"home" in written.read_bytes() and secret not in written.read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_contract_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = "tenant-b-only-contract"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "qa_contract.json").write_text(secret, encoding="utf-8")
+    (other / "qa_contracts.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "contract_results.json").write_text(json.dumps([{"secret": secret}]), encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    private = run / ".private"
+    private.mkdir()
+    (private / "qa_contract.json").symlink_to(other / "qa_contract.json")
+    (run / "qa_contracts.json").symlink_to(other / "qa_contracts.json")
+    (run / "contract_results.json").symlink_to(other / "contract_results.json")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("launched")
+
+    monkeypatch.setattr("playwright.sync_api.sync_playwright", explode)
+    monkeypatch.setenv("QA_CONTRACT_JSON", secret)
+    result = qa_web.execute_pipeline_contracts({"run_dir": str(run), "url": "https://shop.example/"})
+    assert result == {"test_cases": [], "results": []}
+    direct = run_contracts(run, "https://shop.example/", secret)
+    assert direct == {"test_cases": [], "results": []}
+    assert (other / "qa_contract.json").read_text(encoding="utf-8") == secret
+    assert json.loads((other / "qa_contracts.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "contract_results.json").read_text(encoding="utf-8"))[0]["secret"] == secret
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / ".private").mkdir()
+    (own / ".private" / "qa_contract.json").write_text("not-json", encoding="utf-8")
+    saved = qa_web.execute_pipeline_contracts({"run_dir": str(own), "url": "https://shop.example/"})
+    assert saved["results"] and saved["results"][0]["error_type"] == "ContractConfigurationError"
+    written = json.loads((own / "contract_results.json").read_text(encoding="utf-8"))
+    assert written[0]["error_type"] == "ContractConfigurationError"
+    assert not (own / "contract_results.json").is_symlink()
 
 
 def test_mobile_contract_runtime_errors_are_infrastructure_not_application_defects():

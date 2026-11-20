@@ -1,0 +1,80 @@
+{
+  "gate_d_complete": false,
+  "drill": "combined_device_matrix_snapshot",
+  "ran_at": "2026-11-18T19:54:12Z",
+  "web_rows": 2,
+  "android_live_rows": 7,
+  "android_appium_rows": 4,
+  "android_dry_run_rows": 1,
+  "adb_probe": {
+    "ok": true,
+    "adb_present": true,
+    "devices_online": 1,
+    "api_levels": [
+      {
+        "device_id": "emulator-5556",
+        "api_level": 30
+      }
+    ],
+    "reason": "ADB present with online device(s); live Appium product matrix still required"
+  },
+  "matrix": {
+    "complete": true,
+    "verified": [
+      "web.desktop",
+      "web.phone",
+      "android.emulator",
+      "android.api24+"
+    ],
+    "unverified": [],
+    "profiles": [
+      {
+        "id": "web.desktop",
+        "surface": "web",
+        "viewport": "1366x900",
+        "required": true,
+        "status": "verified",
+        "evidence_count": 1,
+        "outcomes": [
+          "passed"
+        ]
+      },
+      {
+        "id": "web.phone",
+        "surface": "web",
+        "viewport": "390x844",
+        "required": true,
+        "status": "verified",
+        "evidence_count": 1,
+        "outcomes": [
+          "passed"
+        ]
+      },
+      {
+        "id": "android.emulator",
+        "surface": "android",
+        "form": "emulator",
+        "required": true,
+        "status": "verified",
+        "evidence_count": 7,
+        "outcomes": [
+          "passed"
+        ]
+      },
+      {
+        "id": "android.api24+",
+        "surface": "android",
+        "api_min": 24,
+        "required": true,
+        "status": "verified",
+        "evidence_count": 7,
+        "outcomes": [
+          "passed"
+        ]
+      }
+    ],
+    "live_emulator_required": false
+  },
+  "ok": true,
+  "reason": "Combined web + Android Appium/smoke + protocol dry-run + ADB probe snapshot; broad multi-device CI product-matrix artifacts still open"
+}

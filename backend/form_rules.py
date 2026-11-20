@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel
 
 from .actions import writes_allowed
+from .swarm import stored_control_opens_payment
 
 RULES = ("date_range", "past_date", "same_value", "min_max", "confirm", "count_total", "dependency")
 START = r"\b(from|start|begin|depart(ure)?|check-?in|pick-?up|outbound|arrival|since)\b"
@@ -62,12 +63,19 @@ def _groups(p: dict) -> list[dict]:
     """The boxes that belong together: each form, else every box of the page (a search panel without a <form>)."""
     by_sel = {i.get("selector"): i for i in p.get("inputs", []) if i.get("selector")}
     out = []
+    page_url = p.get("final_url") or p.get("url") or ""
+    held = set()
     for f in p.get("forms", []):
+        if stored_control_opens_payment(page_url, f) or stored_control_opens_payment(
+                page_url, f.get("submit") or {}):
+            held.update(x.get("selector") for x in f.get("fields") or [] if x.get("selector"))
+            continue
         boxes = [dict(by_sel.get(x["selector"], {}), **x) for x in f.get("fields", []) if x.get("selector")]
         if len(boxes) >= 2:
             out.append({"form": f, "boxes": boxes})
     if not out:
-        boxes = [i for i in p.get("inputs", []) if i.get("selector") and not i.get("readonly")]
+        boxes = [i for i in p.get("inputs", []) if i.get("selector") and not i.get("readonly")
+                 and i.get("selector") not in held]
         if len(boxes) >= 2:
             out.append({"form": None, "boxes": boxes})
     return out

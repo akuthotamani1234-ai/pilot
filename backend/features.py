@@ -8,6 +8,7 @@ import re
 from urllib.parse import parse_qsl, urlparse
 
 from .actions import action_risk
+from .swarm import stored_control_opens_payment
 
 FILTER_PARAM = re.compile(r"^(category|cat|brand|colou?r|size|type|filter|tag|price|rating|dept|department|"
                           r"collection|gender|material)$", re.I)
@@ -169,7 +170,9 @@ def page_features(p: dict) -> list[dict]:
                     "names": [x["text"] for x in flinks] or [_box_name(b) for b in boxes[:6]]})
     for i in p.get("inputs", []):
         hint = f"{i.get('name')} {i.get('id')} {i.get('label')}"
-        if i.get("tag") == "select" and len(i.get("options") or []) >= 2 and SORT_HINT.search(hint):
+        # Discovery drops empty-value placeholders (e.g. "Recommended"), so a Sort-by with only
+        # "Price: low to high" still has len(options)==1 — require >=1 for SORT_HINT selects.
+        if i.get("tag") == "select" and len(i.get("options") or []) >= 1 and SORT_HINT.search(hint):
             out.append({"kind": "sort", "selector": i["selector"], "name": _box_name(i),
                         "options": [o["value"] for o in i["options"][:6]],
                         "labels": [o.get("text") or o["value"] for o in i["options"][:6]]})  # (the label says the order)
@@ -190,10 +193,35 @@ def page_features(p: dict) -> list[dict]:
     if orders:
         out.append({"kind": "order_link", "href": orders[0]["href"], "name": (orders[0].get("text") or "")[:40]})
     protected = {}
+    page_url = p.get("final_url") or p.get("url") or ""
     for b in p.get("buttons", []):
         t = (b.get("text") or "").split("\n")[0].strip()
-        if t and action_risk(t, b.get("selector"), b) == "protected" and not b.get("disabled"):
+        if not t or b.get("disabled"):
+            continue
+        if action_risk(t, b.get("selector"), b) == "protected" or stored_control_opens_payment(page_url, b):
             protected.setdefault(t.lower(), {"text": t[:40], "selector": b.get("selector")})
+    # Pay/checkout destinations often render as <a class="btn"> and land in links, not buttons
+    # (classic shop cart Checkout). Still record them as protected so Gate J blocked expects hold.
+    for link in p.get("links", []):
+        if link.get("external"):
+            continue
+        t = (link.get("text") or "").split("\n")[0].strip()
+        if not t:
+            continue
+        ctx = {
+            "tag": "a",
+            "role": "link",
+            "href": link.get("href") or "",
+            "kind": "link",
+        }
+        if action_risk(t, link.get("selector"), ctx, href=ctx["href"], tag="a", role="link") != "protected" \
+                and not stored_control_opens_payment(page_url, link):
+            continue
+        protected.setdefault(t.lower(), {
+            "text": t[:40],
+            "selector": link.get("selector") or "",
+            "href": ctx["href"],
+        })
     if protected:
         out.append({"kind": "protected", "actions": list(protected.values())[:8]})
     return out

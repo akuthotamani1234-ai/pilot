@@ -340,6 +340,19 @@ class ContractRuntime:
                     self.timeline.close()
 
 
+def _user_stopped(stop_path) -> bool:
+    """True when the user wrote a real stop file. A link is refused."""
+    if not stop_path:
+        return False
+    from .android import AndroidEnvironmentError
+    from .android_runtime import stop_file_note
+
+    note = stop_file_note(stop_path)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
+    return bool(note)
+
+
 class AndroidContractAdapter:
     def __init__(self, driver, config, contract, stop_path=None):
         if getattr(contract, 'android_package', None) and contract.android_package != config.get('package_name'):
@@ -358,7 +371,7 @@ class AndroidContractAdapter:
     def guard(self):
         from .android import AndroidEnvironmentError
 
-        if self.stop_path and self.stop_path.exists():
+        if _user_stopped(self.stop_path):
             raise InterruptedError("The approved Android flow was stopped by the user")
 
         if self.config.get("app_mode") == "web":
@@ -394,7 +407,7 @@ class AndroidContractAdapter:
         return False
 
     def relaunch(self):
-        if self.stop_path and self.stop_path.exists():
+        if _user_stopped(self.stop_path):
             raise InterruptedError('The Android relaunch was stopped by the user')
         if self.active != 'native' or self.config.get('app_mode') == 'web':
             raise ValueError('App relaunch requires native Android testing')
@@ -659,7 +672,7 @@ class AndroidContractAdapter:
 
     def device_action(self, action, value=None):
         """Phone-level actions a manual tester uses: the system Back button, rotation, leaving and resuming the app."""
-        if self.stop_path and self.stop_path.exists():
+        if _user_stopped(self.stop_path):
             raise InterruptedError("The approved Android flow was stopped by the user")
         if action == "back":
             self.driver.back()
@@ -764,4 +777,7 @@ def private_inputs(run_dir):
     if encoded:
         return json.loads(encoded)
     path = Path(run_dir) / ".private" / "contract_inputs.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"secrets": {}, "databases": {}}
+    from .finalization import folder_is_linked
+    if folder_is_linked(path.parent) or path.is_symlink() or not path.is_file():
+        return {"secrets": {}, "databases": {}}
+    return json.loads(path.read_text(encoding="utf-8"))

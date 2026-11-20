@@ -240,6 +240,14 @@ def capture_after_action(page, entry, target):
             inventory["errors"].append(redact(type(error).__name__ + ": " + str(error).splitlines()[0])[:200])
 
 
+def _folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def save_inventory(run_dir, app_map, registry=None):
     pages = []
     controls = [f for f in (registry or {}).get("features", {}).values() if f.get("level") == "control"]
@@ -269,7 +277,9 @@ def save_inventory(run_dir, app_map, registry=None):
     result = {"pages": pages, "counts_by_kind": dict(counts), "total_components": sum(counts.values()),
               "scope": "Observed DOM components within recorded pages, states and limits; not proof of whole-application completeness."}
     directory = Path(run_dir)
-    (directory / "components.json").write_text(redact(json.dumps(result, indent=2)), encoding="utf-8")
+    linked = _folder_is_linked(directory)
+    if not linked and not (directory / "components.json").is_symlink():
+        (directory / "components.json").write_text(redact(json.dumps(result, indent=2)), encoding="utf-8")
     esc = lambda value: html.escape(str(value or ""), quote=True)  # noqa: E731
     sections = []
     for page in pages:
@@ -286,7 +296,8 @@ def save_inventory(run_dir, app_map, registry=None):
     document = """<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Qpilot | Page components</title><style>
 body{margin:0;background:#eff3fa;color:#17243d;font:15px/1.6 system-ui}main{max-width:1250px;margin:auto;padding:28px}header{background:#152442;color:white;padding:26px;border-radius:16px}section{background:white;padding:22px;margin:20px 0;border-radius:14px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse}td,th{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #ddd}code{overflow-wrap:anywhere;font-size:12px}a{color:#5145cf}</style><main><header><h1>Page components</h1><p>Identified and observed components, with functional test evidence kept separate.</p></header><p><a href="report.html">Main report</a> | <a href="components.json">Download JSON inventory</a></p>SECTIONS<footer>SCOPE</footer></main></html>"""
     document = document.replace("SECTIONS", "".join(sections)).replace("SCOPE", esc(result["scope"]))
-    (directory / "components.html").write_text(redact(document), encoding="utf-8")
+    if not linked and not (directory / "components.html").is_symlink():
+        (directory / "components.html").write_text(redact(document), encoding="utf-8")
     return result
 
 

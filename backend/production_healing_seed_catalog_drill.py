@@ -1,0 +1,86 @@
+"""Gate E: production healing seed catalog (fixtures, not third-party live).
+
+Catalogs seeded failure classes and local evidence needed before a third-party
+healing suite can run. Does **not** execute production suite —
+``gate_e_complete`` stays False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "production_healing_seed_catalog_drill.json"
+
+SEEDS = (
+    ("locator", "live_failure_matrix_drill.json", "Missing/stale locator"),
+    ("product_defect", "demo_store_healing_live_drill.json", "Seeded product defect"),
+    ("auth_problem", "production_healing_flaky_policy_drill.json", "Auth redirect / 401"),
+    ("infrastructure", "production_healing_flaky_policy_drill.json", "Connection refused"),
+    ("timeout", "production_healing_taxonomy_drill.json", "Hard timeout"),
+    ("flaky", "production_healing_flaky_policy_drill.json", "Flaky retry class"),
+    ("multi_app", "multi_app_healing_suite_drill.json", "4-demo fixture suite"),
+    ("replay", "production_healing_replay_pack_drill.json", "Before/after replay"),
+    ("sla", "production_healing_third_party_sla_drill.json", "Third-party SLA"),
+    ("suite_pack", "production_healing_suite_pack_drill.json", "Local suite pack"),
+)
+
+
+def _linked_seeds() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_seed_catalog",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_production_healing_seed_catalog_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    name = "production_healing_seed_catalog_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_seeds()
+
+    ops = ROOT / "docs" / "ops-evidence"
+    rows = []
+    for seed_id, artifact, label in SEEDS:
+        path = ops / artifact
+        ready = (not folder_is_linked(path)) and path.is_file()
+        rows.append({
+            "id": seed_id,
+            "artifact": artifact,
+            "label": label,
+            "ready": ready,
+            "production_seeded": False,
+        })
+    score = sum(1 for row in rows if row["ready"])
+    evidence = {
+        "gate_e_complete": False,
+        "drill": "production_healing_seed_catalog",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "seed_catalog_local_only",
+        "seeds": rows,
+        "score": score,
+        "score_of": len(SEEDS),
+        "production_suite_executed": False,
+        "ok": score == len(SEEDS),
+        "reason": (
+            f"Production healing seed catalog {score}/{len(SEEDS)}; "
+            "production / third-party healing suite still open"
+        ),
+    }
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / name):
+        return _linked_seeds()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, name, text):
+        return _linked_seeds()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, name, text)
+    return evidence

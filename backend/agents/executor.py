@@ -40,21 +40,28 @@ def _worker_files(results_file: Path) -> list[Path]:
 
 def _result_count(results_file: Path) -> int:
     """How many pytest results have landed so far, without parsing the whole file."""
+    from ..finalization import folder_is_linked
     total = 0
     for f in [results_file] + _worker_files(results_file):
-        if f.exists():
-            try:
-                total += sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip())
-            except OSError:
-                pass
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.exists():
+            continue
+        try:
+            total += sum(1 for line in f.read_text(encoding="utf-8").splitlines() if line.strip())
+        except OSError:
+            pass
     return total
 
 
 def _running_status(results_file: Path) -> str:
-    try:
-        data = json.loads((results_file.parent / f"running.{results_file.stem}.main.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        data = {}
+    path = results_file.parent / f"running.{results_file.stem}.main.json"
+    from ..finalization import folder_is_linked
+    data = {}
+    if not path.is_symlink() and not folder_is_linked(path.parent):
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            data = loaded if isinstance(loaded, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            data = {}
     if not data:
         return "between tests"
     since = max(0, int(time.time() - float(data.get("since") or time.time())))
@@ -184,6 +191,15 @@ def _login_recipe(state: QAState) -> dict:
             "password": form["password"], "submit": form.get("submit") or ""}
 
 
+def _owned_path(path: Path) -> str:
+    """This path when it is a real file or folder. A link is left out."""
+    from ..finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path):
+        return ""
+    return str(path.resolve())
+
+
 def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, state: QAState) -> dict:
     env = clean_env(os.environ.copy(), keep_test_account=True)  # no API keys / tokens for generated code
     for k in ("PYTEST_XDIST_WORKER", "PYTEST_XDIST_WORKER_COUNT", "PYTEST_XDIST_TESTRUNUID", "PYTEST_CURRENT_TEST"):
@@ -192,10 +208,10 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
     hosts = crawl.get("approved_hosts") or [urlparse(state.get("url", "")).hostname or ""]
     hosts = [h for h in dict.fromkeys(list(hosts) + settings.allowed_hosts) if h]
     env.update({
-        "QA_RESULTS_FILE": str(results_file.resolve()),
-        "QA_SCREENSHOT_DIR": str(shot_dir.resolve()),
-        "QA_TRACE_DIR": str((run_dir / "traces").resolve()),
-        "QA_RUN_DIR": str(run_dir.resolve()),
+        "QA_RESULTS_FILE": _owned_path(results_file),
+        "QA_SCREENSHOT_DIR": _owned_path(shot_dir),
+        "QA_TRACE_DIR": _owned_path(run_dir / "traces"),
+        "QA_RUN_DIR": _owned_path(run_dir),
         "QA_BASE_URL": state.get("url", "") if str(state.get("url", "")).startswith("http") else "",
         "QA_ALLOWED_HOSTS": ",".join(hosts),
         "QA_AD_RX": AD_HOSTS.pattern,  # (ads / trackers: stopped silently in the tests too - pages load faster)
@@ -218,18 +234,42 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
         "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
     })
     if settings.record_video:
-        env["QA_VIDEO_DIR"] = str((run_dir / "videos").resolve())
+        env["QA_VIDEO_DIR"] = _owned_path(run_dir / "videos")
     env["QA_ITEM_LISTS"] = json.dumps(_item_lists(state.get("app_map") or []))
+    from ..finalization import folder_is_linked
     auth = run_dir / ".private" / "auth.json"  # the crawler logged in with the test account -> tests start logged in
-    env["QA_AUTH_STATE"] = str(auth.resolve()) if auth.exists() else ""
-    env["QA_LOGIN_FORM"] = json.dumps(_login_recipe(state) if auth.exists() else {})
+    auth_ready = not folder_is_linked(auth) and auth.is_file()
+    env["QA_AUTH_STATE"] = str(auth.resolve()) if auth_ready else ""
+    env["QA_LOGIN_FORM"] = json.dumps(_login_recipe(state) if auth_ready else {})
     from .. import jscov  # (how much of the website's JavaScript the tests run: staging / a site on this PC)
     env["QA_JS_COVERAGE"] = "1" if jscov.enabled(env.get("QA_TARGET_LOCAL") == "1") else "0"
     # several user roles: each role's own saved login (its tests start in it - its password is never passed on)
     roles = ((state.get("roles") or {}).get("roles") or {})
-    env["QA_ROLE_STATES"] = json.dumps({r: str((run_dir / ".private" / v["state"]).resolve()) for r, v in roles.items()
-                                        if v.get("state") and (run_dir / ".private" / v["state"]).exists()})
+
+    def role_state(name: str) -> str:
+        path = run_dir / ".private" / name
+        if folder_is_linked(path) or not path.is_file():
+            return ""
+        return str(path.resolve())
+
+    env["QA_ROLE_STATES"] = json.dumps({r: role_state(v["state"]) for r, v in roles.items()
+                                        if isinstance(v, dict) and role_state(str(v.get("state") or ""))})
     return env
+
+
+def _suite_tree_is_linked(test_dir: Path) -> bool:
+    """True when a generated test, or a folder on the way to it, is a link."""
+    test_dir = Path(test_dir)
+    if not test_dir.exists():
+        return False
+    if test_dir.is_symlink():
+        return True
+    for dirpath, dirnames, filenames in os.walk(test_dir, followlinks=False):
+        here = Path(dirpath)
+        for name in dirnames + filenames:
+            if (here / name).is_symlink():
+                return True
+    return False
 
 
 def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Path,
@@ -239,6 +279,29 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     recording traces for every test makes a long run much slower). headless=True: hidden browsers, also while
     you watch the other tests in Chrome."""
     sandbox = "own process, clean environment, network + file guard, per-test time limit"
+    junit = results_file.with_name(results_file.stem + "_junit.xml")
+    log_path = results_file.with_name(results_file.stem + "_pytest_output.txt")
+    run_dir = test_dir.parent
+    private = run_dir / ".private"
+    roles = ((state.get("roles") or {}).get("roles") or {})
+    role_files = []
+    unsafe_role = False
+    for item in roles.values():
+        if not isinstance(item, dict) or not item.get("state"):
+            continue
+        name = str(item.get("state"))
+        if name in {".", ".."} or "/" in name or "\\" in name:
+            unsafe_role = True
+        else:
+            role_files.append(private / name)
+    from ..finalization import folder_is_linked
+    linked = (test_dir, test_dir / "pytest.ini", results_file.parent, results_file, junit, log_path,
+              shot_dir, run_dir, run_dir / "traces", run_dir / "videos", private, private / "auth.json",
+              *role_files)
+    if (unsafe_role or folder_is_linked(run_dir) or folder_is_linked(results_file.parent)
+            or _suite_tree_is_linked(test_dir) or any(path.is_symlink() for path in linked)):
+        print("  [execution] the test results are a link, so the suite was not started", flush=True)
+        return {"timed_out": False, "stopped": True, "returncode": -1, "sandbox": sandbox}
     # Cap the suite by suite_timeout AND by remaining run wall-clock minus analysis/report reserve.
     # Measure phase durations before raising ANALYSIS_RESERVE_S / REPORT_RESERVE_S / SUITE_TIMEOUT_S.
     suite_s = settings.suite_timeout_s
@@ -252,9 +315,10 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         return {"timed_out": True, "stopped": False, "returncode": -1, "sandbox": sandbox,
                 "reserve_skip": True}
     for f in [results_file] + _worker_files(results_file):
+        if f.is_symlink():
+            continue
         if f.exists():
             f.unlink()
-    run_dir = test_dir.parent
     # The browser reads qx_dependency.json when pytest starts. Writing it here, not after the
     # suite, is what lets an injected fault fail that service in the test browser.
     from ..run_rules import apply_execution
@@ -263,9 +327,8 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
     env["QA_TRACES"] = "true" if traces else "false"
     if headless:
         env["HEADLESS"], env["SLOW_MO_MS"] = "true", "0"
-    junit = results_file.with_name(results_file.stem + "_junit.xml")  # machine-readable results (CI tools)
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", "--continue-on-collection-errors",
-           "--rootdir", str(test_dir.resolve()), f"--junitxml={junit.resolve()}"]
+           "--rootdir", str(test_dir.resolve()), f"--junitxml={junit.absolute()}"]
     if (test_dir / "pytest.ini").exists():
         cmd += ["-c", str((test_dir / "pytest.ini").resolve())]
     if state.get("resuming") and select is None:
@@ -336,15 +399,26 @@ def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Pa
         if job:
             job.close()  # every browser the tests started ends with it
     log = results_file.with_name(results_file.stem + "_pytest_output.txt")  # pytest's own output, kept as evidence
-    log.write_text(redact(out or ""), encoding="utf-8")
+    if not log.is_symlink() and not folder_is_linked(log.parent):
+        log.write_text(redact(out or ""), encoding="utf-8")
     return {"timed_out": timed_out, "stopped": stopped, "returncode": proc.returncode, "sandbox": sandbox}
 
 
+def _write_run_json(run_dir: Path, name: str, payload) -> None:
+    from ..finalization import folder_is_linked
+    from .change_detection import run_path_is_linked
+    if folder_is_linked(run_dir) or run_path_is_linked(run_dir, name):
+        return
+    (run_dir / name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _read(results_file: Path) -> list[dict]:
+    from ..finalization import folder_is_linked
     out = []
     for f in [results_file] + _worker_files(results_file):
-        if f.exists():
-            for line in f.read_text(encoding="utf-8").splitlines():
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.exists():
+            continue
+        for line in f.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 try:
@@ -355,13 +429,22 @@ def _read(results_file: Path) -> list[dict]:
 
 
 def _relative(results: list[dict], run_dir: Path) -> None:
+    from ..finalization import folder_is_linked
+    run_dir = Path(run_dir)
     for r in results:  # screenshot / trace paths relative to the run folder, for the HTML report
         for key in ("screenshot", "trace"):
-            if r.get(key):
-                try:
-                    r[key] = str(Path(r[key]).resolve().relative_to(run_dir.resolve())).replace("\\", "/")
-                except ValueError:
-                    pass
+            raw = r.get(key)
+            if not raw:
+                continue
+            path = Path(raw)
+            target = path if path.is_absolute() else run_dir / path
+            if folder_is_linked(run_dir) or folder_is_linked(target):
+                r[key] = ""
+                continue
+            try:
+                r[key] = str(path.resolve().relative_to(run_dir.resolve())).replace("\\", "/")
+            except ValueError:
+                pass
 
 
 REAL_CHECK = ("product_defect", "assertion_failure", "auth_problem", "test_data")  # the script reached a real check
@@ -391,9 +474,12 @@ def _repair_verdict(result: dict | None, broke: list[str]) -> tuple[str, str]:
 def _related(results: list[dict], file: str, test_dir: Path) -> list[str]:
     """The tests that use a repaired file: every test of a repaired test file, and the tests (test_checks.py, an
     older run's test_flows.py) that call a repaired steps module."""
+    from ..finalization import folder_is_linked
     callers = set()
-    if file.startswith("steps_"):
+    if file.startswith("steps_") and not folder_is_linked(test_dir):
         for f in test_dir.glob("test_*.py"):
+            if folder_is_linked(f):
+                continue
             current = None
             for line in f.read_text(encoding="utf-8").splitlines():
                 m = re.match(r"def (test_\w+)\(", line)
@@ -407,12 +493,19 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
     """Take back the repairs of one file that are not kept: a swapped selector is swapped back; when the whole file
     must go back (an AI rewrite, or another test broke) it is restored from the copy made before the round."""
     path = test_dir / file
+    from ..finalization import folder_is_linked
+    if (folder_is_linked(test_dir) or folder_is_linked(run_dir) or folder_is_linked(path)
+            or test_dir.is_symlink() or path.is_symlink() or Path(file).is_absolute()
+            or ".." in Path(file).parts):
+        return
     kept = [h for h in entries if h["status"] in ("healed", "repaired")]
     undo = [h for h in entries if h["status"] == "reverted"]
     whole = any(h["method"] == "llm" or not h.get("to") or "broke" in (h.get("why") or "") for h in undo) or not kept
     if whole:
         backup = run_dir / (undo[0].get("backup") or "")
-        if undo[0].get("backup") and backup.exists():
+        backup_name = Path(undo[0].get("backup") or "")
+        if (undo[0].get("backup") and not backup_name.is_absolute() and ".." not in backup_name.parts
+                and not backup.is_symlink() and not folder_is_linked(backup.parent) and backup.is_file()):
             shutil.copy(backup, path)
         for h in kept:  # (their test ran with the file that is now taken back)
             h["status"], h["why"] = "reverted", "undone together with the other repairs of this file"
@@ -450,8 +543,13 @@ def _merge_retry(results: list[dict], rerun: dict) -> None:
 def _clean_up_again(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path) -> None:
     """Staging: a retry or a healing re-run of a form test sends the form again AFTER test_cleanup.py ran - what it
     created is removed by running the cleanup once more, at the very end (nothing tagged with the run may stay)."""
+    from ..finalization import folder_is_linked
     f = run_dir / "created.jsonl"
-    if not (test_dir / "test_cleanup.py").exists() or not f.exists() or runctl.stopping():
+    if (folder_is_linked(run_dir) or folder_is_linked(test_dir) or folder_is_linked(shot_dir)
+            or f.is_symlink() or folder_is_linked(f.parent)):
+        return
+    cleanup = test_dir / "test_cleanup.py"
+    if cleanup.is_symlink() or not cleanup.is_file() or not f.is_file() or runctl.stopping():
         return
     latest = {}
     for line in f.read_text(encoding="utf-8").splitlines():
@@ -522,10 +620,10 @@ def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path)
     results += list(fresh.values())
     _clean_up_again(state, run_dir, test_dir, shot_dir)
 
-    (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    _write_run_json(run_dir, "results.json", results)
     from ..run_rules import apply_execution
     apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment}, finish=True)
-    (run_dir / "healing_log.json").write_text(json.dumps(log, indent=2), encoding="utf-8")  # (with the verdicts)
+    _write_run_json(run_dir, "healing_log.json", log)  # (with the verdicts)
     count = {s: sum(1 for h in entries if h["status"] == s) for s in ("healed", "repaired", "reverted", "still failing")}
     return {"results": results, "rerun_only": [], "healing_log": log,
             "unhealable": sorted(set(state.get("unhealable", [])) | undone),
@@ -547,6 +645,9 @@ def _completed_outcomes(results: list[dict]) -> dict[str, dict]:
 
 def _collect_nodeids(test_dir: Path) -> list[str]:
     """Collect pytest nodeids offline (no browser) so a resumed run can skip completed work."""
+    from ..finalization import folder_is_linked
+    if folder_is_linked(test_dir):
+        return []
     try:
         out = subprocess.run(
             [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
@@ -580,9 +681,8 @@ def execution_agent(state: QAState) -> QAState:
                     result.get("outcome"), "Inconclusive")
                 case["actual_result"] = result.get("error") or result.get("outcome", "unknown")
         run_dir = Path(state["run_dir"])
-        (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-        (run_dir / "execution.json").write_text(json.dumps({"tests": len(results), "timed_out": False,
-                                                               "stopped": False}, indent=2), encoding="utf-8")
+        _write_run_json(run_dir, "results.json", results)
+        _write_run_json(run_dir, "execution.json", {"tests": len(results), "timed_out": False, "stopped": False})
         passed = sum(r.get("outcome") == "passed" for r in results)
         failed = sum(r.get("outcome") in ("failed", "error") for r in results)
         from ..run_rules import apply_execution
@@ -592,11 +692,19 @@ def execution_agent(state: QAState) -> QAState:
         return {"results": results, "test_cases": cases, "log": state.get("log", []) + [note]}
     run_dir = Path(state["run_dir"])
     test_dir = run_dir / "generated_tests"
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir) or folder_is_linked(run_dir / "failure_screenshots"):
+        note = "The failure screenshots folder is a link, so the suite was not started."
+        return {"results": list(state.get("results") or []), "test_cases": list(state.get("test_cases") or []),
+                "log": list(state.get("log") or []) + [note]}
     from ..release_row import isolated_work, record_step
     assigned = isolated_work([
         {"id": case.get("tc_id") or case.get("id") or "",
          "source": case.get("expected_source") or case.get("oracle") or "",
-         "assertion": case.get("expected") or case.get("title") or ""}
+         "assertion": case.get("expected") or case.get("title") or "",
+         "url": case.get("url") or case.get("page_url") or "",
+         "pages": case.get("pages") or [],
+         "spec": case.get("spec") if isinstance(case.get("spec"), dict) else {}}
         for case in state.get("test_cases") or []
     ], settings.test_workers)
     accepted = sum(row["accepted"] for row in assigned)
@@ -622,9 +730,8 @@ def execution_agent(state: QAState) -> QAState:
             results = list(prior.values())
             info = {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "resume-kept",
                     "resume_kept": len(prior)}
-            (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-            (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2),
-                                                    encoding="utf-8")
+            _write_run_json(run_dir, "results.json", results)
+            _write_run_json(run_dir, "execution.json", dict(info, tests=len(results)))
             from ..run_rules import apply_execution
             apply_execution({**state, "run_dir": str(run_dir), "environment": settings.environment}, finish=True)
             note = (f"Execution resume: kept {len(prior)} completed result(s); no pending tests — "
@@ -683,8 +790,8 @@ def execution_agent(state: QAState) -> QAState:
     if down:
         since = re.search(r"since (\d\d:\d\d)", down[0]["error"])
         info["website_down"] = {"tests": len(down), "since": since.group(1) if since else ""}
-    (run_dir / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    (run_dir / "execution.json").write_text(json.dumps(dict(info, tests=len(results)), indent=2), encoding="utf-8")
+    _write_run_json(run_dir, "results.json", results)
+    _write_run_json(run_dir, "execution.json", dict(info, tests=len(results)))
     passed = sum(r["outcome"] == "passed" for r in results)
     failed = sum(r["outcome"] in ("failed", "error") for r in results)
     skipped = sum(r["outcome"] == "skipped" for r in results)

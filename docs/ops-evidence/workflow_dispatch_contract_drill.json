@@ -1,0 +1,38 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "workflow_dispatch_contract",
+  "ran_at": "2026-11-19T05:22:05Z",
+  "kind": "contract_only",
+  "android_appium": {
+    "path": ".github/workflows/android-appium.yml",
+    "ok": true,
+    "checks": {
+      "file_exists": true,
+      "workflow_dispatch": true,
+      "job_hint": true,
+      "upload_artifact": true,
+      "artifacts": {
+        "android_appium_ci_contract.json": true,
+        "android_appium_product_matrix_drill.json": true,
+        "device_artifact_manifest_drill.json": true
+      }
+    }
+  },
+  "multi_browser": {
+    "path": ".github/workflows/multi-browser-portfolios.yml",
+    "ok": true,
+    "checks": {
+      "file_exists": true,
+      "workflow_dispatch": true,
+      "job_hint": true,
+      "upload_artifact": true,
+      "artifacts": {
+        "multi_browser_portfolio_suite_drill.json": true,
+        "portfolio_artifact_manifest_drill.json": true
+      }
+    }
+  },
+  "ok": true,
+  "reason": "workflow_dispatch contracts validated for Appium + multi-browser; broad hosted runner execution still open"
+}

@@ -1,0 +1,17 @@
+{
+  "gate_c_complete": false,
+  "drill": "demo_store_cart_lifecycle_cleanup",
+  "ran_at": "2026-11-18T19:27:06Z",
+  "fixture": "DemoStore",
+  "cart_added": 1,
+  "confirmed": 1,
+  "failed": 0,
+  "complete": true,
+  "cart_empty": true,
+  "sample_proofs": [
+    "demo_store:cart_removed:0:200:{\"message\": \"Removed from your cart\", \"cart\": 0}"
+  ],
+  "ok": true,
+  "state_run_id": "run_1795030026",
+  "reason": "DemoStore cart add\u2192remove cleanup confirmed on localhost fixture; broader live portal paths still open"
+}

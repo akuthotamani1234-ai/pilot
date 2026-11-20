@@ -19,10 +19,20 @@ from backend.android_evidence import app_problem, device_time, read_log, save_lo
 from backend.android_runtime import MobileRuntime, device_unavailable, read_only_case, same_screen
 from backend.safety import redact
 
-RUN = Path(os.environ["ANDROID_MOBILE_CONFIG"]).resolve().parent.parent
-CONFIG = json.loads(Path(os.environ["ANDROID_MOBILE_CONFIG"]).read_text(encoding="utf-8"))
-CASES = json.loads(Path(os.environ["ANDROID_MOBILE_CASES"]).read_text(encoding="utf-8"))
-SCREENS = json.loads((RUN / "screens.json").read_text(encoding="utf-8"))
+
+def _load_mobile_json(path: Path):
+    """JSON from this run. A link, or a folder on the way to it, is not this run's file."""
+    path = Path(path)
+    if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+_CONFIG_PATH = Path(os.environ["ANDROID_MOBILE_CONFIG"])
+CONFIG = _load_mobile_json(_CONFIG_PATH)
+RUN = _CONFIG_PATH.resolve().parent.parent
+CASES = _load_mobile_json(os.environ["ANDROID_MOBILE_CASES"])
+SCREENS = _load_mobile_json(RUN / "screens.json")
 UNAVAILABLE = RUN / "android_execution_unavailable.json"
 
 
@@ -40,8 +50,47 @@ def _app_package():
     return (CONFIG.get("package_name") or "").strip() or SCREENS[0]["package_name"]
 
 
+def _is_linked(path):
+    """True when this file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+def _session_unavailable() -> bool:
+    """True when this run recorded that the device session can no longer be used."""
+    return UNAVAILABLE.is_file() and not _is_linked(UNAVAILABLE)
+
+
+def _user_stopped() -> bool:
+    """True when this run was stopped. A stop file reached through a link is refused."""
+    stop = RUN / "STOP"
+    if _is_linked(stop):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    return stop.is_file()
+
+
+def _unavailable_note() -> str:
+    """The saved reason this run stopped, or '' when that file is missing or a link."""
+    if not _session_unavailable():
+        return ""
+    try:
+        loaded = json.loads(UNAVAILABLE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(loaded, dict):
+        return ""
+    return str(loaded.get("error") or "")
+
+
 def _append(name, record):
-    with (RUN / name).open("a", encoding="utf-8") as output:
+    if not name or name in {".", ".."} or "/" in str(name) or "\\" in str(name):
+        return
+    path = RUN / name
+    if path.is_symlink() or any(parent.is_symlink() for parent in path.parents):
+        return
+    with path.open("a", encoding="utf-8") as output:
         output.write(redact(json.dumps(record, ensure_ascii=False)) + "\n")
 
 
@@ -72,7 +121,7 @@ def pytest_runtest_makereport(item, call):
     if call.excinfo:
         item.mobile_exception_type = call.excinfo.type.__name__
         item.mobile_exception_message = redact(str(call.excinfo.value))[:1000]
-        if device_unavailable(call.excinfo.value) and not UNAVAILABLE.exists():
+        if device_unavailable(call.excinfo.value) and not UNAVAILABLE.exists() and not _is_linked(UNAVAILABLE):
             UNAVAILABLE.write_text(json.dumps({"case": item.name, "error": item.mobile_exception_message}), encoding="utf-8")
     if report.when == "call":
         item.mobile_report = report
@@ -80,25 +129,29 @@ def pytest_runtest_makereport(item, call):
         record = _result(item, report)
         record["outcome"] = "error"
         _append("android_results.jsonl", record)
-    elif report.when == "setup" and report.skipped and UNAVAILABLE.exists():
-        record = _result(item, report)
-        record.update(outcome="blocked", error="Not executed after Android/device session became unavailable: "
-                      + json.loads(UNAVAILABLE.read_text(encoding="utf-8"))["error"])
-        _append("android_results.jsonl", record)
+    elif report.when == "setup" and report.skipped:
+        note = _unavailable_note()
+        if note:
+            record = _result(item, report)
+            record.update(outcome="blocked", error="Not executed after Android/device session became unavailable: "
+                          + note)
+            _append("android_results.jsonl", record)
 
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item):
-    if UNAVAILABLE.exists():
+    if _session_unavailable():
         pytest.skip("Android device/session is unavailable; remaining tests were not attempted.")
 
 
 @pytest.fixture(scope="session")
 def appium_driver():
-    if (RUN / "STOP").exists():
+    if _user_stopped():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = create_session(CONFIG)
     session_file = RUN / ".private" / "active_appium_session.json"
+    if _is_linked(session_file):
+        raise AndroidEnvironmentError("The Android run is a link.")
     try:
         session_file.write_text(json.dumps({"session_id": driver.session_id}), encoding="utf-8")
         if CONFIG.get("app_mode") == "installed" and not interaction_blocker(CONFIG):
@@ -127,7 +180,7 @@ def appium_driver():
 def mobile(request, appium_driver):
     case = next(c for c in CASES if "test_" + c["id"] == request.node.name)
     _append("android_attempts.jsonl", {"id": case["id"], "state": "started"})
-    if (RUN / "STOP").exists():
+    if _user_stopped():
         raise AndroidEnvironmentError("The mobile run was stopped by the user.")
     driver = appium_driver
     activity = CONFIG.get("app_activity")

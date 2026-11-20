@@ -1,0 +1,21 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_visual_portfolio",
+  "ran_at": "2026-11-19T06:14:27Z",
+  "fixture": "DemoStore",
+  "pages_walked": [
+    "/",
+    "/about",
+    "/lab"
+  ],
+  "pages_recorded": 3,
+  "portfolio": {
+    "portfolio": "visual",
+    "verdict": "pass",
+    "ok": true,
+    "reason": "",
+    "findings": []
+  },
+  "ok": true,
+  "reason": "DemoStore first-run visual evidence captured (pixel diff not run); broad live multi-browser CI still open"
+}

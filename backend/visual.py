@@ -113,10 +113,17 @@ def capture_file(run_dir: Path, slug: str) -> Path:
 
 def save_capture(run_dir: Path, slug: str, url: str, desktop: dict | None, phone: dict | None) -> str:
     """The crawler's layout of one page (its screenshots are named in it) -> runs/<run>/visual/<slug>.json."""
-    f = capture_file(run_dir, slug)
-    f.parent.mkdir(exist_ok=True)
-    f.write_text(json.dumps({"url": url, "desktop": desktop, "phone": phone}), encoding="utf-8")
-    return f.relative_to(run_dir).as_posix()
+    from .finalization import folder_is_linked, write_text_unless_linked
+    folder = Path(run_dir)
+    visual_dir = folder / "visual"
+    if folder_is_linked(folder) or visual_dir.is_symlink():
+        return ""
+    visual_dir.mkdir(exist_ok=True)
+    name = f"{slug}.json"
+    text = json.dumps({"url": url, "desktop": desktop, "phone": phone})
+    if not write_text_unless_linked(visual_dir, name, text):
+        return ""
+    return f"visual/{name}"
 
 
 def _label(key: str) -> str:
@@ -178,13 +185,17 @@ def compare_layout(old: dict, new: dict, move_px: int) -> list[dict]:
 
 def compare_pictures(page, old_png: Path, new_png: Path, diff_png: Path) -> dict:
     """The share of the picture that changed (%), and the diff picture written to diff_png when anything changed."""
+    from .finalization import folder_is_linked
+    old_png, new_png, diff_png = Path(old_png), Path(new_png), Path(diff_png)
+    if folder_is_linked(old_png) or folder_is_linked(new_png) or folder_is_linked(diff_png):
+        raise OSError("The picture is a link.")
     def url(p: Path) -> str:
         return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
     r = page.evaluate(DIFF_JS, [url(old_png), url(new_png), PIXEL_TOLERANCE, MAX_HEIGHT])
     diff = r.pop("diff")
     if diff:
-        diff_png.parent.mkdir(parents=True, exist_ok=True)
-        diff_png.write_bytes(base64.b64decode(diff.split(",", 1)[1]))
+        from .finalization import write_bytes_unless_linked
+        write_bytes_unless_linked(diff_png, base64.b64decode(diff.split(",", 1)[1]))
     r["percent"] = round(r["percent"], 2)
     return r
 
@@ -199,15 +210,23 @@ def _vkey(p: dict) -> str:
 
 
 def load_index(site_key: str) -> dict:
+    from .my_tests import baseline_is_linked
+    path = baseline_path(site_key) / "visual" / INDEX
+    if baseline_is_linked(path):
+        return {"pages": {}}
     try:
-        return json.loads((baseline_path(site_key) / "visual" / INDEX).read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"pages": {}}
 
 
 def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title: str, run_id: str) -> None:
     """This run's look of one page becomes its approved look (pictures copied into the baseline)."""
+    from .agents.change_detection import relative_path_is_linked
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
+    if baseline_is_linked(vdir):
+        return
     vdir.mkdir(parents=True, exist_ok=True)
     widths = {}
     for w in WIDTHS:
@@ -215,7 +234,12 @@ def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title
         if not c or not c.get("shot") or not (run_dir / c["shot"]).exists():
             continue
         name = f"{_bkey(key)}_{w}.png"
-        shutil.copyfile(run_dir / c["shot"], vdir / name)
+        shot = run_dir / c["shot"]
+        dest = vdir / name
+        rel = Path(c["shot"])
+        if relative_path_is_linked(run_dir, rel) or dest.is_symlink() or baseline_is_linked(dest):
+            continue
+        shutil.copyfile(shot, dest)
         widths[w] = dict(c, shot=name)
     if widths:
         index["pages"][key] = {"url": cap.get("url"), "title": title, "widths": widths, "run_id": run_id,
@@ -223,9 +247,13 @@ def _store(site_key: str, index: dict, key: str, cap: dict, run_dir: Path, title
 
 
 def _save_index(site_key: str, index: dict) -> None:
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site_key) / "visual"
+    index_path = vdir / INDEX
+    if baseline_is_linked(vdir) or baseline_is_linked(index_path):
+        return
     vdir.mkdir(parents=True, exist_ok=True)
-    (vdir / INDEX).write_text(json.dumps(index, indent=1), encoding="utf-8")
+    index_path.write_text(json.dumps(index, indent=1), encoding="utf-8")
 
 
 def visual_check_agent(state: QAState) -> QAState:
@@ -235,6 +263,10 @@ def visual_check_agent(state: QAState) -> QAState:
     if not enabled():
         return {"log": log + ["Visual check: off (VISUAL_CHECK=false)."]}
     run_dir, site = Path(state["run_dir"]), state["site_key"]
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        note = "Visual check: this run's folder is a link, so the look was not saved."
+        return {"visual": {}, "log": log + [note]}
     pages = [p for p in state.get("app_map", []) if p.get("visual") and not p.get("error")]
     left_out = max(0, len(pages) - settings.visual_max_pages)
     pages = pages[:settings.visual_max_pages]
@@ -258,7 +290,9 @@ def visual_check_agent(state: QAState) -> QAState:
                 r["status"], r["auto"] = "approved", True
     counts = {s: sum(1 for r in report["pages"] if r["status"] == s) for s in ("same", "changed", "new", "approved")}
     report["counts"] = dict(counts, compared=counts["same"] + counts["changed"] + counts["approved"])
-    (run_dir / "visual.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not run_dir.is_symlink():
+        write_text_unless_linked(run_dir, "visual.json", json.dumps(report, indent=1))
     if first:
         msg = (f"Visual check: no approved look yet - the look of {counts['new']} page(s) becomes it when this run "
                "finishes (compared from the next run).")
@@ -269,18 +303,35 @@ def visual_check_agent(state: QAState) -> QAState:
     return {"visual": report["counts"], "log": log + [msg]}
 
 
-def _capture(run_dir: Path, r: dict) -> dict:
-    return json.loads((run_dir / r["capture"]).read_text(encoding="utf-8"))
+def _read_capture(run_dir: Path, rel: str) -> dict | None:
+    """One saved look in this run. A link, or a path that leaves the run, is not read."""
+    from .agents.change_detection import relative_path_is_linked
+    if relative_path_is_linked(run_dir, str(rel or "")):
+        return None
+    try:
+        payload = json.loads((Path(run_dir) / str(rel)).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _capture(run_dir: Path, r: dict) -> dict | None:
+    return _read_capture(run_dir, str(r.get("capture") or ""))
 
 
 def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
-    key, cap = _vkey(p), json.loads((run_dir / p["visual"]).read_text(encoding="utf-8"))
-    r = {"url": p["url"], "key": key, "title": p.get("title") or "", "slug": p["slug"], "capture": p["visual"],
+    key = _vkey(p)
+    cap = _read_capture(run_dir, str(p.get("visual") or ""))
+    r = {"url": p["url"], "key": key, "title": p.get("title") or "", "slug": p["slug"], "capture": p.get("visual"),
          "widths": {}}
+    if cap is None:
+        r["status"] = "unreadable"
+        return r
     old = index["pages"].get(key)
     if not old:  # nothing to compare with: this look becomes its baseline when the run finishes
         r["status"] = "new"
         return r
+    from .my_tests import baseline_is_linked
     vdir = baseline_path(site) / "visual"
     for w in WIDTHS:
         now, then = cap.get(w), old["widths"].get(w)
@@ -288,15 +339,22 @@ def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
             continue
         changes = compare_layout(then, now, settings.visual_move_px)
         res = {"changes": changes, "shot": now.get("shot")}
-        if now.get("shot") and (run_dir / now["shot"]).exists() and (vdir / then["shot"]).exists():
+        approved_file = vdir / then["shot"]
+        from .agents.change_detection import relative_path_is_linked
+        shot_rel = Path(str(now.get("shot") or ""))
+        shot_ok = bool(now.get("shot")) and not relative_path_is_linked(run_dir, shot_rel) and (run_dir / shot_rel).is_file()
+        if shot_ok and approved_file.is_file() and not baseline_is_linked(approved_file):
+            from .finalization import copy_unless_linked
             approved = run_dir / "visual" / f"{p['slug']}_{w}_approved.png"  # (the report shows it next to the new one)
-            shutil.copyfile(vdir / then["shot"], approved)
+            if not copy_unless_linked(approved_file, approved):
+                r["widths"][w] = res
+                continue
             res["approved_shot"] = approved.relative_to(run_dir).as_posix()
             diff = run_dir / "visual" / f"{p['slug']}_{w}_diff.png"
             try:
                 pic = compare_pictures(tab, vdir / then["shot"], run_dir / now["shot"], diff)
                 res["percent"] = pic["percent"]
-                if diff.exists():
+                if diff.is_file() and not diff.is_symlink():
                     res["diff_shot"] = diff.relative_to(run_dir).as_posix()
                 if pic["percent"] > settings.visual_pixel_percent:
                     changes.append({"kind": "picture", "detail": f"{pic['percent']:.1f}% of the picture changed "
@@ -311,14 +369,23 @@ def _check_page(tab, p: dict, run_dir: Path, site: str, index: dict) -> dict:
 def keep_new_looks(run_dir: Path, site_key: str) -> int:
     """The run finished (save_baseline): the look of its NEW pages joins the approved look - and with
     VISUAL_AUTO_APPROVE the new look of its changed pages. Returns how many pages were kept."""
+    from .agents.change_detection import run_read_block
+    run_dir = Path(run_dir)
+    if run_read_block(run_dir, "visual.json"):
+        return 0
     try:
-        report = json.loads((Path(run_dir) / "visual.json").read_text(encoding="utf-8"))
+        if (run_dir / "visual.json").is_symlink():
+            return 0
+        report = json.loads((run_dir / "visual.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
     index, n = load_index(site_key), 0
     for r in report["pages"]:
         if r["status"] == "new" or (r["status"] == "approved" and r.get("auto")):
-            _store(site_key, index, r["key"], _capture(Path(run_dir), r), Path(run_dir), r["title"], Path(run_dir).name)
+            cap = _capture(Path(run_dir), r)
+            if not cap:
+                continue
+            _store(site_key, index, r["key"], cap, Path(run_dir), r["title"], Path(run_dir).name)
             n += 1
     if n:
         _save_index(site_key, index)
@@ -328,17 +395,25 @@ def keep_new_looks(run_dir: Path, site_key: str) -> int:
 def approve(run_dir: Path, keys: list[str] | None = None) -> int:
     """A person approved the new look of these pages of this run (None = every changed page): it becomes the baseline
     the next runs compare with. Returns how many pages were approved."""
+    from .agents.change_detection import run_read_block
     run_dir = Path(run_dir)
+    blocked = run_read_block(run_dir, "visual.json", "run_args.json")
+    if blocked:
+        raise ValueError(blocked + " The look was not approved.")
     report = json.loads((run_dir / "visual.json").read_text(encoding="utf-8"))
     site = json.loads((run_dir / "run_args.json").read_text(encoding="utf-8"))["site_key"]
     index, n = load_index(site), 0
     for r in report["pages"]:
         if r["status"] == "changed" and (keys is None or r["key"] in keys):
-            _store(site, index, r["key"], _capture(run_dir, r), run_dir, r["title"], run_dir.name)
+            cap = _capture(run_dir, r)
+            if not cap:
+                continue
+            _store(site, index, r["key"], cap, run_dir, r["title"], run_dir.name)
             r["status"], n = "approved", n + 1
     if n:
         _save_index(site, index)
         report["counts"]["changed"] -= n
         report["counts"]["approved"] = report["counts"].get("approved", 0) + n
-        (run_dir / "visual.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+        from .finalization import write_text_unless_linked
+        write_text_unless_linked(run_dir, "visual.json", json.dumps(report, indent=1))
     return n

@@ -182,6 +182,39 @@ FAILURES = [
 ]
 
 
+def test_a_slack_report_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.integrations import slack_message
+
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    secret = "tenant-b-only-slack"
+    other = tmp_path / "other"
+    mine = other / "mine"
+    mine.mkdir(parents=True)
+    (mine / "report.html").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    run = parent / "mine"
+    text = slack_message({"run_dir": str(run), "url": "https://shop.example", "verdict": "home-own"}, [])
+    assert "home-own" in text
+    assert secret not in text
+    assert str(other.resolve()) not in text
+    assert (mine / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "report.html").write_text("<p>home-own</p>\n", encoding="utf-8")
+    real_text = slack_message({"run_dir": str(real), "url": "https://shop.example", "verdict": "Ready"}, [])
+    assert str((real / "report.html").resolve()) in real_text
+    assert secret not in real_text
+    assert (mine / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_slack_and_jira_get_only_application_defects_once(tmp_path, monkeypatch):
     from backend.integrations import integrations_agent
     from backend.privacy import PrivacyPolicy
@@ -243,7 +276,7 @@ def test_nothing_is_sent_without_settings_or_significant_defects(tmp_path, monke
 def hook(monkeypatch):
     from backend import server
     started = []
-    monkeypatch.setattr(server, "start_run", lambda req: started.append(req) or {"id": len(started)})
+    monkeypatch.setattr(server, "_launch_run", lambda req, _caller=None: started.append(req) or {"id": len(started)})
     monkeypatch.setattr(settings, "webhook_token", "hook-token-123")
     monkeypatch.setattr(settings, "webhook_test_url", "")
     return TestClient(server.app, base_url="http://127.0.0.1:8000"), started
@@ -272,3 +305,45 @@ def test_a_deploy_script_starts_a_run_with_the_webhook_token(hook, monkeypatch):
     monkeypatch.setattr(settings, "webhook_token", "")
     assert client.post("/api/hooks/run", json={"url": "https://shop.test"},
                        headers={"X-QA-Token": "hook-token-123"}).status_code == 404  # off without a token
+
+
+def test_a_picture_comparison_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.visual import compare_pictures
+
+    secret = b"tenant-b-only-picture"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "old.png").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked.png"
+    linked.symlink_to(other / "old.png")
+    new_png = tmp_path / "new.png"
+    new_png.write_bytes(b"home-own-new")
+    diff = tmp_path / "diff.png"
+
+    class Page:
+        def evaluate(self, script, args):
+            raise AssertionError("a linked picture was read")
+
+    with pytest.raises(OSError, match="link"):
+        compare_pictures(Page(), linked, new_png, diff)
+    assert (other / "old.png").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not diff.exists()
+    assert not (other / "fresh").exists()
+
+    old_png = tmp_path / "old.png"
+    old_png.write_bytes(b"home-own-old")
+
+    class RealPage:
+        def evaluate(self, script, args):
+            assert base64.b64encode(b"home-own-old").decode() in args[0]
+            assert base64.b64encode(b"home-own-new").decode() in args[1]
+            assert secret.decode() not in "".join(item for item in args if isinstance(item, str))
+            return {"percent": 1.5, "diff": ""}
+
+    found = compare_pictures(RealPage(), old_png, new_png, diff)
+    assert found["percent"] == 1.5
+    assert secret.decode() not in json.dumps(found)
+    assert old_png.read_bytes() == b"home-own-old"
+    assert (other / "old.png").read_bytes() == secret

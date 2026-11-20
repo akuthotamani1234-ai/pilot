@@ -573,6 +573,17 @@ def budget_reason(reason: str) -> str:
 
 # ------------------------------------------------------------------ the session
 
+def _stop_requested(stop_path) -> bool:
+    """True when the user wrote a real stop file. A link is refused."""
+    from .android import AndroidEnvironmentError
+    from .android_runtime import stop_file_note
+
+    note = stop_file_note(stop_path)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
+    return bool(note)
+
+
 class Budget(Exception):
     """The interaction budget (tries or time) is used up, or the person pressed Stop."""
 
@@ -625,7 +636,7 @@ class Session:
 
     # -------- budget and execution
     def spend(self):
-        if self.device.stop_path.exists():
+        if _stop_requested(self.device.stop_path):
             raise Budget("Stop requested")
         if not full_run(self.device.config) and self.used >= self.device.max_tries - self.reserve:
             raise Budget("User-like test limit reached")
@@ -1766,7 +1777,7 @@ class Session:
         return self.journeys(ask, requirements, stopped)
 
     def journeys(self, ask, requirements: str, stopped: str) -> str:
-        if ask and not self.device.stop_path.exists() and not stopped.startswith("User-like testing time"):
+        if ask and not _stop_requested(self.device.stop_path) and not stopped.startswith("User-like testing time"):
             self.reserve = 0
             try:
                 self.ai_journeys(ask, requirements)

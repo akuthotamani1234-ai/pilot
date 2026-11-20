@@ -33,6 +33,36 @@ def device_unavailable(error):
     return False
 
 
+def stop_file_note(stop) -> str:
+    """Why this stop file should halt the run, or empty when it should continue.
+
+    A stop file reached through a link is not a user stop. A test double that
+    only answers ``exists()`` keeps that answer.
+    """
+    from .finalization import folder_is_linked
+    try:
+        stop = Path(stop)
+    except TypeError:
+        exists = getattr(stop, "exists", None)
+        if not callable(exists):
+            return ""
+        try:
+            stopped = bool(exists())
+        except OSError:
+            return ""
+        return "The mobile run was stopped by the user." if stopped else ""
+    if folder_is_linked(stop):
+        return "The Android run is a link."
+    if stop.is_file():
+        return "The mobile run was stopped by the user."
+    return ""
+
+
+def stop_note(run_dir) -> str:
+    """Why this run should stop, or empty when it should continue."""
+    return stop_file_note(Path(run_dir) / "STOP")
+
+
 def screen_key(screen):
     identity = screen.get("identity")
     return (screen["package_name"], screen.get("activity"), tuple(identity)) if identity else screen["fingerprint"]
@@ -134,6 +164,22 @@ def same_element(original: dict, candidate: dict) -> bool:
     ) or bool(original.get("text") and original["text"] == candidate.get("text") and not original.get("input_capable"))
 
 
+def load_auto_contract(run_dir) -> dict | None:
+    """This run's kept flows. A linked file or folder is not this run's contract."""
+    import json
+
+    from .finalization import folder_is_linked
+
+    path = Path(run_dir) / ".private" / "auto_contract.json"
+    if path.is_symlink() or folder_is_linked(path.parent) or not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
 class MobileRuntime:
     def __init__(self, driver, config: dict, screens: list[dict], case: dict, run_dir: Path):
         self.driver, self.screens, self.case, self.run_dir = driver, screens, case, run_dir
@@ -155,8 +201,9 @@ class MobileRuntime:
         self.recovery = ActionRecovery(retries=int(self.config.get("dynamic_retries", 1) or 0))
 
     def _inspect(self):
-        if (self.run_dir / "STOP").exists():
-            raise AndroidEnvironmentError("The mobile run was stopped by the user.")
+        note = stop_note(self.run_dir)
+        if note:
+            raise AndroidEnvironmentError(note)
         if time.monotonic() - self.started > 120:
             raise AndroidEnvironmentError("The Android case exceeded its 120 second action budget.")
         screen = inspect_driver(self.driver, self.config)
@@ -238,8 +285,9 @@ class MobileRuntime:
                     # The keyboard, or (test mode) a permission prompt an earlier test left in front, is cleared
                     if not bring_app_back(self.driver, self.config):
                         break
-                    if (self.run_dir / "STOP").exists():
-                        raise AndroidEnvironmentError("The mobile run was stopped by the user.")
+                    note = stop_note(self.run_dir)
+                    if note:
+                        raise AndroidEnvironmentError(note)
                     if time.monotonic() >= deadline:
                         raise AndroidEnvironmentError("The selected Android app did not enter the foreground after launch.")
                     time.sleep(.25)
@@ -377,16 +425,13 @@ class MobileRuntime:
 
     def assert_flow(self, flow_id):
         """A replay-verified test-build flow (android_interact.py), run by the same trusted contract runtime."""
-        import json
-
         from .android import PACKAGE_NAME
         from .qa_contracts import parse_contract
         from .qa_runtime import AndroidContractAdapter, ContractRuntime, private_inputs
 
-        path = self.run_dir / ".private" / "auto_contract.json"
-        if not path.is_file():
+        raw = load_auto_contract(self.run_dir)
+        if raw is None:
             raise ValueError("The test-build flows of this run are missing")
-        raw = json.loads(path.read_text(encoding="utf-8"))
         # Older runs may have android_package corrupted by username substring redaction.
         package = self.config.get("package_name")
         current = raw.get("android_package") if isinstance(raw, dict) else None

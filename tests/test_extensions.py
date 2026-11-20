@@ -81,6 +81,145 @@ def test_the_review_asks_waits_and_remembers(tmp_path, monkeypatch):
     assert [c["tc_id"] for c in again["test_cases"]] == ["TC-1"] and again["test_cases"][0]["oracle"] == "requirement"
 
 
+def test_a_designed_case_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import time
+
+    from backend import review
+    from backend.agents.test_design import test_design_agent
+
+    secret = "tenant-b-only-case"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_cases.json").write_text(json.dumps([{"title": secret}]), encoding="utf-8")
+    (other / "review_request.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "review_answers.json").write_text(json.dumps(
+        {"answers": {"TC-1": {"answer": "should be", "text": secret}}}), encoding="utf-8")
+    (other / "qa_contract.json").write_text(secret, encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "test_cases.json").symlink_to(other / "test_cases.json")
+    (run / "review_request.json").symlink_to(other / "review_request.json")
+    (run / "review_answers.json").symlink_to(other / "review_answers.json")
+    private = run / ".private"
+    private.mkdir()
+    (private / "qa_contract.json").symlink_to(other / "qa_contract.json")
+
+    monkeypatch.setattr(settings, "reuse_tests", False)
+    monkeypatch.setattr(settings, "incremental", False)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.setattr(settings, "review", "on")
+    monkeypatch.setattr(settings, "review_timeout_s", 30)
+    monkeypatch.setattr("backend.agents.test_design.llm_enabled", lambda: False)
+    state = {
+        "url": "https://shop.example/", "run_dir": str(run), "site_key": "shop", "log": [],
+        "app_map": [{
+            "url": "https://shop.example/index.php?rt=checkout/cart", "slug": "cart", "title": "Cart",
+            "status": 200, "auth": False, "page_type": "cart", "links": [], "inputs": [], "forms": [],
+            "buttons": [{"text": "Update", "selector": "#up"}],
+        }],
+    }
+    designed = test_design_agent(state)
+    assert designed["test_cases"]
+    assert secret not in json.dumps(designed["test_cases"])
+    assert json.loads((other / "test_cases.json").read_text(encoding="utf-8"))[0]["title"] == secret
+
+    contract = test_design_agent({**state, "contract_only": True})
+    assert contract["test_cases"] == []
+    assert "link" in contract["log"][-1]
+    assert (other / "qa_contract.json").read_text(encoding="utf-8") == secret
+
+    cases = [{"tc_id": "TC-1", "kind": "learned", "oracle": "observed", "title": "Load totals",
+              "spec": {"name": "Load totals", "action": "click", "added": ["Total sales: 4560"]}}]
+    started = time.monotonic()
+    reviewed = review.review_gate_agent({"site_key": "shop", "run_dir": str(run), "test_cases": cases, "log": []})
+    assert time.monotonic() - started < 2
+    assert secret not in json.dumps(reviewed["test_cases"])
+    assert json.loads((other / "review_request.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert secret in (other / "review_answers.json").read_text(encoding="utf-8")
+
+    own = tmp_path / "own"
+    own.mkdir()
+    saved_cases = test_design_agent({**state, "run_dir": str(own)})["test_cases"]
+    saved = json.loads((own / "test_cases.json").read_text(encoding="utf-8"))
+    assert saved and saved[0].get("tc_id") == saved_cases[0].get("tc_id")
+
+
+def test_a_contract_only_design_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.test_design import test_design_agent
+
+    secret = "tenantBOnlyFlow"
+    other = tmp_path / "other"
+    private = other / "run" / ".private"
+    private.mkdir(parents=True)
+    contract = {"test_environment": True, "flows": [{"id": secret, "title": "Other", "approved": True,
+        "steps": [{"action": "assert_screen", "value": "Other"}]}]}
+    (private / "qa_contract.json").write_text(json.dumps(contract), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {"url": "https://shop.example/", "run_dir": str(linked / "run"), "log": [], "contract_only": True}
+    designed = test_design_agent(state)
+    assert designed["test_cases"] == []
+    assert "link" in designed["log"][-1]
+    assert secret in (private / "qa_contract.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "qa_contract.json").write_text(json.dumps({
+        "test_environment": True,
+        "flows": [{"id": "homeOwn", "title": "Home", "approved": True,
+                   "steps": [{"action": "assert_screen", "value": "Home"}]}],
+    }), encoding="utf-8")
+    own = test_design_agent({**state, "run_dir": str(real)})
+    assert [case["id"] for case in own["test_cases"]] == ["contract_homeOwn"]
+    assert secret not in json.dumps(own["test_cases"])
+    assert secret in (private / "qa_contract.json").read_text(encoding="utf-8")
+
+
+def test_a_review_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend import review
+
+    secret = b"tenant-b-only-review"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "review_request.json").write_bytes(secret)
+    (nested / "review_answers.json").write_text(json.dumps(
+        {"answers": {"TC-1": {"answer": "should be", "text": "tenant-b-only-review"}}}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "baseline_dir", tmp_path / "baseline")
+    monkeypatch.setattr(settings, "review", "on")
+    monkeypatch.setattr(settings, "review_timeout_s", 30)
+    cases = [{"tc_id": "TC-1", "kind": "learned", "oracle": "observed", "title": "Load totals",
+              "spec": {"name": "Load totals", "action": "click", "added": ["Total sales: 4560"]}}]
+    refused = review.review_gate_agent({
+        "site_key": "shop", "run_dir": str(linked / "run"), "test_cases": cases, "log": [],
+    })
+    assert "link" in refused["log"][-1]
+    assert refused["test_cases"][0]["oracle"] == "observed"
+    assert (nested / "review_request.json").read_bytes() == secret
+    assert "tenant-b-only-review" in (nested / "review_answers.json").read_text(encoding="utf-8")
+    assert not (tmp_path / "baseline").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    monkeypatch.setattr(settings, "review_timeout_s", 0)
+    saved = review.review_gate_agent({
+        "site_key": "shop", "run_dir": str(real), "test_cases": cases, "log": [],
+    })
+    request = real / "review_request.json"
+    assert request.is_file() and not request.is_symlink()
+    asked = json.loads(request.read_text(encoding="utf-8"))["questions"]
+    assert asked[0]["question"].startswith("Clicking 'Load totals'")
+    assert secret not in request.read_bytes()
+    assert "no answers" in saved["log"][-1]
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
 def test_more_ways_to_find_pages(tmp_path, monkeypatch):
     from backend.agents.discovery import discovery_agent
     srv, url = _serve({

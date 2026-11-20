@@ -1,0 +1,97 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_fixture_coverage",
+  "ran_at": "2026-11-19T05:33:41Z",
+  "kind": "fixture_coverage_local_only",
+  "coverage": [
+    {
+      "id": "demostore",
+      "artifact": "live_failure_matrix_drill.json",
+      "label": "DemoStore failure matrix",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "demostore_heal",
+      "artifact": "demo_store_healing_live_drill.json",
+      "label": "DemoStore live healing",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "classic",
+      "artifact": "classic_mutation_score_drill.json",
+      "label": "Classic shop mutation",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "admin",
+      "artifact": "admin_portal_lifecycle_drill.json",
+      "label": "Admin portal lifecycle",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "travel",
+      "artifact": "multi_app_healing_suite_drill.json",
+      "label": "Travel via multi-app suite",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "multi_app",
+      "artifact": "multi_app_healing_suite_drill.json",
+      "label": "4-demo healing suite",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "taxonomy",
+      "artifact": "production_healing_taxonomy_drill.json",
+      "label": "Failure taxonomy",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "replay",
+      "artifact": "production_healing_replay_pack_drill.json",
+      "label": "Before/after replay",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "flaky_policy",
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "No-auto-apply policy",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "acceptance",
+      "artifact": "production_healing_acceptance_gate_drill.json",
+      "label": "Local acceptance gate",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "seed_catalog",
+      "artifact": "production_healing_seed_catalog_drill.json",
+      "label": "Seed catalog",
+      "ready": true,
+      "production_covered": false
+    },
+    {
+      "id": "suite_pack",
+      "artifact": "production_healing_suite_pack_drill.json",
+      "label": "Local suite pack",
+      "ready": true,
+      "production_covered": false
+    }
+  ],
+  "score": 12,
+  "score_of": 12,
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Production healing fixture coverage 12/12; production / third-party healing suite still open"
+}

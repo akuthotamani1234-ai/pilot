@@ -1,0 +1,34 @@
+{
+  "gate_d_complete": false,
+  "drill": "apidemos_interaction",
+  "ran_at": "2026-11-19T00:07:19Z",
+  "device_id": "emulator-5556",
+  "api_level": 30,
+  "install": {
+    "package": "io.appium.android.apis",
+    "installed": true,
+    "apk": "/agent/repos/pilot/demo-apps/ApiDemos-debug.apk",
+    "apk_bytes": 4809449,
+    "install_rc": 0
+  },
+  "steps": [
+    {
+      "step": "open_apidemos",
+      "ok": true,
+      "page_source_len": 42187
+    },
+    {
+      "step": "open_accessibility",
+      "ok": true
+    },
+    {
+      "step": "tap_clickable",
+      "ok": true,
+      "clickables": 4,
+      "tapped": true,
+      "hierarchy_len": 35352
+    }
+  ],
+  "ok": true,
+  "reason": "ApiDemos deep interaction on emulator-5556 API 30; broad multi-device CI runners still open"
+}

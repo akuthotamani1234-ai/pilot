@@ -1,0 +1,83 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_seed_catalog",
+  "ran_at": "2026-11-19T05:11:21Z",
+  "kind": "seed_catalog_local_only",
+  "seeds": [
+    {
+      "id": "locator",
+      "artifact": "live_failure_matrix_drill.json",
+      "label": "Missing/stale locator",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "product_defect",
+      "artifact": "demo_store_healing_live_drill.json",
+      "label": "Seeded product defect",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "auth_problem",
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "Auth redirect / 401",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "infrastructure",
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "Connection refused",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "timeout",
+      "artifact": "production_healing_taxonomy_drill.json",
+      "label": "Hard timeout",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "flaky",
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "Flaky retry class",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "multi_app",
+      "artifact": "multi_app_healing_suite_drill.json",
+      "label": "4-demo fixture suite",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "replay",
+      "artifact": "production_healing_replay_pack_drill.json",
+      "label": "Before/after replay",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "sla",
+      "artifact": "production_healing_third_party_sla_drill.json",
+      "label": "Third-party SLA",
+      "ready": true,
+      "production_seeded": false
+    },
+    {
+      "id": "suite_pack",
+      "artifact": "production_healing_suite_pack_drill.json",
+      "label": "Local suite pack",
+      "ready": true,
+      "production_seeded": false
+    }
+  ],
+  "score": 10,
+  "score_of": 10,
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Production healing seed catalog 10/10; production / third-party healing suite still open"
+}

@@ -1,0 +1,16 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_artifact_gate_pack",
+  "ran_at": "2026-11-19T05:22:05Z",
+  "kind": "local_ops_pack",
+  "parts": {
+    "runner_readiness": true,
+    "dispatch_payload": true,
+    "upload_rehearsal": true
+  },
+  "live_hosted_runners": false,
+  "elapsed_ms": 2,
+  "ok": true,
+  "reason": "Hosted CI artifact gate pack ok in 2ms; broad hosted multi-device/browser runners still open"
+}

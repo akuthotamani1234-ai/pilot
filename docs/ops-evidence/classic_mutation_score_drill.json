@@ -1,0 +1,28 @@
+{
+  "gate_j_complete": false,
+  "drill": "mutation_score_classic_shop",
+  "ran_at": "2026-11-19T05:52:56Z",
+  "source": "deep_validation/live_runs/phase1_classic_shop_run2_summary.json",
+  "planted": [
+    "search_wrong_hit",
+    "sort_price",
+    "cart_total"
+  ],
+  "reported": [
+    "cart_total",
+    "search_wrong_hit",
+    "sort_price"
+  ],
+  "score": {
+    "caught": [
+      "search_wrong_hit",
+      "sort_price",
+      "cart_total"
+    ],
+    "missed": [],
+    "false_reports": [],
+    "qpilot_defects": []
+  },
+  "ok": true,
+  "reason": "ClassicShop mutation score 3/3 caught, 0 missed, 0 false reports; broader third-party mutation suites still open"
+}

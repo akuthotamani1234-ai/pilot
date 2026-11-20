@@ -1,0 +1,76 @@
+{
+  "gate_d_complete": false,
+  "drill": "device_artifact_manifest",
+  "ran_at": "2026-11-19T00:21:44Z",
+  "kind": "manifest_only",
+  "required": [
+    "android_appium_product_matrix_drill.json",
+    "android_emulator_smoke_drill.json",
+    "android_emulator_smoke_api24_drill.json",
+    "multi_api_android_matrix_drill.json",
+    "device_matrix_drill.json",
+    "cross_platform_journey_drill.json",
+    "multi_device_ci_contract.json",
+    "android_appium_ci_contract.json"
+  ],
+  "artifacts": [
+    {
+      "name": "android_appium_product_matrix_drill.json",
+      "bytes": 2724,
+      "sha256": "83e59bbd23f176a781cf92347c1d15460a3a97493021552d80e0541c8aeb9bb1",
+      "ci_upload_path": "docs/ops-evidence/android_appium_product_matrix_drill.json"
+    },
+    {
+      "name": "android_emulator_smoke_drill.json",
+      "bytes": 793,
+      "sha256": "d1c3a5cd0b1a3da0d506aefbdc7f20b4baf385f9f2ba6b8954bb4c5a1776943b",
+      "ci_upload_path": "docs/ops-evidence/android_emulator_smoke_drill.json"
+    },
+    {
+      "name": "android_emulator_smoke_api24_drill.json",
+      "bytes": 899,
+      "sha256": "966060421b89626bfe81d31770f1f75ccef7e4b840becf9dded60d613716e8b0",
+      "ci_upload_path": "docs/ops-evidence/android_emulator_smoke_api24_drill.json"
+    },
+    {
+      "name": "multi_api_android_matrix_drill.json",
+      "bytes": 1601,
+      "sha256": "833b94e2a8e9388fe383cb57164db5421bf615288c2fa2598d60f02c7372ac5b",
+      "ci_upload_path": "docs/ops-evidence/multi_api_android_matrix_drill.json"
+    },
+    {
+      "name": "device_matrix_drill.json",
+      "bytes": 1859,
+      "sha256": "c81449ff915d6f9ef0cae9b0eace955813468a12440d644c519d9a1bccfebd8e",
+      "ci_upload_path": "docs/ops-evidence/device_matrix_drill.json"
+    },
+    {
+      "name": "cross_platform_journey_drill.json",
+      "bytes": 1429,
+      "sha256": "4532fbd24637b3fac4a0adfd5defac4221454561b96de4619efd3aa3c1d3828a",
+      "ci_upload_path": "docs/ops-evidence/cross_platform_journey_drill.json"
+    },
+    {
+      "name": "multi_device_ci_contract.json",
+      "bytes": 1131,
+      "sha256": "44f4142dac7cf536ea36f9ba62b19a867fc5c090991a304f78d2e57fd9b63071",
+      "ci_upload_path": "docs/ops-evidence/multi_device_ci_contract.json"
+    },
+    {
+      "name": "android_appium_ci_contract.json",
+      "bytes": 1186,
+      "sha256": "8b9b0f657b136571b95940ac0fa5c6a5f314b6bc12c20047c57f899a9173de4b",
+      "ci_upload_path": "docs/ops-evidence/android_appium_ci_contract.json"
+    }
+  ],
+  "missing": [],
+  "api_levels": [
+    24,
+    30,
+    34
+  ],
+  "workflow": ".github/workflows/android-appium.yml",
+  "workflow_exists": true,
+  "ok": true,
+  "reason": "Device/Appium artifact manifest 8/8 hashed for CI upload shape; broad multi-device CI runners still open"
+}

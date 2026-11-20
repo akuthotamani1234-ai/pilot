@@ -37,8 +37,15 @@ def _site(name: str):
     return DemoStore, (EMAIL, PASSWORD), "demo_store_truth.json"
 
 
-# the environment each site is measured on: AdminPortal's B7 (an edited name is not saved) needs the form really sent
-SITE_ENV = {"admin": {"TEST_ENVIRONMENT": "staging", "ALLOW_ACTIONS": "delete"}}
+# the environment each site is measured on: AdminPortal's B7 (an edited name is not saved) needs the form really sent.
+# REVIEW=off: staging would otherwise wait REVIEW_TIMEOUT_S (900s) on observed-behavior questions.
+SITE_ENV = {
+    "admin": {
+        "TEST_ENVIRONMENT": "staging",
+        "ALLOW_ACTIONS": "delete",
+        "REVIEW": "off",
+    },
+}
 
 
 def _visited(store) -> list:

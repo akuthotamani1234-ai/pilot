@@ -11,6 +11,8 @@ The report shows a role x page table.
 from pprint import pformat
 from urllib.parse import urlparse
 
+from .swarm import is_payment_url
+
 MAX_ROLE_CASES = 40
 
 
@@ -23,6 +25,8 @@ def role_cases(state: dict) -> list[dict]:
         for url, seen in (r.get("pages") or {}).items():
             access = seen.get("access")
             if access not in ("ok", "denied", "login", "redirected") or len(out) >= MAX_ROLE_CASES:
+                continue
+            if is_payment_url(url):
                 continue
             path = urlparse(url).path or "/"
             opens = access == "ok"
@@ -70,6 +74,8 @@ def roles_script(cases: list[dict], header: list[str]) -> str:
     out = ['"""Several user roles: each role opens what it may, and is refused what it may not (a lower role must',
            'never open an admin page). Each test starts in that role\'s own saved login."""', *header, ROLE_HELPERS, ""]
     for c in cases:
+        if is_payment_url(c.get("url") or ""):
+            continue
         out += [f"def test_{c['id']}(page, as_role):",
                 f'    """{c["title"].replace(chr(34), chr(39))}"""',
                 f"    R = {pformat(c['spec'], width=100, sort_dicts=False)}",

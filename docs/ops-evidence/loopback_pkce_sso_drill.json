@@ -1,0 +1,39 @@
+{
+  "gate_i_complete": false,
+  "drill": "loopback_pkce_sso",
+  "ran_at": "2026-11-19T07:57:30Z",
+  "issuer": "http://127.0.0.1:34831",
+  "client_id": "qpilot-pkce-client",
+  "pkce": "S256",
+  "sub": "pkce-user-1",
+  "steps": [
+    {
+      "step": "discovery",
+      "ok": true
+    },
+    {
+      "step": "authorize",
+      "ok": true,
+      "http_status": 302
+    },
+    {
+      "step": "token_pkce",
+      "ok": true
+    },
+    {
+      "step": "reject_redirect_mismatch",
+      "ok": true
+    },
+    {
+      "step": "reject_bad_verifier",
+      "ok": true
+    },
+    {
+      "step": "validate_authorize",
+      "ok": true,
+      "signature_verified": true
+    }
+  ],
+  "ok": true,
+  "reason": "Loopback OIDC PKCE S256 auth-code \u2192 JWT \u2192 dashboard oidc ok; hosted IdP Studio SSO login still open"
+}

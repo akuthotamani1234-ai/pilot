@@ -328,7 +328,9 @@ SEEN_CONTROL_JS = """e => {
            form_method: f ? (f.getAttribute('method') || (f.getAttribute('action') ? 'get' : 'script')).toLowerCase() : '',
            text: (c.innerText || c.value || c.getAttribute('aria-label') || '').trim().split('\\n')[0].slice(0, 80),
            icon: i ? `${i.getAttribute('class') || ''} ${i.getAttribute('aria-label') || ''}`.trim() : '',
-           href: c.getAttribute('href') || '' }; }"""
+           href: c.getAttribute('href') || '',
+           form_action: c.getAttribute('formaction') || (f ? (f.getAttribute('action') || '') : ''),
+           onclick: (c.getAttribute('onclick') || '').slice(0, 240) }; }"""
 
 
 # forms filled while exploring (Explorer.fill_forms): per page at most this many; what each box of a form shows
@@ -399,6 +401,8 @@ class Explorer:
             out.append({"name": (b.get("accname") or b.get("text") or "control").split("\n")[0].strip()[:60],
                         "text": b.get("text") or "", "selector": b["selector"], "action": "click", "kind": kind,
                         "role": b.get("role") or "", "tag": b.get("tag") or "",
+                        "href": b.get("href") or "", "form_action": b.get("form_action") or "",
+                        "onclick": b.get("onclick") or "",
                         "disabled": b.get("disabled"), "submit": sends_form(b), "revealed_by": b.get("revealed_by"),
                         "chrome": bool(b.get("chrome")), "in_table": bool(b.get("in_table"))})
         for i in entry.get("inputs", []):
@@ -426,8 +430,12 @@ class Explorer:
                 t["capped"] = f"one of many alike ({t['kind']}): the first {cap} are learned"
         return out
 
-    def _eligible(self, t: dict) -> tuple[str, str]:
+    def _eligible(self, t: dict, page_url: str = "") -> tuple[str, str]:
         """(risk, why not) - why not = '' when the action may be performed."""
+        from .swarm import control_opens_payment, is_payment_url
+        if is_payment_url(page_url) or control_opens_payment(
+                page_url, t.get("href") or "", t.get("form_action") or "", t.get("onclick") or ""):
+            return "protected", blocked_reason("pay")
         cls = action_class(t["text"] or t["name"], t["selector"],
                            role=t.get("role"), kind=t.get("kind"), tag=t.get("tag"))
         risk = action_risk(t["text"] or t["name"], t["selector"],
@@ -447,20 +455,28 @@ class Explorer:
         return risk, ""
 
     # ---------------------------------------------------------------- one action from a fresh page
-    def _fresh(self, page, url: str, lazy: bool) -> None:
+    def _fresh(self, page, url: str, lazy: bool) -> str:
         """The page as a new visitor sees it - not loaded again when it still is (the crawl just opened it, or the
-        last action changed nothing): every reload of a slow website costs seconds."""
+        last action changed nothing): every reload of a slow website costs seconds.
+
+        Returns a block reason when the document is checkout, including after a
+        redirect. That document is not loaded. '' means the page is open.
+        """
         if self._untouched == url and _same_page(page.url, url):
             self._untouched = None  # (once: the action about to happen may change it)
-            return
+            return blocked_reason("pay") if self._on_payment_page(page) else ""
         self._untouched = None
         if self.before_goto:
             self.before_goto()
-        page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        from .swarm import open_guarded
+        _response, blocked = open_guarded(page, url, timeout=settings.page_timeout_ms)
+        if blocked:
+            return blocked_reason("pay")
         self.settle(page)
         close_consent(page)
         if lazy:
             autoscroll(page)
+        return blocked_reason("pay") if self._on_payment_page(page) else ""
 
     def _act(self, page, t: dict) -> None:
         loc = page.locator(t["selector"])
@@ -492,11 +508,55 @@ class Explorer:
         ev = diff(below, snapshot(page, item_sel))
         return ev if ev["effect"] == "scroll" else None
 
+    def _payment_click(self, page, t: dict, url: str) -> str:
+        """Why this click stays unpressed when its live address is checkout or payment."""
+        from .swarm import control_opens_payment
+        info = {
+            "href": t.get("href") or "",
+            "action": t.get("form_action") or "",
+            "onclick": t.get("onclick") or "",
+        }
+        try:
+            live = page.locator(t["selector"]).first.evaluate(
+                """el => ({
+                  href: el.getAttribute('href') || '',
+                  action: el.getAttribute('formaction') || (el.form && el.form.getAttribute('action')) || '',
+                  onclick: el.getAttribute('onclick') || ''
+                })"""
+            )
+            if isinstance(live, dict):
+                info = live
+        except Exception:
+            pass
+        if control_opens_payment(url, info.get("href") or "", info.get("action") or "", info.get("onclick") or ""):
+            return blocked_reason("pay")
+        request = getattr(getattr(page, "request", None), "get", None)
+        if request is not None:
+            from .payment_nav import payment_redirect
+            try:
+                for raw in (info.get("href") or "", info.get("action") or ""):
+                    if payment_redirect(request, raw, base=url):
+                        return blocked_reason("pay")
+            except Exception:
+                return ""
+        return ""
+
+    def _on_payment_page(self, page) -> bool:
+        """True when this navigation has already landed on checkout or payment."""
+        from .swarm import is_payment_url
+        try:
+            landed = page.url or ""
+        except Exception:
+            landed = ""
+        return is_payment_url(landed)
+
     def _try(self, page, url: str, entry: dict, t: dict, opener: dict | None, risk: str, guard=None) -> dict:
         """guard(page, t) -> why not ('' = go on): checked on the fresh page, just before the action."""
         item_sel = (entry.get("itemLinks") or {}).get("selector")
         try:
-            self._fresh(page, url, bool(entry.get("lazy")))
+            blocked = self._fresh(page, url, bool(entry.get("lazy")))
+            if blocked or self._on_payment_page(page):
+                return {"blocked": blocked or blocked_reason("pay")}
             if opener and not page.locator(t["selector"]).first.is_visible():
                 chain, visited, current = [], set(), opener
                 while current:
@@ -510,10 +570,12 @@ class Explorer:
                         return {"error": "The interaction budget cannot replay this nested path"}
                     if time.time() > self.deadline or runctl.stopping():
                         return {"error": "Nested menu replay stopped before the action"}
-                    _risk, why = self._eligible(ancestor)
+                    _risk, why = self._eligible(ancestor, url)
                     why = why or self._seen_guard(page, ancestor)
                     if why:
                         return {"blocked": "Cannot replay opener: " + why}
+                    if self._on_payment_page(page):
+                        return {"blocked": blocked_reason("pay")}
                     self._act(page, ancestor)
                     self._last_replay_count += 1
                     self.counts["opener_replays"] += 1
@@ -523,6 +585,11 @@ class Explorer:
             why_not = guard(page, t) if guard else ""
             if why_not:
                 return {"blocked": why_not}
+            if self._on_payment_page(page):
+                return {"blocked": blocked_reason("pay")}
+            why_pay = self._payment_click(page, t, url)
+            if why_pay:
+                return {"blocked": why_pay}
             saved = page.evaluate(STORAGE_JS) if risk == "safe" else None
             # look from where the control is: what loads while scrolling to it is not its effect
             page.locator(t["selector"]).first.scroll_into_view_if_needed(timeout=3000)
@@ -641,6 +708,10 @@ class Explorer:
         """A control only the AI's picture named: what it really is decides (a form's button, a trash icon, a
         'log out' link) - '' = it may be clicked."""
         info = page.locator(t["selector"]).first.evaluate(SEEN_CONTROL_JS, timeout=3000)
+        from .swarm import control_opens_payment
+        if control_opens_payment(getattr(page, "url", "") or "", info.get("href") or "",
+                                 info.get("form_action") or "", info.get("onclick") or ""):
+            return blocked_reason("pay")
         if sends_form({"type": info["type"], "in_form": info["in_form"], "form_method": info["form_method"],
                        "text": info["text"]}):
             return "sends a form - the form tests check it"
@@ -676,7 +747,7 @@ class Explorer:
             key = (t["name"], t["selector"])
             if key in self.decided:
                 continue  # (learned on an earlier page: header / footer / the same template)
-            risk, why = self._eligible(t)
+            risk, why = self._eligible(t, url)
             why = why or t.get("capped", "")
             if why:
                 self.decided[key] = {"why": why}
@@ -722,6 +793,14 @@ class Explorer:
                                   "risk": risk, "effect": "error", "error": ev["error"],
                                   "revealed_by": t.get("revealed_by")})
                 continue
+            from .swarm import is_payment_url
+            if is_payment_url(str(ev.get("to") or "")):
+                why = blocked_reason("pay")
+                self.counts["blocked"] += 1
+                self.blocked.append({"control": t["name"], "page": url, "why": why})
+                if t.get("seen"):
+                    tried.append({"name": t["name"], "status": "blocked", "why": why})
+                continue
             if t.get("seen"):
                 tried.append({"name": t["name"], "status": "learned", "why": ev["effect"]})
             self.counts["no_effect" if ev["effect"] == "nothing" else "learned"] += 1
@@ -738,6 +817,8 @@ class Explorer:
                                  else "tick" if (revealed.get("type") or "") == "checkbox" else "click",
                                  "value": (revealed.get("options") or [{}])[-1].get("value"),
                                  "kind": revealed.get("kind") or "", "revealed_by": t["selector"],
+                                 "href": revealed.get("href") or "", "form_action": revealed.get("form_action") or "",
+                                 "onclick": revealed.get("onclick") or "",
                                  "submit": (revealed.get("type") or "").lower() == "submit" and revealed.get("in_form")})
             # Full exploration must queue product links revealed by pagination and filters.
             # The explicit sampled mode retains its bounded list behavior.
@@ -772,10 +853,24 @@ class Explorer:
             return []
         from .actions import DELETE, action_class
         from .forms import SEARCHY, is_login_form, keep_form_field
+        from .swarm import is_payment_url, stored_control_opens_payment
+        if is_payment_url(url) or is_payment_url(getattr(page, "url", "") or ""):
+            return []
         fills, new_urls = entry.setdefault("form_fills", []), []
         forms_considered = 0
         for f in entry.get("forms", []):
             said = ((f.get("submit") or {}).get("text") or "").strip()
+            submit = f.get("submit") or {}
+            if stored_control_opens_payment(url, f) or stored_control_opens_payment(url, submit):
+                fills.append({
+                    "form": f.get("selector"),
+                    "name": said or "the form",
+                    "page": url,
+                    "sent": False,
+                    "filled": [],
+                    "not_sent": "checkout, payment and placing an order are never filled",
+                })
+                continue
             fields = [x for x in f.get("fields", []) if keep_form_field(x)]
             submit_sel = ((f.get("submit") or {}).get("selector") or "")
             submit_cls = action_class(said, submit_sel, role="button", kind="button", tag="button")
@@ -888,7 +983,10 @@ class Explorer:
         self._tags += 1
         tag = f"qa-{self.tag_base}-f{self._tags}"
         known = {i.get("selector"): i for i in entry.get("inputs", []) if i.get("selector")}
-        self._fresh(page, url, bool(entry.get("lazy")))
+        blocked = self._fresh(page, url, bool(entry.get("lazy")))
+        if blocked:
+            return {"form": f.get("selector"), "name": ((f.get("submit") or {}).get("text") or "the form").strip()[:60],
+                    "page": url, "tag": tag, "filled": [], "sent": False, "not_sent": blocked}
         from .forms import FormTargetProblem, form_scope, keep_form_field
         from .navigation import open_path, opener_path
         fields = [x for x in fields if keep_form_field(dict(known.get(x.get("selector"), {}), **x))]

@@ -1,0 +1,22 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_attestation",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "signed_off": false,
+  "attestation": {
+    "title": "Qpilot X Independent Review Attestation",
+    "scope": "Gates A\u2013J evidence pack for security/reliability review",
+    "integrity_sha256": "9db76680b19f44f751bb16e6c39b196a56b7cb7c589da648c420093a1e7f8eea",
+    "catalog_entries": 153,
+    "reviewer_name": "",
+    "reviewer_org": "",
+    "signed_at": "",
+    "signature": "",
+    "verdict": "pending",
+    "notes": "Fill reviewer fields and attach signature out-of-band. Local unsigned stub does not close Gate G."
+  },
+  "catalog_ok": true,
+  "integrity_ok": true,
+  "ok": true,
+  "reason": "Independent review attestation stub ready (unsigned); external sign-off still open"
+}

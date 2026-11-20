@@ -1,0 +1,117 @@
+{
+  "gate_a_surfaces_complete": false,
+  "drill": "classic_shop_surface_coverage",
+  "ran_at": "2026-11-19T00:03:49Z",
+  "fixture": "ClassicShop",
+  "pages_walked": [
+    "home",
+    "?rt=product/category&path=10",
+    "?rt=product/search&keyword=lip",
+    "?rt=checkout/cart",
+    "?rt=account/login",
+    "?rt=content/contact"
+  ],
+  "surfaces": {
+    "gate_a_surfaces_complete": false,
+    "pages": 6,
+    "frames": {
+      "testable": 6,
+      "external": 0,
+      "unreachable": 0,
+      "pages_with_frames": 6,
+      "listed_iframes": 6
+    },
+    "shadow": {
+      "open_roots_seen": 6,
+      "pages_with_shadow": 6,
+      "closed_unsupported": 0
+    },
+    "dialogs": {
+      "pages_with_dialogs": 0,
+      "form_dialogs": 0,
+      "modal_buttons": 0
+    },
+    "downloads": {
+      "pages_with_downloads": 0,
+      "links": 0
+    },
+    "lazy": {
+      "pages_with_lazy": 6,
+      "items_seen": 6
+    },
+    "metadata": {
+      "pages_with_locale": 6,
+      "pages_with_skeleton": 0,
+      "title_or_meta": 6
+    },
+    "viewports": {
+      "desktop_or_default": 6,
+      "mobile_checked": 1
+    },
+    "api": {
+      "network_seeded": 0,
+      "openapi_or_scrape": 1,
+      "blocked_requests": 0
+    },
+    "rich_controls": {
+      "canvas": 0,
+      "file_upload": 6,
+      "web_component": 6,
+      "pages_with_rich": 6
+    },
+    "unknown": [
+      "no dialog/modal surfaces recorded",
+      "no download links recorded"
+    ],
+    "evidence": {
+      "pages": 6,
+      "frames": {
+        "testable": 6,
+        "external": 0,
+        "unreachable": 0,
+        "pages_with_frames": 6,
+        "listed_iframes": 6
+      },
+      "shadow": {
+        "open_roots_seen": 6,
+        "pages_with_shadow": 6,
+        "closed_unsupported": 0
+      },
+      "api": {
+        "network_seeded": 0,
+        "openapi_or_scrape": 1,
+        "blocked_requests": 0
+      },
+      "lazy": {
+        "pages_with_lazy": 6,
+        "items_seen": 6
+      },
+      "metadata": {
+        "pages_with_locale": 6,
+        "pages_with_skeleton": 0,
+        "title_or_meta": 6
+      },
+      "viewports": {
+        "desktop_or_default": 6,
+        "mobile_checked": 1
+      },
+      "dialogs": {
+        "pages_with_dialogs": 0,
+        "form_dialogs": 0,
+        "modal_buttons": 0
+      },
+      "downloads": {
+        "pages_with_downloads": 0,
+        "links": 0
+      },
+      "rich_controls": {
+        "canvas": 0,
+        "file_upload": 6,
+        "web_component": 6,
+        "pages_with_rich": 6
+      }
+    },
+    "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."
+  },
+  "reason": "ClassicShop route-template surface inventory captured; full Gate A live matrix still open"
+}

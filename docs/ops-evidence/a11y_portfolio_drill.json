@@ -1,0 +1,21 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_a11y_portfolio",
+  "ran_at": "2026-11-19T06:14:23Z",
+  "fixture": "DemoStore",
+  "pages_walked": [
+    "/",
+    "/about",
+    "/lab",
+    "/signin"
+  ],
+  "portfolio": {
+    "portfolio": "a11y",
+    "verdict": "pass",
+    "ok": true,
+    "reason": "",
+    "findings": []
+  },
+  "ok": true,
+  "reason": "DemoStore a11y portfolio evaluated from inventoried images/inputs; broad live multi-browser CI still open"
+}

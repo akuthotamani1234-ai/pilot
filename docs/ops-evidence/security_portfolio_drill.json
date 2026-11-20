@@ -1,0 +1,41 @@
+{
+  "gate_f_complete": false,
+  "drill": "demo_store_security_portfolio",
+  "ran_at": "2026-11-19T06:14:25Z",
+  "fixture": "DemoStore",
+  "https": false,
+  "headers_observed": [
+    "content-length",
+    "content-type",
+    "date",
+    "server"
+  ],
+  "portfolio": {
+    "portfolio": "security",
+    "verdict": "fail",
+    "ok": false,
+    "reason": "4 safe-security finding(s)",
+    "findings": [
+      {
+        "kind": "not_https",
+        "target": "transport"
+      },
+      {
+        "kind": "missing_header",
+        "target": "content-security-policy"
+      },
+      {
+        "kind": "missing_header",
+        "target": "strict-transport-security"
+      },
+      {
+        "kind": "missing_header",
+        "target": "x-content-type-options"
+      }
+    ],
+    "probe": false
+  },
+  "probe": false,
+  "ok": true,
+  "reason": "Passive DemoStore security observations recorded (no probing); broad live multi-browser CI still open"
+}

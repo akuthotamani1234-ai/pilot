@@ -1,0 +1,43 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_third_party_sla",
+  "ran_at": "2026-11-19T04:02:48Z",
+  "kind": "contract_only",
+  "sla": {
+    "target_class": "authorized_third_party_or_staging",
+    "max_heal_latency_ms": 30000,
+    "locator_only_auto_apply": true,
+    "human_review_required_for": [
+      "assertion_change",
+      "auth_bypass",
+      "infra_skip",
+      "flaky_quarantine"
+    ],
+    "required_artifacts": [
+      "before_after_replay",
+      "taxonomy_classification",
+      "regression_package",
+      "heal_proposal_log"
+    ],
+    "acceptance": [
+      "Seeded + organic failures reproduce deterministically",
+      "Locator-only heals pass regression",
+      "Non-locator proposals stay pending human review",
+      "No irreversible write-guard weakening"
+    ],
+    "note": "SLA recorded locally; production / third-party suite still open"
+  },
+  "production_suite_executed": false,
+  "local_partial_present": [
+    "production_healing_contract_drill.json",
+    "production_healing_taxonomy_drill.json",
+    "production_healing_flaky_policy_drill.json",
+    "production_healing_replay_pack_drill.json",
+    "production_healing_readiness_drill.json",
+    "production_healing_suite_pack_drill.json",
+    "multi_app_healing_suite_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Third-party healing SLA recorded (7/7 local partials present); production / third-party healing suite still open"
+}

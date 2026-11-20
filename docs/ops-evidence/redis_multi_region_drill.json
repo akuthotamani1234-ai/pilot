@@ -1,0 +1,43 @@
+{
+  "gate_h_complete": false,
+  "gate_b_complete": false,
+  "drill": "redis_dual_db_failover",
+  "ran_at": "2026-11-19T07:21:29Z",
+  "ok": true,
+  "region_a_db": 0,
+  "region_b_db": 1,
+  "key": "qpilot:drill:mr:1795072889",
+  "steps": [
+    {
+      "step": "ping_a",
+      "ok": true
+    },
+    {
+      "step": "ping_b",
+      "ok": true
+    },
+    {
+      "step": "set_region_a",
+      "ok": true
+    },
+    {
+      "step": "get_region_a",
+      "ok": true,
+      "value": "qpilot-redis-multi-region-v1"
+    },
+    {
+      "step": "replicate_to_b",
+      "ok": true
+    },
+    {
+      "step": "delete_region_a",
+      "ok": true
+    },
+    {
+      "step": "failover_read_b",
+      "ok": true,
+      "value": "qpilot-redis-multi-region-v1"
+    }
+  ],
+  "reason": "Local Redis dual-DB failover (db0\u2192db1) verified; hosted Redis multi-region / sentinel still open"
+}

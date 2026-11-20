@@ -1,0 +1,36 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_response_sla",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "kind": "unsigned_sla_contract",
+  "sla": {
+    "ack_business_days": 2,
+    "first_findings_business_days": 5,
+    "signoff_business_days": 10,
+    "required_deliverables": [
+      "findings_markdown",
+      "attestation_signature",
+      "blocker_freeze_ack"
+    ],
+    "channels": [
+      "email",
+      "ticket"
+    ],
+    "note": "Response SLA contract only; external sign-off still required"
+  },
+  "signed_off": false,
+  "local_partial_present": [
+    "independent_review_checklist.json",
+    "independent_review_pack.json",
+    "independent_review_readiness_drill.json",
+    "independent_review_request_drill.json",
+    "independent_review_handoff_pack_drill.json",
+    "independent_review_scope_matrix_drill.json",
+    "independent_review_blocker_freeze_drill.json",
+    "INDEPENDENT_REVIEW_SUMMARY.md",
+    "INDEPENDENT_REVIEW_FINDINGS.md"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Independent review response SLA recorded (9/9 local partials); external sign-off still open"
+}

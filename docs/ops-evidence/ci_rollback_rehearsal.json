@@ -1,0 +1,13 @@
+{
+  "gate_h_complete": false,
+  "drill": "ci_rollback_rehearsal",
+  "ran_at": "2026-11-18T13:28:33Z",
+  "ok": true,
+  "head": "fe533da411bfdf3951c5d17908554ccefc181141",
+  "workflows": {
+    "ci.yml": "50c2148c13149592",
+    "qpilot.yml": "d964f6df2d6ae297"
+  },
+  "restored_status": "known_good",
+  "reason": "Offline CI/deploy rollback rehearsal restored known-good artifact; live hosted rollback + paging still open"
+}

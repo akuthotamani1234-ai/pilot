@@ -73,12 +73,8 @@ def note(message: str) -> None:
     _last_note = text
     print("::note::" + text, flush=True)
     if _progress_path is not None:
-        try:
-            _progress_path.parent.mkdir(parents=True, exist_ok=True)
-            with _progress_path.open("a", encoding="utf-8") as handle:
-                handle.write(text + "\n")
-        except OSError:
-            return
+        from .finalization import append_text_unless_linked
+        append_text_unless_linked(_progress_path, text + "\n")
 
 
 def reset_notes() -> None:
@@ -368,10 +364,10 @@ class ActionRecovery:
         }
         self.events.append(stored)
         if run_dir:
+            from .finalization import write_text_unless_linked
             from .safety import redact_data
 
-            path = Path(run_dir) / "dynamic.json"
-            path.write_text(json.dumps(redact_data({"events": self.events}), indent=2), encoding="utf-8")
+            write_text_unless_linked(Path(run_dir), "dynamic.json", json.dumps(redact_data({"events": self.events}), indent=2))
 
 
 def perform_tap(element, *, click, refind, recovery: ActionRecovery, screen=None, contract=None,

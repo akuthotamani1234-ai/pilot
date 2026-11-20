@@ -122,14 +122,17 @@ def case_hits(case: dict, results: list[dict]) -> list[dict]:
 
 def automation_status(case: dict, test_dir: Path | None) -> tuple[str, str]:
     """('Automated' | 'Not automated' | 'Pending', how) - looks for the case's test function in the scripts."""
-    if not test_dir or not test_dir.is_dir():
+    from .finalization import folder_is_linked
+    if not test_dir or folder_is_linked(test_dir) or not test_dir.is_dir():
         return "Pending", ""
-    if case.get("kind") == "contract" and not case.get("blocked") and (test_dir.parent / "qa_contracts.json").exists():
+    contract = test_dir.parent / "qa_contracts.json"
+    if (case.get("kind") == "contract" and not case.get("blocked") and contract.is_file()
+            and not contract.is_symlink() and not folder_is_linked(contract.parent)):
         return "Automated", "Trusted QA contract runtime"
     names = _case_names(case)
     for name in _case_files(case):
         f = test_dir / name
-        if not f.exists():
+        if folder_is_linked(f) or not f.is_file():
             continue
         code = f.read_text(encoding="utf-8", errors="replace")
         if any(re.search(def_pattern(n), code, re.M) for n in names):
@@ -238,13 +241,18 @@ def _coverage_sheet(wb, run_dir: Path):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "coverage.json"
-    if not f.exists():
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(run_dir)) or f.is_symlink() or not f.is_file():
         return
     data = json.loads(f.read_text(encoding="utf-8-sig"))
     # after the run, each control's own result (registry.json): planned -> executed -> its verdict, how strong its proof
     # is (a state / value checked, or only "no errors" = smoke) and the test cases that decided it
     try:
-        reg = json.loads((Path(run_dir) / "registry.json").read_text(encoding="utf-8-sig"))
+        reg_path = Path(run_dir) / "registry.json"
+        if reg_path.is_symlink() or folder_is_linked(reg_path.parent):
+            reg = {}
+        else:
+            reg = json.loads(reg_path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         reg = {}
     from .registry import STATUS_TEXT
@@ -328,7 +336,8 @@ def _registry_sheet(wb, run_dir: Path, cases: list[dict] | None = None):
     from openpyxl.styles import Font, PatternFill
 
     f = Path(run_dir) / "registry.json"
-    if not f.exists():
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(run_dir)) or f.is_symlink() or not f.is_file():
         return
     reg = json.loads(f.read_text(encoding="utf-8-sig"))
     ws = wb.create_sheet("Features")
@@ -362,13 +371,16 @@ def _registry_sheet(wb, run_dir: Path, cases: list[dict] | None = None):
 def write_workbook(run_dir: Path, cases: list[dict], results: list[dict] | None = None,
                    cost: dict | None = None, metrics: dict | None = None) -> Path | None:
     """Create / overwrite test_cases.xlsx. Returns its path, or None if openpyxl is not installed."""
+    from .finalization import folder_is_linked
+    run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return None
     try:
         from openpyxl import Workbook
     except ImportError:
         print("  [excel] openpyxl is not installed - skipping test_cases.xlsx (pip install openpyxl)")
         return None
 
-    run_dir = Path(run_dir)
     test_dir = run_dir / "generated_tests"
     case_cost = {(c["page"], c["id"]): c for c in (cost or {}).get("per_case", [])}
 
@@ -417,10 +429,14 @@ def write_workbook(run_dir: Path, cases: list[dict], results: list[dict] | None 
         _summary_sheet(wb, metrics)
 
     path = run_dir / "test_cases.xlsx"
+    if folder_is_linked(run_dir) or path.is_symlink():
+        return None
     try:
         wb.save(path)
     except PermissionError:  # the file is open in Excel right now
         path = run_dir / "test_cases_results.xlsx"
+        if folder_is_linked(path) or path.is_symlink():
+            return None
         wb.save(path)
         print(f"  [excel] test_cases.xlsx is open in Excel - saved as {path.name} instead")
     print(f"  [excel] wrote {path}")

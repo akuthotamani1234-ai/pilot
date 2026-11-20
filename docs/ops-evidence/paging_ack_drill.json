@@ -1,0 +1,16 @@
+{
+  "gate_h_complete": false,
+  "drill": "paging_ack",
+  "ran_at": "2026-11-19T05:48:43Z",
+  "incident_id": "inc-0f505603",
+  "page_status": 202,
+  "ack_status": 200,
+  "resolve_status": 200,
+  "lifecycle": [
+    "page",
+    "ack",
+    "resolve"
+  ],
+  "ok": true,
+  "reason": "Loopback paging ack\u2192resolve lifecycle ok; live hosted on-call paging still open"
+}

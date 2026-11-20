@@ -6,10 +6,12 @@ stay closed on production.
 """
 from .agent_eval import model_change_allowed
 from .dependency_fault import inject_fault
+from .device_matrix import evaluate_matrix
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .explore_score import rank_candidates
 from .locale_check import keep_sample
 from .plugins import LOCKS
+from .portfolio_gates import evaluate_portfolios
 from .replay_pack import FIELDS
 
 
@@ -21,6 +23,8 @@ def run_record(*, run_id: str, environment: str, sample: int, candidates: list[d
     allowed, reason = model_change_allowed(None)
     pay_blocked, pay_reason = action_still_blocked("pay")
     production_fault = inject_fault("production", "external-api", permitted=True)
+    matrix = evaluate_matrix([])
+    portfolios = evaluate_portfolios()
     return {
         "sample_unchanged": True,
         "sample": int(sample),
@@ -33,4 +37,6 @@ def run_record(*, run_id: str, environment: str, sample: int, candidates: list[d
         "dependency": {"production_injected": production_fault["injected"], "reason": production_fault["reason"]},
         "plugins": {"locks": list(LOCKS)},
         "trends": {"rewrites_verdict": False},
+        "device_matrix": {"complete": matrix["complete"], "unverified": matrix["unverified"]},
+        "portfolios": {"complete": portfolios["complete"], "unknown": portfolios["unknown"]},
     }

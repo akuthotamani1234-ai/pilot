@@ -29,6 +29,45 @@ CRAWL = {"skipped": [{"url": "https://x.test/product/9", "reason": "more than 3 
                                                                   "pattern (/product/{id}) - a sample was tested"}]}
 
 
+def test_a_recorded_checkout_page_is_not_turned_into_features_to_test():
+    pay = _page(
+        "https://x.test/checkout", "checkout",
+        buttons=[{"text": "Place order", "accname": "Place order", "selector": "#pay", "role": "button"},
+                 {"text": "Email me", "accname": "Email me", "selector": "#mail", "role": "button"}],
+        inputs=[{"tag": "input", "type": "email", "selector": "#email", "label": "Email", "accname": "Email"}],
+        links=[{"href": "https://x.test/shop", "text": "Back"}],
+    )
+    reg = registry.build([pay, APP[0]], {})
+    checkout = next(pg for pg in reg["pages"].values() if pg["pattern"] == "/checkout")
+    assert checkout["state"] == "blocked"
+    assert "checkout" in checkout["why"]
+    assert checkout["features"] == []
+    names = {f["name"] for f in reg["features"].values()}
+    assert "Place order" not in names and "Email me" not in names and "Email" not in names
+    assert all(e["from"] != checkout["id"] for e in reg["edges"])
+    shop = next(pg for pg in reg["pages"].values() if pg["pattern"] == "/shop")
+    assert shop["state"] == "inspected"
+
+
+def test_a_link_or_learned_step_into_checkout_is_not_a_next_step():
+    shop = _page(
+        "https://x.test/shop", "shop",
+        buttons=[{"text": "Continue", "accname": "Continue", "selector": "#go", "role": "button", "to": "/checkout"}],
+        links=[{"href": "https://x.test/checkout", "text": "Pay"},
+               {"href": "https://x.test/cart", "text": "Cart"}],
+        behaviour=[{"control": "Continue", "selector": "#go", "to": "https://x.test/checkout", "effect": "navigates"},
+                   {"control": "Cart", "selector": "#cart", "to": "https://x.test/cart", "effect": "navigates"}],
+    )
+    cart = _page("https://x.test/cart", "cart", buttons=[])
+    pay = _page("https://x.test/checkout", "checkout", buttons=[])
+    reg = registry.build([shop, cart, pay], {})
+    urls = {e["to_url"] for e in reg["edges"]}
+    assert "https://x.test/cart" in urls
+    assert "https://x.test/checkout" not in urls
+    cont = next(f for f in reg["features"].values() if f["name"] == "Continue")
+    assert cont["status"] == "blocked"
+
+
 def test_ids_are_stable_and_patterns_and_shared_controls_count_once():
     a, b = registry.build(APP, CRAWL), registry.build(APP, CRAWL)
     assert set(a["features"]) == set(b["features"]) and set(a["pages"]) == set(b["pages"])  # same site -> same ids

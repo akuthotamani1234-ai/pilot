@@ -14,7 +14,8 @@ def _dynamic_report(run_dir: Path, state: dict) -> dict:
     """Progress a stopped or failed run can be diagnosed from, without credentials."""
     events = list((state.get("dynamic") or {}).get("events") or [])
     path = Path(run_dir) / "dynamic.json"
-    if path.is_file():
+    from .finalization import folder_is_linked
+    if not folder_is_linked(Path(run_dir)) and not path.is_symlink() and path.is_file():
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -91,7 +92,9 @@ def analyze(state: dict) -> dict:
                 else "Check device connectivity and the foreground screen; inspect the original locator evidence.",
             }
         )
-    (Path(state["run_dir"]) / "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if not folder_is_linked(Path(state["run_dir"])):
+        write_text_unless_linked(Path(state["run_dir"]), "failures.json", json.dumps(failures, indent=2))
     return {"failures": failures}
 
 
@@ -338,8 +341,16 @@ def report(state: dict) -> dict:
     from .agents.reporter import decide_verdict
     from .cost import write_report
     from .excel import automation_status, case_result, write_workbook
+    from .finalization import folder_is_linked
 
     run_dir = Path(state["run_dir"])
+    if folder_is_linked(run_dir):
+        return {
+            "verdict": "Insufficient Evidence",
+            "report_path": "",
+            "test_cases": list(state.get("test_cases") or []),
+            "log": list(state.get("log") or []) + ["Android report skipped: this run's folder is a link."],
+        }
     cases = [normalize_case(c) for c in state.get("test_cases", [])]
     results = state.get("results", [])
     # Backward compatibility for earlier Android runs and their downloaded case files.
@@ -476,6 +487,7 @@ def report(state: dict) -> dict:
         "dynamic": dynamic_report,
         "safety_restrictions": dynamic_report.get("safety_restrictions", []),
     }
+    from .finalization import write_text_unless_linked
     for name, value in (
         ("summary.json", summary),
         ("test_cases.json", cases),
@@ -487,14 +499,14 @@ def report(state: dict) -> dict:
                            "user_like": summary["user_like_coverage"]["rows"]}),
         ('features.json', features),
     ):
-        (run_dir / name).write_text(redact_json(value), encoding="utf-8")
+        write_text_unless_linked(run_dir, name, redact_json(value))
     cost = write_report(run_dir, cases, results)
     write_workbook(run_dir, cases, results, cost=cost)
     content = render_mobile_report(
         summary, cases, results, state.get("failures", []), screens, state.get("healing_log", [])
     )
+    write_text_unless_linked(run_dir, "report.html", redact(content))
     path = run_dir / "report.html"
-    path.write_text(redact(content), encoding="utf-8")
     return {
         "verdict": verdict,
         "report_path": str(path),
@@ -505,9 +517,13 @@ def report(state: dict) -> dict:
 
 def collect_healing(state: dict) -> dict:
     from .android_pipeline import read_jsonl
-
-    entries = read_jsonl(Path(state["run_dir"]) / "android_healing.jsonl")
-    (Path(state["run_dir"]) / "healing_log.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    from .finalization import folder_is_linked, write_text_unless_linked
+    run_dir = Path(state["run_dir"])
+    log_path = run_dir / "android_healing.jsonl"
+    linked = folder_is_linked(run_dir)
+    entries = [] if linked or log_path.is_symlink() else read_jsonl(log_path)
+    if not linked:
+        write_text_unless_linked(run_dir, "healing_log.json", json.dumps(entries, indent=2))
     return {"healing_log": entries}
 
 

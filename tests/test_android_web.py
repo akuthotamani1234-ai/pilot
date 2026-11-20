@@ -21,6 +21,51 @@ def config(**overrides):
     return {"app_mode": "web", "device_id": "emulator-5554", "start_url": "https://example.test/", **overrides}
 
 
+def test_a_bot_check_wait_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.android_web import BotCheckBlocked, BotCheckGate
+
+    secret = "tenant-b-only-bot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    reads = []
+    page = {"title": "Home own", "elements": [], "challenge": {}}
+
+    def read():
+        reads.append("home-own")
+        return page
+
+    gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, run / "STOP", ask_person=False)
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        gate._wait(read, 1)
+    assert secret not in str(stopped.value)
+    assert reads == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped_gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, real / "STOP", ask_person=False)
+    with pytest.raises(BotCheckBlocked, match="Stop requested"):
+        stopped_gate._wait(read, 1)
+    assert reads == []
+
+    open_gate = BotCheckGate({"bot_check_wait_s": 1, "human_wait_s": 0}, real / "missing", ask_person=False)
+    found = open_gate._wait(read, 1)
+    assert found["title"] == "Home own"
+    assert reads == ["home-own"]
+    assert secret not in json.dumps(found)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_chrome_capabilities_are_idempotent_and_do_not_launch_a_native_app(monkeypatch):
     monkeypatch.setattr(android, "_managed_web_chromedriver", lambda config: None)
     normalized = android.validate_mobile_config(config())
@@ -77,6 +122,91 @@ def test_installed_driver_metadata_needs_registration_and_a_real_entrypoint(tmp_
     assert "8.7.3" in android._uiautomator_installation()
     (package / "index.js").unlink()
     assert android._uiautomator_installation() is None
+
+
+def test_a_driver_check_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-driver"
+    other = tmp_path / "other"
+    package = other / "node_modules" / "appium-uiautomator2-driver"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(json.dumps({
+        "name": "appium-uiautomator2-driver", "version": secret,
+        "main": "index.js", "appium": {"driverName": "uiautomator2"},
+    }), encoding="utf-8")
+    (package / "index.js").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    manifest = other / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("drivers:\n  uiautomator2:\n    pkgName: appium-uiautomator2-driver\n", encoding="utf-8")
+    linked = tmp_path / "linked-home"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("APPIUM_HOME", str(linked))
+    assert android._uiautomator_installation() is None
+    assert (package / "package.json").read_text(encoding="utf-8").count(secret) == 1
+    assert (package / "index.js").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-home"
+    real_package = real / "node_modules" / "appium-uiautomator2-driver"
+    real_package.mkdir(parents=True)
+    (real_package / "package.json").write_text(json.dumps({
+        "name": "appium-uiautomator2-driver", "version": "9.9.9-home",
+        "main": "index.js", "appium": {"driverName": "uiautomator2"},
+    }), encoding="utf-8")
+    (real_package / "index.js").write_text("export {}", encoding="utf-8")
+    real_manifest = real / "node_modules" / ".cache" / "appium" / "extensions.yaml"
+    real_manifest.parent.mkdir(parents=True)
+    real_manifest.write_text("drivers:\n  uiautomator2:\n    pkgName: appium-uiautomator2-driver\n", encoding="utf-8")
+    monkeypatch.setenv("APPIUM_HOME", str(real))
+    found = android._uiautomator_installation()
+    assert found is not None and "9.9.9-home" in found
+    assert secret not in found
+    assert (package / "index.js").read_text(encoding="utf-8") == secret
+
+
+def test_a_chromedriver_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-chromedriver"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "chromedriver.exe").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    root = tmp_path / "repo"
+    linked_dir = root / "tools" / "chromedriver"
+    linked_dir.mkdir(parents=True)
+    (linked_dir / "chromedriver.exe").symlink_to(other / "chromedriver.exe")
+    real_dir = root / "runs" / "android_verification_tools"
+    real_dir.mkdir(parents=True)
+    real = real_dir / "chromedriver.exe"
+    monkeypatch.setattr(android, "__file__", str(root / "backend" / "android.py"))
+    monkeypatch.setattr(android, "_adb_path", lambda: "adb")
+    seen = []
+
+    class Result:
+        def __init__(self, stdout):
+            self.stdout = stdout
+            self.returncode = 0
+
+    def run_cli(cmd, args, timeout):
+        seen.append(str(cmd))
+        if cmd == "adb":
+            return Result("versionName=120.\n")
+        return Result("ChromeDriver 120.\n")
+
+    monkeypatch.setattr(android, "_run_cli", run_cli)
+    assert android._managed_web_chromedriver({"device_id": "emulator-5554"}) is None
+    assert seen == []
+    assert (other / "chromedriver.exe").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real.write_text("home-own", encoding="utf-8")
+    found = android._managed_web_chromedriver({"device_id": "emulator-5554"})
+    assert found == str(real.resolve())
+    assert secret not in found and str(other) not in found
+    assert all(str(other) not in item for item in seen)
+    assert real.read_text(encoding="utf-8") == "home-own"
+    assert (other / "chromedriver.exe").read_text(encoding="utf-8") == secret
 
 
 def test_only_the_known_system_ui_wait_dialog_can_be_recovered():

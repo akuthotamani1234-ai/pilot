@@ -1,0 +1,14 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_session_rebind",
+  "ran_at": "2026-11-19T05:11:21Z",
+  "kind": "loopback_rebind",
+  "principal_id": "rebind-user-1",
+  "tenant_id": "tenant-rebind",
+  "first_ok": true,
+  "second_ok": true,
+  "tokens_distinct": true,
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO session rebind ok (same sub \u2192 same principal); live hosted IdP Studio SSO still open"
+}

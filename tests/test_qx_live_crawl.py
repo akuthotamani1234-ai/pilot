@@ -3,10 +3,21 @@ import json
 
 from playwright.sync_api import sync_playwright
 
-from backend.agents.discovery import EXTRACT_JS, _Frontier, place_link, store_api_spec
+from backend.agents.discovery import (
+    EXTRACT_JS,
+    _Frontier,
+    click_actions_allowed,
+    click_page,
+    pending_visit,
+    place_link,
+    resume_seen,
+    store_api_spec,
+    waiting_rows,
+)
 from backend.config import settings
 from backend.explore_score import rank_candidates
 from backend.locale_check import observe_page, remember_locale, write_locale
+from backend.release_row import load_saved_crawl, save_crawl_progress
 from backend.run_rules import locale_for, schema_for
 from backend.schema_diff import diff_specs
 from backend.scrape_seed import harvest_openapi_operations
@@ -48,6 +59,74 @@ def test_the_live_frontier_opens_a_higher_score_first_and_keeps_the_menu_first()
     assert payment == ["https://shop.example/checkout", "https://shop.example/payments/card"]
     assert order.index(payment[0]) > order.index(normal[-1])
     assert order.index(payment[-1]) < order.index(later[0])
+    assert click_actions_allowed("https://shop.example/product/plain") is True
+    assert click_actions_allowed("https://shop.example/checkout") is False
+    assert click_actions_allowed("https://www.paypal.com/cgi-bin/webscr") is False
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/cart") is True
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/checkout") is False
+    assert click_actions_allowed("https://shop.example/index.php?rt=checkout/confirm") is False
+    assert click_page(
+        "https://shop.example/product/saree-1", "https://shop.example/checkout",
+    ) == "https://shop.example/checkout"
+    assert click_actions_allowed(click_page(
+        "https://shop.example/product/saree-1", "https://shop.example/cart",
+    )) is True
+
+
+def test_a_guest_page_does_not_count_as_the_logged_in_visit():
+    urls, done = resume_seen([
+        {"url": "https://shop.example/account", "auth": False},
+        {"url": "https://shop.example/product/1", "auth": True},
+    ])
+    assert urls == {"https://shop.example/account", "https://shop.example/product/1"}
+    assert ("https://shop.example/account", False) in done
+    assert ("https://shop.example/account", True) not in done
+    assert ("https://shop.example/product/1", True) in done
+    assert ("https://shop.example/product/1", False) not in done
+
+
+def test_a_page_put_back_after_the_browser_closes_is_still_waiting(tmp_path):
+    save_crawl_progress(tmp_path, [], waiting_rows([
+        ("https://shop.example/account", 2, True, True),
+    ], []))
+    _pages, pending = load_saved_crawl(tmp_path)
+    assert pending_visit(pending[0]) == ("https://shop.example/account", True)
+
+
+def test_a_cut_off_page_is_still_waiting():
+    rows = waiting_rows([
+        ("https://shop.example/account", 2, True, True),
+        ("https://shop.example/next", 1, True, False),
+    ], [])
+    visits = {(row["url"], row["auth"]) for row in rows}
+    assert ("https://shop.example/account", True) in visits
+    assert ("https://shop.example/next", False) in visits
+    assert [row["auth"] for row in rows if row["url"].endswith("/account")] == [True]
+
+
+def test_an_expired_login_does_not_leave_those_pages_waiting(tmp_path):
+    from backend.agents.discovery import drop_expired_login
+    queue = [
+        ("https://shop.example/orders", 2, True, True),
+        ("https://shop.example/about", 1, True, False),
+    ]
+    skipped: dict = {}
+    drop_expired_login(queue, skipped)
+    save_crawl_progress(tmp_path, [], waiting_rows(queue, []))
+    _pages, pending = load_saved_crawl(tmp_path)
+    urls = [item["url"] if isinstance(item, dict) else item for item in pending]
+    assert urls == ["https://shop.example/about"]
+    assert skipped == {"https://shop.example/orders": "not visited: the login expired"}
+
+
+def test_a_waiting_logged_in_page_stays_logged_in_on_resume(tmp_path):
+    save_crawl_progress(tmp_path, [], [
+        "https://shop.example/about",
+        {"url": "https://shop.example/account", "auth": True, "depth": 2, "inside": True},
+    ])
+    _pages, pending = load_saved_crawl(tmp_path)
+    assert pending_visit(pending[0]) == ("https://shop.example/about", False)
+    assert pending_visit(pending[1]) == ("https://shop.example/account", True)
 
 
 def test_locale_file_keeps_only_facts_the_page_showed_and_the_sample(tmp_path, monkeypatch):

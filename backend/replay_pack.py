@@ -50,7 +50,13 @@ def replay(package: dict) -> dict:
 
 def saved_replays(run_dir: Path) -> list[dict]:
     """The replay decision stored for one run. An empty list means nothing was recorded."""
+    from .agents.change_detection import run_read_block
+    run_dir = Path(run_dir)
+    if run_read_block(run_dir, "qx_replay.json"):
+        return []
     try:
+        if (run_dir / "qx_replay.json").is_symlink():
+            return []
         payload = json.loads((run_dir / "qx_replay.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
@@ -69,19 +75,27 @@ def replay_tests(run_dir: Path) -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def run_saved(run_dir: Path) -> dict:
-    """Run the saved tests whose replay packages are complete."""
+def run_saved(run_dir: Path, *, limit: int = 0) -> dict:
+    """Run the saved tests whose replay packages are complete.
+
+    ``limit`` caps how many nodeids are re-executed (Gate E bounded reproduction).
+    """
     from .recheck import recheck
 
     names = replay_tests(run_dir)
+    if limit and limit > 0:
+        names = names[: int(limit)]
     if not names:
-        return {"ran": False, "reason": "no complete package names a test", "results": {}}
+        return {"ran": False, "reason": "no complete package names a test", "results": {}, "selected": []}
     if not (Path(run_dir) / "generated_tests").is_dir():
-        return {"ran": False, "reason": "this run has no test scripts", "results": {}}
+        return {"ran": False, "reason": "this run has no test scripts", "results": {}, "selected": names}
     out = recheck(run_dir, names)
     results = out.get("results") or {}
     if not results:
-        return {"ran": False, "reason": out.get("note") or "test runner returned no results", "results": {}}
+        return {"ran": False, "reason": out.get("note") or "test runner returned no results",
+                "results": {}, "selected": names}
     if not any(row.get("outcome") not in (None, "not run") for row in results.values() if isinstance(row, dict)):
-        return {"ran": False, "reason": "no selected test actually executed", "results": results}
-    return {"ran": True, "reason": "", "results": results}
+        return {"ran": False, "reason": "no selected test actually executed", "results": results,
+                "selected": names}
+    return {"ran": True, "reason": "", "results": results, "selected": names,
+            "executed": True}

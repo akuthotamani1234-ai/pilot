@@ -158,3 +158,61 @@ def test_visible_target_does_not_replay_an_obsolete_opener():
         assert "error" not in result,result
         assert explorer._last_replay_count==0
         browser.close()
+
+
+def test_a_python_app_check_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.setup_agent import _find_python_app
+
+    secret = "tenant-b-only-app"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.py").write_text(f"FastAPI()\n# {secret}\n", encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _find_python_app(linked, "FastAPI") is None
+    assert (other / "app.py").read_text(encoding="utf-8") == f"FastAPI()\n# {secret}\n"
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "main.py").write_text("FastAPI()\n# home-own\n", encoding="utf-8")
+    (real / "secret_app.py").symlink_to(other / "app.py")
+    found = _find_python_app(real, "FastAPI")
+    assert found == "main"
+    text = (real / "main.py").read_text(encoding="utf-8")
+    assert "home-own" in text
+    assert secret not in text
+    assert (other / "app.py").read_text(encoding="utf-8") == f"FastAPI()\n# {secret}\n"
+
+
+def test_a_project_check_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import json
+
+    from backend.agents.setup_agent import detect_project
+
+    monkeypatch.setattr("backend.config.settings.start_cmd", "")
+    secret = "tenant-b-only-project"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "package.json").write_text(json.dumps({"scripts": {"start": secret}}), encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(RuntimeError, match="link"):
+        detect_project(linked, 9)
+    assert (other / "package.json").read_text(encoding="utf-8").count(secret) == 1
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "package.json").write_text(
+        json.dumps({"scripts": {"dev": "vite home-own"}}), encoding="utf-8")
+    found = detect_project(real, 9)
+    assert found["type"] == "node (npm run dev)"
+    assert "npm run dev" in found["start"]
+    assert secret not in json.dumps(found)
+    assert "home-own" in (real / "package.json").read_text(encoding="utf-8")
+    assert (other / "package.json").read_text(encoding="utf-8").count(secret) == 1

@@ -287,6 +287,59 @@ def test_two_different_forms_are_two_checks_even_when_both_are_the_first_form_of
     assert len([c for c in forms if "#news" in c["element"]]) == 1  # the footer form: one check for the whole site
 
 
+def test_an_insecure_font_is_not_an_application_defect(tmp_path):
+    from backend.agents.failure_analysis import failure_analysis_agent
+    detail = ("Mixed Content: The page at 'https://s.test/' was loaded over HTTPS, but requested an insecure font "
+              "'http://s.test/a.woff'.")
+    issues = [{"type": "console_error", "url": "https://s.test/", "detail": detail},
+              {"type": "page_failed", "url": "https://s.test/gone", "detail": "HTTP 500"}]
+    out = failure_analysis_agent({"url": "https://s.test/", "results": [], "test_cases": [], "crawl_issues": issues,
+                                  "log": [], "run_dir": str(tmp_path)})
+    crawl = [f for f in out["failures"] if f["source"] == "crawler"]
+    mixed = next(f for f in crawl if "insecure font" in f["error"])
+    assert mixed["category"] == "mixed_content"
+    assert mixed["category"] != "product_defect"
+    assert "https" in mixed["next_action"]
+    assert next(f for f in crawl if f["error"] == "HTTP 500")["category"] == "product_defect"
+
+
+def test_an_insecure_font_does_not_hide_an_application_error(tmp_path):
+    from backend.agents.failure_analysis import failure_analysis_agent
+    font = ("Mixed Content: The page at 'https://s.test/' was loaded over HTTPS, but requested an insecure font "
+            "'http://s.test/a.woff'. Failed to load resource: net::ERR_BLOCKED_BY_RESPONSE")
+    both = font + "\nUncaught TypeError: Cannot read properties of null (reading 'cart')"
+    issues = [
+        {"type": "console_error", "url": "https://s.test/", "detail": font},
+        {"type": "console_error", "url": "https://s.test/shop", "detail": both},
+        {"type": "console_error", "url": "https://s.test/plain", "detail": "Failed to load resource: net::ERR_FAILED"},
+    ]
+    out = failure_analysis_agent({"url": "https://s.test/", "results": [], "test_cases": [], "crawl_issues": issues,
+                                  "log": [], "run_dir": str(tmp_path)})
+    crawl = [f for f in out["failures"] if f["source"] == "crawler"]
+    only_font = next(f for f in crawl if f["page_url"] == "https://s.test/")
+    assert only_font["category"] == "mixed_content"
+    hidden = next(f for f in crawl if f["page_url"] == "https://s.test/shop")
+    assert hidden["category"] == "product_defect"
+    assert "TypeError" in hidden["error"]
+    plain = next(f for f in crawl if f["page_url"] == "https://s.test/plain")
+    assert plain["category"] == "infrastructure"
+
+
+def test_a_range_error_is_not_hidden_by_an_insecure_font(tmp_path):
+    from backend.agents.failure_analysis import _passive_mixed_only, failure_analysis_agent
+    font = ("Mixed Content: The page at 'https://s.test/' was loaded over HTTPS, but requested an insecure font "
+            "'http://s.test/a.woff'.")
+    both = font + "\nRangeError: Invalid array length"
+    issues = [{"type": "console_error", "url": "https://s.test/shop", "detail": both}]
+    out = failure_analysis_agent({"url": "https://s.test/", "results": [], "test_cases": [], "crawl_issues": issues,
+                                  "log": [], "run_dir": str(tmp_path)})
+    crawl = [f for f in out["failures"] if f["source"] == "crawler"]
+    assert crawl[0]["category"] == "product_defect"
+    assert "RangeError" in crawl[0]["error"]
+    assert _passive_mixed_only(font) is True
+    assert _passive_mixed_only("AssertionError: console\n" + font + "\nURIError: URI malformed") is False
+
+
 def test_a_page_that_did_not_load_in_time_is_no_website_defect_and_one_problem_is_one_finding(tmp_path):
     """The final re-run said Not Ready because 2 pages 'did not load' - both were 20 s timeouts while the test machine
     was busy. And one blocked third-party script on 28 pages was 28 findings."""

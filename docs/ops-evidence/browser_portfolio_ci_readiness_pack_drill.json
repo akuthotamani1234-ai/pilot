@@ -1,0 +1,93 @@
+{
+  "gate_f_complete": false,
+  "drill": "browser_portfolio_ci_readiness_pack",
+  "ran_at": "2026-11-19T05:50:32Z",
+  "kind": "readiness_score_only",
+  "score": 16,
+  "score_of": 16,
+  "checks": [
+    {
+      "artifact": "multi_browser_portfolio_suite_drill.json",
+      "label": "Multi-browser portfolio suite",
+      "ready": true
+    },
+    {
+      "artifact": "multi_browser_ci_contract.json",
+      "label": "Multi-browser CI contract",
+      "ready": true
+    },
+    {
+      "artifact": "portfolio_artifact_manifest_drill.json",
+      "label": "Portfolio artifact manifest",
+      "ready": true
+    },
+    {
+      "artifact": "workflow_dispatch_contract_drill.json",
+      "label": "workflow_dispatch contracts",
+      "ready": true
+    },
+    {
+      "artifact": "ci_artifact_upload_rehearsal_drill.json",
+      "label": "CI upload rehearsal",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_runner_matrix_drill.json",
+      "label": "Hosted CI runner matrix",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_runner_readiness_drill.json",
+      "label": "Hosted runner readiness",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_dispatch_payload_rehearsal_drill.json",
+      "label": "Dispatch payload rehearsal",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_artifact_gate_pack_drill.json",
+      "label": "Hosted CI artifact gate pack",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_workflow_runner_audit_drill.json",
+      "label": "Hosted workflow runner audit",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_artifact_retention_contract_drill.json",
+      "label": "Artifact retention contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_permissions_contract_drill.json",
+      "label": "CI permissions contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_timeout_budget_drill.json",
+      "label": "CI timeout budget contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_concurrency_contract_drill.json",
+      "label": "CI concurrency contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_runner_os_matrix_contract_drill.json",
+      "label": "Runner OS matrix contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_cache_key_contract_drill.json",
+      "label": "CI cache-key contract",
+      "ready": true
+    }
+  ],
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Browser portfolio CI readiness 16/16; broad hosted multi-browser runners still open"
+}

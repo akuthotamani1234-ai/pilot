@@ -1,0 +1,43 @@
+{
+  "gate_e_complete": false,
+  "drill": "live_demo_store_failure_matrix",
+  "ran_at": "2026-11-19T05:45:00Z",
+  "cases": 3,
+  "failed": 3,
+  "counts": {
+    "locator": 2,
+    "product_defect": 1
+  },
+  "rows": [
+    {
+      "id": "missing-locator",
+      "category": "locator",
+      "confidence": "medium",
+      "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b",
+      "outcome": "failed",
+      "error_type": "TimeoutError"
+    },
+    {
+      "id": "assert-text",
+      "category": "product_defect",
+      "confidence": "high",
+      "why": "The website did not behave as expected.",
+      "outcome": "failed",
+      "error_type": "AssertionError"
+    },
+    {
+      "id": "role-timeout",
+      "category": "locator",
+      "confidence": "medium",
+      "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page structure changed; not proof of a website b",
+      "outcome": "failed",
+      "error_type": "TimeoutError"
+    }
+  ],
+  "healing": {
+    "locator_repair_allowed": true,
+    "weaken_denied": true
+  },
+  "ok": true,
+  "reason": "Live DemoStore failure matrix classified 3 provoked failures; production failure matrix / healing suite still open"
+}

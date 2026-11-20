@@ -1,0 +1,53 @@
+{
+  "gate_h_complete": false,
+  "drill": "multi_region_postgres_failover",
+  "ran_at": "2026-11-19T07:21:29Z",
+  "ok": true,
+  "region_a": "qpilot_region_a",
+  "region_b": "qpilot_region_b",
+  "dump_bytes": 1341,
+  "steps": [
+    {
+      "step": "terminate:qpilot_region_a",
+      "rc": 1
+    },
+    {
+      "step": "DROP:qpilot_region_a",
+      "rc": 0
+    },
+    {
+      "step": "CREATE:qpilot_region_a",
+      "rc": 0
+    },
+    {
+      "step": "seed_region_a",
+      "rc": 0
+    },
+    {
+      "step": "pg_dump_region_a",
+      "rc": 0
+    },
+    {
+      "step": "terminate:qpilot_region_b",
+      "rc": 1
+    },
+    {
+      "step": "DROP:qpilot_region_b",
+      "rc": 0
+    },
+    {
+      "step": "CREATE:qpilot_region_b",
+      "rc": 0
+    },
+    {
+      "step": "restore_region_b",
+      "rc": 0
+    },
+    {
+      "step": "failover_read_region_b",
+      "rc": 0,
+      "marker": "qpilot-multi-region-marker-v1"
+    }
+  ],
+  "reason": "Local dual-region Postgres failover rehearsal ok (qpilot_region_a\u2192qpilot_region_b); hosted multi-region DR / on-call still open"
+}

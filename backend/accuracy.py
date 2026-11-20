@@ -29,6 +29,10 @@ LOGIN_NEEDED = re.compile(r"log ?in|sign ?in|test account", re.I)
 
 
 def _read(path: Path, default):
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -245,6 +249,26 @@ def summary_line(m: dict) -> str:
     return s
 
 
+def write_report(path: Path, payload: dict) -> bool:
+    """Write the accuracy numbers. A linked file or folder is left untouched."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return True
+
+
+def load_truth(path: str | Path) -> dict:
+    """The known-truth manifest. A link is not this run's practice website."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if folder_is_linked(path):
+        raise ValueError("The known-truth file is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Accuracy of a finished test run")
     ap.add_argument("run_dir")
@@ -252,12 +276,11 @@ def main() -> None:
     ap.add_argument("--bugs", action="store_true", help="the website had its planted bugs switched on")
     ap.add_argument("--out", help="write the numbers to this JSON file (else they are printed)")
     a = ap.parse_args()
-    truth = json.loads(Path(a.truth).read_text(encoding="utf-8")) if a.truth else None
+    truth = load_truth(a.truth) if a.truth else None
     m = measure(a.run_dir, truth, a.bugs)
-    if a.out:
-        Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.out).write_text(json.dumps(m, indent=2), encoding="utf-8")
-    else:
+    if a.out and not write_report(Path(a.out), m):
+        raise ValueError("The accuracy file is a link.")
+    if not a.out:
         print(json.dumps(m, indent=2))
     print(summary_line(m))
 

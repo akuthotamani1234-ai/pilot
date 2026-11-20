@@ -99,6 +99,9 @@ def test_payment_urls_stay_blocked_even_when_no_fault_is_injected(tmp_path):
     # The cart page on a one-script shop, and an admin pay-grade screen, are not the payment.
     assert request_blocked("https://shop.example/index.php?rt=checkout/cart", controls) is False
     assert request_blocked("https://hr.example/admin/pay-grades", controls) is False
+    assert request_blocked("https://www.paypal.com/cgi-bin/webscr", controls) is True
+    assert request_blocked("https://shop.example/checkout.html", controls) is True
+    assert request_blocked("https://shop.example/cart/checkout%2Ehtml", controls) is True
     # A fault must not open the payment, even when that address is the document being opened.
     opened = dict(controls, start_url="https://shop.example/checkout", navigation=True)
     assert request_blocked("https://shop.example/checkout", opened) is True
@@ -180,3 +183,230 @@ def test_the_suite_template_applies_the_controls_in_the_browser():
     assert "_CLOCK_SCRIPT" in text
     assert 'else "failed"' in text
     assert 'abort("blockedbyclient")' in text
+
+
+def test_a_test_result_does_not_follow_a_link_into_another_run(tmp_path):
+    import ast
+
+    from backend.finalization import save_login_state, write_text_unless_linked
+
+    secret = "tenant-b-only-result"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "results.jsonl").write_text(secret + "\n", encoding="utf-8")
+    (other / "running.json").write_text(secret, encoding="utf-8")
+    (other / "events.jsonl").write_text(secret + "\n", encoding="utf-8")
+    (other / "crawl.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    private = other / "private"
+    private.mkdir()
+
+    run = tmp_path / "run-a"
+    run.mkdir()
+    (run / "results.jsonl").symlink_to(other / "results.jsonl")
+    (run / "running.json").symlink_to(other / "running.json")
+    (run / "events.jsonl").symlink_to(other / "events.jsonl")
+    (run / "crawl.json").symlink_to(other / "crawl.json")
+    (run / ".private").symlink_to(private, target_is_directory=True)
+
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_record", "_running", "_event"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+
+    class _Item:
+        name = "test_secret"
+        nodeid = "test_secret"
+        _qa_t0 = 0
+        _qa_page = None
+
+    ns = {
+        "Path": Path, "json": json, "os": __import__("os"), "time": __import__("time"),
+        "RESULTS_FILE": run / "results.jsonl",
+        "RUNNING_FILE": run / "running.json",
+        "EVENT_FILE": run / "events.jsonl",
+        "EVENT_SESSION": "s",
+        "TEST_TIMEOUT_S": 1, "MAX_STEPS": 5,
+        "_CURRENT": {"item": _Item()}, "_EVENT_SEQUENCE": 0,
+        "_redact": lambda value: value,
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    ns["_record"]({"nodeid": "test_ok", "outcome": "passed", "error": "ours"})
+    ns["_running"](None)
+    ns["_event"]("finished", "passed")
+    assert (other / "results.jsonl").read_text(encoding="utf-8") == secret + "\n"
+    assert (other / "running.json").read_text(encoding="utf-8") == secret
+    assert (other / "events.jsonl").read_text(encoding="utf-8") == secret + "\n"
+
+    own = tmp_path / "own"
+    own.mkdir()
+    ns["RESULTS_FILE"] = own / "results.jsonl"
+    ns["_record"]({"nodeid": "test_ok", "outcome": "passed"})
+    assert "test_ok" in (own / "results.jsonl").read_text(encoding="utf-8")
+
+    assert write_text_unless_linked(run, "crawl.json", json.dumps({"visited": 1})) is False
+    assert json.loads((other / "crawl.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert write_text_unless_linked(own, "crawl.json", json.dumps({"visited": 1})) is True
+    assert json.loads((own / "crawl.json").read_text(encoding="utf-8"))["visited"] == 1
+
+    written = []
+    assert save_login_state(run, written.append) is False
+    assert written == []
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert save_login_state(own, written.append) is True
+    assert written == [str(own / ".private" / "auth.json")]
+
+
+def test_a_saved_login_does_not_follow_a_link_into_another_run(tmp_path):
+    from backend.finalization import private_file, save_login_state
+
+    secret = "tenant-b-only-login"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "auth_admin.json").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / ".private").symlink_to(other, target_is_directory=True)
+    assert private_file(run, "auth_admin.json") is None
+    assert private_file(run, "auth.json") is None
+    assert save_login_state(run, lambda path: Path(path).write_text("ours", encoding="utf-8")) is False
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "auth_admin.json").read_text(encoding="utf-8") == secret
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / ".private").mkdir()
+    (own / ".private" / "auth_admin.json").symlink_to(other / "auth_admin.json")
+    assert private_file(own, "auth_admin.json") is None
+    assert (other / "auth_admin.json").read_text(encoding="utf-8") == secret
+    saved = private_file(own, "auth.json")
+    assert saved == own / ".private" / "auth.json"
+    saved.write_text("ours", encoding="utf-8")
+    assert saved.read_text(encoding="utf-8") == "ours"
+    assert private_file(own, "../auth.json") is None
+
+
+def test_a_generated_test_cannot_read_through_a_link_out_of_its_run(tmp_path, monkeypatch):
+    import ast
+    import os
+    import re
+    import threading
+
+    import pytest
+
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_inside_run", "_link_escapes", "_audit"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "own.txt").write_text("ours", encoding="utf-8")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("tenant-b-only-secret", encoding="utf-8")
+    (run / "note.txt").symlink_to(secret)
+    library = tmp_path / "library.txt"
+    library.write_text("library", encoding="utf-8")
+    ns = {
+        "Path": Path, "os": os, "threading": threading,
+        "RUN_DIR": run.resolve(),
+        "_SANDBOX": {"thread": threading.get_ident()},
+        "SENSITIVE": re.compile(
+            r"(^|[\\/])(\.env|accounts|\.private|auth\.json|id_rsa|\.ssh|\.aws|\.git-credentials)([\\/]|$)",
+            re.I),
+        "_PROCESS_EVENTS": (), "_NET_EVENTS": (), "_FILE_EVENTS": (),
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    ns["_audit"]("open", (str(run / "own.txt"), "r"))
+    ns["_audit"]("open", (str(library), "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", (str(run / "note.txt"), "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", (str(run / "note.txt"), "w"))
+    monkeypatch.chdir(run)
+    ns["_audit"]("open", ("own.txt", "r"))
+    with pytest.raises(PermissionError):
+        ns["_audit"]("open", ("../secret.txt", "r"))
+    assert secret.read_text(encoding="utf-8") == "tenant-b-only-secret"
+    assert not (tmp_path / "outside.txt").exists()
+
+
+def test_browser_controls_are_not_read_through_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-service"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    _write_environment(nested, "staging", fixed_clock=True, network_fault=True)
+    (nested / "qx_dependency.json").write_text(json.dumps({
+        "injected": True, "service": secret,
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = load_controls(linked / "runs" / "run")
+    assert refused["fixed_clock"] is False
+    assert refused["network_fault"] is False
+    assert refused["injected"] is False
+    assert refused["service"] == ""
+    assert secret not in json.dumps(refused)
+    assert secret in (nested / "qx_dependency.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _write_environment(real, "staging", fixed_clock=True)
+    (real / "qx_dependency.json").write_text(json.dumps({
+        "injected": True, "service": "home-own-api",
+    }), encoding="utf-8")
+    loaded = load_controls(real)
+    assert loaded["fixed_clock"] is True
+    assert loaded["service"] == "home-own-api"
+    assert secret not in json.dumps(loaded)
+    assert secret in (nested / "qx_dependency.json").read_text(encoding="utf-8")
+
+
+def test_a_saved_login_is_not_read_through_a_link_into_another_folder(tmp_path):
+    import ast
+
+    secret = "tenant-b-only-cookie"
+    other = tmp_path / "other"
+    nested = other / "runs" / "run" / ".private"
+    nested.mkdir(parents=True)
+    saved = nested / "auth.json"
+    saved.write_text(json.dumps({"cookies": [{"name": secret, "value": secret}]}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
+    want = {"_output_is_linked", "_adopt_saved_login", "_save_login"}
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in want]
+    seen = []
+
+    class _Browser:
+        def add_cookies(self, cookies):
+            seen.extend(cookies)
+
+        def storage_state(self, path):
+            raise AssertionError(path)
+
+    ns = {
+        "Path": Path, "json": json, "os": __import__("os"),
+        "AUTH_STATE": str(linked / "runs" / "run" / ".private" / "auth.json"),
+        "_SANDBOX": {"thread": "kept"},
+        "_SESSION": {"loaded": 0},
+    }
+    exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
+    browser = _Browser()
+    assert ns["_adopt_saved_login"](browser) is False
+    assert ns["_save_login"](browser) is None
+    assert seen == []
+    assert secret in saved.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+    assert ns["_SANDBOX"]["thread"] == "kept"
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "auth.json").write_text(json.dumps({
+        "cookies": [{"name": "home-own", "value": "home-own"}],
+    }), encoding="utf-8")
+    ns["AUTH_STATE"] = str(real / "auth.json")
+    assert ns["_adopt_saved_login"](browser) is True
+    assert seen == [{"name": "home-own", "value": "home-own"}]
+    assert secret not in json.dumps(seen)
+    assert secret in saved.read_text(encoding="utf-8")

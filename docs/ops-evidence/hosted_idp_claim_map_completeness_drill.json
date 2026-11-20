@@ -1,0 +1,61 @@
+{
+  "gate_i_complete": false,
+  "drill": "hosted_idp_claim_map_completeness",
+  "ran_at": "2026-11-19T05:48:41Z",
+  "kind": "readiness_score_only",
+  "score": 8,
+  "score_of": 8,
+  "claims": [
+    {
+      "claim": "tid",
+      "artifact": "oidc_tid_tenant_acl_drill.json",
+      "label": "tid \u2192 tenant ACL",
+      "ready": true
+    },
+    {
+      "claim": "email_domain",
+      "artifact": "oidc_email_domain_tenant_acl_drill.json",
+      "label": "email domain \u2192 tenant ACL",
+      "ready": true
+    },
+    {
+      "claim": "org",
+      "artifact": "oidc_org_tenant_acl_drill.json",
+      "label": "org claim \u2192 tenant ACL",
+      "ready": true
+    },
+    {
+      "claim": "hd",
+      "artifact": "oidc_org_tenant_acl_drill.json",
+      "label": "hd claim \u2192 tenant ACL",
+      "ready": true
+    },
+    {
+      "claim": "groups",
+      "artifact": "oidc_groups_role_acl_drill.json",
+      "label": "groups \u2192 role ACL",
+      "ready": true
+    },
+    {
+      "claim": "matrix",
+      "artifact": "oidc_acl_matrix_pack_drill.json",
+      "label": "ACL matrix pack",
+      "ready": true
+    },
+    {
+      "claim": "principal",
+      "artifact": "studio_sso_principal_bootstrap_drill.json",
+      "label": "SSO principal bootstrap",
+      "ready": true
+    },
+    {
+      "claim": "callback",
+      "artifact": "studio_oidc_callback_drill.json",
+      "label": "Studio /api/sso/callback",
+      "ready": true
+    }
+  ],
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "OIDC claim-map completeness 8/8; live hosted IdP Studio SSO still open"
+}

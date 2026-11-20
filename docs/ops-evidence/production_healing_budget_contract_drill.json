@@ -1,0 +1,32 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_budget_contract",
+  "ran_at": "2026-11-19T05:47:07Z",
+  "kind": "contract_local_only",
+  "budget": {
+    "max_wall_minutes": 90,
+    "max_ai_calls": 200,
+    "max_auto_applies": 25,
+    "abort_on_auth_infra": true,
+    "human_approval_required_classes": [
+      "flaky",
+      "auth_problem",
+      "infrastructure",
+      "product_defect",
+      "timeout"
+    ],
+    "note": "Budget contract only; production / third-party suite still required"
+  },
+  "production_suite_executed": false,
+  "local_partial_present": [
+    "production_healing_third_party_sla_drill.json",
+    "production_healing_acceptance_gate_drill.json",
+    "production_healing_human_loop_contract_drill.json",
+    "production_healing_rollback_policy_drill.json",
+    "production_healing_suite_pack_drill.json",
+    "multi_app_healing_suite_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Production healing budget contract recorded (6/6 local partials); production / third-party healing suite still open"
+}

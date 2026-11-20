@@ -1,0 +1,64 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_taxonomy",
+  "ran_at": "2026-11-19T05:43:40Z",
+  "rows": [
+    {
+      "id": "auth-401",
+      "category": "auth_problem",
+      "confidence": "medium",
+      "why": "The login was refused or did not hold (sent back to the login page / 401 / 403).",
+      "expect": "auth_problem",
+      "matched": true
+    },
+    {
+      "id": "infra-refused",
+      "category": "infrastructure",
+      "confidence": "medium",
+      "why": "Network, rate limit or browser problem (the website refused or dropped the connection), not the website logic.",
+      "expect": "infrastructure",
+      "matched": true
+    },
+    {
+      "id": "flaky-retry",
+      "category": "flaky",
+      "confidence": "medium",
+      "why": "Failed first, passed on retry - timing or an unstable element.",
+      "expect": "flaky",
+      "matched": true
+    },
+    {
+      "id": "timeout-slow",
+      "category": "timeout",
+      "confidence": "low",
+      "why": "Page or element took too long - slow site, or a wait in the script is wrong.",
+      "expect": "timeout",
+      "matched": true
+    },
+    {
+      "id": "locator-missing",
+      "category": "locator",
+      "confidence": "medium",
+      "why": "The element the test uses was not found or could not be used (not unique, hidden, detached) - the script or the page str",
+      "expect": "locator",
+      "matched": true
+    },
+    {
+      "id": "assert-product",
+      "category": "product_defect",
+      "confidence": "high",
+      "why": "The website did not behave as expected.",
+      "expect": "product_defect",
+      "matched": true
+    }
+  ],
+  "matched": 6,
+  "total": 6,
+  "healing": {
+    "locator_repair_allowed": true,
+    "weaken_denied": true
+  },
+  "live_matrix_present": true,
+  "ok": true,
+  "reason": "Production healing taxonomy 6/6 matched (heal allow=True, weaken denied=True); production / third-party suite still open"
+}

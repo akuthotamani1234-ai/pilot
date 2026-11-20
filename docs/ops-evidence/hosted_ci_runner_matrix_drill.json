@@ -1,0 +1,43 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_runner_matrix",
+  "ran_at": "2026-11-19T00:21:44Z",
+  "kind": "contract_matrix_only",
+  "matrix": {
+    "multi_device": {
+      "os": [
+        "ubuntu-latest"
+      ],
+      "kvm_required": true,
+      "api_levels": [
+        24,
+        30,
+        34
+      ],
+      "appium": ">=3.0",
+      "driver": "uiautomator2",
+      "workflow": ".github/workflows/android-appium.yml",
+      "workflow_exists": true,
+      "artifact_manifest_ok": true,
+      "note": "Broad hosted multi-device product-matrix CI still open"
+    },
+    "multi_browser": {
+      "os": [
+        "ubuntu-latest"
+      ],
+      "browsers": [
+        "chromium",
+        "firefox",
+        "webkit"
+      ],
+      "workflow": ".github/workflows/multi-browser-portfolios.yml",
+      "workflow_exists": true,
+      "artifact_manifest_ok": true,
+      "note": "Broad hosted multi-browser portfolio CI still open"
+    }
+  },
+  "contracts_ok": true,
+  "ok": true,
+  "reason": "Hosted CI runner matrix snapshot recorded; broad multi-device and multi-browser hosted runner execution still open"
+}

@@ -179,26 +179,31 @@ def more_checks(registry: dict | None, test_dir: Path | None) -> list[dict]:
     out.append(_check("Every smoke / suspect / rule-question feature has the test that made it so", not odd,
                       f"{len(odd)} without a deciding test: {odd[:6]}" if odd else "each one has its test"))
     run_dir = Path(test_dir).parent if test_dir else None
-    if run_dir and (run_dir / "app_map.json").exists():
-        try:
-            pages = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
-        except ValueError:
-            pages = []
+    pages = _run_json(run_dir / "app_map.json") if run_dir else None
+    if isinstance(pages, list):
         frames = [fr for p in pages for fr in p.get("frames") or []]
         st = Counter(fr.get("status") for fr in frames)
         out.append(_check("Frames: testable + external + unreachable = frames found",
                           st["testable"] + st["external"] + st["unreachable"] == len(frames),
                           f"{st['testable']} + {st['external']} + {st['unreachable']} = {len(frames)}"))
-    if run_dir and (run_dir / "created.json").exists():
-        try:
-            c = json.loads((run_dir / "created.json").read_text(encoding="utf-8"))
-        except ValueError:
-            c = {}
-        if c:
-            out.append(_check("Test data: created = deleted + left for manual cleanup",
-                              c["created"] == c["deleted"] + len(c["left"]),
-                              f"{c['created']} = {c['deleted']} + {len(c['left'])}"))
+    created = _run_json(run_dir / "created.json") if run_dir else None
+    if isinstance(created, dict) and created:
+        c = created
+        out.append(_check("Test data: created = deleted + left for manual cleanup",
+                          c["created"] == c["deleted"] + len(c["left"]),
+                          f"{c['created']} = {c['deleted']} + {len(c['left'])}"))
     return out
+
+
+def _run_json(path: Path):
+    """JSON from this run. A linked file or folder is not read."""
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent) or not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 
 def _check(name: str, ok: bool, detail: str) -> dict:

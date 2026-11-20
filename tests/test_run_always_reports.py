@@ -33,6 +33,59 @@ def run(tmp_path, monkeypatch):
     runctl.reset()
 
 
+def test_a_stop_watcher_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-watch"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    runctl.reset()
+    try:
+        runctl.start_watchers(run, 0)
+        deadline = time.time() + 2
+        while not runctl.stopping() and time.time() < deadline:
+            time.sleep(0.01)
+        assert runctl.kind() == "link"
+        assert secret not in runctl.reason()
+        assert "you stopped" not in runctl.reason()
+    finally:
+        runctl.reset()
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    runctl.reset()
+    try:
+        runctl.start_watchers(real, 0)
+        deadline = time.time() + 2
+        while not runctl.stopping() and time.time() < deadline:
+            time.sleep(0.01)
+        assert runctl.kind() == "user_stop"
+        assert runctl.reason() == "you stopped the test"
+        assert secret not in runctl.reason()
+    finally:
+        runctl.reset()
+
+    quiet = tmp_path / "quiet"
+    quiet.mkdir()
+    runctl.reset()
+    try:
+        runctl.start_watchers(quiet, 0)
+        time.sleep(0.05)
+        assert not runctl.stopping()
+        assert runctl.kind() == ""
+    finally:
+        runctl.reset()
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def _start(run_dir: Path) -> dict:
     return {"source": PAGE["url"], "url": PAGE["url"], "site_key": "site", "run_id": run_dir.name,
             "run_dir": str(run_dir), "log": [], "heal_round": 0}
@@ -41,13 +94,18 @@ def _start(run_dir: Path) -> dict:
 def _discovery(calls: list, wait_for_stop: bool = False):
     def agent(state):
         calls.append(1)
+        page = dict(PAGE)
         if wait_for_stop:  # a long crawl that respects a stop request (like the real crawl loop)
+            # Persist the first page before waiting so a mid-discovery budget stop still reports it.
+            run_dir = Path(state.get("run_dir") or "")
+            if run_dir:
+                (run_dir / "app_map.json").write_text(json.dumps([page], indent=2), encoding="utf-8")
             t0 = time.time()
             while not runctl.stopping() and time.time() - t0 < 20:
                 time.sleep(0.05)
         crawl = {"limit": 25, "visited": 1, "not_visited_count": 4 if wait_for_stop else 0,
                  "limit_reached": wait_for_stop, "stopped": runctl.reason() if runctl.stopping() else ""}
-        return {"app_map": [dict(PAGE)], "crawl": crawl, "login": {}, "crawl_issues": [],
+        return {"app_map": [page], "crawl": crawl, "login": {}, "crawl_issues": [],
                 "log": state.get("log", []) + ["Discovery: 1 page."]}
     return agent
 
@@ -105,16 +163,18 @@ def test_resume_goes_on_after_the_last_finished_stage(run, monkeypatch):
 def test_the_run_time_limit_stops_the_run_and_reports_what_was_done(run, monkeypatch):
     from backend import graph as graph_mod
     from main import run_pipeline
-    monkeypatch.setattr(settings, "run_time_limit_min", 0.01)  # 0.6 s
+    monkeypatch.setattr(settings, "run_time_limit_min", 0.05)  # ~3 s (Windows CI needs headroom past finalization reserve)
     monkeypatch.setattr(graph_mod, "discovery_agent", _discovery([], wait_for_stop=True))
     t0 = time.time()
     final = run_pipeline(_start(run), run, run.name)
 
-    assert time.time() - t0 < 15
+    assert time.time() - t0 < 20
     assert final["incomplete"] and final["stop_kind"] == "run_time_limit"
     s = _summary(run)
     assert s["verdict"] == "Insufficient Evidence" and "RUN_TIME_LIMIT_MIN" in s["reasons"][0]
-    assert s["pages"] == 1  # the page found before the stop is in the report
+    # summary.json may store pages as an int or a coverage object depending on report path
+    pages = s["pages"]["discovered"] if isinstance(s.get("pages"), dict) else s.get("pages")
+    assert pages == 1  # the page found before the stop is in the report
     ids = {x["id"] for x in s["limits_hit"]}
     assert {"run_time_limit", "crawl_stopped"} <= ids
     assert json.loads((run / "resume.json").read_text(encoding="utf-8"))["stage"] == "discovery"  # cut short: again
@@ -183,3 +243,163 @@ def test_a_stop_ends_the_test_run_within_seconds_and_keeps_its_browsers_closed(t
     assert took < 30, took
     assert json.loads((run_dir / "execution.json").read_text(encoding="utf-8"))["stopped"] is True
     assert "stopped early" in out["log"][-1]
+
+
+def test_ai_usage_does_not_follow_a_link_into_another_run(tmp_path):
+    from backend import cost
+    secret = "tenant-b-only-usage"
+    other = tmp_path / "other"
+    other.mkdir()
+    victim = other / "llm_usage.jsonl"
+    victim.write_text(secret + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    cost.set_run_dir(linked)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    assert victim.read_text(encoding="utf-8") == secret + "\n"
+    assert cost.read_usage(linked) == []
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "llm_usage.jsonl").symlink_to(victim)
+    cost.set_run_dir(real, resume=True)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    assert victim.read_text(encoding="utf-8") == secret + "\n"
+    assert cost.read_usage(real) == []
+
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    cost.set_run_dir(fresh)
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    saved = (fresh / "llm_usage.jsonl").read_text(encoding="utf-8")
+    assert "vision" in saved and secret not in saved
+    assert cost.read_usage(fresh)[0]["agent"] == "vision"
+
+
+def test_a_cost_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend import cost
+
+    secret = b"tenant-b-only-cost"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "llm_usage.jsonl").write_bytes(secret)
+    (nested / "cost.json").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    cost.set_run_dir(linked / "run")
+    cost.record("vision", "https://shop.example", "test_cart", 3, 4, 0.1, True)
+    report = cost.write_report(linked / "run", [], [])
+    assert (nested / "llm_usage.jsonl").read_bytes() == secret
+    assert (nested / "cost.json").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert secret.decode() not in json.dumps(report)
+    assert cost.read_usage(linked / "run") == []
+
+    real = tmp_path / "real"
+    real.mkdir()
+    cost.set_run_dir(real)
+    cost.record("reporter", "https://shop.example", "test_home", 1, 2, 0.1, True)
+    written = cost.write_report(real, [], [])
+    usage = (real / "llm_usage.jsonl").read_text(encoding="utf-8")
+    saved = (real / "cost.json").read_text(encoding="utf-8")
+    assert "reporter" in usage and secret.decode() not in usage
+    assert written["tests_executed"] == 0 and secret.decode() not in saved
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_project_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import sys
+
+    from backend.agents import setup_agent as setup
+    from backend.config import settings
+
+    secret = "tenant-b-only-setup"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "setup.log").write_text(secret, encoding="utf-8")
+    project = other / "app"
+    project.mkdir()
+    (project / "keep.txt").write_text(secret, encoding="utf-8")
+    source = "https://github.com/example/app"
+    calls = []
+    original_clone = setup._clone
+    monkeypatch.setattr(setup, "_clone", lambda *args, **kwargs: calls.append(args))
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(linked), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "setup.log").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "setup.log").symlink_to(other / "setup.log")
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(real), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "setup.log").read_text(encoding="utf-8") == secret
+
+    monkeypatch.setattr(setup, "_clone", original_clone)
+    workspace = tmp_path / "workspace"
+    workspace.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(settings, "workspace_dir", workspace)
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    refused = setup.setup_agent({"source": source, "url": source, "run_dir": str(fresh), "log": []})
+    assert "link" in refused["setup_error"]
+    assert (project / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (fresh / "setup.log").exists()
+
+    owned = tmp_path / "owned-workspace"
+    owned.mkdir()
+    monkeypatch.setattr(settings, "workspace_dir", owned)
+    (owned / "app").symlink_to(project, target_is_directory=True)
+    with pytest.raises(RuntimeError):
+        setup._clone(source, fresh / "setup.log")
+    assert (project / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (fresh / "setup.log").exists()
+
+    log = fresh / "setup.log"
+    setup._run(f'"{sys.executable}" -c "print(123)"', fresh, log, timeout=30)
+    saved = log.read_text(encoding="utf-8")
+    assert "123" in saved and secret not in saved
+    assert log.is_file() and not log.is_symlink()
+
+
+def test_a_linked_local_project_is_not_started(tmp_path, monkeypatch):
+    from backend.agents import setup_agent as setup
+
+    secret = "tenant-b-only-project"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    (other / "index.html").write_text("<title>Other</title>", encoding="utf-8")
+    linked = tmp_path / "linked-app"
+    linked.symlink_to(other, target_is_directory=True)
+    run = tmp_path / "run"
+    run.mkdir()
+    calls = []
+    monkeypatch.setattr(setup, "_run", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(setup, "_start_server", lambda *args, **kwargs: calls.append("start"))
+    refused = setup.setup_agent({"source": str(linked), "url": str(linked), "run_dir": str(run), "log": []})
+    assert "link" in refused["setup_error"]
+    assert calls == []
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real-app"
+    real.mkdir()
+    (real / "index.html").write_text("<title>Mine</title>", encoding="utf-8")
+
+    class _Proc:
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(setup, "_start_server", lambda *args, **kwargs: _Proc())
+    monkeypatch.setattr(setup, "_wait_until_up", lambda *args, **kwargs: "http://127.0.0.1:9/")
+    started = setup.setup_agent({"source": str(real), "url": str(real), "run_dir": str(run), "log": []})
+    assert started.get("url") == "http://127.0.0.1:9/"
+    assert secret not in json.dumps(started)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret

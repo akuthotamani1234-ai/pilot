@@ -1,0 +1,27 @@
+{
+  "gate_g_complete": false,
+  "drill": "postgres_tenancy_helpers",
+  "ran_at": "2026-11-18T19:56:58Z",
+  "principal": {
+    "principal_id": "drill-pa",
+    "tenant_id": "drill-a",
+    "email": "a@example.test",
+    "role": "admin"
+  },
+  "runs_for_tenant_a": [
+    "drill-run-a"
+  ],
+  "visible": {
+    "ok": true,
+    "backend": "postgres",
+    "tenant_id": "drill-a",
+    "role": "admin",
+    "gate_g_complete": false,
+    "reason": "Postgres tenant-scoped runs (Studio SSO still open)"
+  },
+  "visible_run_ids": [
+    "drill-run-a"
+  ],
+  "ok": true,
+  "reason": "Postgres tenancy helpers re-verified via live POSTGRES_URL after Appium matrix; Studio SSO still open"
+}

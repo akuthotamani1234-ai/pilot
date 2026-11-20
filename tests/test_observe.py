@@ -43,6 +43,138 @@ def _learned(page, control):
     return next(b for b in page.get("behaviour", []) if b["control"] == control)
 
 
+def test_a_redirect_onto_checkout_is_not_clicked():
+    import time
+
+    from backend.observe import Explorer
+
+    class Probe:
+        status = 302
+        headers = {"location": "https://shop.example/checkout"}
+
+    class Page:
+        def __init__(self):
+            self.url = "https://shop.example/product/1"
+            self.clicks = 0
+            self.gotos = []
+            self.context = type("Ctx", (), {"pages": []})()
+            self.request = self
+
+        def get(self, url, **kwargs):
+            return Probe()
+
+        def goto(self, url, **kwargs):
+            self.gotos.append(url)
+            self.url = url
+
+        def evaluate(self, *args, **kwargs):
+            return ""
+
+        def locator(self, selector):
+            self.clicks += 1
+            raise AssertionError(selector)
+
+    page = Page()
+    explorer = Explorer("", lambda *args, **kwargs: None, time.time() + 30)
+    result = explorer._try(
+        page, "https://shop.example/product/1", {},
+        {"selector": "#continue", "action": "click", "text": "Continue", "name": "Continue"},
+        None, "safe",
+    )
+    assert str(result.get("blocked") or "").startswith("protected")
+    assert page.clicks == 0
+    assert page.gotos == []
+    assert page.url == "https://shop.example/product/1"
+    entry = {"forms": [{
+        "selector": "form", "action": "/save",
+        "fields": [{"selector": "#name", "name": "name", "label": "Name", "type": "text"}],
+        "submit": {"text": "Save", "selector": "#save"},
+    }]}
+    assert explorer.fill_forms(page, "https://shop.example/product/1", entry) == []
+    assert entry["form_fills"][0]["filled"] == []
+    assert entry["form_fills"][0]["sent"] is False
+    assert page.gotos == []
+
+
+def test_a_link_that_redirects_into_checkout_is_not_clicked():
+    import time
+
+    from backend.observe import Explorer
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        def __init__(self):
+            self.url = "https://shop.example/product/1"
+            self.clicked = False
+            self.request = self
+
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            if "checkout/cart" in str(url):
+                return Probe(200)
+            if str(url).endswith("/promo"):
+                return Probe(302, "https://shop.example/checkout")
+            if str(url).endswith("/cart"):
+                return Probe(302, "https://shop.example/index.php?rt=checkout/cart")
+            return Probe(200)
+
+        def locator(self, selector):
+            page = self
+
+            class First:
+                def evaluate(self, *_args, **_kwargs):
+                    href = "/promo" if selector == "#promo" else "/cart"
+                    return {"href": href, "action": "", "onclick": ""}
+
+                def click(self, **_kwargs):
+                    page.clicked = True
+
+            class Loc:
+                first = First()
+
+            return Loc()
+
+    page = Page()
+    explorer = Explorer("", lambda *_args, **_kwargs: None, time.time() + 30)
+    why = explorer._payment_click(
+        page,
+        {"selector": "#promo", "href": "/promo", "text": "Continue", "name": "Continue"},
+        page.url,
+    )
+    assert str(why).startswith("protected")
+    assert page.clicked is False
+    cart = explorer._payment_click(
+        page,
+        {"selector": "#cart", "href": "/cart", "text": "Cart", "name": "Cart"},
+        page.url,
+    )
+    assert cart == ""
+    assert page.clicked is False
+
+
+def test_a_click_that_lands_on_checkout_is_not_learned():
+    import time
+
+    from backend.observe import Explorer
+
+    explorer = Explorer("", lambda *_args, **_kwargs: None, time.time() + 30)
+
+    def landed(*_args, **_kwargs):
+        return {"effect": "navigates", "to": "https://shop.example/checkout", "message": "", "tone": "",
+                "values": {}, "revealed": [], "added": [], "state": "landed"}
+
+    explorer._try = landed
+    entry = {"buttons": [{"text": "Continue", "selector": "#go", "role": "button"}]}
+    explorer._explore(type("Page", (), {"url": "https://shop.example/cart"})(), "https://shop.example/cart", entry)
+    assert entry.get("behaviour") == []
+    assert explorer.blocked[0]["control"] == "Continue"
+    assert str(explorer.blocked[0]["why"]).startswith("protected")
+
+
 def test_pages_only_an_action_or_scrolling_reveals_are_found(explored):
     out, crawl, store = explored
     paths = {p["url"].replace(store.url, "") or "/" for p in out["app_map"]}

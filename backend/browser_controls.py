@@ -46,6 +46,10 @@ _CLOCK_JS = f"""(() => {{
 
 
 def _read(path: Path) -> dict | None:
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return None
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -122,6 +126,10 @@ def _payment_url(hay: str) -> bool:
 
 def _protected_url(url: str) -> bool:
     """Payment, delete, and logout stay blocked. A control must not turn that into an allow."""
+    from .swarm import is_payment_url
+
+    if is_payment_url(url) and action_still_blocked("pay")[0]:
+        return True
     hay = _haystack(url)
     if _LOGOUT_URL.search(hay) and action_still_blocked("logout")[0]:
         return True

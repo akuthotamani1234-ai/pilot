@@ -30,6 +30,7 @@ from ..navigation import opener_path
 from ..observe import READING_SUBMIT  # (a search / filter form's button: it only reads)
 from ..page_status import page_testable
 from ..state import QAState
+from ..swarm import is_payment_url, stored_control_opens_payment
 from ..testdata import field_kind, values as fitting_values
 
 SYSTEM = (
@@ -70,6 +71,8 @@ def safe_buttons(p: dict) -> list[dict]:
                            tag=b.get("tag")) in ("pay", "delete", "logout", "password", "write"):
             continue
         if UNSAFE_BUTTON.search(text) or UNSAFE_BUTTON.search(b.get("selector") or ""):
+            continue
+        if stored_control_opens_payment(p.get("final_url") or p.get("url") or "", b):
             continue
         out.append(b)
     return out
@@ -306,6 +309,24 @@ def control_cases(p: dict) -> list[dict]:
                     "expected": "It shows ticked after the first click and unticked after the second",
                     "selector": i["selector"]})
 
+    # Standalone text boxes (incl. open-shadow web components like AdminPortal Nickname) that are not
+    # covered by form_cases / search features still need a fill+value check.
+    for i in [i for i in inputs
+              if kind_of(i) in ("text", "email", "tel", "url", "") and (i.get("tag") or "input") != "select"][:8]:
+        hint = f"{i.get('name')} {i.get('id')} {i.get('label')} {i.get('placeholder')}"
+        if re.search(r"\b(search|keyword|query|password|passwd)\b", hint, re.I):
+            continue
+        if i.get("readonly"):
+            continue
+        name = _box_name(i)
+        sample = "QA Shadow" if i.get("shadow_path") else "QA Tester"
+        out.append({"id": key("textbox", name), "kind": "textbox", "type": "positive", "priority": "medium",
+                    "title": f"'{name}' accepts typed text", "test_data": sample,
+                    "steps": [f"Open {page}", f"Type '{sample}' into '{name}'"],
+                    "expected": f"The box shows '{sample}'",
+                    "selector": i["selector"], "value": sample,
+                    "shadow": " > ".join(i.get("shadow_path") or [])})
+
     controls = [b for b in p.get("buttons", []) if b.get("selector") and b.get("first_seen", True)
                 and not b.get("disabled") and (not UNSAFE_BUTTON.search(b.get("text") or "") or dialog_safe(b))]
     label = lambda b: (b.get("text") or "control").split("\n")[0].strip()[:40] or "control"  # noqa: E731
@@ -477,7 +498,10 @@ def coverage(p: dict, code: str) -> dict:
     def add(name, kind, el, earlier):
         s = el.get("selector")
         meaning = None
-        if s and s in used:
+        page_url = p.get("final_url") or p.get("url") or ""
+        if stored_control_opens_payment(page_url, el):
+            status, why = "not tested", "not used on purpose: it opens checkout or payment"
+        elif s and s in used:
             status, why, meaning = "tested", "", "scripted"
         elif earlier:
             status, why, meaning = "tested", "same as on an earlier page - tested there", "scripted"
@@ -572,6 +596,8 @@ def rule_based_cases(p: dict) -> list[dict]:
     for f in p.get("forms", []):
         if f.get("submit") and FORM_UNSAFE.search(f["submit"].get("text") or ""):
             continue  # never submit a "Pay" / "Delete" / "Transfer" form, even empty
+        if stored_control_opens_payment(p.get("final_url") or p.get("url") or "", f):
+            continue  # a Continue button can still post the form to checkout
         if settings.environment == "production":
             continue  # production: no form is ever submitted (it could create real records)
         # (also a filter form of an app: OrangeHRM's 'Username / User Role / Status' with its button 'Search' - sent
@@ -1106,38 +1132,18 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
     # 1) log in with the test account, then open the pages behind the login (the login must hold)
     lp = next((p for p in guests if login_form(p)), None)
     if lp and settings.test_username and settings.test_password:
-        after = [{"url": p["url"], "name": _short(p)} for p in users[:8]]
+        behind = [p for p in users[:8] if not is_payment_url(p.get("final_url") or p.get("url") or "")]
+        after = [{"url": p["url"], "name": _short(p)} for p in behind]
         out.append(_journey(
             len(out) + 1, "login", f"Log in with the test account and use the app ({len(after)} page(s) behind the login)",
             [f"Open {_page_name(lp)}", "Type the test account's email / user name and password", "Click the login button",
              "You are logged in (the login form is gone)"] + [f"Open '{a['name']}' - you are still logged in" for a in after],
             "The login works and every page behind it opens without sending you back to the login page",
-            [lp] + users[:8], dict(login_form(lp), url=lp["url"], after=after), guest=True, test_data="test account (TEST_USERNAME)"))
+            [lp] + behind, dict(login_form(lp), url=lp["url"], after=after), guest=True, test_data="test account (TEST_USERNAME)"))
 
-    # 2) shop: search an item -> add it to the cart -> open the cart -> the item is there (never checkout). The cart:
-    # its button, or a normal link to the cart page (<a href="/basket">0 Basket</a> - a shop without item pages)
-    for p in pages:
-        f, cart = features(p), _cart_control(p) or _cart_link(p)
-        if f["add"] and cart and len(out) < limit:
-            word = f["word"]
-            cart_name = (cart.get("text") or "cart").strip()[:30]
-            out.append(_journey(
-                len(out) + 1, "shop",
-                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
-                + (f" → '{word}' is in the cart" if word else ""),
-                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
-                                              f"'{word}' is shown"] if word else [])
-                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
-                   f"Click '{cart_name}' to open the cart"]
-                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
-                + ["Stop here - checkout / buy is never clicked"],
-                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
-                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
-                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
-                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
-                guest=not p.get("auth"), test_data=word))
-
-    # 2b) search -> open the first product -> choose an option -> add it to the cart -> the cart lists it
+    # 2) Full product shopping journey FIRST (before many short "Shop on" cases consume LARGE).
+    # DemoStore Phase 1 showed cart_total was never tested when 40 product pages filled the journey budget
+    # with short add→cart cases and skipped this change_cart journey entirely.
     from ..features import OPTION_HINT, page_features
     from .discovery import _parent_path, _pattern
     # the product page: one that a list's items OPEN first - a page that merely mentions 'Add to cart' is no product
@@ -1195,7 +1201,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
              "change_cart": settings.environment in ("test", "staging")},
             guest=not prod.get("auth"), test_data=word))
 
-    # 2c) orders: open an order from the list and see its details
+    # 3) orders + tracking BEFORE short Shop-on cases (Phase 1: orders.tracking stayed untested under LARGE).
     for p in pages:
         f = next((x for x in page_features(p) if x["kind"] == "order_link"), None)
         if f and len(out) < limit:
@@ -1204,6 +1210,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
             base = urlparse(f["href"]).path.rstrip("/") + "/"
             subs = [{"href": l["href"], "text": (l.get("text") or "").split("\n")[0].strip()[:40]}
                     for l in (detail or {}).get("links", []) if not l.get("external")
+                    and not is_payment_url(l.get("href") or "")
                     and urlparse(l["href"]).path.startswith(base) and (l.get("text") or "").strip()][:3]
             out.append(_journey(
                 len(out) + 1, "orders", f"Open an order from '{_short(p)}' and see its details"
@@ -1215,13 +1222,43 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
                 {"url": p["url"], "href": f["href"], "name": f["name"], "subs": subs}, guest=not p.get("auth")))
             break
 
-    # 3) fill every big form completely, like a person would (it is never sent)
+    # 4) short shop cases: search/add/open cart (never checkout). Leave ~4 slots for forms/nav later.
+    shop_budget = max(0, limit - len(out) - 4)
+    shop_added = 0
+    for p in pages:
+        if shop_added >= shop_budget:
+            break
+        f, cart = features(p), _cart_control(p) or _cart_link(p)
+        if f["add"] and cart and len(out) < limit:
+            word = f["word"]
+            cart_name = (cart.get("text") or "cart").strip()[:30]
+            out.append(_journey(
+                len(out) + 1, "shop",
+                f"Shop on '{_short(p)}': " + (f"search '{word}' → " if word else "") + "add to cart → open the cart"
+                + (f" → '{word}' is in the cart" if word else ""),
+                [f"Open {_page_name(p)}"] + ([f"Type '{word}' into the '{f['search_name']}' box and press Enter",
+                                              f"'{word}' is shown"] if word else [])
+                + [f"Click the first '{f['add_text']}' button", "The page shows the item was added",
+                   f"Click '{cart_name}' to open the cart"]
+                + ([f"'{word}' is listed in the cart"] if word else ["The cart opens and is not empty"])
+                + ["Stop here - checkout / buy is never clicked"],
+                "Searching finds the item, adding it updates the cart, and the cart shows it", [p],
+                {"url": p["url"], "search": f["search"] if word else "", "word": word, "add": f["add"],
+                 "add_text": f["add_text"], "cart": cart["selector"], "cart_text": cart_name,
+                 "hints": list(p.get("site_cards") or []), "item_pages": list(p.get("site_items") or [])},
+                guest=not p.get("auth"), test_data=word))
+            shop_added += 1
+
+    # 5) fill every big form completely, like a person would (it is never sent)
     seen_forms = set()
     for p in pages:
         if p.get("page_type") == "cart":
             continue  # (its forms are only there while the cart holds an item: see CART_STATE)
         lf = login_form(p)
-        forms = [f for f in p.get("forms", []) if not (lf and (f.get("submit") or {}).get("selector") == lf["submit"])]
+        page_url = p.get("final_url") or p.get("url") or ""
+        forms = [f for f in p.get("forms", []) if not (lf and (f.get("submit") or {}).get("selector") == lf["submit"])
+                 and not stored_control_opens_payment(page_url, f)
+                 and not is_payment_url(page_url)]
         candidates = [(f, _form_fields(p, f)) for f in forms]
         for f, fields in candidates:
             key = tuple(sorted(x["name"] for x in fields))
@@ -1250,6 +1287,7 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
 
     # 4) move through the website by clicking its menu like a person (visitor, and logged in)
     for group in (guests, users):
+        group = [p for p in group if not is_payment_url(p.get("final_url") or p.get("url") or "")]
         if not group or len(out) >= limit:
             continue
         start = group[0]
@@ -1263,12 +1301,16 @@ def builtin_journeys(pages: list[dict], limit: int = LARGE) -> list[dict]:
                 continue
             if UNSAFE_BUTTON.search(text):  # ('Checkout', 'Log out': never clicked - one of them must not block the
                 continue                    # whole journey; the page itself is still checked by 'Every page opens')
+            if is_payment_url(l.get("href") or "") or is_payment_url(target.get("final_url") or target.get("url") or ""):
+                continue
             seen.add(target["url"])
             links.append({"text": text[:60], "href": l["href"], "to": target.get("final_url") or target["url"],
                           "name": _short(target)})
         # links to a part of a page (#projects - the menu of a one-page website): one click per section, menu first
         for s in sorted(start.get("sections", []), key=lambda s: not s.get("nav")):
             if not s.get("visible", True) or not s.get("text") or ("#" + s["section"]) in seen:
+                continue
+            if is_payment_url(s.get("href") or "") or is_payment_url((s.get("href") or "").split("#")[0]):
                 continue
             seen.add("#" + s["section"])
             links.append({"text": s["text"][:60], "href": s["href"], "section": s["section"],
@@ -1295,6 +1337,8 @@ def section_links(pages: list[dict]) -> list[dict]:
     for p in pages:
         for s in p.get("sections", []):
             target = s["href"].split("#")[0]
+            if is_payment_url(target) or is_payment_url(p.get("final_url") or p.get("url") or ""):
+                continue
             key = (target.rstrip("/"), s["section"])
             if key in seen:
                 continue
@@ -1306,14 +1350,23 @@ def section_links(pages: list[dict]) -> list[dict]:
 
 def small_checks(pages: list[dict], data: list[dict]) -> list[dict]:
     """The 5 small checks: each one runs on every page (or every link / every input box) of the site."""
-    n_links = len({l["href"].split("#")[0] for p in pages for l in p.get("links", []) if l["href"].startswith("http")})
+    hrefs = set()
+    for p in pages:
+        for link in p.get("links", []):
+            href = link["href"].split("#")[0]
+            if href.startswith("http") and not is_payment_url(href):
+                hrefs.add(href)
+    n_links = len(hrefs)
     n_sections = len(section_links(pages))
     boxes = len({c.get("field") for c in data})
-    with_images = [p for p in pages if p.get("imageCount")]
-    every = f"each of the {len(pages)} page(s)"
+    opened = [p for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
+    held = len(pages) - len(opened)
+    with_images = [p for p in opened if p.get("imageCount")]
+    every = f"each of the {len(opened)} page(s)"
+    held_note = f"; {held} checkout or payment page(s) stay recorded and are not opened" if held else ""
     data_files = sorted({f"test_{_ident(c['page'])}_data.py" for c in data})
     return [dict(c, size="small", page="all pages", url=pages[0]["url"]) for c in [
-        {"id": "site_pages_open", "title": f"Every page opens ({len(pages)} pages)", "type": "smoke",
+        {"id": "site_pages_open", "title": f"Every page opens ({len(opened)} pages){held_note}", "type": "smoke",
          "priority": "high", "steps": [f"Open {every}"], "expected": "Each page opens without an error and has a title",
          "files": ["test_site.py"], "tests": ["test_page_loads"]},
         {"id": "site_no_js_errors", "title": "No JavaScript errors on any page", "type": "smoke", "priority": "medium",
@@ -1746,7 +1799,8 @@ def finalize_cases(cases: list[dict], state: dict) -> list[dict]:
         c.setdefault("url", "")
         c.setdefault("type", "functional")
         c.setdefault("test_data", "")
-    return cases
+    from ..oracle_bind import attach_assertions
+    return attach_assertions(cases)
 
 
 def validate_case(c: dict) -> list[str]:
@@ -1935,8 +1989,11 @@ def learned_cases(pages: list[dict]) -> list[dict]:
             if re.search(r"\bloaded\s*:|\b\d+(?:\.\d+)?\s*%|video player is loading|remaining time", b.get("control") or "", re.I):
                 continue  # progress/timer text is not a stable action or a business oracle
             key = (b.get("control"), b.get("selector"))
+            button = by_sel.get(b.get("selector")) or {}
             if b.get("effect") in ("error", None) or b.get("selector") in covered or key in done \
-                    or b.get("risk") == "protected" or len(out) >= 80:
+                    or b.get("risk") == "protected" or len(out) >= 80 \
+                    or stored_control_opens_payment(p.get("final_url") or p.get("url") or "", button) \
+                    or is_payment_url(str(b.get("to") or "")):
                 continue
             done.add(key)
             if HISTORY_BACK.search((by_sel.get(b["selector"]) or {}).get("html") or ""):
@@ -1946,6 +2003,36 @@ def learned_cases(pages: list[dict]) -> list[dict]:
                 continue
             opener = b.get("revealed_by")
             opener_name = (by_sel.get(b["selector"]) or {}).get("revealed_by_name") or "its opener"
+            # Named row checkboxes (Select <person>) are brittle when revealed via Next/Prev/page-size:
+            # concurrent creates shift which page a row sits on. Prefer the table search box.
+            openers_override = None
+            steps_prefix = []
+            row_sel = re.match(r"^\s*Select\s+(.+?)\s*$", name or "", re.I)
+            person = (row_sel.group(1).strip() if row_sel else "")
+            if person and person.lower() not in {"all", "none"}:
+                search_box = next(
+                    (i for i in p.get("inputs", [])
+                     if (i.get("type") or "").lower() == "search" and i.get("selector")),
+                    None,
+                )
+                pagerish = bool(
+                    opener and re.search(
+                        r"(^|[>#.\s_-])(next|prev|previous|page[-_]?size|page[-_]?\d*)([#.\s]|$)",
+                        opener or "",
+                        re.I,
+                    )
+                )
+                if search_box:
+                    openers_override = [{
+                        "selector": search_box["selector"],
+                        "action": "fill",
+                        "value": person,
+                        "name": _box_name(search_box),
+                    }]
+                    steps_prefix = [f"Search for '{person}'"]
+                    opener, opener_name = None, ""
+                elif pagerish:
+                    continue
             to = (_pattern(b["to"], False) or (0, urlparse(b["to"]).path))[1] if b.get("to") else ""
             if tone == "error":
                 title, expected, oracle = (f"'{name}' works without an error message", "No error message: while "
@@ -1969,16 +2056,21 @@ def learned_cases(pages: list[dict]) -> list[dict]:
             act = {"select": f"Choose another option in '{name}'", "tick": f"Tick '{name}'"}.get(b.get("action"),
                                                                                                   f"Click '{name}'")
             n = len(out) + 1
+            openers = openers_override if openers_override is not None else opener_path(p, b["selector"], opener)
             out.append({
                 "id": f"learned_{n}", "kind": "learned", "type": "exploratory" if oracle == "observed" else "positive",
                 "oracle": oracle, "priority": "medium", "title": f"{title} ({_short(p)})",
-                "steps": [f"Open {_page_name(p)}"] + ([f"Click '{opener_name}' first"] if opener else []) + [act],
+                "steps": (
+                    [f"Open {_page_name(p)}"]
+                    + (steps_prefix if steps_prefix else ([f"Click '{opener_name}' first"] if opener else []))
+                    + [act]
+                ),
                 "expected": expected, "page": p["slug"], "url": p["url"], "pages": [p["slug"]],
                 "guest": not p.get("auth"), "test_data": "",
                 "spec": {"url": p["url"], "name": name, "selector": b["selector"], "action": b.get("action", "click"),
                          "value": b.get("value"), "effect": eff, "message": b.get("message") or "", "tone": tone,
                          "to": to, "revealed": b.get("revealed") or [], "opener": opener,
-                         "openers": opener_path(p, b["selector"], opener), "guest": not p.get("auth"),
+                         "openers": openers, "guest": not p.get("auth"),
                          # what it showed while exploring ('Total users: 23') - not a clock / a date, which change
                          "added": [a for a in (b.get("added") or []) if a and len(a) < 120
                                    and not re.search(r"\d{1,2}:\d{2}|\b(19|20)\d\d\b|\bloaded\s*:|\d+(?:\.\d+)?\s*%|video player is loading", a, re.I)][:3]
@@ -2010,6 +2102,15 @@ def blocked_cases(pages: list[dict]) -> list[dict]:
     return out
 
 
+def _write_cases(run_dir, cases: list[dict]) -> bool:
+    """Save this run's cases. A linked file is left untouched."""
+    from ..finalization import write_text_unless_linked
+    folder = Path(run_dir)
+    if folder.is_symlink():
+        return False
+    return write_text_unless_linked(folder, "test_cases.json", json.dumps(cases, indent=2))
+
+
 def test_design_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_design import design_cases
@@ -2019,13 +2120,18 @@ def test_design_agent(state: QAState) -> QAState:
         from ..qa_contracts import contract_cases, parse_contract
 
         contract_path = Path(state["run_dir"]) / ".private" / "qa_contract.json"
+        from ..finalization import folder_is_linked
+        if folder_is_linked(contract_path):
+            note = "Contract-only design: the contract file is a link, so no cases were written."
+            print("  [test-design] " + note)
+            return {"test_cases": [], "log": state.get("log", []) + [note]}
         contract = parse_contract(contract_path.read_text(encoding="utf-8"))
         cases = [normalize_case(case) for case in contract_cases(contract)]
         for case in cases:
             case.update(target_type="web", platform="web", url=state["url"], page="contract",
                         pages=["contract"], files=["qa_contracts.json"], tests=["test_" + case["id"]],
                         script_source="contract")
-        Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+        _write_cases(state["run_dir"], cases)
         write_workbook(Path(state["run_dir"]), cases)
         note = f"Contract-only design: {len(cases)} explicitly approved flow case(s); built-in site checks were not added."
         print("  [test-design] " + note)
@@ -2033,6 +2139,8 @@ def test_design_agent(state: QAState) -> QAState:
     mark_first_seen_inputs(state["app_map"])
     pages = [p for p in state["app_map"] if page_testable(p)]
     pages.sort(key=lambda p: not p.get("auth"))  # the app behind the login first (stable: crawl order kept)
+    # A checkout page is recorded. Tests that open or type on it are not written.
+    opened_pages = [p for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
     if settings.reuse_tests:  # regression run: the same test cases as last time (their scripts are run again)
         from .change_detection import saved_tests
         saved = saved_tests(state["site_key"], from_run=settings.reuse_from_run or None)
@@ -2041,33 +2149,33 @@ def test_design_agent(state: QAState) -> QAState:
             _link_registry(state, cases)
             src = saved["meta"].get("source_run") or saved["meta"].get("date", "?")
             print(f"  [test-design] regression run: re-using the {len(cases)} test cases of {src}")
-            Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+            _write_cases(state["run_dir"], cases)
             write_workbook(Path(state["run_dir"]), cases)
             return {"test_cases": cases, "log": state.get("log", []) + [
                 f"Test design: regression run - the {len(cases)} test cases of {src} "
                 "are run again (no new test cases)."]}
         print("  [test-design] regression run asked, but no saved tests for this site/run - writing new ones")
     data, typed = [], set()
-    for p in pages:  # (a box on many pages - the footer's newsletter box - is typed into once, on the first page)
+    for p in opened_pages:  # (a box on many pages - the footer's newsletter box - is typed into once, on the first page)
         own = [c for c in data_cases(p) if (c["selector"], c["field"]) not in typed]
         data += [dict(c, page=p["slug"], url=p["url"]) for c in own]
         typed.update((c["selector"], c["field"]) for c in own)
     # the search tests look for a word of a REAL item of this website (not a heading like 'Welcome' or 'Home')
-    word = site_search_word(pages)
-    cards = list(dict.fromkeys(s for p in pages if (s := (p.get("itemLinks") or {}).get("selector"))))[:6]
-    items = site_item_pages(pages)
+    word = site_search_word(opened_pages)
+    cards = list(dict.fromkeys(s for p in opened_pages if (s := (p.get("itemLinks") or {}).get("selector"))))[:6]
+    items = site_item_pages(opened_pages)
     for p in state["app_map"]:
         p["site_word"], p["site_cards"], p["site_items"] = section_search_word(p, pages, word), cards, items
 
     # incremental (a very large website, run again): only the pages that are new or whose design / controls changed are
     # fully tested again; the unchanged ones get the site-wide (smoke) checks
-    full = pages
+    full = opened_pages
     ch = state.get("changes") or {}
     if settings.incremental and ch and not ch.get("first_run"):
         status = ch.get("page_status") or {}
-        full = [p for p in pages if status.get(p["slug"], "new") in ("new", "changed")]
-        print(f"  [test-design] incremental: {len(full)} new / changed page(s) fully tested, {len(pages) - len(full)} "
-              "unchanged page(s) smoke-checked only")
+        full = [p for p in opened_pages if status.get(p["slug"], "new") in ("new", "changed")]
+        print(f"  [test-design] incremental: {len(full)} new / changed page(s) fully tested, "
+              f"{len(opened_pages) - len(full)} unchanged page(s) smoke-checked only")
 
     # every page gets its own test cases - no fixed number: journeys across pages, every feature found, one focused
     # check per feature / control (each with its own result), the AI's extra journeys, then the site-wide checks
@@ -2083,7 +2191,7 @@ def test_design_agent(state: QAState) -> QAState:
             print(f"  [test-design] AI failed: {e} — using built-in rules")
             mode = "built-in rules (the AI failed)"
     from ..my_tests import load as load_my_tests  # your own tests in plain English (kept per website)
-    mine = my_test_cases(pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1)
+    mine = my_test_cases(opened_pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1)
     small = small_checks(pages, data) if pages else []
     blocked = blocked_cases(pages)
     # data forms: valid / wrong values (nothing is sent unless staging) + staging's create -> edit -> delete
@@ -2140,7 +2248,7 @@ def test_design_agent(state: QAState) -> QAState:
     if extra:
         cases = finalize_cases(cases + extra, state)
         print(f"  [test-design] {len(extra)} accepted plugin assertion(s) added")
-    Path(state["run_dir"], "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+    _write_cases(state["run_dir"], cases)
     write_workbook(Path(state["run_dir"]), cases)  # Excel copy; results are added by the Report step
     return {"test_cases": cases, "app_map": state["app_map"], "cases_left_out": max(0, len(designed) - room),
             "log": state.get("log", []) + [f"Test design: {summary}."]}

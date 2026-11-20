@@ -1,0 +1,89 @@
+"""Gate E: production healing suite readiness score (not third-party live).
+
+Scores local failure/healing artifacts against the production contract.
+Does **not** run a production / third-party suite — ``gate_e_complete``
+stays False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "production_healing_readiness_drill.json"
+
+CHECKS = (
+    ("live_failure_matrix_drill.json", "Live DemoStore failure matrix"),
+    ("multi_app_healing_suite_drill.json", "Multi-app healing suite"),
+    ("production_healing_matrix_drill.json", "Production-like healing matrix"),
+    ("production_healing_taxonomy_drill.json", "Production healing taxonomy"),
+    ("production_healing_contract_drill.json", "Production healing contract"),
+    ("production_healing_replay_pack_drill.json", "Before/after replay pack"),
+    ("production_healing_flaky_policy_drill.json", "Flaky/auth/infra no-auto-apply"),
+    ("healing_regression_drill.json", "Locator-only healing regression"),
+    ("production_healing_third_party_sla_drill.json", "Third-party healing SLA"),
+    ("production_healing_acceptance_gate_drill.json", "Acceptance gate (local)"),
+    ("production_healing_seed_catalog_drill.json", "Seed catalog (local)"),
+    ("production_healing_fixture_coverage_drill.json", "Fixture coverage map"),
+    ("production_healing_rollback_policy_drill.json", "Rollback / no-apply policy"),
+    ("production_healing_human_loop_contract_drill.json", "Human-in-the-loop contract"),
+    ("production_healing_budget_contract_drill.json", "Suite budget contract"),
+    ("production_healing_escalation_ladder_drill.json", "Escalation ladder contract"),
+    ("production_healing_escalation_enforcement_drill.json", "Escalation enforced on repair path"),
+    ("production_healing_approval_gate_drill.json", "Single-use human approval gate"),
+    ("healing_approval_queue_drill.json", "Approvals queue enforces healing policy"),
+)
+
+
+def _linked_readiness() -> dict:
+    return {
+        "gate_e_complete": False,
+        "ok": False,
+        "drill": "production_healing_readiness",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_production_healing_readiness_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "production_healing_readiness_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_readiness()
+
+    ops = ROOT / "docs" / "ops-evidence"
+    rows = []
+    for name, label in CHECKS:
+        path = ops / name
+        ready = (not folder_is_linked(path)) and path.is_file()
+        rows.append({"artifact": name, "label": label, "ready": ready})
+    score = sum(1 for row in rows if row["ready"])
+    evidence = {
+        "gate_e_complete": False,
+        "drill": "production_healing_readiness",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "readiness_score_only",
+        "score": score,
+        "score_of": len(CHECKS),
+        "checks": rows,
+        "production_suite_executed": False,
+        "ok": score == len(CHECKS),
+        "reason": (
+            f"Production healing readiness {score}/{len(CHECKS)}; "
+            "production / third-party healing suite still open"
+        ),
+    }
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_readiness()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_readiness()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return evidence

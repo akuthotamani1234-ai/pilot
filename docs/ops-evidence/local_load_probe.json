@@ -1,0 +1,12 @@
+{
+  "gate_h_complete": false,
+  "drill": "local_api_load_probe",
+  "ran_at": "2026-11-18T11:54:45Z",
+  "requests": 12,
+  "ok": 12,
+  "elapsed_s": 0.034,
+  "rps": 351.81,
+  "p50_ms": 2.13,
+  "p95_ms": 2.43,
+  "reason": "Local TestClient probe only; soak against controlled fixture / prod-like load still open"
+}

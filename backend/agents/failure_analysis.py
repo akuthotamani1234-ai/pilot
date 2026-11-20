@@ -36,7 +36,7 @@ SEVERITY = {"http_status": "medium", "page_failed": "critical", "product_defect"
             "auth_problem": "high", "flaky": "low", "timeout": "medium", "infrastructure": "medium",
             "inconclusive": "low", "assertion_failure": "low", "locator": "low",
             "third_party": "low", "suspect": "low", "rule_violation": "medium", "layout": "medium",
-            "test_mistake": "low"}
+            "test_mistake": "low", "mixed_content": "low"}
 CATEGORY_NAME = {"product_defect": "Application defect (potential website bug)",
                  "assertion_failure": "Test assertion failure (exploratory expectation not met)",
                  "locator": "Locator / interaction failure (not proof of a website bug)",
@@ -47,7 +47,8 @@ CATEGORY_NAME = {"product_defect": "Application defect (potential website bug)",
                  "third_party": "Third-party resource failed (another website's script, tracker or ad)",
                  "suspect": "Suspect - needs a person to look (it did nothing, while exploring and in its test)",
                  "rule_violation": "Rule violation? (a common convention between fields the site does not keep)",
-                 "test_mistake": "Test mistake - checked on screen: the website did the right thing"}
+                 "test_mistake": "Test mistake - checked on screen: the website did the right thing",
+                 "mixed_content": "Insecure asset (the page still works)"}
 NEXT_ACTION = {
     "product_defect": "Reproduce it by hand with the steps below; if it happens, fix the website.",
     "assertion_failure": "Compare the expected result with what the website does (screenshot; what exploring saw is in "
@@ -72,6 +73,7 @@ NEXT_ACTION = {
                       "not, it becomes a bug to fix.",
     "test_mistake": "Nothing to fix on the website. The AI looked at the screenshots (see 'Seen on screen'); if you "
                     "disagree, open the screenshot and check it yourself.",
+    "mixed_content": "Load the style, font, or picture over https. Nothing a visitor does is broken.",
 }
 
 
@@ -118,7 +120,10 @@ CONSOLE_OR_NETWORK = re.compile(
     re.I)
 # Network / browser load failures (not an HTTP status the site's own server returned).
 RESOURCE_LOAD_FAIL = re.compile(r"Failed to load resource|net::ERR_|NS_ERROR_", re.I)
-APP_JS_EXCEPTION = re.compile(r"JS exception|Uncaught |TypeError:|ReferenceError:|SyntaxError:", re.I)
+APP_JS_EXCEPTION = re.compile(
+    r"JS exception|Uncaught |TypeError:|ReferenceError:|SyntaxError:|RangeError:|URIError:|"
+    r"EvalError:|AggregateError:|InternalError:",
+    re.I)
 OWN_HTTP_STATUS = re.compile(r"^HTTP [45]\d\d\b")
 
 
@@ -154,6 +159,13 @@ def classify(r: dict) -> tuple[str, str, str]:
         return "suspect", (f"The AI looked at the screenshots and thinks the website is wrong: {v.get('reason', '')}"
                            f"{seen} A person should confirm it.")[:600], "medium"
     if v.get("verdict") == "website_bug" and cat == "product_defect":
+        # An AI-written check, or an expectation the run itself marks as AI, stays a
+        # question. The model's eyes must not confirm that guess into a defect.
+        from ..oracle_bind import decision_for_result
+        decision = decision_for_result({}, r)
+        if r.get("file") == "test_flows_ai.py" or (decision and decision.get("verdict") == "needs_review"):
+            return "suspect", (f"The AI looked at the screenshots and thinks the website is wrong: {v.get('reason', '')}"
+                               f"{seen} A person should confirm it.")[:600], "medium"
         return cat, f"{why} The AI saw it on the screenshots too: {v.get('reason', '')}{seen}"[:600], "high"
     return cat, why, conf
 
@@ -176,6 +188,26 @@ def _console_or_network_notes(r: dict) -> list[str]:
             if text and text not in notes:
                 notes.append(text[:240])
     return notes[:12]
+
+
+def _passive_mixed_only(err: str) -> bool:
+    """True when a console assertion reports only an insecure style, font, or picture."""
+    if not PASSIVE_MIXED.search(err or ""):
+        return False
+    kept = []
+    for raw in (err or "").splitlines():
+        line = re.sub(r"^E\s+", "", raw).strip()
+        if not line or line.startswith("AssertionError"):
+            continue
+        if re.search(r"JavaScript errors on ", line):
+            continue
+        if APP_JS_EXCEPTION.search(line):
+            kept.append(line)
+            continue
+        if PASSIVE_MIXED.search(line) or RESOURCE_LOAD_FAIL.search(line):
+            continue
+        kept.append(line)
+    return not kept
 
 
 def _rule_classify(r: dict) -> tuple[str, str, str]:
@@ -272,6 +304,10 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
                                      "calling it a bug."), "low"
     if "Timeout" in etype or "Timeout" in err:
         return "timeout", "Page or element took too long - slow site, or a wait in the script is wrong.", "low"
+    if _passive_mixed_only(err):
+        return "mixed_content", (
+            "The page asks for a style, font, or picture over insecure http:// on an https:// page. "
+            "The browser blocks it. That is not an application defect."), "low"
     if asserted:
         # the check itself failed: the website did not behave as expected. Built-in checks are precise;
         # an AI-written check may itself be wrong, so it gets less confidence.
@@ -395,7 +431,8 @@ def _one_per_problem(failures: list[dict]) -> list[dict]:
     Merged findings keep every covered nodeid in ``nodeids`` so metrics/ensure stay 1:1 with results."""
     out, first = [], {}
     for f in failures:
-        if not (f.get("test") or "").startswith("test_no_console_errors") or f["category"] != "product_defect":
+        if not (f.get("test") or "").startswith("test_no_console_errors") or f["category"] not in (
+                "product_defect", "mixed_content"):
             out.append(f)
             continue
         said = "\n".join((f.get("error") or "").splitlines()[1:]) or f.get("error") or ""  # (without 'errors on <url>:')
@@ -433,9 +470,20 @@ def covered_result_nodeids(failures: list[dict]) -> set[str]:
 
 
 def _gone_items(run_dir) -> set[str]:
-    """The item addresses the tests found gone (the website rebuilt its data): from pytest's own output."""
+    """The item addresses the tests found gone (the website rebuilt its data): from pytest's own output.
+
+    A pytest output file reached through a link is not this run's output.
+    """
     out = set()
-    for f in Path(run_dir).glob("*_pytest_output.txt") if run_dir else []:
+    if not run_dir:
+        return out
+    run_dir = Path(run_dir)
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        return out
+    for f in run_dir.glob("*_pytest_output.txt"):
+        if folder_is_linked(f) or not f.is_file():
+            continue
         try:
             out.update(DATA_CHANGED.findall(f.read_text(encoding="utf-8", errors="replace")))
         except OSError:
@@ -460,11 +508,22 @@ def _case_of(r: dict, cases: list[dict]) -> dict | None:
     return None
 
 
+def _save_failures(run_dir: Path, failures: list) -> None:
+    from ..finalization import folder_is_linked
+    path = Path(run_dir) / "failures.json"
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
+        return
+    path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+
+
 def load_saved_results(run_dir: Path | str) -> list[dict]:
     """Results already on disk: prefer results.json, else merge results.jsonl / worker files / android_results."""
+    from ..finalization import folder_is_linked
     run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return []
     final = run_dir / "results.json"
-    if final.exists():
+    if final.is_file() and not final.is_symlink():
         try:
             data = json.loads(final.read_text(encoding="utf-8"))
             if isinstance(data, list):
@@ -476,7 +535,7 @@ def load_saved_results(run_dir: Path | str) -> list[dict]:
     paths = [run_dir / "results.jsonl", *sorted(run_dir.glob("results.gw*.jsonl")),
              *sorted(run_dir.glob("results_bg*.jsonl")), run_dir / "android_results.jsonl"]
     for path in paths:
-        if not path.exists():
+        if path.is_symlink() or not path.exists():
             continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
@@ -567,6 +626,13 @@ def _finding_from_result(
                     "the feature may have been removed or broken. Needs human review.")
         sev, conf = "medium", "low"
     case = _case_of(r, cases) or {}
+    from ..oracle_bind import soften_defect_category
+    cat, oracle_why, oracle_decision = soften_defect_category(cat, case, r)
+    if oracle_why:
+        why = oracle_why
+        conf = "medium"
+        sev, better = _severity(cat, r, err)
+        why = better or why
     page = pages.get(case.get("url") or r.get("url")) or pages.get(case.get("url")) or {}
     link = _evidence_linkage(r, case, page, err)
     evidence = [x for x in (r.get("screenshot"), r.get("trace")) if x]
@@ -601,6 +667,10 @@ def _finding_from_result(
         f["session_expired"] = True
     if provisional:
         f["provisional"] = True
+    if oracle_decision:
+        f["oracle_decision"] = oracle_decision
+        if case.get("assertion"):
+            f["assertion"] = case["assertion"]
     if r.get("vision"):  # what the AI saw on the screenshots (its verdict, the screen's words, its reason)
         f["seen_by_ai"] = r["vision"]
     if cat == "product_defect":  # a bug report a developer can act on
@@ -627,27 +697,32 @@ def ensure_findings_from_results(
     failed/error/inconclusive outcome (via classify), merges into failures.json without wiping
     richer LLM findings already present, and is idempotent by nodeid.
     """
+    from ..finalization import folder_is_linked
     run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return []
     if results is None:
         results = load_saved_results(run_dir)
-    if cases is None and (run_dir / "test_cases.json").exists():
+    cases_path = run_dir / "test_cases.json"
+    if cases is None and cases_path.is_file() and not cases_path.is_symlink():
         try:
-            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
+            loaded = json.loads(cases_path.read_text(encoding="utf-8"))
             cases = loaded if isinstance(loaded, list) else []
         except (OSError, ValueError, TypeError):
             cases = []
     cases = cases or []
     pages = {p["url"]: p for p in (app_map or []) if p.get("url")}
-    if not pages and (run_dir / "app_map.json").exists():
+    map_path = run_dir / "app_map.json"
+    if not pages and map_path.is_file() and not map_path.is_symlink():
         try:
-            am = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
+            am = json.loads(map_path.read_text(encoding="utf-8"))
             pages = {p["url"]: p for p in am if isinstance(p, dict) and p.get("url")} if isinstance(am, list) else {}
         except (OSError, ValueError, TypeError):
             pages = {}
 
     existing: list[dict] = []
     path = run_dir / "failures.json"
-    if path.exists():
+    if path.is_file() and not path.is_symlink():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, list):
@@ -672,8 +747,9 @@ def ensure_findings_from_results(
         covered.add(nodeid)
         next_id += 1
 
-    run_dir.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    if not folder_is_linked(run_dir):
+        run_dir.mkdir(parents=True, exist_ok=True)
+    _save_failures(run_dir, out)
     return out
 
 
@@ -726,7 +802,7 @@ def failure_analysis_agent(state: QAState) -> QAState:
             i["type"] == "failed_request" and not OWN_HTTP_STATUS.match(detail.strip()))
         console_resource = i["type"] == "console_error" and bool(RESOURCE_LOAD_FAIL.search(detail))
         resource_fail = load_fail or console_resource
-        app_js = i["type"] == "console_error" and bool(APP_JS_EXCEPTION.search(detail)) and not console_resource
+        app_js = i["type"] == "console_error" and bool(APP_JS_EXCEPTION.search(detail))
         own_http = i["type"] in ("failed_request", "http_status", "page_failed") and bool(
             OWN_HTTP_STATUS.match(detail.strip())) and not third_party
         # a page that did not answer in time is no error page: slow website, network or a busy test machine
@@ -739,21 +815,26 @@ def failure_analysis_agent(state: QAState) -> QAState:
         # (and what its error page shows - /api/createAccount's own styles and scripts: no page a visitor uses)
         api_page = not api and (pages.get(i["url"]) or {}).get("status") == 405
         busy = i["type"] in ("page_failed", "failed_request") and bool(re.match(r"HTTP (503|429)\b", detail))
-        # an insecure (http) style / font / picture on an https page: real, but cosmetic - the page still works
-        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(detail))
+        # an insecure (http) style / font / picture on an https page: real, but cosmetic - the page still works.
+        # It does not hide an application exception in the same message.
+        mixed = i["type"] == "console_error" and bool(PASSIVE_MIXED.search(detail)) and not app_js
         # another website's resource (ERR_BLOCKED_BY_ORB, a blocked tracker / ad): never this website's bug
-        if stale or api or api_page or busy or (resource_fail and not third_party and not own_http):
+        if stale or api or api_page or busy:
             cat = "infrastructure"
+        elif app_js or own_http:
+            cat = "product_defect"
+        elif mixed:
+            cat = "mixed_content"
         elif third_party:
             cat = "third_party"
         elif slow or still_loading:
             cat = "timeout"
-        elif own_http or app_js:
-            cat = "product_defect"
+        elif resource_fail and not third_party:
+            cat = "infrastructure"
         else:
             cat = "product_defect"
         sev = "low" if third_party or stale or api or api_page or busy or mixed or (
-            resource_fail and not own_http) else SEVERITY["timeout" if slow or still_loading else i["type"]]
+            resource_fail and not own_http and not app_js) else SEVERITY["timeout" if slow or still_loading else i["type"]]
         if stale:
             explain = GONE_WHY
         elif still_loading:
@@ -791,7 +872,8 @@ def failure_analysis_agent(state: QAState) -> QAState:
                 "layout": "At phone width (390 px) the page does not fit: it scrolls sideways, or a control is cut "
                           "off or covered.",
             }[i["type"]]
-        note_kind = ("resource_request" if resource_fail and not own_http else "app_js_exception" if app_js else
+        note_kind = ("app_js_exception" if app_js else "mixed_content" if mixed else
+                     "resource_request" if resource_fail and not own_http else
                      "readiness_timeout" if still_loading or slow else i["type"])
         failures.append({
             "id": len(failures), "source": "crawler", "test": i["type"], "file": None,
@@ -810,7 +892,7 @@ def failure_analysis_agent(state: QAState) -> QAState:
 
     # Optional: the AI explains test failures in plain English. It can SUGGEST another category (shown as a
     # suggestion), but the category, severity and verdict stay the ones the rules decided.
-    Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    _save_failures(Path(state["run_dir"]), failures)
     test_failures = [f for f in failures if f["source"] == "test"]
     if llm_enabled() and test_failures:
         try:
@@ -826,20 +908,10 @@ def failure_analysis_agent(state: QAState) -> QAState:
         except (LLMError, json.JSONDecodeError, ValueError, KeyError, IndexError, TypeError) as e:
             print(f"  [failure-analysis] LLM explanation skipped: {e}")
 
-    Path(state["run_dir"], "failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
-    from ..release_row import record_step, seeded_defect
+    _save_failures(Path(state["run_dir"]), failures)
+    from ..release_row import planted_marker, record_step, seeded_defect
     run_dir = Path(state["run_dir"])
-    planted_id = ""
-    planted_path = run_dir / "planted.json"
-    if planted_path.is_file():
-        try:
-            planted = json.loads(planted_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            planted = None
-        if isinstance(planted, list) and planted and isinstance(planted[0], dict):
-            planted_id = str(planted[0].get("id") or "")
-        elif isinstance(planted, dict):
-            planted_id = str(planted.get("id") or "")
+    planted_id = planted_marker(run_dir)
     seed = seeded_defect(planted_id, failures) if planted_id else {
         "caught": False, "reason": "no seeded defect", "replay": {"ran": False}}
     seed["ok"] = True

@@ -295,9 +295,86 @@ def test_mcp_views_paginate_logs_and_refuse_private_sections(tmp_path):
         assert client.get("/api/mcp/jobs/1?since=-1").status_code == 400
         assert "Invalid request" in client.get("/api/mcp/jobs/1?since=-1").json()["detail"]
         assert client.get("/api/mcp/reports/run?section=summary").json()["available"] is False
+        secret = tmp_path / "secret-summary.json"
+        secret.write_text(json.dumps({"verdict": "tenant-b-only-summary"}), encoding="utf-8")
+        (report_dir / "summary.json").symlink_to(secret)
+        linked = client.get("/api/mcp/reports/run?section=summary")
+        assert linked.status_code == 400
+        assert "tenant-b-only-summary" not in linked.text
         corrupt = client.get("/api/mcp/reports/run?section=failures")
         assert corrupt.status_code == 422
         assert "could not be read as JSON" in corrupt.json()["detail"]
+
+
+def test_an_assistant_does_not_read_another_tenants_run(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import backend.tenancy_store as tenancy
+    from backend import server
+
+    db = tmp_path / "tenancy.sqlite"
+    runs = tmp_path / "runs"
+    secret = "tenant-b-only-summary"
+    log = "tenant-a-only-log"
+    other = runs / "run-b"
+    other.mkdir(parents=True)
+    (other / "summary.json").write_text(json.dumps({"verdict": secret}), encoding="utf-8")
+    own = runs / "run-a"
+    own.mkdir()
+    (own / "summary.json").write_text(json.dumps({"verdict": "Ready"}), encoding="utf-8")
+    linked = tmp_path / "linked-summary.json"
+    linked.write_text(json.dumps({"verdict": secret}), encoding="utf-8")
+    (own / "results.json").symlink_to(linked)
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.setattr(tenancy, "DEFAULT_DB", db)
+    monkeypatch.setattr(server, "RUNS", runs)
+    tenancy.upsert_tenant("t1", "One", db_path=db)
+    tenancy.upsert_tenant("t2", "Two", db_path=db)
+    tenancy.upsert_principal("admin-1", "t1", "a@ex.test", "admin", db_path=db)
+    tenancy.upsert_principal("view-1", "t1", "v@ex.test", "viewer", db_path=db)
+    tenancy.upsert_principal("admin-2", "t2", "b@ex.test", "admin", db_path=db)
+    tenancy.index_run("run-a", "t1", source="https://a.test", verdict="Ready", db_path=db)
+    tenancy.index_run("run-b", "t2", source="https://b.test", verdict="Ready", db_path=db)
+    saved = dict(server.jobs)
+    server.jobs.clear()
+    try:
+        proc = type("Proc", (), {"poll": lambda self: 0, "pid": 1})()
+        server.jobs[1] = {"id": 1, "source": "https://a.test", "status": "running", "proc": proc,
+                          "lines": [log], "pages": [], "stages": {}, "current": None,
+                          "run": "run-a", "started": 1, "llm": {}, "secrets": [], "principal_id": "admin-1"}
+        server.jobs[2] = {"id": 2, "source": "https://b.test", "status": "running", "proc": proc,
+                          "lines": [secret], "pages": [], "stages": {}, "current": None,
+                          "run": "run-b", "started": 2, "llm": {}, "secrets": [], "principal_id": "admin-2"}
+        client = TestClient(server.app, base_url="http://127.0.0.1:8000")
+        other_header = {"Authorization": "Bearer admin-2"}
+        stolen = client.get("/api/mcp/reports/run-b?section=summary", headers={"Authorization": "Bearer admin-1"})
+        assert stolen.status_code == 403
+        assert secret not in stolen.text
+        versioned = client.get("/api/v1/mcp/reports/run-b?section=summary", headers={"Authorization": "Bearer admin-1"})
+        assert versioned.status_code == 403
+        assert secret not in versioned.text
+        own_report = client.get("/api/mcp/reports/run-a?section=summary", headers={"Authorization": "Bearer admin-1"})
+        assert own_report.status_code == 200
+        assert own_report.json()["data"]["verdict"] == "Ready"
+        linked_report = client.get("/api/mcp/reports/run-a?section=results", headers={"Authorization": "Bearer view-1"})
+        assert linked_report.status_code == 400
+        assert secret not in linked_report.text
+        listed = client.get("/api/mcp/jobs", headers=other_header)
+        assert listed.status_code == 200
+        body = listed.json()
+        assert [job["id"] for job in body["jobs"]] == [2]
+        assert log not in listed.text
+        detail = client.get("/api/mcp/jobs/1", headers=other_header)
+        assert detail.status_code == 403
+        assert log not in detail.text
+        seen = client.get("/api/mcp/jobs/1", headers={"Authorization": "Bearer view-1"})
+        assert seen.status_code == 200
+        assert seen.json()["lines"] == [log]
+        unsigned = client.get("/api/mcp/jobs")
+        assert unsigned.status_code == 401
+    finally:
+        server.jobs.clear()
+        server.jobs.update(saved)
 
 
 def test_generated_client_paths_are_absolute_and_no_credentials_are_embedded(tmp_path):

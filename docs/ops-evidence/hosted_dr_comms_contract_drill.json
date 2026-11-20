@@ -1,0 +1,50 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_dr_comms_contract",
+  "ran_at": "2026-11-19T05:37:35Z",
+  "kind": "contract_only",
+  "contract": {
+    "channels": [
+      "status_page",
+      "pager",
+      "customer_email"
+    ],
+    "milestones": [
+      {
+        "id": "detect",
+        "notify_within_minutes": 5
+      },
+      {
+        "id": "cutover_start",
+        "notify_within_minutes": 10
+      },
+      {
+        "id": "cutover_complete",
+        "notify_within_minutes": 15
+      },
+      {
+        "id": "all_clear",
+        "notify_within_minutes": 30
+      }
+    ],
+    "required_fields": [
+      "impact",
+      "eta",
+      "region",
+      "next_update_at"
+    ],
+    "note": "Comms contract only; live hosted multi-region DR still required"
+  },
+  "live_hosted_dr": false,
+  "local_partial_present": [
+    "hosted_dr_cutover_checklist_drill.json",
+    "hosted_dr_rpo_contract_drill.json",
+    "hosted_oncall_rota_contract_drill.json",
+    "paging_escalation_ack_pack_drill.json",
+    "multi_region_dr_readiness_pack_drill.json",
+    "observability_probe_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted DR communications contract recorded (6/6 local partials); live hosted multi-region DR / on-call paging still open"
+}

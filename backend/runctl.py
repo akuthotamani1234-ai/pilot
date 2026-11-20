@@ -95,6 +95,21 @@ def _keep_awake(on: bool) -> None:
         pass
 
 
+def classify_stop(stop_file) -> tuple[str, str] | None:
+    """How a stop file should halt the run, or None when the run should continue.
+
+    A stop file reached through a link is not a user stop.
+    """
+    from .android_runtime import stop_file_note
+
+    note = stop_file_note(stop_file)
+    if "link" in note:
+        return "link", note
+    if note:
+        return "user_stop", "you stopped the test"
+    return None
+
+
 def start_watchers(run_dir: Path, limit_min: float) -> None:
     """The run time limit (a timer) and the STOP file of the web UI (a thread that looks for it every second)."""
     global _started, _limit_s
@@ -116,9 +131,12 @@ def start_watchers(run_dir: Path, limit_min: float) -> None:
     _watchers.append(done)
 
     def watch():
-        while not done.wait(1) and not _stop.is_set():
-            if stop_file.exists():
-                request_stop("user_stop", "you stopped the test")
+        while not _stop.is_set():
+            found = classify_stop(stop_file)
+            if found:
+                request_stop(*found)
+                return
+            if done.wait(1):
                 return
     threading.Thread(target=watch, daemon=True, name="qa-stop-watch").start()
 

@@ -12,6 +12,7 @@ and tells the other agents what changed in the frontend:
 The baseline lives in   baseline/<site_key>/   and is updated at the end of every run.
 """
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -59,7 +60,79 @@ def diff_pages(old: dict, new: dict) -> list[str]:
 
 
 def baseline_path(site_key: str) -> Path:
-    return settings.baseline_dir / site_key
+    from ..my_tests import baseline_folder
+    return baseline_folder(site_key)
+
+
+def _reuse_path_is_linked(root: Path, path: Path) -> bool:
+    """True when a path under root follows a symlink, or sits outside root."""
+    try:
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return True
+    cursor = Path(root)
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
+def run_path_is_linked(run_dir: Path, *parts: str) -> bool:
+    """True when the run folder, a folder on the way to it, or a named file under it, is a symlink."""
+    run_dir = Path(run_dir)
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir):
+        return True
+    for part in parts:
+        if not part or part in {".", ".."} or "/" in part or "\\" in part:
+            return True
+        if (run_dir / part).is_symlink():
+            return True
+    return False
+
+
+def relative_path_is_linked(root: Path, rel: str | Path) -> bool:
+    """True when a relative path walks through a link or leaves its folder.
+
+    Each part is the next file under the previous one, so a linked picture
+    inside a real screenshots folder is still refused.
+    """
+    root = Path(root)
+    rel_path = Path(rel)
+    from ..finalization import folder_is_linked
+    if folder_is_linked(root) or not str(rel) or rel_path.is_absolute():
+        return True
+    cursor = root
+    for part in rel_path.parts:
+        if not part or part in {".", ".."} or "/" in part or "\\" in part:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
+def tenant_owns_run(name: str) -> bool:
+    """Open mode (no tenant stamped) may use any run name. A stamped tenant may
+    use only a run indexed to that tenant."""
+    tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+    if not tenant:
+        return True
+    if not name or not re.fullmatch(r"[\w.\-]+", name) or name.startswith("."):
+        return False
+    from ..tenancy_store import get_run_tenant
+    return get_run_tenant(name) == tenant
+
+
+def run_read_block(run_dir: Path, *parts: str) -> str:
+    """Empty when this run folder may be read. Otherwise a short reason."""
+    run_dir = Path(run_dir)
+    if run_path_is_linked(run_dir, *parts):
+        return "This run's folder is a link."
+    if not tenant_owns_run(run_dir.name):
+        return "This run belongs to another tenant."
+    return ""
 
 
 def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
@@ -67,40 +140,75 @@ def saved_tests(site_key: str, from_run: str | None = None) -> dict | None:
 
     Prefers a specific prior run's generated_tests/ + test_cases.json when `from_run` is set
     (Studio "Run the same tests again"). Falls back to baseline/<site>/tests.
+    A link is not that run: it is not read, and it does not fall through to the baseline.
     """
     from ..config import settings as _settings
     if from_run:
-        run_dir = Path(_settings.runs_dir) / from_run
-        tests_dir = run_dir / "generated_tests"
-        cases_path = run_dir / "test_cases.json"
-        files = sorted(tests_dir.glob("test_*.py")) if tests_dir.is_dir() else []
-        # Include helper modules the suite needs (not conftest — regenerated fresh).
-        helpers = sorted(p for p in tests_dir.glob("*.py")
-                         if p.name not in ("conftest.py",) and not p.name.startswith("test_")) if tests_dir.is_dir() else []
-        if files and cases_path.exists():
-            meta = {"date": from_run, "origin": "", "source_run": from_run}
-            summary = run_dir / "summary.json"
-            if summary.exists():
-                try:
-                    meta["origin"] = (json.loads(summary.read_text(encoding="utf-8")).get("url")
-                                      or json.loads(summary.read_text(encoding="utf-8")).get("source") or "")
-                except Exception:
-                    pass
-            return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
+        name = from_run.strip()
+        root = Path(_settings.runs_dir)
+        if not re.fullmatch(r"[\w.\-]+", name) or name.startswith("."):
+            return None
+        tenant = (os.getenv("QPILOT_TENANT_ID") or "").strip()
+        if tenant:
+            from ..tenancy_store import get_run_tenant
+            if get_run_tenant(name) != tenant:
+                return None
+        run_dir = root / name
+        if run_dir.is_symlink() or _reuse_path_is_linked(root, run_dir):
+            return None
+        if run_dir.is_dir():
+            tests_dir = run_dir / "generated_tests"
+            cases_path = run_dir / "test_cases.json"
+            if _reuse_path_is_linked(run_dir, tests_dir) or _reuse_path_is_linked(run_dir, cases_path):
+                return None
+            files = sorted(
+                f for f in tests_dir.glob("test_*.py")
+                if not _reuse_path_is_linked(run_dir, f)
+            ) if tests_dir.is_dir() else []
+            # Include helper modules the suite needs (not conftest — regenerated fresh).
+            helpers = sorted(
+                p for p in tests_dir.glob("*.py")
+                if p.name not in ("conftest.py",) and not p.name.startswith("test_")
+                and not _reuse_path_is_linked(run_dir, p)
+            ) if tests_dir.is_dir() else []
+            if files and cases_path.is_file():
+                meta = {"date": name, "origin": "", "source_run": name}
+                summary = run_dir / "summary.json"
+                if summary.is_file() and not _reuse_path_is_linked(run_dir, summary):
+                    try:
+                        loaded = json.loads(summary.read_text(encoding="utf-8"))
+                        meta["origin"] = loaded.get("url") or loaded.get("source") or ""
+                    except Exception:
+                        pass
+                return {"files": files + helpers, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
+    from ..finalization import folder_is_linked
+    from ..my_tests import baseline_is_linked
     b = baseline_path(site_key)
-    files = sorted((b / "tests").glob("*.py")) if (b / "tests").is_dir() else []
-    if not files or not (b / "test_cases.json").exists():
+    tests_dir = b / "tests"
+    cases_path = b / "test_cases.json"
+    meta_path = b / "meta.json"
+    if (baseline_is_linked(b) or folder_is_linked(tests_dir) or cases_path.is_symlink()
+            or folder_is_linked(cases_path.parent)):
         return None
-    meta = json.loads((b / "meta.json").read_text(encoding="utf-8")) if (b / "meta.json").exists() else {}
-    return {"files": files, "cases": json.loads((b / "test_cases.json").read_text(encoding="utf-8")), "meta": meta}
+    files = sorted(
+        f for f in tests_dir.glob("*.py") if not f.is_symlink()
+    ) if tests_dir.is_dir() else []
+    if not files or not cases_path.is_file():
+        return None
+    meta = {}
+    if meta_path.is_file() and not meta_path.is_symlink():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    return {"files": files, "cases": json.loads(cases_path.read_text(encoding="utf-8")), "meta": meta}
 
 
 def change_detection_agent(state: QAState) -> QAState:
+    from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
     old_map_file = bdir / "app_map.json"
+    linked = baseline_is_linked(bdir) or baseline_is_linked(old_map_file) or baseline_is_linked(bdir / "meta.json")
     current = [p for p in state["app_map"] if page_testable(p)]
 
-    if not old_map_file.exists():
+    if linked or not old_map_file.exists():
         changes = {"first_run": True, "baseline_dir": None, "baseline_origin": "",
                    "page_status": {p["slug"]: "new" for p in current},
                    "baseline_slug": {}, "new": [p["url"] for p in current],
@@ -157,7 +265,13 @@ def change_detection_agent(state: QAState) -> QAState:
             })
     saved_pages = [{"url": url, "template": "same", "status": "ok"} for url in unchanged_urls]
     changes["incremental"] = plan_pages(saved_pages, current_pages, fresh=not settings.incremental)
-    Path(state["run_dir"], "changes.json").write_text(json.dumps(changes, indent=2), encoding="utf-8")
+    from ..finalization import folder_is_linked
+    run_dir = Path(state["run_dir"])
+    out = run_dir / "changes.json"
+    if folder_is_linked(run_dir) or out.is_symlink():
+        msg = (msg + " The changes file is a link, so it was not written.").strip()
+    else:
+        out.write_text(json.dumps(changes, indent=2), encoding="utf-8")
     return {"changes": changes, "log": state.get("log", []) + [msg]}
 
 
@@ -167,16 +281,24 @@ def save_baseline_agent(state: QAState) -> QAState:
     if not ok_pages:
         return {"log": state.get("log", []) + ["Baseline: not updated (no pages loaded this run)."]}
     run_dir = Path(state["run_dir"])
+    from ..finalization import folder_is_linked
+    from ..my_tests import baseline_is_linked
     bdir = baseline_path(state["site_key"])
+    writes = [bdir / name for name in ("tests", "app_map.json", "open_questions.json", "test_cases.json", "meta.json")]
+    if folder_is_linked(run_dir) or any(baseline_is_linked(path) for path in (bdir, *writes)):
+        return {"log": state.get("log", []) + ["Baseline: not updated (the folder is a link)."]}
     tests_dir = bdir / "tests"
-    if tests_dir.exists():
-        for f in tests_dir.glob("*.py"):
-            f.unlink()
+    if tests_dir.is_dir() and not tests_dir.is_symlink():
+        for f in list(tests_dir.glob("*.py")):
+            if f.is_symlink() or not baseline_is_linked(f):
+                f.unlink()
     tests_dir.mkdir(parents=True, exist_ok=True)
 
-    for f in (run_dir / "generated_tests").glob("*.py"):  # test files + the steps_*.py they import
-        if f.name != "conftest.py":  # (the sandbox fixtures always come fresh from backend/templates)
-            (tests_dir / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+    generated = run_dir / "generated_tests"
+    scripts = [] if generated.is_symlink() or not generated.is_dir() else [
+        f for f in generated.glob("*.py") if f.name != "conftest.py" and not f.is_symlink()]
+    for f in scripts:  # test files + the steps_*.py they import; a link is not copied
+        (tests_dir / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
     (bdir / "app_map.json").write_text(json.dumps(state["app_map"], indent=2), encoding="utf-8")
     # the rule questions of this run ("... Is that allowed?"): the next run's review asks them (backend/review.py)
     questions = [{"tc_id": f.get("tc_id"), "question": re.sub(r"\s*\([^)]*\)\s*$", "", f.get("explanation") or "")}

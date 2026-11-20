@@ -1,0 +1,84 @@
+"""Gate D: Android device CI readiness pack (local contracts, not hosted).
+
+Bundles Appium matrix, API24 smoke, multi-API matrix, device manifest,
+workflow_dispatch contract, and CI upload rehearsal. Does **not** run hosted
+multi-device runners — ``gate_d_complete`` stays False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "android_device_ci_readiness_pack_drill.json"
+
+ARTIFACTS = (
+    ("android_appium_product_matrix_drill.json", "Appium product matrix"),
+    ("android_emulator_smoke_api24_drill.json", "Dedicated API24 smoke"),
+    ("multi_api_android_matrix_drill.json", "Multi-API Android matrix"),
+    ("device_artifact_manifest_drill.json", "Device artifact manifest"),
+    ("multi_device_ci_contract.json", "Multi-device CI contract"),
+    ("workflow_dispatch_contract_drill.json", "workflow_dispatch contracts"),
+    ("ci_artifact_upload_rehearsal_drill.json", "CI upload rehearsal"),
+    ("hosted_ci_artifact_gate_pack_drill.json", "Hosted CI artifact gate pack"),
+    ("hosted_workflow_runner_audit_drill.json", "Hosted workflow runner audit"),
+    ("hosted_ci_artifact_retention_contract_drill.json", "Artifact retention contract"),
+    ("hosted_ci_permissions_contract_drill.json", "CI permissions contract"),
+    ("hosted_ci_timeout_budget_drill.json", "CI timeout budget contract"),
+    ("hosted_ci_concurrency_contract_drill.json", "CI concurrency contract"),
+    ("hosted_runner_os_matrix_contract_drill.json", "Runner OS matrix contract"),
+    ("hosted_ci_cache_key_contract_drill.json", "CI cache-key contract"),
+)
+
+
+def _linked_device_pack() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "android_device_ci_readiness_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_android_device_ci_readiness_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "android_device_ci_readiness_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_device_pack()
+
+    rows = []
+    for name, label in ARTIFACTS:
+        path = dest / name
+        ready = (not folder_is_linked(path)) and path.is_file()
+        rows.append({"artifact": name, "label": label, "ready": ready})
+    score = sum(1 for row in rows if row["ready"])
+    evidence = {
+        "gate_d_complete": False,
+        "drill": "android_device_ci_readiness_pack",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "readiness_score_only",
+        "score": score,
+        "score_of": len(ARTIFACTS),
+        "checks": rows,
+        "live_hosted_runners": False,
+        "ok": score == len(ARTIFACTS),
+        "reason": (
+            f"Android device CI readiness {score}/{len(ARTIFACTS)}; "
+            "broad hosted multi-device Appium runners still open"
+        ),
+    }
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_device_pack()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_device_pack()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return evidence

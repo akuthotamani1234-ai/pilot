@@ -46,6 +46,8 @@ def open_path(page, path: list[dict], target: str | None = None) -> None:
             el.select_option(step["value"], timeout=5000)
         elif action == "tick":
             el.check(timeout=5000)
+        elif action == "fill":
+            el.fill(str(step.get("value") or ""), timeout=5000)
         elif action == "click":
             el.click(timeout=5000)
         else:

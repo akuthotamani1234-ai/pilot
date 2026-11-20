@@ -1,0 +1,13 @@
+{
+  "gate_h_complete": false,
+  "drill": "backup_restore_local_sqlite",
+  "ran_at": "2026-11-18T11:53:23Z",
+  "ok": true,
+  "source": "artifacts/ops/drill_src/runs.sqlite",
+  "backup": "artifacts/ops/drill_backup/runs.sqlite",
+  "restored_row": {
+    "id": "run-drill",
+    "note": "gate-h-local"
+  },
+  "reason": "Local SQLite backup/restore verified offline; live DR/object-store drills still open"
+}

@@ -1,0 +1,1265 @@
+{
+  "site": "demo",
+  "mode": "first",
+  "clean": {
+    "run": "127.0.0.1_38441_20261118_091526",
+    "pages": {
+      "discovered": 76,
+      "logged_in": 70,
+      "failed": 1,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 76,
+      "visited": 76,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 100,
+      "passed": 88,
+      "failed": 2,
+      "flaky": 0,
+      "skipped": 2,
+      "blocked": 5,
+      "inconclusive": 2,
+      "not_run": 1,
+      "click_only": 0,
+      "exploratory": 7
+    },
+    "result_status_counts": {
+      "PASS": 88,
+      "FAIL": 2,
+      "BLOCKED": 5,
+      "SKIPPED": 2,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 2,
+      "planned": 100,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 314,
+      "passed": 308,
+      "failed": 2,
+      "error": 0,
+      "skipped": 2,
+      "inconclusive": 2
+    },
+    "coverage_claimed": {
+      "tested": 468,
+      "total": 474
+    },
+    "coverage_limitations": {
+      "partial": false,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 76,
+        "visited": 76,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 24,
+      "actions_not_tried_limit": 0,
+      "limits_hit": [],
+      "exploration_status": "routes_processed",
+      "statement": "Discovered routes were processed within the selected scope and exploration budgets (not exhaustive product reachability).",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 16,
+      "learned": 15,
+      "no_effect": 1,
+      "failed": 0,
+      "blocked": 5,
+      "skipped": 2,
+      "forms_filled": 4,
+      "opener_replays": 2,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 10,
+      "blocked_list": [
+        {
+          "control": "Save changes",
+          "page": "http://127.0.0.1:38441/account",
+          "why": "protected: 'write' action - never performed without TEST_ENVIRONMENT=staging with write confirmation for the host"
+        },
+        {
+          "control": "Save address",
+          "page": "http://127.0.0.1:38441/addresses",
+          "why": "protected: 'write' action - never performed without TEST_ENVIRONMENT=staging with write confirmation for the host"
+        },
+        {
+          "control": "Buy now",
+          "page": "http://127.0.0.1:38441/product/1",
+          "why": "protected: payment/checkout/billing submit - never performed without ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+        },
+        {
+          "control": "Remove",
+          "page": "http://127.0.0.1:38441/cart",
+          "why": "protected: 'delete' action - never performed without ALLOW_ACTIONS including 'delete' (staging only)"
+        },
+        {
+          "control": "Place order",
+          "page": "http://127.0.0.1:38441/checkout",
+          "why": "protected: payment/checkout/billing submit - never performed without ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+        }
+      ],
+      "skipped_list": [
+        {
+          "control": "Continue",
+          "page": "http://127.0.0.1:38441/signin",
+          "why": "sends a form - the form tests check it"
+        },
+        {
+          "control": "Create account",
+          "page": "http://127.0.0.1:38441/register",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 19,
+        "inspected": 18,
+        "tested": 18,
+        "verified": 10,
+        "needs_permission": 1,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 103,
+        "tested": 87,
+        "lifecycle": {
+          "discovered": 103,
+          "inspected": 103,
+          "test_generated": 87,
+          "tested": 87,
+          "verified": 7
+        },
+        "verified": 7,
+        "test_generated": 0,
+        "failed": 8,
+        "blocked": 13,
+        "needs_login": 2,
+        "inconclusive": 2,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 3,
+        "smoke": 64,
+        "suspect": 0,
+        "rule_violation": 4,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 39,
+            "verified": 3
+          },
+          "feature": {
+            "discovered": 24,
+            "verified": 4
+          },
+          "workflow": {
+            "discovered": 40,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 18,
+        "found": [
+          "/",
+          "/about",
+          "/deals",
+          "/weekend",
+          "/signin",
+          "/register",
+          "/dashboard",
+          "/shop",
+          "/product/{id}",
+          "/cart",
+          "/wishlist",
+          "/compare",
+          "/checkout",
+          "/orders",
+          "/orders/{id}",
+          "/orders/{id}/tracking",
+          "/account",
+          "/addresses"
+        ],
+        "missing": [],
+        "inaccessible_classified": {
+          "/admin": true
+        }
+      },
+      "features": {
+        "known": 24,
+        "detected": 24,
+        "tested": 20,
+        "verified": 18,
+        "judged": 24,
+        "correct": 20,
+        "rows": [
+          {
+            "id": "login.wrong_password",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-62FA01CA"
+            ]
+          },
+          {
+            "id": "shop.search",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-7782BAF3"
+            ]
+          },
+          {
+            "id": "shop.search_nothing",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-5F09D444"
+            ]
+          },
+          {
+            "id": "shop.suggestions",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-73863DB4"
+            ]
+          },
+          {
+            "id": "shop.filter",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B6100D3F",
+              "TC-23428382"
+            ]
+          },
+          {
+            "id": "shop.sort",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-AB4D2AD8",
+              "TC-0FB6ED77"
+            ]
+          },
+          {
+            "id": "shop.pagination",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B6100D3F",
+              "TC-ABB2E898"
+            ]
+          },
+          {
+            "id": "product.size",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-9E67F384"
+            ]
+          },
+          {
+            "id": "product.quantity",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": false,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-7E74C4E3",
+              "TC-8F2C0204"
+            ]
+          },
+          {
+            "id": "product.add_to_cart",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A31C5A62",
+              "TC-62724F3B",
+              "TC-AE9C3C51",
+              "TC-EADA0E18",
+              "TC-11AE4046",
+              "TC-AD518F35",
+              "TC-EFA3E332",
+              "TC-AA61999D",
+              "TC-DBCE96B0",
+              "TC-B36F779C",
+              "TC-46D1431A",
+              "TC-6CFB8B53",
+              "TC-4DF02F4A",
+              "TC-540D2158",
+              "TC-AA9B1380",
+              "TC-5782A9E0",
+              "TC-17F981AF",
+              "TC-BC3155B4",
+              "TC-57471DEC",
+              "TC-18159CBA",
+              "TC-E6694CA5",
+              "TC-AD9F83E4",
+              "TC-3B51CE00",
+              "TC-FB71A318",
+              "TC-08E15964",
+              "TC-5D94EC89",
+              "TC-54242206",
+              "TC-11540B54",
+              "TC-2A404C69",
+              "TC-E9770494",
+              "TC-659EC91C",
+              "TC-37262F31",
+              "TC-2902A339",
+              "TC-B755BC3B",
+              "TC-AD3633E2",
+              "TC-C589D5BD",
+              "TC-2900A0D5",
+              "TC-38CF012F",
+              "TC-86C997E1",
+              "TC-219BC39A"
+            ]
+          },
+          {
+            "id": "product.wishlist",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-1B5477D1"
+            ]
+          },
+          {
+            "id": "product.compare",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-0B9CC293"
+            ]
+          },
+          {
+            "id": "product.buy_now",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-64607B40"
+            ]
+          },
+          {
+            "id": "cart.totals",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "cart.remove_own",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": false,
+            "statuses": [
+              "Blocked",
+              "Failed"
+            ],
+            "cases": [
+              "TC-7E74C4E3",
+              "TC-270B2F2D"
+            ]
+          },
+          {
+            "id": "checkout.place_order",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-52A62535"
+            ]
+          },
+          {
+            "id": "orders.detail",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F357CE7C"
+            ]
+          },
+          {
+            "id": "orders.tracking",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "account.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-407FE9F1",
+              "TC-BCAB99E3"
+            ]
+          },
+          {
+            "id": "addresses.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-3E8CD584"
+            ]
+          },
+          {
+            "id": "register.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-1494205A",
+              "TC-D29CDCA0"
+            ]
+          },
+          {
+            "id": "deals.help_panel",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A17171D9",
+              "TC-90F82022",
+              "TC-29B3B978"
+            ]
+          },
+          {
+            "id": "deals.favourites_visitor",
+            "expect": "needs_login",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Skipped"
+            ],
+            "cases": [
+              "TC-CE8ED41B"
+            ]
+          },
+          {
+            "id": "deals.notify",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-E284E83A"
+            ]
+          }
+        ]
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-7E74C4E3",
+          "title": "Quantity: a valid quantity reaches the cart, an invalid one does not (Red Apple 1)",
+          "why": "E   AssertionError: Quantity 2 was added: the cart's quantity of 'Red Apple 1' went 1 -> 1 | E   assert (1.0 is not None and (1.0 - 1.0) == 2)"
+        }
+      ],
+      "questions": [
+        {
+          "tc_id": "TC-69A00598",
+          "title": "Rule: 'Repeat password' different from 'Password' is refused (/register)",
+          "why": "E   AssertionError: [rule] The site accepted a 'Repeat password' that differs from 'Password'. Is that allowed? (it would send POST /register)"
+        }
+      ],
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-ncky2yjx/clean/runs/127.0.0.1_38441_20261118_091526"
+  },
+  "buggy": {
+    "run": "127.0.0.1_39973_20261118_092124",
+    "pages": {
+      "discovered": 76,
+      "logged_in": 70,
+      "failed": 1,
+      "not_visited": 0,
+      "sampled": 0
+    },
+    "pages_coverage": {
+      "discovered": 76,
+      "visited": 76,
+      "not_visited": 0,
+      "limit_reached": false,
+      "time_limit_reached": false,
+      "sampled": 0,
+      "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+    },
+    "test_cases": {
+      "planned": 100,
+      "passed": 82,
+      "failed": 8,
+      "flaky": 0,
+      "skipped": 2,
+      "blocked": 5,
+      "inconclusive": 2,
+      "not_run": 1,
+      "click_only": 0,
+      "exploratory": 6
+    },
+    "result_status_counts": {
+      "PASS": 82,
+      "FAIL": 8,
+      "BLOCKED": 5,
+      "SKIPPED": 2,
+      "NOT TESTED": 1,
+      "INCONCLUSIVE": 2,
+      "planned": 100,
+      "flaky_included_in_FAIL": 0,
+      "labels": [
+        "PASS",
+        "FAIL",
+        "BLOCKED",
+        "SKIPPED",
+        "NOT TESTED",
+        "INCONCLUSIVE"
+      ],
+      "note": "PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE are counted separately; Flaky is included in FAIL."
+    },
+    "pytest_tests": {
+      "total": 314,
+      "passed": 302,
+      "failed": 8,
+      "error": 0,
+      "skipped": 2,
+      "inconclusive": 2
+    },
+    "coverage_claimed": {
+      "tested": 468,
+      "total": 474
+    },
+    "coverage_limitations": {
+      "partial": false,
+      "claims_complete_product_coverage": false,
+      "discovery_only": false,
+      "incomplete": false,
+      "pages": {
+        "discovered": 76,
+        "visited": 76,
+        "not_visited": 0,
+        "limit_reached": false,
+        "time_limit_reached": false,
+        "sampled": 0,
+        "note": "Visited pages are not proof that every feature or workflow on those pages was tested."
+      },
+      "features_not_pass": 25,
+      "actions_not_tried_limit": 0,
+      "limits_hit": [],
+      "exploration_status": "routes_processed",
+      "statement": "Discovered routes were processed within the selected scope and exploration budgets (not exhaustive product reachability).",
+      "limitation": "Visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 features \u2260 business workflows. Route discovery is not proof that every component state or business workflow was tested. Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %.",
+      "denominators": "Denominators stay separate: visited URLs \u2260 route patterns \u2260 controls \u2260 interaction checks \u2260 registry features \u2260 business workflows; PASS/FAIL/BLOCKED/SKIPPED/NOT TESTED/INCONCLUSIVE and case vs single-test counts are never mixed into one accuracy %."
+    },
+    "actions": {
+      "attempted": 16,
+      "learned": 15,
+      "no_effect": 1,
+      "failed": 0,
+      "blocked": 5,
+      "skipped": 2,
+      "forms_filled": 4,
+      "opener_replays": 2,
+      "not_tried_limit": 0,
+      "limit_per_page": 15,
+      "states": 10,
+      "blocked_list": [
+        {
+          "control": "Save changes",
+          "page": "http://127.0.0.1:39973/account",
+          "why": "protected: 'write' action - never performed without TEST_ENVIRONMENT=staging with write confirmation for the host"
+        },
+        {
+          "control": "Save address",
+          "page": "http://127.0.0.1:39973/addresses",
+          "why": "protected: 'write' action - never performed without TEST_ENVIRONMENT=staging with write confirmation for the host"
+        },
+        {
+          "control": "Buy now",
+          "page": "http://127.0.0.1:39973/product/1",
+          "why": "protected: payment/checkout/billing submit - never performed without ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+        },
+        {
+          "control": "Remove",
+          "page": "http://127.0.0.1:39973/cart",
+          "why": "protected: 'delete' action - never performed without ALLOW_ACTIONS including 'delete' (staging only)"
+        },
+        {
+          "control": "Place order",
+          "page": "http://127.0.0.1:39973/checkout",
+          "why": "protected: payment/checkout/billing submit - never performed without ALLOW_ACTIONS including 'pay' and TEST_PAYMENT=1 (staging only)"
+        }
+      ],
+      "skipped_list": [
+        {
+          "control": "Continue",
+          "page": "http://127.0.0.1:39973/signin",
+          "why": "sends a form - the form tests check it"
+        },
+        {
+          "control": "Create account",
+          "page": "http://127.0.0.1:39973/register",
+          "why": "sends a form - the form tests check it"
+        }
+      ]
+    },
+    "overall_accuracy_percent": null,
+    "registry": {
+      "pages": {
+        "discovered": 19,
+        "inspected": 18,
+        "tested": 18,
+        "verified": 9,
+        "needs_permission": 1,
+        "failed_to_open": 0,
+        "sampled_out": 0,
+        "not_reached": 0
+      },
+      "features": {
+        "discovered": 103,
+        "tested": 87,
+        "lifecycle": {
+          "discovered": 103,
+          "inspected": 103,
+          "test_generated": 87,
+          "tested": 87,
+          "verified": 2
+        },
+        "verified": 2,
+        "test_generated": 0,
+        "failed": 15,
+        "blocked": 13,
+        "needs_login": 2,
+        "inconclusive": 2,
+        "clicked_only": 0,
+        "skipped": 0,
+        "unresolved": 3,
+        "smoke": 61,
+        "suspect": 1,
+        "rule_violation": 4,
+        "unsupported": 0,
+        "by_level": {
+          "control": {
+            "discovered": 39,
+            "verified": 0
+          },
+          "feature": {
+            "discovered": 24,
+            "verified": 2
+          },
+          "workflow": {
+            "discovered": 40,
+            "verified": 0
+          }
+        }
+      },
+      "denominator": "every page pattern and every feature found on the pages that were reached (sampled pages of one pattern count once; pages not reached are listed, not counted)"
+    },
+    "truth": {
+      "pages": {
+        "known": 18,
+        "found": [
+          "/",
+          "/about",
+          "/deals",
+          "/weekend",
+          "/signin",
+          "/register",
+          "/dashboard",
+          "/shop",
+          "/product/{id}",
+          "/cart",
+          "/wishlist",
+          "/compare",
+          "/checkout",
+          "/orders",
+          "/orders/{id}",
+          "/orders/{id}/tracking",
+          "/account",
+          "/addresses"
+        ],
+        "missing": [],
+        "inaccessible_classified": {
+          "/admin": true
+        }
+      },
+      "features": {
+        "known": 24,
+        "detected": 23,
+        "tested": 20,
+        "verified": 13,
+        "judged": 10,
+        "correct": 9,
+        "rows": [
+          {
+            "id": "login.wrong_password",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-62FA01CA"
+            ]
+          },
+          {
+            "id": "shop.search",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-7782BAF3"
+            ]
+          },
+          {
+            "id": "shop.search_nothing",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-5F09D444"
+            ]
+          },
+          {
+            "id": "shop.suggestions",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-73863DB4"
+            ]
+          },
+          {
+            "id": "shop.filter",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B6100D3F",
+              "TC-23428382"
+            ]
+          },
+          {
+            "id": "shop.sort",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": true,
+            "statuses": [
+              "Failed",
+              "Passed"
+            ],
+            "cases": [
+              "TC-AB4D2AD8",
+              "TC-0FB6ED77"
+            ]
+          },
+          {
+            "id": "shop.pagination",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-B6100D3F",
+              "TC-ABB2E898"
+            ]
+          },
+          {
+            "id": "product.size",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-9E67F384"
+            ]
+          },
+          {
+            "id": "product.quantity",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-7E74C4E3",
+              "TC-8F2C0204"
+            ]
+          },
+          {
+            "id": "product.add_to_cart",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A31C5A62",
+              "TC-62724F3B",
+              "TC-AE9C3C51",
+              "TC-EADA0E18",
+              "TC-11AE4046",
+              "TC-AD518F35",
+              "TC-EFA3E332",
+              "TC-AA61999D",
+              "TC-DBCE96B0",
+              "TC-B36F779C",
+              "TC-46D1431A",
+              "TC-6CFB8B53",
+              "TC-4DF02F4A",
+              "TC-540D2158",
+              "TC-AA9B1380",
+              "TC-5782A9E0",
+              "TC-17F981AF",
+              "TC-BC3155B4",
+              "TC-57471DEC",
+              "TC-18159CBA",
+              "TC-E6694CA5",
+              "TC-AD9F83E4",
+              "TC-3B51CE00",
+              "TC-FB71A318",
+              "TC-08E15964",
+              "TC-5D94EC89",
+              "TC-54242206",
+              "TC-11540B54",
+              "TC-2A404C69",
+              "TC-E9770494",
+              "TC-659EC91C",
+              "TC-37262F31",
+              "TC-2902A339",
+              "TC-B755BC3B",
+              "TC-AD3633E2",
+              "TC-C589D5BD",
+              "TC-2900A0D5",
+              "TC-38CF012F",
+              "TC-86C997E1",
+              "TC-219BC39A"
+            ]
+          },
+          {
+            "id": "product.wishlist",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-1B5477D1"
+            ]
+          },
+          {
+            "id": "product.compare",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-0B9CC293"
+            ]
+          },
+          {
+            "id": "product.buy_now",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-64607B40"
+            ]
+          },
+          {
+            "id": "cart.totals",
+            "expect": "catch bug",
+            "detected": false,
+            "tested": false,
+            "verified": false,
+            "correct": false,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "cart.remove_own",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": null,
+            "statuses": [
+              "Blocked",
+              "Failed"
+            ],
+            "cases": [
+              "TC-7E74C4E3",
+              "TC-270B2F2D"
+            ]
+          },
+          {
+            "id": "checkout.place_order",
+            "expect": "blocked",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Blocked"
+            ],
+            "cases": [
+              "TC-52A62535"
+            ]
+          },
+          {
+            "id": "orders.detail",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-F357CE7C"
+            ]
+          },
+          {
+            "id": "orders.tracking",
+            "expect": "verified",
+            "detected": true,
+            "tested": false,
+            "verified": false,
+            "correct": null,
+            "statuses": [],
+            "cases": []
+          },
+          {
+            "id": "account.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-407FE9F1",
+              "TC-BCAB99E3"
+            ]
+          },
+          {
+            "id": "addresses.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-3E8CD584"
+            ]
+          },
+          {
+            "id": "register.validation",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-1494205A",
+              "TC-D29CDCA0"
+            ]
+          },
+          {
+            "id": "deals.help_panel",
+            "expect": "verified",
+            "detected": true,
+            "tested": true,
+            "verified": true,
+            "correct": null,
+            "statuses": [
+              "Passed"
+            ],
+            "cases": [
+              "TC-A17171D9",
+              "TC-90F82022",
+              "TC-29B3B978"
+            ]
+          },
+          {
+            "id": "deals.favourites_visitor",
+            "expect": "needs_login",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Skipped"
+            ],
+            "cases": [
+              "TC-CE8ED41B"
+            ]
+          },
+          {
+            "id": "deals.notify",
+            "expect": "catch bug",
+            "detected": true,
+            "tested": true,
+            "verified": false,
+            "correct": true,
+            "statuses": [
+              "Failed"
+            ],
+            "cases": [
+              "TC-E284E83A"
+            ]
+          }
+        ]
+      },
+      "bugs": {
+        "planted": 6,
+        "caught": [
+          "dead_button",
+          "qty_below_min",
+          "search_wrong_hit",
+          "sort_price",
+          "wishlist_error"
+        ],
+        "false_pass": [],
+        "not_tested": [
+          "cart_total"
+        ]
+      },
+      "false_alarms": [
+        {
+          "tc_id": "TC-7E74C4E3",
+          "title": "Quantity: a valid quantity reaches the cart, an invalid one does not (Red Apple 1)",
+          "why": "E   AssertionError: Quantity 2 was added: the cart's quantity of 'Red Apple 1' went 1 -> 1 | E   assert (1.0 is not None and (1.0 - 1.0) == 2)"
+        }
+      ],
+      "questions": [
+        {
+          "tc_id": "TC-E284E83A",
+          "title": "'Notify me' gives a visible response when clicked (Today's deals)",
+          "why": "E   AssertionError: 'Notify me' gave no visible response (no message, nothing changed, the page did not move) | E   assert ([] or 'http://127.0.0.1:39973/deals' != 'http://127.0.0.1:39973/deals' or \"H"
+        },
+        {
+          "tc_id": "TC-69A00598",
+          "title": "Rule: 'Repeat password' different from 'Password' is refused (/register)",
+          "why": "E   AssertionError: [rule] The site accepted a 'Repeat password' that differs from 'Password'. Is that allowed? (it would send POST /register)"
+        }
+      ],
+      "never_requested_but_done": []
+    },
+    "run_dir": "/tmp/agentic-qa-accuracy-ncky2yjx/buggy/runs/127.0.0.1_39973_20261118_092124"
+  }
+}

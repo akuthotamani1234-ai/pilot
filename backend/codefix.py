@@ -88,10 +88,16 @@ class Context:
     def html(self, page: dict | None) -> str:
         if not page:
             return ""
-        slug = page["slug"]
+        slug = str(page.get("slug") or "")
         if slug not in self._html:
-            fp = self.run_dir / "html" / f"{slug}.html"
-            self._html[slug] = fp.read_text(encoding="utf-8", errors="replace") if fp.exists() else ""
+            from .finalization import folder_is_linked
+            folder = self.run_dir / "html"
+            fp = folder / f"{slug}.html"
+            if (not slug or slug in {".", ".."} or "/" in slug or "\\" in slug
+                    or folder_is_linked(folder) or fp.is_symlink()):
+                self._html[slug] = ""
+            else:
+                self._html[slug] = fp.read_text(encoding="utf-8", errors="replace") if fp.is_file() else ""
         return self._html[slug]
 
     def case(self, f: dict) -> dict | None:

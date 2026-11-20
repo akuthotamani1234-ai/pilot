@@ -1,0 +1,16 @@
+{
+  "gate_h_complete": false,
+  "drill": "multi_region_dr_readiness_pack",
+  "ran_at": "2026-11-19T05:41:05Z",
+  "kind": "local_ops_pack",
+  "parts": {
+    "multi_store": true,
+    "failover_rto": true,
+    "cutover": true,
+    "oncall_pack": true
+  },
+  "live_hosted_dr": false,
+  "elapsed_ms": 3761,
+  "ok": true,
+  "reason": "Multi-region DR readiness pack ok in 3761ms; live hosted multi-region DR / on-call still open"
+}
