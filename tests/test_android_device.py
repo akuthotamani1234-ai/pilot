@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +13,25 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from backend import android, cost
 from backend.config import settings
 from backend.graph import build_graph
+
+
+
+def _tap_visible_text(device, adb, label):
+    """Tap a fixture control by exact visible UIAutomator text/content description."""
+    subprocess.run([adb, "-s", device, "shell", "uiautomator", "dump", "/sdcard/qpilot-window.xml"],
+                   check=True, capture_output=True)
+    hierarchy = subprocess.run([adb, "-s", device, "shell", "cat", "/sdcard/qpilot-window.xml"],
+                              check=True, capture_output=True, text=True).stdout
+    escaped = re.escape(label)
+    match = re.search(
+        rf'<node(?=[^>]*(?:text|content-desc)="(?:{escaped})")[^>]*bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"',
+        hierarchy,
+    )
+    assert match, f"Control {label!r} not found in UI hierarchy"
+    x1, y1, x2, y2 = map(int, match.groups())
+    subprocess.run([adb, "-s", device, "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)],
+                   check=True, capture_output=True)
+
 
 pytestmark = [
     pytest.mark.slow,
@@ -131,3 +151,36 @@ def test_real_android_value_contract(tmp_path, monkeypatch, bugs, expected):
     assert any(s["screen_name"] == "Cart" for s in final["screens"])
     if bugs == "wrong_total":
         assert any("Expected text" in r.get("error", "") and r["outcome"] == "failed" for r in final["results"])
+
+
+@pytest.mark.parametrize(
+    "bugs,expected_message",
+    [("none", "Name is required"), ("validation_accepts_empty", "Local form accepted")],
+)
+def test_real_android_empty_name_validation_behavior(bugs, expected_message):
+    """Directly reproduce the seeded empty-name defect on the emulator."""
+    device = os.environ.get("BLOWAI_ANDROID_DEVICE", "emulator-5554")
+    environment = android.android_environment()
+    assert environment["ok"], environment["errors"]
+    android.require_device(device, environment["devices"])
+    adb = environment["adb"
+    ]
+    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"],
+                   check=True, capture_output=True)
+    subprocess.run(
+        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity",
+         "--es", "blowai_bugs", bugs],
+        check=True, capture_output=True,
+    )
+    _tap_visible_text(device, adb, "Form validation")
+    _tap_visible_text(device, adb, "Submit")
+    subprocess.run([adb, "-s", device, "shell", "uiautomator", "dump", "/sdcard/qpilot-validation.xml"],
+                   check=True, capture_output=True)
+    hierarchy = subprocess.run([adb, "-s", device, "shell", "cat", "/sdcard/qpilot-validation.xml"],
+                              check=True, capture_output=True, text=True).stdout
+    assert expected_message in hierarchy, f"Expected {expected_message!r} after empty submission"
+    safety = subprocess.run(
+        [adb, "-s", device, "shell", "run-as", "com.qpilot.demo", "cat", "shared_prefs/demo.xml"],
+        check=True, capture_output=True, text=True,
+    )
+    assert 'name="unsafe_action_count" value="0"' in safety.stdout
