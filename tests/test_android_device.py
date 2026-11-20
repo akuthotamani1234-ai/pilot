@@ -131,6 +131,14 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
                                            "counts", "interaction", "account_setup")},
         sort_keys=True,
     ))
+    result_rows = final.get("results") or []
+    if isinstance(result_rows, dict):
+        result_rows = list(result_rows.values())
+    print("REAL_ANDROID_RESULT_ERRORS=" + json.dumps(
+        [{key: row.get(key) for key in ("id", "outcome", "exception_type", "error")}
+         for row in result_rows if isinstance(row, dict) and row.get("outcome") in ("error", "inconclusive")],
+        sort_keys=True,
+    ))
     assert final["verdict"] == expected, final
     assert len(final["screens"]) >= 2
     assert any(s["screen_name"] == "Login" for s in final["screens"])
