@@ -15,7 +15,6 @@ from backend.config import settings
 from backend.graph import build_graph
 
 
-
 def _tap_visible_text(device, adb, label):
     """Tap a fixture control by exact visible UIAutomator text/content description."""
     subprocess.run([adb, "-s", device, "shell", "uiautomator", "dump", "/sdcard/qpilot-window.xml"],
