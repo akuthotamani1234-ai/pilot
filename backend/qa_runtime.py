@@ -7,7 +7,7 @@ import re
 import time
 from pathlib import Path
 
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, WebDriverException
 
 from .qa_contracts import (
     contract_case_budget,
@@ -651,8 +651,15 @@ class AndroidContractAdapter:
             actual = element.text
             # Android accessibility can expose the placeholder as text after
             # clearing. Its showing-hint flag distinguishes that from retained input.
-            if value == '' and str(element.get_attribute('showing-hint')).lower() == 'true':
-                actual = ''
+            if value == '':
+                try:
+                    showing_hint = element.get_attribute('showing-hint')
+                except WebDriverException:
+                    # UiAutomator2 omits this optional attribute on some Android versions.
+                    # clear() succeeded, so a remaining placeholder is not entered text.
+                    showing_hint = None
+                if showing_hint is None or str(showing_hint).lower() == 'true':
+                    actual = ''
             if actual != value:
                 raise AssertionError("The input did not retain the supplied value; contents omitted")
         if self.active == "native" and self.driver.is_keyboard_shown():
