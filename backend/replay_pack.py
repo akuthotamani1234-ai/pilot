@@ -64,7 +64,7 @@ def replay_tests(run_dir: Path) -> list[str]:
     for row in saved_replays(run_dir):
         played = row.get("replay") if isinstance(row.get("replay"), dict) else {}
         name = str(row.get("id") or "")
-        if played.get("ran") and "::" in name:
+        if played.get("executed") is True and "::" in name:
             names.append(name)
     return list(dict.fromkeys(names))
 
