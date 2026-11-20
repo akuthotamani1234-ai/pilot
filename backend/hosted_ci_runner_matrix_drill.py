@@ -11,6 +11,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "ops-evidence" / "hosted_ci_runner_matrix_drill.json"
+ANDROID_FINAL_WORKFLOW = ROOT / ".github" / "workflows" / "android-emulator-ci.yml"
+BROWSER_FINAL_WORKFLOW = ROOT / ".github" / "workflows" / "multi-browser-portfolios.yml"
+
+
+def _workflow_text(path: Path) -> str:
+    from .finalization import folder_is_linked
+
+    if folder_is_linked(path) or not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
 
 
 def _linked_matrix() -> dict:
@@ -43,6 +53,7 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
             "os": ["ubuntu-latest"],
             "kvm_required": True,
             "api_levels": [24, 30, 34],
+            "automatic_final_api_levels": [30, 35],
             "appium": ">=3.0",
             "driver": "uiautomator2",
             "workflow": ".github/workflows/android-appium.yml",
@@ -50,6 +61,9 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
                 not folder_is_linked(ROOT / ".github/workflows/android-appium.yml")
                 and (ROOT / ".github/workflows/android-appium.yml").is_file()
             ),
+            "automatic_final_workflow": ".github/workflows/android-emulator-ci.yml",
+            "automatic_final_workflow_exists": bool(_workflow_text(ANDROID_FINAL_WORKFLOW)),
+            "automatic_final_trigger": "branches: [final]" in _workflow_text(ANDROID_FINAL_WORKFLOW),
             "artifact_manifest_ok": bool(devices.get("ok")),
             "note": "Broad hosted multi-device product-matrix CI still open",
         },
@@ -61,6 +75,7 @@ def run_hosted_ci_runner_matrix_drill(*, ops_dir: Path | None = None) -> dict:
                 not folder_is_linked(ROOT / ".github/workflows/multi-browser-portfolios.yml")
                 and (ROOT / ".github/workflows/multi-browser-portfolios.yml").is_file()
             ),
+            "automatic_final_trigger": "branches: [final]" in _workflow_text(BROWSER_FINAL_WORKFLOW),
             "artifact_manifest_ok": bool(portfolios.get("ok")),
             "note": "Broad hosted multi-browser portfolio CI still open",
         },
