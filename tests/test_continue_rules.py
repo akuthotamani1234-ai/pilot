@@ -52,7 +52,7 @@ def test_a_complete_package_names_the_test_that_can_run_again(tmp_path, monkeypa
     }), encoding="utf-8")
     (tmp_path / "generated_tests").mkdir()
     assert replay_tests(tmp_path) == ["test_price.py::test_see"]
-    monkeypatch.setattr("backend.recheck.recheck", lambda folder, names: {"results": {names[0]: {"verdict": "fixed"}}})
+    monkeypatch.setattr("backend.recheck.recheck", lambda folder, names: {"results": {names[0]: {"verdict": "fixed", "outcome": "passed"}}})
     played = run_saved(tmp_path)
     assert played["ran"] is True
     assert played["results"]["test_price.py::test_see"]["verdict"] == "fixed"
