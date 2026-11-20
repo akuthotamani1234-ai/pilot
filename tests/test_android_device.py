@@ -24,7 +24,7 @@ def _tap_visible_text(device, adb, label):
                               check=True, capture_output=True, text=True).stdout
     escaped = re.escape(label)
     match = re.search(
-        rf'<node(?=[^>]*(?:text|content-desc)="(?:{escaped})")[^>]*bounds="\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]"',
+        rf'<node(?=[^>]*(?:text|content-desc)="(?:{escaped})")[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
         hierarchy,
     )
     assert match, f"Control {label!r} not found in UI hierarchy"
