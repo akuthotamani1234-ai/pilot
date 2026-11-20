@@ -93,6 +93,12 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             {"configurable": {"thread_id": run_id}},
         )
     print("REAL_ANDROID_REPORT=" + str(run_dir / "report.html"))
+    summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    print("REAL_ANDROID_SUMMARY=" + json.dumps(
+        {key: summary.get(key) for key in ("verdict", "reasons", "gates", "incomplete", "incomplete_reason",
+                                           "counts", "interaction", "account_setup")},
+        sort_keys=True,
+    ))
     assert final["verdict"] == expected, final
     assert len(final["screens"]) >= 2
     assert any(s["screen_name"] == "Login" for s in final["screens"])
