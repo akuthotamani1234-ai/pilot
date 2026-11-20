@@ -79,7 +79,7 @@ jobs:
             adb shell am start -n com.qpilot.demo/.MainActivity --es blowai_bugs none
             adb shell pm path com.qpilot.demo
             mkdir -p "$RUNNER_TEMP/android-artifacts"
-            appium --address 127.0.0.1 --port 4723 > "$RUNNER_TEMP/appium.log" 2>&1 & appium_pid=$!; trap 'kill "$appium_pid" 2>/dev/null || true' EXIT; for attempt in $(seq 1 60); do if curl -fsS http://127.0.0.1:4723/status >/dev/null; then break; fi; sleep 1; done; curl -fsS http://127.0.0.1:4723/status >/dev/null; BLOWAI_ANDROID_E2E=1 BLOWAI_ANDROID_DEVICE=emulator-5554 BLOWAI_ANDROID_ARTIFACTS="$RUNNER_TEMP/android-artifacts" PYTHONUTF8=1 python -m pytest -q -s "$GITHUB_WORKSPACE/tests/test_android_device.py"
+            appium --address 127.0.0.1 --port 4723 > "$RUNNER_TEMP/appium.log" 2>&1 & appium_pid=$!; trap 'kill "$appium_pid" 2>/dev/null || true' EXIT; for attempt in $(seq 1 60); do if curl -fsS http://127.0.0.1:4723/status >/dev/null; then break; fi; sleep 1; done; curl -fsS http://127.0.0.1:4723/status >/dev/null; BLOWAI_SECRET_DEMO_PASSWORD=demo123 BLOWAI_ANDROID_E2E=1 BLOWAI_ANDROID_DEVICE=emulator-5554 BLOWAI_ANDROID_ARTIFACTS="$RUNNER_TEMP/android-artifacts" PYTHONUTF8=1 python -m pytest -q -s "$GITHUB_WORKSPACE/tests/test_android_device.py"
 
       - name: Upload Android run evidence
         if: always()
