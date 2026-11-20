@@ -62,17 +62,14 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
           disable-animations: true
           script: |
-            set -euxo pipefail
-            cd "$GITHUB_WORKSPACE/tests/android_demo"
-            chmod +x ./gradlew
-            ./gradlew --no-daemon :app:assembleDebug
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            chmod +x "$GITHUB_WORKSPACE/tests/android_demo/gradlew"
+            "$GITHUB_WORKSPACE/tests/android_demo/gradlew" -p "$GITHUB_WORKSPACE/tests/android_demo" --no-daemon :app:assembleDebug
+            adb install -r "$GITHUB_WORKSPACE/tests/android_demo/app/build/outputs/apk/debug/app-debug.apk"
             adb shell am force-stop com.qpilot.demo || true
             adb shell am start -n com.qpilot.demo/.MainActivity --es blowai_bugs none
             adb shell pm path com.qpilot.demo
-            cd "$GITHUB_WORKSPACE"
             mkdir -p "$RUNNER_TEMP/android-artifacts"
-            BLOWAI_ANDROID_E2E=1 BLOWAI_ANDROID_DEVICE=emulator-5554 BLOWAI_ANDROID_ARTIFACTS="$RUNNER_TEMP/android-artifacts" PYTHONUTF8=1 python -m pytest -q -s tests/test_android_device.py
+            BLOWAI_ANDROID_E2E=1 BLOWAI_ANDROID_DEVICE=emulator-5554 BLOWAI_ANDROID_ARTIFACTS="$RUNNER_TEMP/android-artifacts" PYTHONUTF8=1 python -m pytest -q -s "$GITHUB_WORKSPACE/tests/test_android_device.py"
 
       - name: Upload Android run evidence
         if: always()
