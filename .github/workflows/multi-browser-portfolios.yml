@@ -1,9 +1,18 @@
-# Gate F: optional multi-browser DemoStore portfolio suite (not on every PR).
-# Manual workflow_dispatch — uploads suite evidence. Default CI stays Windows
-# quick tests in ci.yml. Hosted multi-browser matrix runners still open.
+# Gate F: multi-browser DemoStore portfolio suite (not on every PR).
+# Relevant final integrations and manual dispatches upload suite evidence.
+# Default CI stays Windows quick tests in ci.yml. Broad hosted browser capacity
+# remains an open acceptance item.
 name: Multi-browser portfolios
 
 on:
+  push:
+    branches: [final]
+    paths:
+      - ".github/workflows/multi-browser-portfolios.yml"
+      - "backend/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
   workflow_dispatch:
     inputs:
       engines:
