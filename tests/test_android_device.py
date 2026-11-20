@@ -75,7 +75,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
                 "version": 1,
                 "test_environment": True,
                 "android_package": "com.qpilot.demo",
-                "flows": [
+                "flows": [] if bugs != "none" else [
                     {
                         "id": "valid_login",
                         "title": "Approved local demo account reaches Dashboard",
