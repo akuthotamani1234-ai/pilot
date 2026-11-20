@@ -6,7 +6,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `final` is the blueprint integration branch; direct merges there need
+    # the same regression gate as changes merged into `main`.
+    branches: [main, final]
   pull_request:
   workflow_dispatch:
     inputs:
