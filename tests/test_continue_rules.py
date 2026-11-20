@@ -46,8 +46,8 @@ def test_a_complete_package_names_the_test_that_can_run_again(tmp_path, monkeypa
     from backend.replay_pack import replay_tests, run_saved
     (tmp_path / "qx_replay.json").write_text(json.dumps({
         "packages": [
-            {"id": "test_price.py::test_see", "replay": {"ran": True, "steps": ["open the product"]}},
-            {"id": "12", "replay": {"ran": True, "steps": ["a crawl finding"]}},
+            {"id": "test_price.py::test_see", "replay": {"ran": True, "executed": True, "steps": ["open the product"]}},
+            {"id": "12", "replay": {"ran": True, "executed": False, "steps": ["a crawl finding"]}},
         ],
     }), encoding="utf-8")
     (tmp_path / "generated_tests").mkdir()
@@ -76,3 +76,15 @@ def test_a_saved_replay_can_be_read_back(tmp_path):
     rows = saved_replays(tmp_path)
     assert rows[0]["replay"]["ran"] is True
     assert saved_replays(tmp_path / "missing") == []
+
+
+def test_replay_selection_requires_actual_execution_marker(tmp_path):
+    from backend.replay_pack import replay_tests
+    (tmp_path / "qx_replay.json").write_text(json.dumps({
+        "packages": [
+            {"id": "test_price.py::test_see", "replay": {"ran": True, "steps": ["legacy ran flag only"]}},
+            {"id": "test_api.py::test_get", "replay": {"ran": True, "executed": False, "steps": ["prepared only"]}},
+            {"id": "test_cart.py::test_total", "replay": {"ran": True, "executed": True, "steps": ["executed"]}},
+        ],
+    }), encoding="utf-8")
+    assert replay_tests(tmp_path) == ["test_cart.py::test_total"]
