@@ -63,6 +63,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             "package_name": "com.qpilot.demo",
             "app_activity": ".MainActivity",
             "device_id": device,
+            "account_mode": "existing",
             "max_screens": 3,
             "max_actions": 8,
             "max_depth": 1,
