@@ -9,6 +9,17 @@ on:
       - "tests/android_demo/**"
       - "requirements*.txt"
       - "pyproject.toml"
+  # Blueprint work is integrated directly on `final`; retain the same real
+  # Android-emulator regression gate after those integrations.
+  push:
+    branches: [final]
+    paths:
+      - ".github/workflows/android-emulator-ci.yml"
+      - "backend/**"
+      - "tests/test_android_device.py"
+      - "tests/android_demo/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
   workflow_dispatch:
 
 permissions:
