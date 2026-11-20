@@ -70,7 +70,7 @@ def replay_tests(run_dir: Path) -> list[str]:
     for row in saved_replays(run_dir):
         played = row.get("replay") if isinstance(row.get("replay"), dict) else {}
         name = str(row.get("id") or "")
-        if played.get("ran") and "::" in name:
+        if played.get("executed") is True and "::" in name:
             names.append(name)
     return list(dict.fromkeys(names))
 
@@ -94,7 +94,7 @@ def run_saved(run_dir: Path, *, limit: int = 0) -> dict:
     if not results:
         return {"ran": False, "reason": out.get("note") or "test runner returned no results",
                 "results": {}, "selected": names}
-    if not any(row.get("outcome") not in (None, "not run") for row in results.values() if isinstance(row, dict)):
+    if not any(row.get("outcome") in ("passed", "failed", "error") for row in results.values() if isinstance(row, dict)):
         return {"ran": False, "reason": "no selected test actually executed", "results": results,
                 "selected": names}
     return {"ran": True, "reason": "", "results": results, "selected": names,
