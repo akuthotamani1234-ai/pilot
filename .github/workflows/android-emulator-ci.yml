@@ -1,0 +1,91 @@
+name: Android Emulator E2E
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/android-emulator-ci.yml"
+      - "backend/**"
+      - "tests/test_android_device.py"
+      - "tests/android_demo/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Appium and Android driver
+        run: |
+          npm install --global appium@2
+          appium driver install uiautomator2@4.2.9
+
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Android emulator tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          disable-animations: true
+          script: |
+            chmod +x "$GITHUB_WORKSPACE/tests/android_demo/gradlew"
+            "$GITHUB_WORKSPACE/tests/android_demo/gradlew" -p "$GITHUB_WORKSPACE/tests/android_demo" --no-daemon :app:assembleDebug
+            adb install -r "$GITHUB_WORKSPACE/tests/android_demo/app/build/outputs/apk/debug/app-debug.apk"
+            adb shell am force-stop com.qpilot.demo || true
+            adb shell am start -n com.qpilot.demo/.MainActivity --es blowai_bugs none
+            adb shell pm path com.qpilot.demo
+            mkdir -p "$RUNNER_TEMP/android-artifacts"
+            appium --address 127.0.0.1 --port 4723 > "$RUNNER_TEMP/appium.log" 2>&1 & appium_pid=$!; trap 'kill "$appium_pid" 2>/dev/null || true' EXIT; for attempt in $(seq 1 60); do if curl -fsS http://127.0.0.1:4723/status >/dev/null; then break; fi; sleep 1; done; curl -fsS http://127.0.0.1:4723/status >/dev/null; BLOWAI_SECRET_DEMO_PASSWORD=demo123 BLOWAI_ANDROID_E2E=1 BLOWAI_ANDROID_DEVICE=emulator-5554 BLOWAI_ANDROID_ARTIFACTS="$RUNNER_TEMP/android-artifacts" PYTHONUTF8=1 python -m pytest -q -s "$GITHUB_WORKSPACE/tests/test_android_device.py"
+
+      - name: Upload Android run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-evidence
+          path: ${{ runner.temp }}/android-artifacts
+          if-no-files-found: warn
+          retention-days: 14
