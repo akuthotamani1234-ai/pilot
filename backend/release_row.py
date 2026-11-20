@@ -11,10 +11,18 @@ from pathlib import Path
 from .env_controls import action_still_blocked
 from .oracle import accept_expected
 from .replay_pack import make_package, replay
-from .swarm import is_payment_url
+from .swarm import control_opens_payment, is_payment_url
 
 DASHBOARD = ("discovered", "tested", "passed", "failed", "blocked", "unknown")
 ROW = ("register", "inventory", "graph", "workers", "seed", "dashboard", "operations")
+
+
+def _folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
 
 
 def register_target(*, url: str, scope: str, page_budget: int, time_budget_s: int, authorized: bool) -> dict:
@@ -49,39 +57,70 @@ def load_saved_crawl(run_dir: Path) -> tuple[list[dict], list[str]]:
     """Pages already inventoried, and the addresses still waiting."""
     pages: list[dict] = []
     pending: list[str] = []
-    try:
-        raw = json.loads((run_dir / "app_map.json").read_text(encoding="utf-8"))
-        if isinstance(raw, list):
-            pages = [page for page in raw if isinstance(page, dict) and page.get("url")]
-    except (OSError, ValueError):
-        pages = []
-    for name in ("crawl_progress.json", "crawl.json"):
+    run_dir = Path(run_dir)
+    if _folder_is_linked(run_dir):
+        return pages, pending
+    app_map = run_dir / "app_map.json"
+    if not app_map.is_symlink():
         try:
-            payload = json.loads((run_dir / name).read_text(encoding="utf-8"))
+            raw = json.loads(app_map.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                pages = [page for page in raw if isinstance(page, dict) and page.get("url")]
+        except (OSError, ValueError):
+            pages = []
+    for name in ("crawl_progress.json", "crawl.json"):
+        path = run_dir / name
+        if path.is_symlink():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if isinstance(payload, dict):
             found = payload.get("pending") if name == "crawl_progress.json" else payload.get("not_visited")
             if isinstance(found, list):
-                pending = [item for item in found if isinstance(item, str) and item]
+                pending = [
+                    item for item in found
+                    if (isinstance(item, str) and item)
+                    or (isinstance(item, dict) and item.get("url"))
+                ]
                 break
     return pages, pending
 
 
-def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list[str]) -> None:
+def save_crawl_progress(run_dir: Path, pages: list[dict], pending: list) -> None:
     """Keep the inventory and the remaining queue so a stopped crawl can continue."""
+    from .finalization import write_text_unless_linked
+    run_dir = Path(run_dir)
+    if _folder_is_linked(run_dir):
+        return
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "app_map.json").write_text(json.dumps(pages, indent=2), encoding="utf-8")
-    (run_dir / "crawl_progress.json").write_text(json.dumps({"pending": pending}, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "app_map.json", json.dumps(pages, indent=2))
+    write_text_unless_linked(run_dir, "crawl_progress.json", json.dumps({"pending": pending}, indent=2))
 
 
 def read_target(run_dir: Path) -> dict | None:
     """The stored registration, or None when this run has no target file."""
+    path = Path(run_dir) / "target.json"
+    if _folder_is_linked(Path(run_dir)) or path.is_symlink():
+        return None
     try:
-        payload = json.loads((run_dir / "target.json").read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _control_safe(page_url: str, item: dict) -> bool:
+    """A control on a normal page is still unsafe when it opens checkout or payment."""
+    if is_payment_url(page_url):
+        return False
+    return not control_opens_payment(
+        page_url,
+        str(item.get("href") or item.get("to") or ""),
+        str(item.get("form_action") or item.get("action") or ""),
+        str(item.get("onclick") or ""),
+    )
 
 
 def page_record(page: dict) -> dict:
@@ -92,10 +131,10 @@ def page_record(page: dict) -> dict:
     links = [item for item in (page.get("links") or []) if isinstance(item, dict)]
     elements = [str(item.get("text") or item.get("selector")) for item in buttons if item.get("text") or item.get("selector")]
     elements += [str(item.get("name") or item.get("label") or item.get("selector") or "input") for item in fields]
-    actions = [{"name": str(item.get("text") or item.get("selector") or "button"), "safe": not is_payment_url(url)}
+    actions = [{"name": str(item.get("text") or item.get("selector") or "button"), "safe": _control_safe(url, item)}
                for item in buttons]
     actions += [{"name": str(item.get("text") or "link"), "to": item.get("href") or "",
-                 "safe": not is_payment_url(str(item.get("href") or ""))} for item in links if item.get("href")]
+                 "safe": _control_safe(url, item)} for item in links if item.get("href")]
     evidence = [page["screenshot"]] if page.get("screenshot") else []
     return {
         "url": url,
@@ -113,6 +152,8 @@ def record_step(run_dir: Path, step: str, payload: dict) -> dict:
         raise ValueError(step)
     current: dict = {}
     path = run_dir / "row.json"
+    if _folder_is_linked(run_dir) or path.is_symlink():
+        return current
     if path.is_file():
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -131,7 +172,9 @@ def record_step(run_dir: Path, step: str, payload: dict) -> dict:
     current[step] = payload
     run_dir.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(current, indent=2), encoding="utf-8")
-    (run_dir / f"{step}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    step_path = run_dir / f"{step}.json"
+    if not step_path.is_symlink():
+        step_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return current
 
 
@@ -169,18 +212,48 @@ def link_graph(pages: list[dict]) -> dict:
             graph["elements"].append({"template": template, "name": element})
         for action in page.get("actions") or []:
             graph["actions"].append({"template": template, "name": action.get("name") or "", "safe": bool(action.get("safe"))})
-            if action.get("to"):
+            if action.get("to") and not is_payment_url(str(action.get("to") or "")):
                 graph["transitions"].append({"from": page.get("url") or "", "to": action.get("to"), "by": action.get("name") or ""})
         for item in page.get("evidence") or []:
             graph["evidence"].append({"url": page.get("url") or "", "item": item})
     return graph
 
 
+def _payment_case(case: dict) -> str:
+    """The checkout address on a case, or '' when the case may be tested."""
+    found: list = []
+    for key in ("url", "page", "page_url", "final_url", "href"):
+        found.append(case.get(key))
+    spec = case.get("spec")
+    if isinstance(spec, dict):
+        found.append(spec.get("url"))
+    for item in case.get("pages") or []:
+        found.append(item.get("url") if isinstance(item, dict) else item)
+    for raw in found:
+        text = str(raw or "")
+        if is_payment_url(text):
+            return text
+    return ""
+
+
 def isolated_work(cases: list[dict], worker_count: int) -> list[dict]:
-    """One worker context per accepted case. An assertion without a source is not assigned."""
+    """One worker context per accepted case. An assertion without a source is not assigned.
+
+    A checkout or payment address is not given to a worker, even with an approved source.
+    """
     count = max(1, int(worker_count or 1))
     assigned = []
     for index, case in enumerate(cases):
+        pay = _payment_case(case)
+        if pay:
+            assigned.append({
+                "id": case.get("id") or "",
+                "worker": 0,
+                "isolated": False,
+                "accepted": False,
+                "reason": "checkout, payment and placing an order are never tested",
+            })
+            continue
         ok, source = accept_expected(str(case.get("source") or ""))
         if not ok:
             assigned.append({"id": case.get("id") or "", "worker": 0, "isolated": False, "accepted": False, "reason": source})
@@ -304,21 +377,27 @@ def run_row(*, url: str, scope: str, page_budget: int, time_budget_s: int, autho
     }
 
 
+def planted_marker(run_dir: Path) -> str:
+    """The seeded defect id stored for this run. A link is not that id."""
+    path = Path(run_dir) / "planted.json"
+    if _folder_is_linked(path) or not path.is_file():
+        return ""
+    try:
+        planted = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if isinstance(planted, list) and planted and isinstance(planted[0], dict):
+        return str(planted[0].get("id") or "")
+    if isinstance(planted, dict):
+        return str(planted.get("id") or "")
+    return ""
+
+
 def from_run(state: dict) -> dict:
     """Build the release row from a finished run. The listing sample is not changed."""
     run_dir = Path(state.get("run_dir") or ".")
     crawl = state.get("crawl") or {}
-    pages = []
-    for page in state.get("app_map") or []:
-        buttons = page.get("buttons") or []
-        pages.append({
-            "url": page.get("url") or "",
-            "template": page.get("page_type") or "page",
-            "elements": [str(button.get("text") or button.get("selector") or "") for button in buttons[:8]],
-            "actions": [{"name": str(button.get("text") or ""), "safe": not button.get("blocked"), "to": ""}
-                        for button in buttons[:8]],
-            "evidence": [page["screenshot"]] if page.get("screenshot") else [],
-        })
+    pages = [page_record(page) for page in (state.get("app_map") or []) if isinstance(page, dict)]
     cases = []
     for case in state.get("test_cases") or []:
         cases.append({
@@ -328,19 +407,14 @@ def from_run(state: dict) -> dict:
         })
     results = [{"url": row.get("url") or row.get("page_url") or "", "status": row.get("status") or ""}
                for row in state.get("results") or []]
-    planted = ""
-    planted_file = run_dir / "planted.json"
-    if planted_file.is_file():
-        try:
-            rows = json.loads(planted_file.read_text(encoding="utf-8"))
-            planted = str(rows[0].get("id") or "") if isinstance(rows, list) and rows else ""
-        except (OSError, ValueError):
-            planted = ""
+    planted = planted_marker(run_dir)
     backup = ""
     for name in (".private/checkpoint.sqlite", "app_map.json", "crawl.json"):
-        if (run_dir / name).is_file():
-            backup = name
-            break
+        path = run_dir / name
+        if _folder_is_linked(path) or not path.is_file():
+            continue
+        backup = name
+        break
     return run_row(
         url=str(state.get("url") or ""),
         scope=str(crawl.get("section") or crawl.get("mode") or "site"),

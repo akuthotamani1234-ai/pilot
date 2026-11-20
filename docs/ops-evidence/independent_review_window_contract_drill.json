@@ -1,0 +1,25 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_window_contract",
+  "ran_at": "2026-11-19T05:45:41Z",
+  "kind": "unsigned_window_contract",
+  "window": {
+    "business_days": 10,
+    "evidence_freeze_required": true,
+    "allow_hotfix_exceptions": true,
+    "embargo_until_signoff": true,
+    "note": "Window contract only; external sign-off still required"
+  },
+  "signed_off": false,
+  "local_partial_present": [
+    "independent_review_request_drill.json",
+    "independent_review_response_sla_drill.json",
+    "independent_review_blocker_freeze_drill.json",
+    "independent_review_findings_freeze_drill.json",
+    "independent_reviewer_roster_contract_drill.json",
+    "independent_review_handoff_pack_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Independent review window contract recorded (6/6 local partials); external sign-off still open"
+}

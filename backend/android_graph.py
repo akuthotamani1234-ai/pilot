@@ -27,10 +27,10 @@ def _setup(state: AndroidState) -> AndroidState:
 
 def _traced(name, agent):
     def run(state: AndroidState) -> AndroidState:
-        from pathlib import Path
-
-        if name != "report" and (Path(state["run_dir"]) / "STOP").exists():
-            return {"setup_error": "The mobile run was stopped by the user.", "incomplete": True}
+        from .android_runtime import stop_note
+        note = stop_note(state.get("run_dir") or "")
+        if note and (name != "report" or "link" in note):
+            return {"setup_error": note, "incomplete": True}
         print(f"::stage::{name}::start", flush=True)
         try:
             result = agent(state)

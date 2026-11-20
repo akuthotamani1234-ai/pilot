@@ -1,0 +1,37 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_dispatch_payload_rehearsal",
+  "ran_at": "2026-11-19T05:22:05Z",
+  "kind": "dry_run_payload_only",
+  "android": {
+    "workflow_present": true,
+    "payload": {
+      "ref": "cursor/qpilot-x-phase0-baseline-f72b",
+      "workflow": "android-appium.yml",
+      "inputs": {
+        "api_level": "30",
+        "include_api24_smoke": "true",
+        "artifact_prefix": "qpilot-android-matrix"
+      },
+      "dispatched": false
+    },
+    "ok": true
+  },
+  "browsers": {
+    "workflow_present": true,
+    "payload": {
+      "ref": "cursor/qpilot-x-phase0-baseline-f72b",
+      "workflow": "multi-browser-portfolios.yml",
+      "inputs": {
+        "engines": "chromium,firefox,webkit",
+        "portfolio": "demo_store",
+        "artifact_prefix": "qpilot-browser-portfolio"
+      },
+      "dispatched": false
+    },
+    "ok": true
+  },
+  "ok": true,
+  "reason": "Hosted dispatch payloads rehearsed (not dispatched); broad hosted CI runner execution still open"
+}

@@ -116,9 +116,13 @@ def _calls(fn: ast.AST) -> list[tuple[str | None, str]]:
 
 def analyse(test_dir: Path) -> dict[str, str]:
     """{"<file>::<test function>": strong | weak | none} for every test of the run's generated files."""
+    test_dir = Path(test_dir)
+    from .finalization import folder_is_linked
+    if folder_is_linked(test_dir):
+        return {}
     mods = {}
-    for f in Path(test_dir).glob("*.py"):
-        if f.name == "conftest.py":
+    for f in test_dir.glob("*.py"):
+        if f.name == "conftest.py" or f.is_symlink() or folder_is_linked(f.parent):
             continue
         try:
             tree = ast.parse(f.read_text(encoding="utf-8"))
@@ -153,14 +157,24 @@ def analyse(test_dir: Path) -> dict[str, str]:
 
 
 def save(run_dir: Path) -> dict[str, str]:
-    data = analyse(Path(run_dir) / "generated_tests")
-    (Path(run_dir) / "strength.json").write_text(json.dumps(data, indent=1), encoding="utf-8")
+    run_dir = Path(run_dir)
+    from .finalization import folder_is_linked
+    dest = run_dir / "strength.json"
+    if folder_is_linked(run_dir) or dest.is_symlink():
+        return {}
+    data = analyse(run_dir / "generated_tests")
+    dest.write_text(json.dumps(data, indent=1), encoding="utf-8")
     return data
 
 
 def load(run_dir: Path) -> dict[str, str]:
+    run_dir = Path(run_dir)
+    path = run_dir / "strength.json"
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or path.is_symlink() or not path.is_file():
+        return {}
     try:
-        return json.loads((Path(run_dir) / "strength.json").read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 

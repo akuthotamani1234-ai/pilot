@@ -39,16 +39,78 @@ def _run_dir(state):
     return Path(state["run_dir"])
 
 
+def _execution_is_linked(run_dir: Path) -> bool:
+    """True when execution would read or delete a file through a link."""
+    if _folder_is_linked(run_dir):
+        return True
+    paths = (
+        run_dir, run_dir / ".private", run_dir / "generated_tests", run_dir / "STOP",
+        run_dir / "generated_tests" / "test_android_generated.py",
+        run_dir / "generated_tests" / "conftest.py",
+        run_dir / "generated_tests" / "android_test_cases.json",
+        run_dir / ".private" / "auto_secrets.json",
+        run_dir / ".private" / "android_config.json",
+        run_dir / ".private" / "contract_inputs.json",
+        run_dir / ".private" / "active_appium_session.json",
+        run_dir / "android_junit.xml", run_dir / "android_results.jsonl",
+        run_dir / "android_execution_unavailable.json",
+        run_dir / "android_cleanup.jsonl", run_dir / "android_healing.jsonl",
+    )
+    return any(path.is_symlink() for path in paths)
+
+
 def _save_json(path, data):
     # Keep package_name / app package ids valid; substring username redaction must not break them.
+    path = Path(path)
+    if path.is_symlink() or _folder_is_linked(path.parent):
+        return
     path.write_text(redact_json(data), encoding="utf-8")
+
+
+def _folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+def _remember_package(run_dir, config) -> bool:
+    """Keep the discovered package on this run's private config. A link is left untouched."""
+    stored = Path(run_dir) / ".private" / "android_config.json"
+    if _folder_is_linked(Path(run_dir)) or stored.is_symlink() or stored.parent.is_symlink():
+        return False
+    if not stored.is_file():
+        return False
+    try:
+        saved = json.loads(stored.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    changed = False
+    if config.get("app_mode") == "apk" and not saved.get("package_name"):
+        saved["package_name"] = config["package_name"]
+        changed = True
+    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
+        saved["package_name"] = config["package_name"]
+        changed = True
+    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
+        saved["app_activity"] = config["app_activity"]
+        changed = True
+    if changed:
+        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
+    return changed
 
 
 def setup_agent(state):
     config = validate_mobile_config(state["config"])
-    if config.get("apk_path"):
+    run_dir = _run_dir(state)
+    private = run_dir / ".private"
+    apk = Path(config["apk_path"]) if config.get("apk_path") else None
+    if _folder_is_linked(run_dir) or private.is_symlink() or (apk is not None and _folder_is_linked(apk)):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    if apk is not None:
         try:
-            Path(config["apk_path"]).resolve().relative_to((_run_dir(state) / ".private").resolve())
+            apk.resolve().relative_to(private.resolve())
         except ValueError as e:
             raise AndroidEnvironmentError("The APK must be inside this run's private folder.") from e
     environment = android_environment(config["appium_url"])
@@ -83,6 +145,12 @@ def setup_agent(state):
 def discovery_agent(state):
     config = state["config"].copy()
     run_dir = _run_dir(state)
+    if _folder_is_linked(run_dir):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    from .android_runtime import stop_note
+    note = stop_note(run_dir)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
     from .android_dynamic import set_progress_log
     set_progress_log(run_dir / "progress.log")
     driver = create_session(config)
@@ -121,8 +189,14 @@ def discovery_agent(state):
     class DiscoveryLimitReached(AndroidEnvironmentError):
         pass
 
+    def _discovery_stopped():
+        note = stop_note(run_dir)
+        if "link" in note:
+            raise DiscoveryLimitReached(note)
+        return "stopped" in note
+
     def navigation_action(action, recovery=False, cheap=False):
-        if (run_dir / "STOP").exists():
+        if _discovery_stopped():
             raise DiscoveryLimitReached("Stop requested")
         if time.monotonic() >= deadline:
             raise DiscoveryLimitReached("Discovery time limit reached")
@@ -150,7 +224,7 @@ def discovery_agent(state):
 
         limit = min(deadline, time.monotonic() + seconds)
         while driver.current_package != config["package_name"]:
-            if (run_dir / "STOP").exists():
+            if _discovery_stopped():
                 raise DiscoveryLimitReached("Stop requested")
             # The keyboard is hidden and (in test mode) a permission prompt declined while waiting, not just slept on
             other = bring_app_back(driver, config)
@@ -445,14 +519,14 @@ def discovery_agent(state):
                 or (max_screens and len(screens) >= max_screens)
                 or (max_actions and action_count >= max_actions)
                 or time.monotonic() >= deadline
-                or (run_dir / "STOP").exists()
+                or _discovery_stopped()
             ):
                 unvisited.append(
                     {
                         "screen_id": screen["id"],
                         "element_id": element["id"],
                         "label": label,
-                        "reason": ("Stop requested" if (run_dir / "STOP").exists() else
+                        "reason": ("Stop requested" if _discovery_stopped() else
                                    "Discovery time limit reached" if time.monotonic() >= deadline else
                                    "Exploration action limit reached" if max_actions and action_count >= max_actions else
                                    "Screen limit reached" if max_screens and len(screens) >= max_screens else
@@ -556,8 +630,10 @@ def discovery_agent(state):
         saved = session.saved_secrets()
         if saved:
             # The account test mode registered itself: the final run logs in with it again. Private file only.
-            (run_dir / ".private").mkdir(exist_ok=True)
-            (run_dir / ".private" / "auto_secrets.json").write_text(json.dumps(saved), encoding="utf-8")
+            from .finalization import private_file
+            secret_path = private_file(run_dir, "auto_secrets.json")
+            if secret_path is not None:
+                secret_path.write_text(json.dumps(saved), encoding="utf-8")
         return {"enabled": True, "flows": session.flows, "tried": session.tried, "findings": session.findings,
                 "coverage": session.coverage, "tries_used": session.used, "stopped": stopped,
                 "state_inventory": session.state_inventory(), "account_setup": getattr(session, "account_setup", {}),
@@ -763,25 +839,8 @@ def discovery_agent(state):
                 time.sleep(.3)
                 initial = inspect_driver(driver, config)
             config["package_name"] = initial["package_name"]
-            stored = run_dir / ".private" / "android_config.json"
-            if stored.is_file():
-                # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
-                try:
-                    saved = json.loads(stored.read_text(encoding="utf-8"))
-                    changed = False
-                    if config.get("app_mode") == "apk" and not saved.get("package_name"):
-                        saved["package_name"] = config["package_name"]
-                        changed = True
-                    if config.get("package_name") and saved.get("package_name") != config["package_name"]:
-                        saved["package_name"] = config["package_name"]
-                        changed = True
-                    if config.get("app_activity") and saved.get("app_activity") != config["app_activity"]:
-                        saved["app_activity"] = config["app_activity"]
-                        changed = True
-                    if changed:
-                        stored.write_text(json.dumps(saved, indent=2), encoding="utf-8")
-                except (OSError, ValueError):
-                    pass
+            # Keep package_name and the exported LAUNCHER activity (after splash retry) on disk for pytest.
+            _remember_package(run_dir, config)
             bound_package = config.get('qa_contract', {}).get('android_package')
             if bound_package and bound_package != config['package_name']:
                 raise AndroidEnvironmentError('The uploaded app does not match the package required by these test flows')
@@ -821,7 +880,7 @@ def discovery_agent(state):
 
             issues.append({"error": redact(str(e))[:300]})
             lost = device_unavailable(e)
-        if screens and not lost and not (run_dir / "STOP").exists():
+        if screens and not lost and not _discovery_stopped():
             try:
                 interaction = user_like_testing()
             except Exception as e:  # the safe exploration's evidence stands even if user-like testing breaks
@@ -890,10 +949,11 @@ def discovery_agent(state):
             # Private copy for the trusted runtime; a public copy the person can reuse as approved flows.
             # Do not redact the private contract: assert_text / accessibility_id values often contain the
             # test username (e.g. "Welcome demo user"); redacting them makes execution look for [REDACTED].
-            (run_dir / ".private").mkdir(exist_ok=True)
-            (run_dir / ".private" / "auto_contract.json").write_text(
-                json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            from .finalization import private_file
+            private_contract = run_dir / ".private" / "auto_contract.json"
+            contract_path = private_file(run_dir, "auto_contract.json")
+            if contract_path is not None and not private_contract.is_symlink():
+                contract_path.write_text(json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8")
             _save_json(run_dir / "auto_flows.json", contract)
         _save_json(run_dir / "android_interaction.json", {**interaction, "kept": len(auto_flows)})
         log.append(f"Test-build mode: kept {len(auto_flows)} replay-verified user-like tests from "
@@ -1041,8 +1101,9 @@ def _run_mobile_process(command, env, timeout):
 
 def _cleanup_worker_session(run_dir, config):
     """Close only this run's recorded session, including after forced worker termination."""
-    session_file = run_dir / ".private" / "active_appium_session.json"
-    if not session_file.exists():
+    session_file = Path(run_dir) / ".private" / "active_appium_session.json"
+    if (_folder_is_linked(session_file.parent) or session_file.is_symlink()
+            or not session_file.is_file()):
         return ""
     try:
         session_id = json.loads(session_file.read_text(encoding="utf-8"))["session_id"]
@@ -1062,6 +1123,8 @@ def _cleanup_worker_session(run_dir, config):
 
 def _execute_mobile(state):
     run_dir = _run_dir(state)
+    if _execution_is_linked(run_dir):
+        raise AndroidEnvironmentError("The Android run is a link.")
     cases = [c for c in state.get("test_cases", []) if not c.get("blocked")]
     script = run_dir / "generated_tests" / "test_android_generated.py"
     if not cases or not script.is_file():
@@ -1094,7 +1157,10 @@ def _execute_mobile(state):
         # exploration (private file), plus the private test account, if given.
         saved_path = run_dir / ".private" / "auto_secrets.json"
         try:
-            saved = json.loads(saved_path.read_text(encoding="utf-8")) if saved_path.is_file() else {}
+            saved = {}
+            if (not saved_path.is_symlink() and not saved_path.parent.is_symlink()
+                    and saved_path.is_file()):
+                saved = json.loads(saved_path.read_text(encoding="utf-8"))
         except ValueError:
             saved = {}
         resolved_inputs = {**resolved_inputs,
@@ -1110,10 +1176,18 @@ def _execute_mobile(state):
         ANDROID_PENDING_CASES=json.dumps([case["id"] for case in pending]),
     )
     # Refresh the trusted harness when resuming an older generated run.
-    template = Path(__file__).parent / "templates" / "android_conftest.py"
-    (script.parent / "conftest.py").write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    from .android_design import ANDROID_CONFTEST
+    from .finalization import folder_is_linked
+    template = ANDROID_CONFTEST
+    harness = script.parent / "conftest.py"
+    if script.parent.is_symlink() or harness.is_symlink():
+        raise AndroidEnvironmentError("The Android run is a link.")
+    if folder_is_linked(template):
+        raise AndroidEnvironmentError("The Android test template is a link.")
+    harness.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
     junit = run_dir / "android_junit.xml"
-    junit.unlink(missing_ok=True)
+    if not junit.is_symlink():
+        junit.unlink(missing_ok=True)
     command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--junitxml=" + str(junit), str(script)]
     started = time.monotonic()
     output, returncode, cleanup_error = "", None, ""
@@ -1132,12 +1206,16 @@ def _execute_mobile(state):
         output = "Could not start the Appium test runner: " + str(e)
     finally:
         cleanup_error = _cleanup_worker_session(run_dir, state["config"])
-        inputs_path.unlink(missing_ok=True)
+        if not inputs_path.is_symlink() and not inputs_path.parent.is_symlink():
+            inputs_path.unlink(missing_ok=True)
     recorded = {r["id"]: r for r in [*preserved, *read_jsonl(events)]}
     if not any(case["id"] in recorded for case in pending):
         recorded.update({r["id"]: r for r in _parse_junit(junit, pending)})
     results = list(recorded.values())
-    unavailable = json.loads(unavailable_path.read_text(encoding="utf-8")) if unavailable_path.exists() else None
+    unavailable = None
+    if (unavailable_path.is_file() and not unavailable_path.is_symlink()
+            and not unavailable_path.parent.is_symlink()):
+        unavailable = json.loads(unavailable_path.read_text(encoding="utf-8"))
     from . import runctl
     stop_kind = runctl.kind()
     user_stopped = stop_kind in {"user_stop", "ctrl_c"} or ((run_dir / "STOP").exists() and not unavailable)
@@ -1229,13 +1307,15 @@ def _execute_mobile(state):
 
 
 def read_jsonl(path):
+    path = Path(path)
     rows = []
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                rows.append(json.loads(line))
-            except ValueError:
-                continue
+    if path.is_symlink() or _folder_is_linked(path.parent) or not path.is_file():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
     return rows
 
 

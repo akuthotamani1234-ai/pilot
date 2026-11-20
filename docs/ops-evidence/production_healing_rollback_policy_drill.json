@@ -1,0 +1,45 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_rollback_policy",
+  "ran_at": "2026-11-19T05:37:35Z",
+  "kind": "policy_local_only",
+  "triggers": [
+    {
+      "id": "oracle_fail",
+      "action": "rollback",
+      "note": "Healed locator fails oracle"
+    },
+    {
+      "id": "auth_redirect",
+      "action": "no_apply",
+      "note": "Auth/401 class never auto-applies"
+    },
+    {
+      "id": "infra_error",
+      "action": "no_apply",
+      "note": "Connection/timeout never auto-applies"
+    },
+    {
+      "id": "flaky_retry",
+      "action": "hold",
+      "note": "Flaky class held for human review"
+    },
+    {
+      "id": "product_defect",
+      "action": "no_apply",
+      "note": "Seeded product defect is not healed"
+    }
+  ],
+  "production_suite_executed": false,
+  "local_partial_present": [
+    "production_healing_flaky_policy_drill.json",
+    "production_healing_taxonomy_drill.json",
+    "production_healing_replay_pack_drill.json",
+    "production_healing_acceptance_gate_drill.json",
+    "production_healing_fixture_coverage_drill.json",
+    "healing_regression_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Production healing rollback policy recorded (6/6 local partials); production / third-party healing suite still open"
+}

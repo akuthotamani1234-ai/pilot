@@ -1,0 +1,108 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_oncall_readiness",
+  "ran_at": "2026-11-19T07:21:29Z",
+  "kind": "readiness_score_only",
+  "score": 19,
+  "score_of": 19,
+  "checks": [
+    {
+      "artifact": "multi_region_dr_drill.json",
+      "label": "Local dual-region Postgres failover",
+      "ready": true
+    },
+    {
+      "artifact": "minio_multi_region_drill.json",
+      "label": "Local MinIO dual-bucket failover",
+      "ready": true
+    },
+    {
+      "artifact": "redis_multi_region_drill.json",
+      "label": "Local Redis dual-DB failover",
+      "ready": true
+    },
+    {
+      "artifact": "multi_store_dr_drill.json",
+      "label": "Combined multi-store DR pack",
+      "ready": true
+    },
+    {
+      "artifact": "failover_rto_drill.json",
+      "label": "Local failover RTO measurement",
+      "ready": true
+    },
+    {
+      "artifact": "multi_region_cutover_rehearsal_drill.json",
+      "label": "Local multi-region cutover pack",
+      "ready": true
+    },
+    {
+      "artifact": "paging_escalation_drill.json",
+      "label": "Loopback primary\u2192secondary paging",
+      "ready": true
+    },
+    {
+      "artifact": "paging_ack_drill.json",
+      "label": "Loopback paging ack\u2192resolve",
+      "ready": true
+    },
+    {
+      "artifact": "observability_probe_drill.json",
+      "label": "Local observability probe",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_oncall_contract_drill.json",
+      "label": "Hosted on-call contract snapshot",
+      "ready": true
+    },
+    {
+      "artifact": "dual_region_store_health_probe_drill.json",
+      "label": "Dual-region store health probe",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_dr_cutover_checklist_drill.json",
+      "label": "Hosted DR cutover checklist",
+      "ready": true
+    },
+    {
+      "artifact": "multi_region_dr_readiness_pack_drill.json",
+      "label": "Multi-region DR readiness pack",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_oncall_rota_contract_drill.json",
+      "label": "Hosted on-call rota contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_dr_rpo_contract_drill.json",
+      "label": "Hosted DR RPO / backup contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_dr_comms_contract_drill.json",
+      "label": "Hosted DR communications contract",
+      "ready": true
+    },
+    {
+      "artifact": "paging_severity_routing_contract_drill.json",
+      "label": "Paging severity routing contract",
+      "ready": true
+    },
+    {
+      "artifact": "dual_region_replication_lag_contract_drill.json",
+      "label": "Replication lag contract",
+      "ready": true
+    },
+    {
+      "artifact": "dual_region_cutover_lag_gate_drill.json",
+      "label": "Cutover blocked when lag exceeds budget",
+      "ready": true
+    }
+  ],
+  "live_hosted_paging": false,
+  "ok": true,
+  "reason": "Hosted DR/on-call readiness 19/19; live hosted multi-region DR / on-call paging still open"
+}

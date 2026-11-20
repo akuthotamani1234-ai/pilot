@@ -1,0 +1,31 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_appium_ci_contract",
+  "ran_at": "2026-11-18T19:55:00Z",
+  "ok": true,
+  "kind": "contract_only",
+  "reason": "Offline CI contract for Appium product-matrix artifacts; no multi-device CI runner executed this yet",
+  "required_runner": {
+    "os": "ubuntu-latest",
+    "kvm": true,
+    "api_levels": [30, 34],
+    "appium": ">=3.0",
+    "driver": "uiautomator2",
+    "env": ["ANDROID_HOME", "APPIUM_HOME", "BLOWAI_ANDROID_E2E=1"]
+  },
+  "artifact_paths": [
+    "docs/ops-evidence/android_appium_product_matrix_drill.json",
+    "docs/ops-evidence/android_emulator_smoke_drill.json",
+    "docs/ops-evidence/device_matrix_drill.json"
+  ],
+  "drill_api": "POST /api/ops/drills/android-appium-product-matrix",
+  "apps": [
+    "com.android.settings",
+    "com.android.contacts",
+    "com.android.chrome",
+    "io.appium.android.apis"
+  ],
+  "live_local_evidence": "docs/ops-evidence/android_appium_product_matrix_drill.json",
+  "workflow": ".github/workflows/android-appium.yml",
+  "note": "Default PR CI remains Windows quick tests; workflow_dispatch Android Appium matrix uploads contract evidence; full AVD boot on ubuntu+KVM still open"
+}

@@ -1,0 +1,13 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_oidc_callback",
+  "ran_at": "2026-11-18T22:42:56Z",
+  "callback": {
+    "ok": true,
+    "signature_verified": true,
+    "sub": "studio-callback-user",
+    "reason": "Studio OIDC callback exchanged code + validated JWT; hosted IdP SSO still open"
+  },
+  "ok": true,
+  "reason": "Studio OIDC callback exchanged loopback auth-code + verified JWT; hosted IdP Studio SSO still open"
+}

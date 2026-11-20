@@ -3,6 +3,7 @@
   "pages": [
     {"path": "/", "auth": false},
     {"path": "/about", "auth": false},
+    {"path": "/lab", "auth": false, "how": "iframe + open shadow root sample for surface coverage"},
     {"path": "/deals", "auth": false},
     {"path": "/weekend", "auth": false, "how": "only linked from deals that load when you scroll down"},
     {"path": "/signin", "auth": false},

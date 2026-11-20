@@ -1,0 +1,34 @@
+{
+  "gate_i_complete": false,
+  "drill": "oidc_email_domain_tenant_acl",
+  "ran_at": "2026-11-19T05:48:43Z",
+  "domain_map": {
+    "acme.test": "tenant-acme",
+    "globex.test": "tenant-globex"
+  },
+  "cases": [
+    {
+      "sub": "email-user-a",
+      "email": "alice@acme.test",
+      "mapped_tenant": "tenant-acme",
+      "expected_tenant": "tenant-acme",
+      "domain_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    },
+    {
+      "sub": "email-user-b",
+      "email": "bob@globex.test",
+      "mapped_tenant": "tenant-globex",
+      "expected_tenant": "tenant-globex",
+      "domain_match": true,
+      "oidc_ok": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    }
+  ],
+  "passed": 2,
+  "ok": true,
+  "reason": "OIDC email-domain\u2192tenant ACL 2/2; live hosted IdP Studio SSO still open"
+}

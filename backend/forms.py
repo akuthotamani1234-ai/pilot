@@ -29,6 +29,7 @@ from urllib.parse import urlparse
 from .actions import DELETE, action_risk, writes_allowed
 from .form_targets import FORM_TARGET_HELPER
 from .navigation import OPEN_PATH_HELPER, opener_path
+from .swarm import stored_control_opens_payment
 from .testdata import field_kind, valid_value, values
 
 SEARCHY = re.compile(r"\b(q|query|search|keywords?|s)\b", re.I)
@@ -184,6 +185,9 @@ def data_forms(pages: list[dict]) -> list[dict]:
             if not submit.get("selector") or submit_cls == "pay" or submit_cls == "delete" \
                     or DELETE.search(said):
                 continue  # (never a form that pays or deletes - not even with wrong values)
+            page_url = p.get("final_url") or p.get("url") or ""
+            if stored_control_opens_payment(page_url, f) or stored_control_opens_payment(page_url, submit):
+                continue  # Continue can post to checkout; that form is not filled
             fields = [dict(known.get(x["selector"], {}), **x) for x in f.get("fields", []) if x.get("selector")]
             fields = [x for x in fields if keep_form_field(x)]
             if not fields or is_login_form(f):

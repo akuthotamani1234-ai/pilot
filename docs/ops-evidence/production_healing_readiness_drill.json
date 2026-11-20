@@ -1,0 +1,108 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_readiness",
+  "ran_at": "2026-11-19T07:49:14Z",
+  "kind": "readiness_score_only",
+  "score": 19,
+  "score_of": 19,
+  "checks": [
+    {
+      "artifact": "live_failure_matrix_drill.json",
+      "label": "Live DemoStore failure matrix",
+      "ready": true
+    },
+    {
+      "artifact": "multi_app_healing_suite_drill.json",
+      "label": "Multi-app healing suite",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_matrix_drill.json",
+      "label": "Production-like healing matrix",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_taxonomy_drill.json",
+      "label": "Production healing taxonomy",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_contract_drill.json",
+      "label": "Production healing contract",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_replay_pack_drill.json",
+      "label": "Before/after replay pack",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "Flaky/auth/infra no-auto-apply",
+      "ready": true
+    },
+    {
+      "artifact": "healing_regression_drill.json",
+      "label": "Locator-only healing regression",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_third_party_sla_drill.json",
+      "label": "Third-party healing SLA",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_acceptance_gate_drill.json",
+      "label": "Acceptance gate (local)",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_seed_catalog_drill.json",
+      "label": "Seed catalog (local)",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_fixture_coverage_drill.json",
+      "label": "Fixture coverage map",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_rollback_policy_drill.json",
+      "label": "Rollback / no-apply policy",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_human_loop_contract_drill.json",
+      "label": "Human-in-the-loop contract",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_budget_contract_drill.json",
+      "label": "Suite budget contract",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_escalation_ladder_drill.json",
+      "label": "Escalation ladder contract",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_escalation_enforcement_drill.json",
+      "label": "Escalation enforced on repair path",
+      "ready": true
+    },
+    {
+      "artifact": "production_healing_approval_gate_drill.json",
+      "label": "Single-use human approval gate",
+      "ready": true
+    },
+    {
+      "artifact": "healing_approval_queue_drill.json",
+      "label": "Approvals queue enforces healing policy",
+      "ready": true
+    }
+  ],
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Production healing readiness 19/19; production / third-party healing suite still open"
+}

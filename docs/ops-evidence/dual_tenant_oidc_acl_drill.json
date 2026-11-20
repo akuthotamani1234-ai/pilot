@@ -1,0 +1,28 @@
+{
+  "gate_i_complete": false,
+  "gate_g_complete": false,
+  "drill": "dual_tenant_oidc_acl",
+  "ran_at": "2026-11-18T23:52:34Z",
+  "principals": [
+    {
+      "sub": "dual-user-a",
+      "tenant": "tenant-a",
+      "oidc_ok": true,
+      "signature_verified": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    },
+    {
+      "sub": "dual-user-b",
+      "tenant": "tenant-b",
+      "oidc_ok": true,
+      "signature_verified": true,
+      "same_tenant_allowed": true,
+      "cross_tenant_denied": true
+    }
+  ],
+  "passed": 2,
+  "total": 2,
+  "ok": true,
+  "reason": "Dual-tenant loopback OIDC ACL 2/2 principals with reciprocal deny; hosted IdP Studio SSO login still open"
+}

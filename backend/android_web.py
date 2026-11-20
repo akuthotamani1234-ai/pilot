@@ -371,10 +371,16 @@ class BotCheckGate:
         raise BotCheckBlocked(self.blocked)
 
     def _wait(self, read, seconds: float):
+        from .android_runtime import stop_file_note
+
         deadline = time.monotonic() + seconds
         while True:
-            if self.stop_path is not None and self.stop_path.exists():
-                raise BotCheckBlocked("Stop requested while the website's bot check was shown.")
+            if self.stop_path is not None:
+                note = stop_file_note(self.stop_path)
+                if "link" in note:
+                    raise AndroidEnvironmentError(note)
+                if note:
+                    raise BotCheckBlocked("Stop requested while the website's bot check was shown.")
             data = read()
             if not bot_check(data):
                 return data

@@ -23,7 +23,7 @@
     {"id": "users.search", "page": "/users", "detect": "search users", "test": "searching the table", "bug": "B2"},
     {"id": "users.page_size", "page": "/users", "detect": "rows per page", "test": "rows per page"},
     {"id": "users.select_all", "page": "/users", "detect": "select all", "test": "select all"},
-    {"id": "users.next_page", "page": "/users", "detect": "next", "test": "next page|'next'"},
+    {"id": "users.next_page", "page": "/users", "detect": "next", "test": "shows the next page|Next' shows the next page"},
     {"id": "user_form.valid", "page": "/users/new", "detect": "full name", "test": "valid values are accepted"},
     {"id": "user_form.email", "page": "/users/new", "detect": "e-mail", "test": "wrong values in 'e-mail'", "bug": "B3"},
     {"id": "user_form.name", "page": "/users/new", "detect": "full name", "test": "wrong values in 'full name'"},

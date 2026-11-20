@@ -1,0 +1,16 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_findings_freeze",
+  "ran_at": "2026-11-19T05:45:41Z",
+  "kind": "unsigned_findings_freeze",
+  "combined": {
+    "findings_sha256": "343ad6f20c728e9712fb4b5a2d745a03258a60adfc27faf72c9a1b13b735d73b",
+    "blocker_freeze_sha256": "47523154188d8f72f0dc8c67ff40fef4160d64a9557675917544150d887f017f",
+    "open_count": 6
+  },
+  "findings_freeze_sha256": "3aa33eb54f20d84599993138a25ea06b1a34b8bbf8ebe61fa7b8937072a657ff",
+  "findings_present": true,
+  "signed_off": false,
+  "ok": true,
+  "reason": "Findings freeze 3aa33eb54f20\u2026 (unsigned); external sign-off still open"
+}

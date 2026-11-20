@@ -1,0 +1,27 @@
+{
+  "gate_h_complete": false,
+  "drill": "controlled_fixture_soak",
+  "ran_at": "2026-11-18T15:38:23Z",
+  "fixture": "AdminPortal",
+  "base_url": "(ephemeral AdminPortal)",
+  "duration_s_target": 20.0,
+  "elapsed_s": 20.501,
+  "requests": 53370,
+  "ok": 53370,
+  "fail": 0,
+  "rps": 2603.32,
+  "p50_ms": 0.34,
+  "p95_ms": 0.61,
+  "status_counts": {
+    "200": 53370
+  },
+  "paths": [
+    "/",
+    "/users",
+    "/users/new",
+    "/widgets",
+    "/reports",
+    "/help"
+  ],
+  "reason": "Controlled AdminPortal soak verified locally; hosted/prod-like load + on-call still open"
+}

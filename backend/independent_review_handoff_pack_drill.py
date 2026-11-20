@@ -1,0 +1,100 @@
+"""Gate G: independent review handoff pack (request + sign-off + attestation).
+
+Bundles reviewer handoff artifacts into one unsigned pack. Does **not** collect
+a human signature — ``signed_off`` / ``gate_g_complete`` stay False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "independent_review_handoff_pack_drill.json"
+
+
+def _linked_handoff() -> dict:
+    return {
+        "gate_g_complete": False,
+        "ok": False,
+        "drill": "independent_review_handoff_pack",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_independent_review_handoff_pack_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "independent_review_handoff_pack_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_handoff()
+
+    from .independent_review_blocker_freeze_drill import (
+        run_independent_review_blocker_freeze_drill,
+    )
+    from .independent_review_findings_freeze_drill import (
+        run_independent_review_findings_freeze_drill,
+    )
+    from .independent_review_request_drill import run_independent_review_request_drill
+    from .independent_review_response_sla_drill import (
+        run_independent_review_response_sla_drill,
+    )
+    from .independent_review_scope_matrix_drill import (
+        run_independent_review_scope_matrix_drill,
+    )
+    from .independent_review_signoff_pack_drill import (
+        run_independent_review_signoff_pack_drill,
+    )
+    from .independent_review_summary_drill import run_independent_review_summary_drill
+    from .independent_reviewer_roster_contract_drill import (
+        run_independent_reviewer_roster_contract_drill,
+    )
+
+    started = time.perf_counter()
+    parts = {}
+    for key, fn in (
+        ("request", run_independent_review_request_drill),
+        ("signoff_pack", run_independent_review_signoff_pack_drill),
+        ("summary", run_independent_review_summary_drill),
+        ("scope_matrix", run_independent_review_scope_matrix_drill),
+        ("blocker_freeze", run_independent_review_blocker_freeze_drill),
+        ("response_sla", run_independent_review_response_sla_drill),
+        ("roster", run_independent_reviewer_roster_contract_drill),
+        ("findings_freeze", run_independent_review_findings_freeze_drill),
+    ):
+        try:
+            parts[key] = fn(ops_dir=ops_dir)
+        except Exception as exc:
+            parts[key] = {"ok": False, "reason": str(exc)[:160]}
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    signed_off = any(bool((parts.get(k) or {}).get("signed_off")) for k in parts)
+    ok = all(bool((parts.get(k) or {}).get("ok")) for k in parts) and not signed_off
+    evidence = {
+        "gate_g_complete": False,
+        "drill": "independent_review_handoff_pack",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "unsigned_ops_pack",
+        "parts": {k: bool((v or {}).get("ok")) for k, v in parts.items()},
+        "signed_off": signed_off,
+        "elapsed_ms": elapsed_ms,
+        "ok": ok,
+        "reason": (
+            f"Independent review handoff pack ok in {elapsed_ms}ms (unsigned); "
+            "external sign-off still open"
+            if ok else
+            "Independent review handoff pack incomplete; sign-off still open"
+        ),
+    }
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_handoff()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_handoff()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return evidence

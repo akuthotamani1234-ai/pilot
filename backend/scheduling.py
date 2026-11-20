@@ -15,6 +15,8 @@ def work_seconds(limit_min: float, reserve_s: float) -> float:
 
 
 def record_phase(root: Path, name: str, started: float, status: str) -> None:
-    with (root / "phase_timings.jsonl").open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps({"phase": name, "duration_s": round(time.monotonic() - started, 3),
-                                 "status": status}) + "\n")
+    from .finalization import append_text_unless_linked
+    append_text_unless_linked(
+        Path(root) / "phase_timings.jsonl",
+        json.dumps({"phase": name, "duration_s": round(time.monotonic() - started, 3),
+                    "status": status}) + "\n")

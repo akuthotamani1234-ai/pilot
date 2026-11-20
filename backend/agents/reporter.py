@@ -284,7 +284,7 @@ def coverage_summary(state: QAState, run_dir: Path) -> dict:
     crawl, app_map = state.get("crawl") or {}, state.get("app_map", [])
     visited = len(app_map)
     found = visited + crawl.get("not_visited_count", 0)
-    cov = json.loads((run_dir / "coverage.json").read_text(encoding="utf-8")) if (run_dir / "coverage.json").exists() else {}
+    cov = _read_run_json(run_dir, "coverage.json") or {}
     cases, results = state.get("test_cases", []), state.get("results", [])
     test_dir = run_dir / "generated_tests"
     statuses = [case_result(c, results)[0] for c in cases]
@@ -488,14 +488,43 @@ def fill_case_results(cases: list[dict], results: list[dict], failures: list[dic
             c["failure_category"], c["confidence"] = f.get("category_name"), f.get("confidence")
 
 
+def _write_run_text(run_dir: Path, name: str, text: str) -> None:
+    """Write one file in this run. A link is left untouched."""
+    from ..finalization import folder_is_linked
+    from .change_detection import run_path_is_linked
+    if folder_is_linked(Path(run_dir)) or run_path_is_linked(Path(run_dir), name):
+        return
+    (Path(run_dir) / name).write_text(text, encoding="utf-8")
+
+
+def _read_run_json(run_dir: Path, name: str):
+    """JSON from one file in this run, or None when it is missing or a link."""
+    from ..finalization import folder_is_linked
+    from .change_detection import run_path_is_linked
+    path = Path(run_dir) / name
+    if folder_is_linked(Path(run_dir)) or run_path_is_linked(Path(run_dir), name) or not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def compare_with_previous(state: QAState, run_dir: Path, cases: list[dict]) -> dict:
     """Regression view: this run's test cases against the last finished run of the same site (by stable ID)."""
+    from ..finalization import folder_is_linked
+    from .change_detection import run_path_is_linked, tenant_owns_run
+    if folder_is_linked(run_dir):
+        return {"previous_run": None}
     site = state.get("site_key", "")
     prev = None
     for d in sorted(run_dir.parent.glob(f"{site}_*"), key=lambda p: p.name, reverse=True):
         if not re.fullmatch(rf"{re.escape(site)}_\d{{8}}_\d{{6}}", d.name):
             continue  # (another site whose name starts the same)
-        if d != run_dir and d.name < run_dir.name and (d / "summary.json").exists() and (d / "test_cases.json").exists():
+        if (d.is_symlink() or not tenant_owns_run(d.name)
+                or run_path_is_linked(d, "summary.json", "test_cases.json")):
+            continue
+        if d != run_dir and d.name < run_dir.name and (d / "summary.json").is_file() and (d / "test_cases.json").is_file():
             prev = d
             break
     if not prev:
@@ -551,10 +580,8 @@ def _table(head: list[str], rows: str, empty: str) -> str:
 
 
 def _visual(run_dir: Path) -> dict | None:
-    try:
-        return json.loads((run_dir / "visual.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    data = _read_run_json(run_dir, "visual.json")
+    return data if isinstance(data, dict) else None
 
 
 def visual_html(vis: dict | None) -> str:
@@ -634,10 +661,7 @@ def limits_hit(state: QAState, run_dir: Path) -> list[dict]:
         out.append({"id": "test_case_limit", "limit": "Test case limit (MAX_TEST_CASES)",
                     "detail": f"{state['cases_left_out']} designed test case(s) were left out (limit "
                               f"{settings.max_test_cases}; the most important ones were kept)."})
-    try:
-        execution = json.loads((run_dir / "execution.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        execution = {}
+    execution = _read_run_json(run_dir, "execution.json") or {}
     if execution.get("timed_out") or "THE RUN WAS STOPPED BY ITS TIME LIMIT" in " ".join(state.get("log", [])):
         out.append({"id": "suite_timeout", "limit": "Test run time limit (SUITE_TIMEOUT_S)",
                     "detail": f"The tests ran longer than {settings.suite_timeout_s} s: the remaining tests did not run."})
@@ -785,8 +809,11 @@ def vision_html(state: QAState, cases: list[dict]) -> tuple[str, dict]:
 def created_records(run_dir: Path) -> dict:
     """What a staging run created (runs/<run>/created.jsonl, written by the tests): each tag's last status -> created
     / deleted / left for manual cleanup. Saved as created.json."""
+    from ..finalization import folder_is_linked
     f = run_dir / "created.jsonl"
     latest = {}
+    if folder_is_linked(run_dir) or f.is_symlink():
+        return {"created": 0, "deleted": 0, "left": [], "records": []}
     if f.exists():
         for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
@@ -798,8 +825,9 @@ def created_records(run_dir: Path) -> dict:
     records = list(latest.values())
     out = {"created": len(records), "deleted": sum(1 for r in records if r["status"] == "deleted"),
            "left": [r for r in records if r["status"] != "deleted"], "records": records}
-    if records:
-        (run_dir / "created.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    dest = run_dir / "created.json"
+    if records and not dest.is_symlink():
+        dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
     return out
 
 
@@ -820,12 +848,9 @@ def reporter_agent(state: QAState) -> QAState:
     if len(disk_results) > len(results):
         results = disk_results  # interrupt/timeout: jsonl may be ahead of in-memory state
     cases = state.get("test_cases", [])
-    if not cases and (run_dir / "test_cases.json").exists():
-        try:
-            loaded = json.loads((run_dir / "test_cases.json").read_text(encoding="utf-8"))
-            cases = loaded if isinstance(loaded, list) else []
-        except (OSError, ValueError, TypeError):
-            cases = []
+    if not cases:
+        loaded = _read_run_json(run_dir, "test_cases.json")
+        cases = loaded if isinstance(loaded, list) else []
     # Gates/metrics must see a finding for every failed/inconclusive result (LLM optional).
     failures = ensure_findings_from_results(
         run_dir, results, cases=cases, app_map=app_map,
@@ -849,7 +874,7 @@ def reporter_agent(state: QAState) -> QAState:
         detail = "Result consistency checks failed; review the recorded mismatches."
         gates.append(_gate("consistency", "Result counts and evidence agree", "missing", detail))
         verdict, reasons = "Insufficient Evidence", reasons + [detail]
-    (run_dir / "metrics.json").write_text(json.dumps(m, indent=2), encoding="utf-8")
+    _write_run_text(run_dir, "metrics.json", json.dumps(m, indent=2))
     # Consistency errors must lead the summary reasons whenever totals do not add up.
     reasons = consistency_reasons(m) + list(reasons)
     if not m.get("consistent", True) and verdict == "Ready":
@@ -858,8 +883,8 @@ def reporter_agent(state: QAState) -> QAState:
     passed, skipped, unclear, failed = st["passed"], st["skipped"], st["inconclusive"], st["failed"]
     fixes = build_fixes(state, enrich=False)  # report finalization never waits on optional AI
     comparison = compare_with_previous(state, run_dir, cases)
-    (run_dir / "comparison.json").write_text(json.dumps(comparison, indent=2), encoding="utf-8")
-    (run_dir / "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+    _write_run_text(run_dir, "comparison.json", json.dumps(comparison, indent=2))
+    _write_run_text(run_dir, "test_cases.json", json.dumps(cases, indent=2))
     cov3 = coverage_summary(state, run_dir)
     if reg:
         cov3["registry"] = reg["counts"]
@@ -1166,7 +1191,7 @@ permissions, pages beyond the limits and protected actions are listed above.</p>
           {' '.join(f'<a href="{_e(x)}" target="_blank">{"trace" if str(x).endswith(".zip") else "screenshot"}</a>' for x in (f.get('screenshot'), f.get('trace')) if x)}</td></tr>""" for f in failures)
 
     # coverage: what was found on the pages, and what was NOT tested (and why) - nothing is skipped silently
-    cov = json.loads((run_dir / "coverage.json").read_text(encoding="utf-8")) if (run_dir / "coverage.json").exists() else None
+    cov = _read_run_json(run_dir, "coverage.json")
     if cov and cov["total"]:
         missed = [(p["url"], i) for p in cov["pages"] for i in p["items"] if i["status"] != "tested"]
         missed_rows = "".join(f"<tr><td>{_e(i['name'])}</td><td>{_e(i['kind'])}</td><td class='url'>{_e(u)}</td>"
@@ -1394,10 +1419,10 @@ function copyCode(b) {{
     component_link = '<section class="box"><h2>Page component inventory</h2><p><a href="components.html">Browse components by page and observed state</a> | <a href="components.json">Download inventory JSON</a></p><p>Discovery and functional verification are separate. Hidden, opaque and limited areas are identified.</p></section>'
     doc = doc.replace("</body>", component_link + "</body>")
     report = run_dir / "report.html"
-    report.write_text(doc, encoding="utf-8")
+    _write_run_text(run_dir, "report.html", doc)
     login = state.get("login") or {}
     authenticated_pages = sum(1 for p in app_map if p.get("auth"))
-    (run_dir / "summary.json").write_text(json.dumps({
+    _write_run_text(run_dir, "summary.json", json.dumps({
         "exploration": (state.get("crawl") or {}).get("exploration"),
         "url": state["url"], "verdict": verdict, "reasons": reasons, "gates": gates, "pages": len(app_map),
         "authenticated": bool(login.get("logged_in")), "authenticated_pages": authenticated_pages,
@@ -1437,7 +1462,7 @@ function copyCode(b) {{
         "headline": story, "working_well": good, "pass_rate": pass_rate,
         "metrics": {k: m[k] for k in ("single_tests", "assertions", "test_cases", "workflows", "findings", "rates",
                                       "headline", "consistency", "consistent", "result_status_counts",
-                                      "feature_status_counts")}}, indent=2), encoding="utf-8")
+                                      "feature_status_counts")}}, indent=2))
     state_for_rules = dict(state, verdict=verdict, failures=failures, results=results, test_cases=cases,
                            environment=cfg.environment)
     from ..run_rules import apply_report

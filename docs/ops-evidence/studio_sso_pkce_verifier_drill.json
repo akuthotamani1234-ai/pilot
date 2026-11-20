@@ -1,0 +1,11 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_pkce_verifier",
+  "ran_at": "2026-11-19T07:44:32Z",
+  "kind": "pkce_code_verifier",
+  "missing_verifier_rejected": true,
+  "verifier_on_token_form": true,
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO PKCE verifier enforced (missing verifier rejected before token exchange; present verifier is on the token form); live hosted IdP Studio SSO still open"
+}

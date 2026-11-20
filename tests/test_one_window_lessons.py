@@ -174,3 +174,71 @@ def test_a_page_load_the_browser_cancelled_is_tried_once_more(tmp_path, monkeypa
     assert "/account" in pages and not pages["/account"].get("error"), pages.get("/account")
     assert pages["/account"].get("title") == "Account"
     assert not [i for i in out["crawl_issues"] if i["type"] == "page_failed"]
+
+
+def test_the_browser_sees_a_cancelled_load_and_checkout_is_not_requested():
+    """The checkout check is part of the browser navigation. A 204 still cancels that navigation, and a redirect
+    or refresh into checkout is not requested."""
+    from playwright.sync_api import sync_playwright
+
+    from backend.payment_nav import navigate_for_crawl
+
+    hits = {}
+
+    class Site(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits[self.path] = hits.get(self.path, 0) + 1
+            if self.path == "/gone":
+                self.send_response(302)
+                self.send_header("Location", "/checkout")
+                self.end_headers()
+                return
+            if self.path == "/refresh":
+                body = b'<meta http-equiv="refresh" content="0;url=/checkout"><h1>Refresh</h1>'
+            elif self.path == "/account":
+                body = None if hits[self.path] == 1 else b"<title>Account</title><h1>My account</h1>"
+            elif self.path == "/home":
+                body = b"<title>Home</title><h1>Home</h1>"
+            else:
+                body = b"<title>Checkout</title><h1>Pay</h1>"
+            if body is None:
+                self.send_response(204)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                _response, blocked = navigate_for_crawl(page, base + "/gone", timeout=10000)
+                assert blocked.endswith("/checkout")
+                assert hits.get("/checkout", 0) == 0
+                _response, blocked = navigate_for_crawl(page, base + "/refresh", timeout=10000)
+                assert blocked.endswith("/checkout")
+                assert hits.get("/checkout", 0) == 0
+                response, blocked = navigate_for_crawl(page, base + "/home", timeout=10000)
+                assert blocked == "" and response.status == 200 and page.title() == "Home"
+                try:
+                    navigate_for_crawl(page, base + "/account", timeout=10000)
+                except Exception as exc:
+                    assert "ERR_ABORTED" in str(exc)
+                else:
+                    raise AssertionError("the first account load should be cancelled")
+                response, blocked = navigate_for_crawl(page, base + "/account", timeout=10000)
+                assert blocked == "" and page.title() == "Account"
+            finally:
+                browser.close()
+    finally:
+        srv.shutdown()

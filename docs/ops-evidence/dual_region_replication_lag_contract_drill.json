@@ -1,0 +1,35 @@
+{
+  "gate_h_complete": false,
+  "drill": "dual_region_replication_lag_contract",
+  "ran_at": "2026-11-19T05:48:35Z",
+  "kind": "contract_only",
+  "contract": {
+    "max_lag_seconds": 30,
+    "block_cutover_if_exceeded": true,
+    "stores": {
+      "postgres": {
+        "max_lag_seconds": 30
+      },
+      "redis": {
+        "max_lag_seconds": 5
+      },
+      "minio": {
+        "max_lag_seconds": 60
+      }
+    },
+    "probe_evidence": "dual_region_store_health_probe_drill.json",
+    "note": "Lag contract only; live hosted multi-region DR still required"
+  },
+  "live_hosted_dr": false,
+  "local_partial_present": [
+    "dual_region_store_health_probe_drill.json",
+    "failover_rto_drill.json",
+    "hosted_dr_rpo_contract_drill.json",
+    "hosted_dr_cutover_checklist_drill.json",
+    "multi_region_dr_readiness_pack_drill.json",
+    "multi_store_dr_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Dual-region replication lag contract recorded (6/6 local partials); live hosted multi-region DR / on-call paging still open"
+}

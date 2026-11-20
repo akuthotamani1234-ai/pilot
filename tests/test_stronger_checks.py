@@ -107,6 +107,35 @@ def test_the_users_table_is_checked_like_a_tester(tmp_path, bugs):
         assert search[0]["execution_status"] == "Passed", search[0].get("actual_result")
 
 
+def test_a_proof_score_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.assert_strength import load, save
+
+    secret = "tenant-b-only-score"
+    other = tmp_path / "other"
+    nested = other / "run"
+    tests = nested / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_secret.py").write_text(
+        f"def test_secret():\n    assert {secret!r}\n", encoding="utf-8")
+    (nested / "strength.json").write_text(json.dumps({secret: "strong"}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save(linked / "run") == {}
+    assert load(linked / "run") == {}
+    assert json.loads((nested / "strength.json").read_text(encoding="utf-8")) == {secret: "strong"}
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "generated_tests" / "test_home.py").write_text(
+        "def test_home_own():\n    assert True\n", encoding="utf-8")
+    data = save(real)
+    assert data.get("test_home.py::test_home_own")
+    assert secret not in json.dumps(data)
+    assert secret not in (real / "strength.json").read_text(encoding="utf-8")
+    assert json.loads((nested / "strength.json").read_text(encoding="utf-8")) == {secret: "strong"}
+
+
 @pytest.mark.parametrize("bugs", [False, True])
 def test_the_widgets_are_checked_by_what_they_did(tmp_path, bugs):
     portal = AdminPortal(bugs=bugs).start()

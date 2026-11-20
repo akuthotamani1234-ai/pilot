@@ -1,0 +1,22 @@
+{
+  "gate_f_complete": false,
+  "drill": "multi_browser_portfolio_suite",
+  "ran_at": "2026-11-19T06:14:27Z",
+  "browsers": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "suites_ok": {
+    "compatibility": true,
+    "a11y": true,
+    "locale": true,
+    "security": true,
+    "perf": true,
+    "visual": true
+  },
+  "suites_passed": 6,
+  "suites_total": 6,
+  "ok": true,
+  "reason": "Live DemoStore portfolio suite on chromium, firefox, webkit: 6/6 drills ok; broad hosted multi-browser CI artifacts still open"
+}

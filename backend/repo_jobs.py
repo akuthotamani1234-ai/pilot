@@ -23,14 +23,29 @@ def status(root: Path) -> dict:
 
 
 def _write(root: Path, value: dict) -> None:
+    from .finalization import folder_is_linked
+    from .repo_fix import RepoFixError
+    root = Path(root)
     dest = root / ".private" / "repo_fix_status.json"
-    dest.parent.mkdir(parents=True, exist_ok=True)
     temp = dest.with_suffix(".tmp")
+    if folder_is_linked(root) or folder_is_linked(dest) or folder_is_linked(temp):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if folder_is_linked(dest) or folder_is_linked(temp):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     temp.write_text(json.dumps(value), encoding="utf-8")
+    if folder_is_linked(dest) or folder_is_linked(temp):
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     os.replace(temp, dest)
 
 
 def start(root: Path, repo_url: str, token: str, selected: list[str]) -> dict:
+    from .finalization import folder_is_linked
+    root = Path(root)
+    if (folder_is_linked(root) or (root / ".private").is_symlink()
+            or (root / ".private" / "repo_fix_status.json").is_symlink()):
+        from .repo_fix import RepoFixError
+        raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
     from .config import settings
     from .privacy import guard_provider, runtime_mode
     from .repo_fix import RepoFixError, parse_repo
@@ -86,9 +101,13 @@ def _worker():
     deadline.start()
     try:
         from .cost import set_run_dir
+        from .finalization import folder_is_linked
         from .repo_fix import _local_copy
         from .repo_proposals import prepare_ai
         cost_dir = root / ".private" / "repo_cost"
+        if folder_is_linked(root) or (root / ".private").is_symlink() or cost_dir.is_symlink():
+            from .repo_fix import RepoFixError
+            raise RepoFixError("The reviewed proposal is a link, so it was not saved.")
         cost_dir.mkdir(parents=True, exist_ok=True)
         set_run_dir(cost_dir)
         snapshot = _local_copy(url, token, root)

@@ -43,6 +43,16 @@ NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)
 HUMAN_RE = re.compile(r"^::human::(\{.*\})$")  # the login needs a person (one-time code / CAPTCHA) - and the outcome
 RUN_NAME = re.compile(r"^[\w.\-]+$")
+# Run reads that carry another tenant's findings. Job ids are checked on the job, not as a folder name.
+_SCOPED_RUN = re.compile(
+    r"^/api/(?:report|coverage|pages|components)/([^/]+)"
+    r"|^/api/(?:cases|excel)/([^/]+)"
+    r"|^/api/android/runs/([^/]+)/"
+    r"|^/api/runs/([^/]+)/(?:repo-fix|recheck)"
+    r"|^/api/visual/([^/]+)/"
+    r"|^/api/mcp/reports/([^/]+)"
+    r"|^/runs/([^/]+)/"
+)
 IS_WINDOWS = os.name == "nt"
 # the UI only answers to these host names: a web page on another site can't reach it through DNS tricks
 UI_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -58,6 +68,41 @@ _PRIVATE_RUN_FILES = frozenset({
 })
 
 
+def _run_path_is_linked(root: Path, path: Path) -> bool:
+    """True when a path under runs/<name> follows a symlink.
+
+    Starlette keeps a resolved path that is still inside runs/, so a link named
+    like one run can serve another run in the same folder. Any link is refused.
+    A folder on the way to the runs folder is refused too.
+    """
+    from .finalization import folder_is_linked
+    if folder_is_linked(Path(root)) or folder_is_linked(Path(path)):
+        return True
+    try:
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return False
+    cursor = Path(root)
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
+class StudioFiles(StaticFiles):
+    """Frontend files. A link, including a linked folder used as the root, is not served."""
+
+    async def get_response(self, path: str, scope):
+        from .finalization import folder_is_linked
+        root = Path(self.directory)
+        if folder_is_linked(root) or ".." in Path(path).parts or path.startswith(("/", "\\")):
+            raise HTTPException(404, "not found")
+        if path and folder_is_linked(root / path):
+            raise HTTPException(404, "not found")
+        return await super().get_response(path, scope)
+
+
 class RunFiles(StaticFiles):
     """runs/ as files for the report pages - except private inputs, APKs, auth and hidden files."""
 
@@ -65,12 +110,47 @@ class RunFiles(StaticFiles):
         parts = Path(path).parts
         if any(p.startswith(".") for p in parts) or (parts and parts[-1].lower() in _PRIVATE_RUN_FILES):
             raise HTTPException(404, "not found")
+        root = Path(self.directory)
+        if parts and _run_path_is_linked(root, root / path):
+            raise HTTPException(404, "not found")
         return await super().get_response(path, scope)
 
 
 app = FastAPI(title="Qpilot")
 app.mount("/runs", RunFiles(directory=RUNS), name="runs")
-app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/static", StudioFiles(directory=STATIC), name="static")
+DASHBOARD_DIST = STATIC / "dashboard" / "dist"
+
+
+@app.get("/dashboard")
+@app.get("/dashboard/")
+def dashboard_home():
+    """Gate I React/TS dashboard. Serves the Vite build when present."""
+    from .finalization import folder_is_linked
+    index = DASHBOARD_DIST / "index.html"
+    if not folder_is_linked(index) and index.is_file():
+        return FileResponse(index)
+    return HTMLResponse(
+        "<!doctype html><title>Qpilot Enterprise</title>"
+        "<body style='font-family:system-ui;padding:2rem'>"
+        "<h1>Qpilot Enterprise</h1>"
+        "<p>React/TypeScript dashboard source is at <code>frontend/dashboard</code>.</p>"
+        "<p>Build it with <code>npm install && npm run build</code>, then restart the UI.</p>"
+        "<p>Gate I remains incomplete until auth, approvals, and hosting are proven.</p>"
+        "<p><a href='/'>Back to Studio</a></p>",
+        status_code=200,
+    )
+
+
+def _mount_dashboard_assets() -> None:
+    """Serve the built dashboard assets. A linked assets folder is left unmounted."""
+    from .finalization import folder_is_linked
+    assets = DASHBOARD_DIST / "assets"
+    if assets.is_dir() and not folder_is_linked(assets):
+        app.mount("/dashboard/assets", StudioFiles(directory=assets), name="dashboard-assets")
+
+
+_mount_dashboard_assets()
 
 jobs: dict[int, dict] = {}
 lock = threading.Lock()
@@ -117,10 +197,22 @@ def _worker_privacy(env, provider=None, expected_mode=None):
 async def local_only(request: Request, call_next):
     """Only answer on 127.0.0.1 / localhost, and every change (POST / DELETE) needs the X-Agentic-QA header -
     browsers can't send that header from another website, so other sites can't start, stop or delete tests."""
+    from backend.api_versioning import resolve_path
+    # Canonical clients use /api/v1/...; rewrite to legacy /api/... so handlers stay single-sourced.
+    resolved = resolve_path(request.url.path)
+    if resolved.get("ok") and not resolved.get("legacy") and resolved.get("version") == 1:
+        request.scope["path"] = "/api" + (resolved.get("resource") or "/")
+        request.scope["raw_path"] = request.scope["path"].encode("utf-8")
+        # The first path read cached the versioned URL. Drop it so the tenant check sees the route.
+        if hasattr(request, "_url"):
+            del request._url
+    elif resolved.get("version") is not None and not resolved.get("ok"):
+        return JSONResponse({"detail": resolved.get("reason") or "unsupported API version"}, status_code=404)
+    path = request.url.path
     mcp_request = request.headers.get("x-qpilot-client", request.headers.get("x-blowai-client")) == "mcp"
     if mcp_request:
-        control = request.url.path in {"/api/mcp/info", "/api/mcp/heartbeat"}
-        if request.url.path.startswith("/api/settings/"):
+        control = path in {"/api/mcp/info", "/api/mcp/heartbeat"}
+        if path.startswith("/api/settings/"):
             return JSONResponse({"detail": "Change privacy settings in the Qpilot UI."}, status_code=403)
         if not control and not load_policy().allow_mcp:
             return JSONResponse({"detail": "MCP data access is disabled. Approve your assistant in Privacy settings."},
@@ -129,11 +221,15 @@ async def local_only(request: Request, call_next):
     host = host[:host.index("]") + 1] if host.startswith("[") and "]" in host else host.split(":")[0]
     if host.lower() not in UI_HOSTS:
         return JSONResponse({"detail": "The Qpilot UI only answers on 127.0.0.1 / localhost."}, status_code=400)
+    blocked = _principal_run_block(
+        path, request.headers.get("authorization"), request.headers.get("x-qa-token"), request.method)
+    if blocked is not None:
+        return blocked
     # (a webhook proves itself with its own token instead - /api/hooks/run)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.headers.get("x-agentic-qa") != "1" \
-            and request.url.path != "/api/hooks/run":
+            and path != "/api/hooks/run":
         return JSONResponse({"detail": "forbidden (missing X-Agentic-QA header)"}, status_code=403)
-    if request.url.path == "/api/mobile/runs" and request.method == "POST":
+    if path == "/api/mobile/runs" and request.method == "POST":
         length = request.headers.get("content-length")
         if length is None:
             return JSONResponse({"detail": "Provide Content-Length for a bounded APK upload."}, status_code=411)
@@ -154,12 +250,26 @@ async def local_only(request: Request, call_next):
 
 
 def _audit(action: str, **details) -> None:
-    """Consequential actions -> logs/audit.jsonl (no passwords, keys or tokens - only what was done)."""
+    """Consequential actions -> logs/audit.jsonl + Gate G SQLite audit_events (no secrets)."""
     try:
-        AUDIT.parent.mkdir(exist_ok=True)
-        with AUDIT.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": action, **details}) + "\n")
+        from backend.finalization import append_text_unless_linked
+        append_text_unless_linked(
+            AUDIT, json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "action": action, **details}) + "\n")
     except OSError:
+        pass
+    try:
+        from backend.audit_store import record_audit
+        safe = {k: v for k, v in details.items()
+                if k not in {"password", "api_key", "token", "secret", "test_password", "test_totp_secret"}}
+        detail = ", ".join(f"{k}={v}" for k, v in list(safe.items())[:12])[:500]
+        record_audit(
+            actor=str(details.get("actor") or "studio"),
+            action=action,
+            allowed=True,
+            tenant_id=str(details.get("tenant_id") or ""),
+            detail=detail,
+        )
+    except Exception:
         pass
 
 
@@ -237,14 +347,98 @@ KEY_ENV = {p["id"]: p["key_env"] for p in PROVIDERS}
 
 # ------------------------------------------------------------------ helpers
 
+def _stamp_tenant_env(env: dict, principal_id: str = "", tenant_id: str = "") -> None:
+    """A worker keeps this tenant's baseline. Open mode does not inherit a leftover id."""
+    tenant = (tenant_id or "").strip()
+    if not tenant and principal_id:
+        from backend.tenancy_store import get_principal
+        row = get_principal(principal_id) or {}
+        tenant = str(row.get("tenant_id") or "").strip()
+    if tenant and re.fullmatch(r"[\w.-]+", tenant):
+        env["QPILOT_TENANT_ID"] = tenant
+    else:
+        env.pop("QPILOT_TENANT_ID", None)
+
+
+def _signed_in_reader(authorization: str | None, x_qa_token: str | None, action: str = "run.read"):
+    """None when the studio is open. Otherwise the principal id, or a JSON refusal."""
+    from backend.dashboard_auth import auth_mode, authorize
+    if auth_mode() not in ("principal", "oidc"):
+        return None
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action=action)
+    if not verdict.get("ok"):
+        reason = verdict.get("reason") or "unauthorized"
+        return JSONResponse({"detail": reason}, status_code=403 if verdict.get("role") else 401)
+    principal = str(verdict.get("principal_id") or "").strip()
+    if not principal:
+        return JSONResponse({"detail": "principal required"}, status_code=401)
+    return principal
+
+
+def _principal_run_block(path: str, authorization: str | None, x_qa_token: str | None, method: str = "GET"):
+    """When a principal is signed in, a run read or delete stays inside that principal's tenant."""
+    match = _SCOPED_RUN.search(path or "")
+    run = next((part for part in match.groups() if part), "") if match else ""
+    if not run and method == "DELETE":
+        deleted = re.fullmatch(r"/api/runs/([^/]+)", path or "")
+        run = deleted.group(1) if deleted else ""
+    if not run:
+        return None
+    reader = _signed_in_reader(
+        authorization, x_qa_token, "run.read" if method in ("GET", "HEAD") else "run.write")
+    if reader is None or not isinstance(reader, str):
+        return reader
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=reader, run_id=run)
+    if not access.get("allowed"):
+        return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return None
+
+
+def _write_stop(run: str) -> bool:
+    """Write this run's stop marker. A link is left untouched."""
+    d = _plain_run_dir(run)
+    stop = d / "STOP" if d is not None else None
+    if stop is None or _run_path_is_linked(RUNS, stop):
+        return False
+    try:
+        stop.write_text("stopped from the web UI", encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+def _plain_run_dir(run: str) -> Path | None:
+    """The run folder when it is a real directory inside runs/. A link is not that folder."""
+    if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
+        return None
+    d = RUNS / run
+    try:
+        from .finalization import folder_is_linked
+        if folder_is_linked(RUNS) or folder_is_linked(d) or d.is_symlink() or not d.is_dir() or _run_path_is_linked(RUNS, d):
+            return None
+        if d.resolve().parent != RUNS.resolve():
+            return None
+    except OSError:
+        return None
+    return d
+
+
 def _run_dir(run: str) -> Path:
     """runs/<run>, refusing anything that is not a plain folder name."""
     if not RUN_NAME.fullmatch(run or "") or run.startswith("."):
         raise HTTPException(400, "bad run name")
-    d = RUNS / run
-    if d.resolve().parent != RUNS.resolve():
-        raise HTTPException(400, "Run directory must stay inside runs.")
-    if not d.is_dir():
+    d = _plain_run_dir(run)
+    if d is None:
+        linked = RUNS / run
+        try:
+            if linked.is_symlink() or _run_path_is_linked(RUNS, linked) or (
+                    linked.is_dir() and linked.resolve().parent != RUNS.resolve()):
+                raise HTTPException(400, "Run directory must stay inside runs.")
+        except HTTPException:
+            raise
+        except OSError:
+            raise HTTPException(400, "Run directory must stay inside runs.") from None
         raise HTTPException(404, "run not found")
     return d
 
@@ -257,15 +451,50 @@ def _job_or_404(job_id: int) -> dict:
     return job
 
 
+def _mcp_visible_job(request, job):
+    """None when this caller may see the live test. A refusal response when they may not sign in.
+    False when the test belongs to another tenant."""
+    reader = _signed_in_reader(request.headers.get("authorization"), request.headers.get("x-qa-token"))
+    if isinstance(reader, JSONResponse):
+        return reader
+    if job is None or _refuse_job(job, reader) is None:
+        return None
+    return False
+
+
+def _refuse_job(job: dict, reader, action: str = "run.read"):
+    """None when this caller may use the live test. Open mode always may."""
+    if reader is None:
+        return None
+    if not isinstance(reader, str):
+        return reader
+    if str(job.get("principal_id") or "") == reader:
+        return None
+    run = str(job.get("run") or "")
+    if run:
+        from backend.tenancy_store import assert_run_access
+        access = assert_run_access(principal_id=reader, run_id=run, audit=action != "run.read")
+        if access.get("allowed"):
+            return None
+    return JSONResponse({"detail": "tenant isolation"}, status_code=403)
+
+
 def _read_json(path: Path, default):
     try:
+        if _run_path_is_linked(RUNS, path):
+            return default
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
 
 
+def _run_file(path: Path) -> bool:
+    """A real file inside its run. A symlink is not that file."""
+    return path.is_file() and not _run_path_is_linked(RUNS, path)
+
+
 def _excel_file(d: Path) -> Path | None:
-    files = [f for f in (d / "test_cases.xlsx", d / "test_cases_results.xlsx") if f.exists()]
+    files = [f for f in (d / "test_cases.xlsx", d / "test_cases_results.xlsx") if _run_file(f)]
     return max(files, key=lambda f: f.stat().st_mtime) if files else None
 
 
@@ -316,15 +545,18 @@ def _reader(job: dict) -> None:
     job["status"] = "stopped" if job.get("stopping") else ("done" if proc.returncode == 0 else "failed")
     job["current"] = None
     job["ended"] = time.time()
-    if job.get("run") and (RUNS / job["run"]).is_dir():  # keep the console output with the run
-        (RUNS / job["run"] / "console.log").write_text("\n".join(job["lines"]), encoding="utf-8")
+    d = _plain_run_dir(str(job.get("run") or ""))
+    log = d / "console.log" if d is not None else None
+    if log is not None and not _run_path_is_linked(RUNS, log):
+        log.write_text("\n".join(job["lines"]), encoding="utf-8")
 
 
 def _live_cost(d: Path | None) -> dict:
     """Cost so far, from the LLM calls logged while the run is going."""
     calls = []
-    if d and (d / "llm_usage.jsonl").exists():
-        for line in (d / "llm_usage.jsonl").read_text(encoding="utf-8", errors="replace").splitlines():
+    usage = d / "llm_usage.jsonl" if d is not None else None
+    if usage is not None and usage.is_file() and not _run_path_is_linked(RUNS, usage):
+        for line in usage.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 calls.append(json.loads(line))
             except ValueError:
@@ -335,7 +567,7 @@ def _live_cost(d: Path | None) -> dict:
 
 def _read_jsonl(path: Path) -> list[dict]:
     out = []
-    if path.exists():
+    if _run_file(path):
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 out.append(json.loads(line))
@@ -391,8 +623,10 @@ def _case_progress(d: Path, executing: bool) -> dict:
                      "automation": auto, "automated_by": how, "status": status, "detail": detail})
     links = [r for r in results if r.get("file") == "test_all_links.py"]
     links_total = 0
-    if (test_dir / "test_all_links.py").exists():
-        links_total = len(re.findall(r"'id': ", (test_dir / "test_all_links.py").read_text(encoding="utf-8", errors="replace")))
+    script = test_dir / "test_all_links.py"
+    from .finalization import folder_is_linked
+    if script.is_file() and not script.is_symlink() and not folder_is_linked(script.parent):
+        links_total = len(re.findall(r"'id': ", script.read_text(encoding="utf-8", errors="replace")))
     for n, c in enumerate(cases):  # the steps each finished test did, in order (the failing one marked)
         hit = [r for r in case_hits(c, results) if r.get("live_steps")] if results else []
         if hit:
@@ -436,8 +670,9 @@ def _count(path: Path) -> int | None:
 
 def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
     run = job.get("run")
-    d = RUNS / run if run else None
-    excel = _excel_file(d) if d and d.is_dir() else None
+    d = _plain_run_dir(str(run)) if run else None
+    excel = _excel_file(d) if d is not None else None
+    scripts = d / "generated_tests" if d is not None else None
     return {
         "target_type": job.get("target_type", "web"),
         "workflow": job.get("workflow", "standard"), "privacy_mode": job.get("privacy_mode", "local"),
@@ -447,7 +682,8 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "cost": _live_cost(d),
         "pages": _count(d / "app_map.json") if d else None,
         "cases": _count(d / "test_cases.json") if d else None,
-        "scripts": len(list((d / "generated_tests").glob("test_*.py"))) if d and (d / "generated_tests").is_dir() else None,
+        "scripts": len(list(scripts.glob("test_*.py"))) if scripts is not None and scripts.is_dir()
+                       and not _run_path_is_linked(RUNS, scripts) else None,
         "id": job["id"], "source": job["source"], "status": job["status"], "run": run,
         # exit_code is set when the worker process ends (None while still running)
         "exit_code": job.get("exit_code"),
@@ -456,9 +692,9 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "lines": job["lines"][since:], "next": len(job["lines"]),
         "live_pages": job.get("pages", [])[psince:], "pnext": len(job.get("pages", [])),
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
-        "report_ready": bool(d and (d / "summary.json").exists()),
+        "report_ready": bool(d and _run_file(d / "summary.json")),
         # the run asks you something (backend/review.py) and waits for the answers
-        "review": bool(d and (d / "review_request.json").exists() and not (d / "review_answers.json").exists()
+        "review": bool(d and _run_file(d / "review_request.json") and not _run_file(d / "review_answers.json")
                        and job["status"] == "running"),
         "elapsed": int((job.get("ended") or time.time()) - job["started"]),
     }
@@ -466,10 +702,26 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
 
 # ------------------------------------------------------------------ API
 
+def _studio_file(name: str) -> Path | None:
+    """A real Studio file. A link, or a name that leaves the frontend folder, is refused."""
+    from .finalization import folder_is_linked
+    path = STATIC / name
+    if (not name or Path(name).is_absolute() or ".." in Path(name).parts
+            or folder_is_linked(path) or not path.is_file()):
+        return None
+    return path
+
+
 def _ui_asset_digests() -> dict[str, str]:
     names = ("chat.js", "workflow.js", "contract-builder.js", "chat.css", "studio.css", "qpilot.css",
              "execution.js", "repository.js", "workspace.js", "android-workspace.js", "android-scenarios.js", "mcp-settings.js")
-    return {name: hashlib.sha256((STATIC / name).read_bytes()).hexdigest()[:12] for name in names}
+    out = {}
+    for name in names:
+        path = _studio_file(name)
+        if path is None:
+            continue
+        out[name] = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+    return out
 
 
 @app.get("/api/ui-build")
@@ -482,7 +734,10 @@ def ui_build():
 @app.get("/")
 def home():
     """Chat page: type a URL, pick the AI, follow the to-do list as each step gets its tick."""
-    html = (STATIC / "chat.html").read_text(encoding="utf-8")
+    page = _studio_file("chat.html")
+    if page is None:
+        raise HTTPException(404, "The Studio page is a link.")
+    html = page.read_text(encoding="utf-8")
     digests = _ui_asset_digests()
     for name, digest in digests.items():
         html = html.replace("/static/" + name, "/static/" + name + "?v=" + digest)
@@ -497,8 +752,2506 @@ def home():
     return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
+@app.get("/api/enterprise/readiness")
+def enterprise_readiness():
+    """Gate G/I readiness probe. Never claims complete when backends are only configured."""
+    from backend.enterprise import readiness
+    from backend.ops_readiness import readiness as ops_readiness
+    snap = readiness()
+    snap["ops"] = ops_readiness()
+    return snap
+
+
+@app.post("/api/sso/validate-bearer")
+def sso_validate_bearer(authorization: str | None = Header(default=None)):
+    """Gate I: structural OIDC JWT claim check. Never completes Gate I."""
+    from backend.dashboard_sso import validate_authorization_header
+    verdict = validate_authorization_header(authorization)
+    _audit("sso_validate_bearer", ok=bool(verdict.get("ok")),
+           verified=bool(verdict.get("signature_verified")))
+    return verdict
+
+
+@app.post("/api/sso/login")
+def sso_login():
+    """Gate I: start one Studio login. Hosted IdP SSO stays open."""
+    from backend.studio_oidc_callback import issue_sso_login
+
+    started = issue_sso_login()
+    _audit("sso_login", ok=bool(started.get("ok")))
+    return started
+
+
+@app.get("/api/sso/callback")
+def sso_callback(
+    code: str = "",
+    state: str = "",
+    redirect_uri: str = "",
+):
+    """Gate I: Studio OIDC auth-code callback helper (hosted IdP still open).
+
+    A caller-supplied ``redirect_uri`` is forwarded only when it is on
+    ``QPILOT_OIDC_REDIRECT_ALLOWLIST``. When that list is unset, the query
+    value is ignored and the configured callback URI is used.
+    The PKCE verifier is the one stored when this login started. A verifier
+    in the query string is not read.
+    """
+    from backend.studio_oidc_callback import (
+        consume_sso_login,
+        exchange_code,
+        validate_redirect_uri,
+    )
+
+    forwarded = None
+    if (redirect_uri or "").strip():
+        check = validate_redirect_uri(redirect_uri)
+        if not check.get("redirect_enforced"):
+            redirect_uri = ""
+        elif not check.get("ok"):
+            _audit(
+                "sso_callback",
+                ok=False,
+                redirect_ok=False,
+                reason="redirect_uri not allowlisted",
+            )
+            return check
+        else:
+            forwarded = redirect_uri.strip()
+    login = consume_sso_login(state)
+    if not login.get("ok"):
+        _audit(
+            "sso_callback",
+            ok=False,
+            state_ok=False,
+            reason=str(login.get("reason") or "")[:80],
+        )
+        return login
+    verdict = exchange_code(
+        code=code,
+        state=state,
+        nonce=str(login.get("nonce") or ""),
+        code_verifier=str(login.get("code_verifier") or ""),
+        **({"redirect_uri": forwarded} if forwarded else {}),
+    )
+    _audit(
+        "sso_callback",
+        ok=bool(verdict.get("ok")),
+        verified=bool(verdict.get("signature_verified")),
+        state=(state or "")[:40],
+        state_ok=verdict.get("state_ok"),
+        redirect_ok=verdict.get("redirect_ok"),
+    )
+    return verdict
+
+
+@app.get("/api/blueprint/progress")
+def blueprint_progress_api():
+    """Studio sidebar todos: phases, gates A–J, and what is next. Never claims complete."""
+    from backend.blueprint_progress import progress
+    return progress()
+
+
+@app.get("/api/device-matrix/status")
+def device_matrix_status(include_android_dry_run: bool = False):
+    """Gate D matrix scoreboard. Optional Android protocol dry-run never verifies profiles."""
+    from backend.device_matrix import evaluate_matrix, protocol_dry_run_evidence
+    evidence = []
+    if include_android_dry_run:
+        evidence.extend(protocol_dry_run_evidence())
+    scored = evaluate_matrix(evidence)
+    scored["gate_d_complete"] = False
+    scored["android_dry_run_included"] = bool(include_android_dry_run)
+    scored["reason"] = (
+        "Android protocol dry-run rows ignored for verification; live emulator/API24+ still required"
+        if include_android_dry_run else
+        "No live evidence supplied; matrix incomplete"
+    )
+    return scored
+
+
+@app.post("/api/ops/drills/android-adb-probe")
+def ops_android_adb_probe():
+    """Gate D: probe local ADB (does not verify emulator matrix)."""
+    from backend.android_adb_probe import run_adb_probe
+    evidence = run_adb_probe()
+    _audit("ops_android_adb_probe", ok=bool(evidence.get("ok")),
+           online=int(evidence.get("devices_online") or 0))
+    return {"gate_d_complete": False, "adb_probe": evidence}
+
+
+@app.post("/api/ops/drills/failure-matrix")
+def ops_failure_matrix():
+    """Gate E: controlled failure-classification matrix (still incomplete)."""
+    from backend.failure_matrix import run_failure_matrix_drill
+    evidence = run_failure_matrix_drill()
+    _audit("ops_failure_matrix", cases=int(evidence.get("cases") or 0))
+    return {"gate_e_complete": False, "failure_matrix": evidence}
+
+
+@app.post("/api/ops/drills/healing-regression")
+def ops_healing_regression():
+    """Gate E: offline locator-only healing regression suite (still incomplete)."""
+    from backend.healing_regression import run_healing_regression_drill
+    evidence = run_healing_regression_drill()
+    _audit("ops_healing_regression", cases=int(evidence.get("cases") or 0),
+           mismatches=int(evidence.get("mismatches") or 0))
+    return {"gate_e_complete": False, "healing_regression": evidence}
+
+
+@app.post("/api/ops/drills/demo-store-healing-live")
+def ops_demo_store_healing_live():
+    """Gate E: live DemoStore missing-locator + healing policy drill (still incomplete)."""
+    from backend.demo_store_healing_live_drill import run_demo_store_healing_live_drill
+    evidence = run_demo_store_healing_live_drill()
+    _audit(
+        "ops_demo_store_healing_live",
+        ok=bool(evidence.get("ok")),
+        category=str((evidence.get("classification") or {}).get("category") or "")[:40],
+    )
+    return {"gate_e_complete": False, "demo_store_healing_live": evidence}
+
+
+@app.post("/api/ops/drills/live-failure-matrix")
+def ops_live_failure_matrix():
+    """Gate E: live DemoStore provoked failure matrix + healing policy (still incomplete)."""
+    from backend.live_failure_matrix_drill import run_live_failure_matrix_drill
+    evidence = run_live_failure_matrix_drill()
+    _audit(
+        "ops_live_failure_matrix",
+        ok=bool(evidence.get("ok")),
+        failed=int(evidence.get("failed") or 0),
+    )
+    return {"gate_e_complete": False, "live_failure_matrix": evidence}
+
+
+@app.post("/api/ops/drills/multi-app-healing-suite")
+def ops_multi_app_healing_suite():
+    """Gate E: multi-fixture live healing suite (production healing still open)."""
+    from backend.multi_app_healing_suite_drill import run_multi_app_healing_suite_drill
+    evidence = run_multi_app_healing_suite_drill()
+    _audit(
+        "ops_multi_app_healing_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "multi_app_healing_suite": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-matrix")
+def ops_production_healing_matrix():
+    """Gate E: production-like multi-failure healing matrix (suite still open)."""
+    from backend.production_healing_matrix_drill import run_production_healing_matrix_drill
+    evidence = run_production_healing_matrix_drill()
+    _audit(
+        "ops_production_healing_matrix",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_matrix": evidence}
+
+
+@app.post("/api/ops/drills/api-version-contract")
+def ops_api_version_contract():
+    """Gate I: API versioning contract snapshot (SSO still open)."""
+    from backend.api_version_drill import run_api_version_drill
+    evidence = run_api_version_drill()
+    _audit("ops_api_version_contract", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "api_version_contract": evidence}
+
+
+@app.post("/api/ops/drills/lifecycle-cleanup")
+def ops_lifecycle_cleanup():
+    """Gate C: offline lifecycle + created.jsonl cleanup confirmation (still incomplete)."""
+    from backend.lifecycle_cleanup_drill import run_lifecycle_cleanup_drill
+    evidence = run_lifecycle_cleanup_drill()
+    _audit("ops_lifecycle_cleanup", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0))
+    return {"gate_c_complete": False, "lifecycle_cleanup": evidence}
+
+
+@app.post("/api/ops/drills/admin-portal-lifecycle")
+def ops_admin_portal_lifecycle():
+    """Gate C: AdminPortal create→remote_delete cleanup confirmation (still incomplete)."""
+    from backend.admin_portal_lifecycle_drill import run_admin_portal_lifecycle_drill
+    evidence = run_admin_portal_lifecycle_drill()
+    _audit("ops_admin_portal_lifecycle", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0),
+           user_id=str(evidence.get("user_id") or ""))
+    return {"gate_c_complete": False, "admin_portal_lifecycle": evidence}
+
+
+@app.post("/api/ops/drills/oracle-spec")
+def ops_oracle_spec():
+    """Gate C: approved-spec oracle bind + AI needs_review (still incomplete)."""
+    from backend.oracle_spec_drill import run_oracle_spec_drill
+    evidence = run_oracle_spec_drill()
+    _audit("ops_oracle_spec", ok=bool(evidence.get("ok")),
+           features=int(evidence.get("features_bound") or 0))
+    return {"gate_c_complete": False, "oracle_spec": evidence}
+
+
+@app.post("/api/ops/drills/demo-store-cart-lifecycle")
+def ops_demo_store_cart_lifecycle():
+    """Gate C: DemoStore cart add→remove cleanup confirmation (still incomplete)."""
+    from backend.demo_store_cart_lifecycle_drill import run_demo_store_cart_lifecycle_drill
+    evidence = run_demo_store_cart_lifecycle_drill()
+    _audit("ops_demo_store_cart_lifecycle", ok=bool(evidence.get("ok")),
+           confirmed=int(evidence.get("confirmed") or 0))
+    return {"gate_c_complete": False, "demo_store_cart_lifecycle": evidence}
+
+
+@app.post("/api/ops/drills/swarm-control")
+def ops_swarm_control():
+    """Gate B: claim/checkpoint/cancel control drill (still incomplete)."""
+    from backend.swarm_control_drill import run_swarm_control_drill
+    evidence = run_swarm_control_drill()
+    _audit("ops_swarm_control", ok=bool(evidence.get("ok")),
+           backend=str(evidence.get("backend") or ""))
+    return {"gate_b_complete": False, "swarm_control": evidence}
+
+
+@app.post("/api/ops/drills/swarm-retry")
+def ops_swarm_retry():
+    """Gate B: lease-expiry → retry_wait control drill (still incomplete)."""
+    from backend.swarm_retry_drill import run_swarm_retry_drill
+    evidence = run_swarm_retry_drill()
+    _audit("ops_swarm_retry", ok=bool(evidence.get("ok")),
+           backend=str(evidence.get("backend") or ""),
+           status=str(evidence.get("status_after_recover") or ""))
+    return {"gate_b_complete": False, "swarm_retry": evidence}
+
+
+@app.post("/api/ops/drills/device-matrix")
+def ops_device_matrix():
+    """Gate D: combined web + Android dry-run + ADB probe snapshot (still incomplete)."""
+    from backend.device_matrix_drill import run_device_matrix_drill
+    evidence = run_device_matrix_drill()
+    _audit("ops_device_matrix", android_dry=int(evidence.get("android_dry_run_rows") or 0),
+           android_live=int(evidence.get("android_live_rows") or 0),
+           online=int((evidence.get("adb_probe") or {}).get("devices_online") or 0))
+    return {"gate_d_complete": False, "device_matrix": evidence}
+
+
+@app.post("/api/ops/drills/android-emulator-smoke")
+def ops_android_emulator_smoke():
+    """Gate D: live emulator adb smoke when a device is online (still incomplete)."""
+    from backend.android_emulator_smoke_drill import run_android_emulator_smoke_drill
+    evidence = run_android_emulator_smoke_drill()
+    _audit("ops_android_emulator_smoke", ok=bool(evidence.get("ok")),
+           api=int(evidence.get("api_level") or 0),
+           device=str(evidence.get("device_id") or "")[:40])
+    return {"gate_d_complete": False, "android_emulator_smoke": evidence}
+
+
+@app.post("/api/ops/drills/android-appium-product-matrix")
+def ops_android_appium_product_matrix():
+    """Gate D: live Appium UiAutomator2 product matrix (still incomplete)."""
+    from backend.android_appium_product_matrix_drill import (
+        run_android_appium_product_matrix_drill,
+    )
+    evidence = run_android_appium_product_matrix_drill()
+    _audit(
+        "ops_android_appium_product_matrix",
+        ok=bool(evidence.get("ok")),
+        api=int(evidence.get("api_level") or 0),
+        passed=int(evidence.get("apps_passed") or 0),
+        device=str(evidence.get("device_id") or "")[:40],
+    )
+    return {"gate_d_complete": False, "android_appium_product_matrix": evidence}
+
+
+@app.post("/api/ops/drills/multi-api-android-matrix")
+def ops_multi_api_android_matrix():
+    """Gate D: combine API24 smoke + API30+ Appium matrix rows (still incomplete)."""
+    from backend.multi_api_android_matrix_drill import run_multi_api_android_matrix_drill
+    evidence = run_multi_api_android_matrix_drill()
+    _audit(
+        "ops_multi_api_android_matrix",
+        ok=bool(evidence.get("ok")),
+        apis=",".join(str(a) for a in (evidence.get("api_levels") or [])),
+    )
+    return {"gate_d_complete": False, "multi_api_android_matrix": evidence}
+
+
+@app.post("/api/ops/drills/mutation-score")
+def ops_mutation_score():
+    """Gate J / QX-A09: DemoStore planted-defect mutation score (still incomplete)."""
+    from backend.mutation_score_drill import run_mutation_score_drill
+    evidence = run_mutation_score_drill()
+    caught = len((evidence.get("score") or {}).get("caught") or [])
+    _audit("ops_mutation_score", ok=bool(evidence.get("ok")), caught=caught)
+    return {"gate_j_complete": False, "mutation_score": evidence}
+
+
+@app.post("/api/ops/drills/cross-platform-journey")
+def ops_cross_platform_journey():
+    """QX-A10: cross-platform DemoStore (+ optional Android) journey (still incomplete)."""
+    from backend.cross_platform_journey_drill import run_cross_platform_journey_drill
+    evidence = run_cross_platform_journey_drill()
+    _audit(
+        "ops_cross_platform_journey",
+        ok=bool(evidence.get("ok")),
+        surfaces=len(evidence.get("surfaces") or []),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "cross_platform_journey": evidence,
+    }
+
+
+@app.post("/api/ops/drills/qx-capabilities")
+def ops_qx_capabilities():
+    """QX-A02/A07/A12–A18 offline capability bundle (gates stay Partial)."""
+    from backend.qx_capabilities_drill import run_qx_capabilities_drill
+    evidence = run_qx_capabilities_drill()
+    _audit(
+        "ops_qx_capabilities",
+        ok=bool(evidence.get("ok")),
+        passed=sum(1 for v in (evidence.get("checks") or {}).values() if v),
+    )
+    return {"gate_complete": False, "qx_capabilities": evidence}
+
+
+@app.post("/api/ops/drills/qx-core-capabilities")
+def ops_qx_core_capabilities():
+    """QX-A01/A03–A06/A08/A11 offline core capability bundle (gates stay Partial)."""
+    from backend.qx_core_capabilities_drill import run_qx_core_capabilities_drill
+    evidence = run_qx_core_capabilities_drill()
+    _audit(
+        "ops_qx_core_capabilities",
+        ok=bool(evidence.get("ok")),
+        passed=sum(1 for v in (evidence.get("checks") or {}).values() if v),
+    )
+    return {"gate_complete": False, "qx_core_capabilities": evidence}
+
+
+@app.post("/api/ops/drills/locale-portfolio")
+def ops_locale_portfolio():
+    """Gate F: DemoStore locale portfolio evidence (still incomplete)."""
+    from backend.locale_portfolio_drill import run_locale_portfolio_drill
+    evidence = run_locale_portfolio_drill()
+    _audit("ops_locale_portfolio", ok=bool(evidence.get("ok")))
+    return {"gate_f_complete": False, "locale_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/security-portfolio")
+def ops_security_portfolio():
+    """Gate F: passive DemoStore security portfolio (no probing; still incomplete)."""
+    from backend.security_portfolio_drill import run_security_portfolio_drill
+    evidence = run_security_portfolio_drill()
+    _audit("ops_security_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""))
+    return {"gate_f_complete": False, "security_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/a11y-portfolio")
+def ops_a11y_portfolio():
+    """Gate F: DemoStore a11y portfolio evidence (still incomplete)."""
+    from backend.a11y_portfolio_drill import run_a11y_portfolio_drill
+    evidence = run_a11y_portfolio_drill()
+    _audit("ops_a11y_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""))
+    return {"gate_f_complete": False, "a11y_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/perf-portfolio")
+def ops_perf_portfolio():
+    """Gate F: DemoStore performance portfolio evidence (still incomplete)."""
+    from backend.perf_portfolio_drill import run_perf_portfolio_drill
+    evidence = run_perf_portfolio_drill()
+    _audit("ops_perf_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""))
+    return {"gate_f_complete": False, "perf_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/visual-portfolio")
+def ops_visual_portfolio():
+    """Gate F: DemoStore first-run visual portfolio evidence (still incomplete)."""
+    from backend.visual_portfolio_drill import run_visual_portfolio_drill
+    evidence = run_visual_portfolio_drill()
+    _audit("ops_visual_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""),
+           pages=int(evidence.get("pages_recorded") or 0))
+    return {"gate_f_complete": False, "visual_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/compatibility-portfolio")
+def ops_compatibility_portfolio():
+    """Gate F: DemoStore desktop+mobile compatibility portfolio (still incomplete)."""
+    from backend.compatibility_portfolio_drill import run_compatibility_portfolio_drill
+    evidence = run_compatibility_portfolio_drill()
+    _audit("ops_compatibility_portfolio", ok=bool(evidence.get("ok")),
+           verdict=str((evidence.get("portfolio") or {}).get("verdict") or ""),
+           desktop=int((evidence.get("matrix") or {}).get("desktop") or 0),
+           mobile=int((evidence.get("matrix") or {}).get("mobile") or 0))
+    return {"gate_f_complete": False, "compatibility_portfolio": evidence}
+
+
+@app.post("/api/ops/drills/multi-browser-portfolio-suite")
+def ops_multi_browser_portfolio_suite():
+    """Gate F: live Chromium/Firefox/WebKit DemoStore portfolio suite (still incomplete)."""
+    from backend.multi_browser_portfolio_suite_drill import (
+        run_multi_browser_portfolio_suite_drill,
+    )
+    evidence = run_multi_browser_portfolio_suite_drill()
+    _audit(
+        "ops_multi_browser_portfolio_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("suites_passed") or 0),
+        browsers=",".join(evidence.get("browsers") or [])[:80],
+    )
+    return {"gate_f_complete": False, "multi_browser_portfolio_suite": evidence}
+
+
+def _audit_scope(authorization: str | None, x_qa_token: str | None, tenant_id: str | None) -> str | None:
+    """Local studio may list every tenant. A signed-in principal sees only their own."""
+    from backend.dashboard_auth import auth_mode, authorize
+    if auth_mode() not in ("principal", "oidc"):
+        return (tenant_id or "").strip() or None
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="audit.read")
+    if not verdict.get("ok"):
+        reason = verdict.get("reason") or "unauthorized"
+        raise HTTPException(403 if verdict.get("role") else 401, reason)
+    own = str(verdict.get("tenant_id") or "").strip()
+    if not own:
+        raise HTTPException(403, "principal has no tenant")
+    asked = (tenant_id or "").strip()
+    if asked and asked != own:
+        raise HTTPException(403, "tenant isolation")
+    return own
+
+
+@app.get("/api/audit/events")
+def audit_events(
+    limit: int = 50,
+    tenant_id: str | None = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: newest persisted RBAC/studio audit events (SQLite)."""
+    from backend.audit_store import list_audits
+    scope = _audit_scope(authorization, x_qa_token, tenant_id)
+    return {
+        "events": list_audits(
+            limit=min(200, max(1, int(limit or 50))),
+            tenant_id=scope,
+        ),
+        "tenant_id": scope,
+        "gate_g_complete": False,
+    }
+
+
+@app.get("/api/audit/export")
+def audit_export(
+    limit: int = 200,
+    tenant_id: str | None = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: export audit events package (SSO still open)."""
+    from backend.audit_store import export_audits
+    scope = _audit_scope(authorization, x_qa_token, tenant_id)
+    body = export_audits(limit=min(500, max(1, int(limit or 200))), tenant_id=scope)
+    _audit("audit_export", count=int(body.get("count") or 0),
+           tenant=(scope or "")[:80] or None)
+    return body
+
+
+@app.post("/api/ops/drills/audit-export")
+def ops_audit_export():
+    """Gate G: tenant-scoped audit export contract drill (still incomplete)."""
+    from backend.audit_export_drill import run_audit_export_drill
+    evidence = run_audit_export_drill()
+    _audit("ops_audit_export", ok=bool(evidence.get("ok")),
+           scoped=int(evidence.get("scoped_count") or 0))
+    return {"gate_g_complete": False, "audit_export": evidence}
+
+
+@app.post("/api/ops/drills/dashboard-auth-matrix")
+def ops_dashboard_auth_matrix():
+    """Gate I: dashboard auth mode matrix (still incomplete — live SSO open)."""
+    from backend.dashboard_auth_matrix_drill import run_dashboard_auth_matrix_drill
+    evidence = run_dashboard_auth_matrix_drill()
+    _audit("ops_dashboard_auth_matrix", ok=bool(evidence.get("ok")),
+           passed=int(evidence.get("passed") or 0),
+           failed=int(evidence.get("failed") or 0))
+    return {"gate_i_complete": False, "dashboard_auth_matrix": evidence}
+
+
+@app.post("/api/ops/drills/approvals")
+def ops_approvals_drill():
+    """Gate I: approvals enqueue→decide contract (still incomplete)."""
+    from backend.approvals_drill import run_approvals_drill
+    evidence = run_approvals_drill()
+    _audit("ops_approvals_drill", ok=bool(evidence.get("ok")),
+           pending_after=int(evidence.get("pending_after") or 0))
+    return {"gate_i_complete": False, "approvals": evidence}
+
+
+@app.post("/api/ops/drills/sso-contract")
+def ops_sso_contract():
+    """Gate I: OIDC/hosting env contract snapshot (still incomplete — live SSO open)."""
+    from backend.sso_contract_drill import run_sso_contract_drill
+    evidence = run_sso_contract_drill()
+    _audit("ops_sso_contract", ok=bool(evidence.get("ok")),
+           configured=bool(evidence.get("configured")))
+    return {"gate_i_complete": False, "sso_contract": evidence}
+
+
+@app.post("/api/ops/drills/loopback-sso")
+def ops_loopback_sso():
+    """Gate I: loopback OIDC JWKS + RS256 JWT verification (hosted IdP still open)."""
+    from backend.loopback_sso_drill import run_loopback_sso_drill
+    evidence = run_loopback_sso_drill()
+    _audit(
+        "ops_loopback_sso",
+        ok=bool(evidence.get("ok")),
+        signature=bool(evidence.get("signature_verified")),
+    )
+    return {"gate_i_complete": False, "loopback_sso": evidence}
+
+
+@app.post("/api/ops/drills/sso-tenant-acl")
+def ops_sso_tenant_acl():
+    """Gate I/G: loopback OIDC JWT + SQLite tenant ACL (hosted IdP still open)."""
+    from backend.sso_tenant_acl_drill import run_sso_tenant_acl_drill
+    evidence = run_sso_tenant_acl_drill()
+    _audit(
+        "ops_sso_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        allow=bool((evidence.get("acl") or {}).get("same_tenant_allowed")),
+        deny=bool((evidence.get("acl") or {}).get("cross_tenant_denied")),
+    )
+    return {
+        "gate_i_complete": False,
+        "gate_g_complete": False,
+        "sso_tenant_acl": evidence,
+    }
+
+
+@app.post("/api/ops/drills/incident-tabletop")
+def ops_incident_tabletop():
+    """Gate H: offline incident tabletop cross-check (still incomplete — hosted on-call open)."""
+    from backend.incident_tabletop_drill import run_incident_tabletop_drill
+    evidence = run_incident_tabletop_drill()
+    _audit("ops_incident_tabletop", ok=bool(evidence.get("ok")),
+           roles=len(evidence.get("roles_exercised") or []))
+    return {"gate_h_complete": False, "incident_tabletop": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-pack")
+def ops_independent_review_pack():
+    """Gate G: hash ops-evidence pack for reviewers (sign-off still pending)."""
+    from backend.independent_review_pack_drill import run_independent_review_pack_drill
+    evidence = run_independent_review_pack_drill()
+    _audit(
+        "ops_independent_review_pack",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(evidence.get("artifact_count") or 0),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_pack": evidence}
+
+
+@app.post("/api/ops/drills/loopback-auth-code-sso")
+def ops_loopback_auth_code_sso():
+    """Gate I: loopback OIDC auth-code → JWT → dashboard (hosted IdP still open)."""
+    from backend.loopback_auth_code_sso_drill import run_loopback_auth_code_sso_drill
+    evidence = run_loopback_auth_code_sso_drill()
+    _audit("ops_loopback_auth_code_sso", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "loopback_auth_code_sso": evidence}
+
+
+@app.post("/api/ops/drills/studio-oidc-callback")
+def ops_studio_oidc_callback():
+    """Gate I: Studio OIDC callback helper against loopback IdP (hosted IdP still open)."""
+    from backend.studio_oidc_callback_drill import run_studio_oidc_callback_drill
+    evidence = run_studio_oidc_callback_drill()
+    _audit("ops_studio_oidc_callback", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "studio_oidc_callback": evidence}
+
+
+@app.post("/api/ops/drills/loopback-pkce-sso")
+def ops_loopback_pkce_sso():
+    """Gate I: loopback OIDC PKCE S256 auth-code (hosted IdP still open)."""
+    from backend.loopback_pkce_sso_drill import run_loopback_pkce_sso_drill
+    evidence = run_loopback_pkce_sso_drill()
+    _audit("ops_loopback_pkce_sso", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "loopback_pkce_sso": evidence}
+
+
+@app.post("/api/ops/drills/swarm-review-checklist")
+def ops_swarm_review_checklist():
+    """Gate B: product-wide swarm review checklist (sign-off still pending)."""
+    from backend.swarm_review_checklist_drill import run_swarm_review_checklist_drill
+    evidence = run_swarm_review_checklist_drill()
+    _audit("ops_swarm_review_checklist", ok=bool(evidence.get("ok")),
+           signed_off=bool(evidence.get("signed_off")))
+    return {"gate_b_complete": False, "swarm_review_checklist": evidence}
+
+
+@app.post("/api/ops/drills/hosted-runner-contracts")
+def ops_hosted_runner_contracts():
+    """Gates D/F: offline multi-device + multi-browser CI runner contracts."""
+    from backend.hosted_runner_contract_drill import run_hosted_runner_contract_drill
+    evidence = run_hosted_runner_contract_drill()
+    _audit("ops_hosted_runner_contracts", ok=bool(evidence.get("ok")))
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_contracts": evidence,
+    }
+
+
+@app.post("/api/ops/drills/discovery-score")
+def ops_discovery_score():
+    """Gate A: multi-fixture discovery completeness score (full matrix still open)."""
+    from backend.discovery_score_drill import run_discovery_score_drill
+    evidence = run_discovery_score_drill()
+    _audit(
+        "ops_discovery_score",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_a_complete": False, "discovery_score": evidence}
+
+
+@app.post("/api/ops/drills/multi-portal-oracle")
+def ops_multi_portal_oracle():
+    """Gate C: multi-portal approved-spec oracle bind (live portal paths still open)."""
+    from backend.multi_portal_oracle_drill import run_multi_portal_oracle_drill
+    evidence = run_multi_portal_oracle_drill()
+    _audit(
+        "ops_multi_portal_oracle",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_c_complete": False, "multi_portal_oracle": evidence}
+
+
+@app.post("/api/ops/drills/remaining-blockers")
+def ops_remaining_blockers():
+    """Inventory hard-open hosted/independent blockers (gates stay Partial)."""
+    from backend.remaining_blockers_drill import run_remaining_blockers_drill
+    evidence = run_remaining_blockers_drill()
+    _audit("ops_remaining_blockers", ok=bool(evidence.get("ok")),
+           open_count=int(evidence.get("open_count") or 0))
+    return {"complete": False, "remaining_blockers": evidence}
+
+
+@app.post("/api/ops/drills/classic-mutation-score")
+def ops_classic_mutation_score():
+    """Gate J: ClassicShop planted-defect mutation score (still incomplete)."""
+    from backend.classic_mutation_score_drill import run_classic_mutation_score_drill
+    evidence = run_classic_mutation_score_drill()
+    caught = len((evidence.get("score") or {}).get("caught") or [])
+    _audit("ops_classic_mutation_score", ok=bool(evidence.get("ok")), caught=caught)
+    return {"gate_j_complete": False, "classic_mutation_score": evidence}
+
+
+@app.post("/api/ops/drills/fixture-mutation-suite")
+def ops_fixture_mutation_suite():
+    """Gate J: AdminPortal + TravelSite mutation scores (still incomplete)."""
+    from backend.fixture_mutation_suite_drill import run_fixture_mutation_suite_drill
+    evidence = run_fixture_mutation_suite_drill()
+    _audit(
+        "ops_fixture_mutation_suite",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_j_complete": False, "fixture_mutation_suite": evidence}
+
+
+@app.get("/api/ops/readiness")
+def ops_readiness_api():
+    """Gate H ops probe. Docs alone never mark the gate complete."""
+    from backend.ops_readiness import readiness
+    return readiness()
+
+
+@app.post("/api/ops/drills/backup-restore")
+def ops_backup_restore_drill():
+    """Run the local SQLite backup/restore drill and record evidence (Gate H still incomplete)."""
+    from backend.ops_drill import run_backup_restore_drill, write_local_metrics_snapshot
+    evidence = run_backup_restore_drill()
+    metrics = write_local_metrics_snapshot()
+    _audit("ops_backup_restore_drill", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "backup_restore": evidence, "metrics": metrics}
+
+
+@app.post("/api/ops/drills/load-probe")
+def ops_load_probe(requests: int = 40):
+    """Local TestClient load probe. Does not complete Gate H."""
+    from backend.ops_drill import run_local_load_probe
+    evidence = run_local_load_probe(requests=requests)
+    _audit("ops_load_probe", ok=int(evidence.get("ok") or 0), requests=int(evidence.get("requests") or 0))
+    return {"gate_h_complete": False, "load_probe": evidence}
+
+
+@app.post("/api/ops/drills/controlled-soak")
+def ops_controlled_soak(duration_s: float = 20.0):
+    """Controlled AdminPortal HTTP soak. Does not complete Gate H."""
+    from backend.ops_soak_drill import run_controlled_soak
+    evidence = run_controlled_soak(duration_s=duration_s)
+    _audit(
+        "ops_controlled_soak",
+        ok=int(evidence.get("ok") or 0),
+        fail=int(evidence.get("fail") or 0),
+        requests=int(evidence.get("requests") or 0),
+    )
+    return {"gate_h_complete": False, "controlled_soak": evidence}
+
+
+@app.post("/api/ops/drills/postgres-isolation")
+def ops_postgres_isolation():
+    """Live Postgres tenant isolation drill (Gate G still incomplete)."""
+    from backend.postgres_drill import isolation_drill
+    evidence = isolation_drill()
+    _audit("ops_postgres_isolation", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "postgres_isolation": evidence}
+
+
+@app.post("/api/ops/drills/redis-lease")
+def ops_redis_lease():
+    """Live Redis SETNX lease drill."""
+    from backend.redis_drill import lease_drill
+    evidence = lease_drill()
+    _audit("ops_redis_lease", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "gate_b_complete": False, "redis_lease": evidence}
+
+
+@app.post("/api/ops/drills/redis-queue")
+def ops_redis_queue():
+    """Live Redis DurableQueue plan/drain drill (Gate B/G still incomplete)."""
+    from backend.redis_queue_drill import durable_queue_drill
+    evidence = durable_queue_drill()
+    _audit("ops_redis_queue", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "gate_b_complete": False, "redis_queue": evidence}
+
+
+@app.post("/api/ops/drills/minio")
+def ops_minio_drill():
+    """Live MinIO object-store drill (Gate G still incomplete)."""
+    from backend.minio_drill import object_store_drill
+    evidence = object_store_drill()
+    _audit("ops_minio_drill", ok=bool(evidence.get("ok")))
+    return {"gate_g_complete": False, "minio": evidence}
+
+
+@app.post("/api/ops/drills/minio-backup-restore")
+def ops_minio_backup_restore():
+    """Live MinIO object backup/restore drill (Gate H still incomplete)."""
+    from backend.minio_dr_drill import object_store_backup_restore_drill
+    evidence = object_store_backup_restore_drill()
+    _audit("ops_minio_backup_restore", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "gate_g_complete": False, "minio_backup_restore": evidence}
+
+
+@app.post("/api/ops/drills/postgres-dr")
+def ops_postgres_dr():
+    """Gate H: Postgres dump→restore into isolated DB (hosted DR still open)."""
+    from backend.postgres_dr_drill import run_postgres_dr_drill
+    evidence = run_postgres_dr_drill()
+    _audit("ops_postgres_dr", ok=bool(evidence.get("ok")),
+           dump_bytes=int(evidence.get("dump_bytes") or 0))
+    return {"gate_h_complete": False, "postgres_dr": evidence}
+
+
+@app.post("/api/ops/drills/multi-region-dr")
+def ops_multi_region_dr():
+    """Gate H: local dual-region Postgres failover (hosted multi-region still open)."""
+    from backend.multi_region_dr_drill import run_multi_region_dr_drill
+    evidence = run_multi_region_dr_drill()
+    _audit("ops_multi_region_dr", ok=bool(evidence.get("ok")),
+           dump_bytes=int(evidence.get("dump_bytes") or 0))
+    return {"gate_h_complete": False, "multi_region_dr": evidence}
+
+
+@app.post("/api/ops/drills/minio-multi-region")
+def ops_minio_multi_region():
+    """Gate H: MinIO dual-bucket failover (hosted multi-region object DR still open)."""
+    from backend.minio_multi_region_drill import run_minio_multi_region_drill
+    evidence = run_minio_multi_region_drill()
+    _audit("ops_minio_multi_region", ok=bool(evidence.get("ok")),
+           bytes=int(evidence.get("bytes") or 0))
+    return {"gate_h_complete": False, "minio_multi_region": evidence}
+
+
+@app.post("/api/ops/drills/redis-multi-region")
+def ops_redis_multi_region():
+    """Gate H/B: Redis dual-DB failover (hosted Redis multi-region still open)."""
+    from backend.redis_multi_region_drill import run_redis_multi_region_drill
+    evidence = run_redis_multi_region_drill()
+    _audit("ops_redis_multi_region", ok=bool(evidence.get("ok")))
+    return {
+        "gate_h_complete": False,
+        "gate_b_complete": False,
+        "redis_multi_region": evidence,
+    }
+
+
+@app.post("/api/ops/drills/multi-store-dr")
+def ops_multi_store_dr():
+    """Gate H: combined Postgres+MinIO+Redis failover (hosted multi-region still open)."""
+    from backend.multi_store_dr_drill import run_multi_store_dr_drill
+    evidence = run_multi_store_dr_drill()
+    _audit(
+        "ops_multi_store_dr",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_h_complete": False, "multi_store_dr": evidence}
+
+
+@app.post("/api/ops/drills/failover-rto")
+def ops_failover_rto():
+    """Gate H: timed multi-store failover RTO pack (hosted multi-region still open)."""
+    from backend.failover_rto_drill import run_failover_rto_drill
+    evidence = run_failover_rto_drill()
+    _audit(
+        "ops_failover_rto",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total_ms=int(evidence.get("total_elapsed_ms") or 0),
+    )
+    return {"gate_h_complete": False, "failover_rto": evidence}
+
+
+@app.post("/api/ops/drills/portfolio-artifact-manifest")
+def ops_portfolio_artifact_manifest():
+    """Gate F: CI-upload-shaped portfolio manifest (hosted multi-browser still open)."""
+    from backend.portfolio_artifact_manifest_drill import (
+        run_portfolio_artifact_manifest_drill,
+    )
+    evidence = run_portfolio_artifact_manifest_drill()
+    _audit(
+        "ops_portfolio_artifact_manifest",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(len(evidence.get("artifacts") or [])),
+    )
+    return {"gate_f_complete": False, "portfolio_artifact_manifest": evidence}
+
+
+@app.post("/api/ops/drills/device-artifact-manifest")
+def ops_device_artifact_manifest():
+    """Gate D: CI-upload-shaped Appium/device manifest (broad CI runners still open)."""
+    from backend.device_artifact_manifest_drill import run_device_artifact_manifest_drill
+    evidence = run_device_artifact_manifest_drill()
+    _audit(
+        "ops_device_artifact_manifest",
+        ok=bool(evidence.get("ok")),
+        artifacts=int(len(evidence.get("artifacts") or [])),
+    )
+    return {"gate_d_complete": False, "device_artifact_manifest": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-readiness")
+def ops_independent_review_readiness():
+    """Gate G: review readiness score (unsigned; human sign-off still open)."""
+    from backend.independent_review_readiness_drill import (
+        run_independent_review_readiness_drill,
+    )
+    evidence = run_independent_review_readiness_drill()
+    _audit(
+        "ops_independent_review_readiness",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        score=int(evidence.get("score") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_readiness": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-contract")
+def ops_hosted_idp_contract():
+    """Gate I: hosted IdP SSO contract snapshot (live IdP login still open)."""
+    from backend.hosted_idp_contract_drill import run_hosted_idp_contract_drill
+    evidence = run_hosted_idp_contract_drill()
+    _audit("ops_hosted_idp_contract", ok=bool(evidence.get("ok")))
+    return {"gate_i_complete": False, "hosted_idp_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-contract")
+def ops_hosted_oncall_contract():
+    """Gate H: hosted DR/on-call contract snapshot (live paging still open)."""
+    from backend.hosted_oncall_contract_drill import run_hosted_oncall_contract_drill
+    evidence = run_hosted_oncall_contract_drill()
+    _audit("ops_hosted_oncall_contract", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "hosted_oncall_contract": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-taxonomy")
+def ops_production_healing_taxonomy():
+    """Gate E: production failure taxonomy + heal policy (suite still open)."""
+    from backend.production_healing_taxonomy_drill import (
+        run_production_healing_taxonomy_drill,
+    )
+    evidence = run_production_healing_taxonomy_drill()
+    _audit(
+        "ops_production_healing_taxonomy",
+        ok=bool(evidence.get("ok")),
+        matched=int(evidence.get("matched") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_taxonomy": evidence}
+
+
+@app.post("/api/ops/drills/dual-tenant-oidc-acl")
+def ops_dual_tenant_oidc_acl():
+    """Gate I/G: dual-tenant loopback OIDC ACL (hosted IdP still open)."""
+    from backend.dual_tenant_oidc_acl_drill import run_dual_tenant_oidc_acl_drill
+    evidence = run_dual_tenant_oidc_acl_drill()
+    _audit(
+        "ops_dual_tenant_oidc_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+        total=int(evidence.get("total") or 0),
+    )
+    return {
+        "gate_i_complete": False,
+        "gate_g_complete": False,
+        "dual_tenant_oidc_acl": evidence,
+    }
+
+
+@app.post("/api/ops/drills/workflow-dispatch-contracts")
+def ops_workflow_dispatch_contracts():
+    """Gates D/F: validate workflow_dispatch YAML contracts (hosted runners open)."""
+    from backend.workflow_dispatch_contract_drill import (
+        run_workflow_dispatch_contract_drill,
+    )
+    evidence = run_workflow_dispatch_contract_drill()
+    _audit("ops_workflow_dispatch_contracts", ok=bool(evidence.get("ok")))
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "workflow_dispatch_contracts": evidence,
+    }
+
+
+@app.post("/api/ops/drills/classic-shop-cart-lifecycle")
+def ops_classic_shop_cart_lifecycle():
+    """Gate C: ClassicShop cart add→remove (broader portal paths still open)."""
+    from backend.classic_shop_cart_lifecycle_drill import (
+        run_classic_shop_cart_lifecycle_drill,
+    )
+    evidence = run_classic_shop_cart_lifecycle_drill()
+    _audit("ops_classic_shop_cart_lifecycle", ok=bool(evidence.get("ok")))
+    return {"gate_c_complete": False, "classic_shop_cart_lifecycle": evidence}
+
+
+@app.post("/api/ops/drills/redis-swarm-contention")
+def ops_redis_swarm_contention():
+    """Gate B: Redis multi-worker lease contention (product review still open)."""
+    from backend.redis_swarm_contention_drill import run_redis_swarm_contention_drill
+    evidence = run_redis_swarm_contention_drill()
+    _audit(
+        "ops_redis_swarm_contention",
+        ok=bool(evidence.get("ok")),
+        backend=str(evidence.get("backend") or ""),
+        claimed=int(evidence.get("total_claimed") or 0),
+    )
+    return {"gate_b_complete": False, "redis_swarm_contention": evidence}
+
+
+@app.post("/api/ops/drills/apidemos-interaction")
+def ops_apidemos_interaction():
+    """Gate D: deeper ApiDemos Appium interaction (broad CI runners still open)."""
+    from backend.apidemos_interaction_drill import run_apidemos_interaction_drill
+    evidence = run_apidemos_interaction_drill()
+    _audit("ops_apidemos_interaction", ok=bool(evidence.get("ok")))
+    return {"gate_d_complete": False, "apidemos_interaction": evidence}
+
+
+@app.post("/api/ops/drills/discovery-surface-matrix")
+def ops_discovery_surface_matrix():
+    """Gate A: multi-fixture surface-signal matrix (full live completeness open)."""
+    from backend.discovery_surface_matrix_drill import run_discovery_surface_matrix_drill
+    evidence = run_discovery_surface_matrix_drill()
+    _audit(
+        "ops_discovery_surface_matrix",
+        ok=bool(evidence.get("ok")),
+        union_hit=int(evidence.get("union_hit") or 0),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_a_complete": False, "discovery_surface_matrix": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-contract")
+def ops_production_healing_contract():
+    """Gate E: production healing suite contract (third-party suite still open)."""
+    from backend.production_healing_contract_drill import (
+        run_production_healing_contract_drill,
+    )
+    evidence = run_production_healing_contract_drill()
+    _audit("ops_production_healing_contract", ok=bool(evidence.get("ok")))
+    return {"gate_e_complete": False, "production_healing_contract": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-summary")
+def ops_independent_review_summary():
+    """Gate G: human-readable review summary (unsigned; sign-off still open)."""
+    from backend.independent_review_summary_drill import (
+        run_independent_review_summary_drill,
+    )
+    evidence = run_independent_review_summary_drill()
+    _audit(
+        "ops_independent_review_summary",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        blockers=int(evidence.get("open_blockers") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_summary": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-request")
+def ops_independent_review_request():
+    """Gate G: reviewer handoff receipt (unsigned; sign-off still open)."""
+    from backend.independent_review_request_drill import (
+        run_independent_review_request_drill,
+    )
+    evidence = run_independent_review_request_drill()
+    _audit(
+        "ops_independent_review_request",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        blockers=len((evidence.get("request") or {}).get("open_blockers") or []),
+    )
+    return {"gate_g_complete": False, "independent_review_request": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-replay-pack")
+def ops_production_healing_replay_pack():
+    """Gate E: fixture before/after healing replay pack (production still open)."""
+    from backend.production_healing_replay_pack_drill import (
+        run_production_healing_replay_pack_drill,
+    )
+    evidence = run_production_healing_replay_pack_drill()
+    _audit(
+        "ops_production_healing_replay_pack",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_replay_pack": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-runner-matrix")
+def ops_hosted_ci_runner_matrix():
+    """Gates D/F: hosted runner matrix honesty snapshot (execution still open)."""
+    from backend.hosted_ci_runner_matrix_drill import (
+        run_hosted_ci_runner_matrix_drill,
+    )
+    evidence = run_hosted_ci_runner_matrix_drill()
+    _audit(
+        "ops_hosted_ci_runner_matrix",
+        ok=bool(evidence.get("ok")),
+        gate_d_complete=False,
+        gate_f_complete=False,
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_runner_matrix": evidence,
+    }
+
+
+@app.post("/api/ops/drills/hosted-idp-readiness")
+def ops_hosted_idp_readiness():
+    """Gate I: hosted IdP readiness score (live SSO still open)."""
+    from backend.hosted_idp_readiness_drill import run_hosted_idp_readiness_drill
+    evidence = run_hosted_idp_readiness_drill()
+    _audit(
+        "ops_hosted_idp_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_i_complete": False, "hosted_idp_readiness": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-readiness")
+def ops_hosted_oncall_readiness():
+    """Gate H: hosted DR/on-call readiness score (live paging still open)."""
+    from backend.hosted_oncall_readiness_drill import (
+        run_hosted_oncall_readiness_drill,
+    )
+    evidence = run_hosted_oncall_readiness_drill()
+    _audit(
+        "ops_hosted_oncall_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_readiness": evidence}
+
+
+@app.post("/api/ops/drills/oidc-groups-role-acl")
+def ops_oidc_groups_role_acl():
+    """Gate I: OIDC groups→role ACL mapping (hosted IdP still open)."""
+    from backend.oidc_groups_role_acl_drill import run_oidc_groups_role_acl_drill
+    evidence = run_oidc_groups_role_acl_drill()
+    _audit(
+        "ops_oidc_groups_role_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_groups_role_acl": evidence}
+
+
+@app.post("/api/ops/drills/paging-ack")
+def ops_paging_ack():
+    """Gate H: loopback paging ack→resolve lifecycle (hosted on-call still open)."""
+    from backend.paging_ack_drill import run_paging_ack_drill
+    evidence = run_paging_ack_drill()
+    _audit(
+        "ops_paging_ack",
+        ok=bool(evidence.get("ok")),
+        incident_id=str(evidence.get("incident_id") or ""),
+    )
+    return {"gate_h_complete": False, "paging_ack": evidence}
+
+
+@app.post("/api/ops/drills/paging-escalation-ack-pack")
+def ops_paging_escalation_ack_pack():
+    """Gate H: escalation + ack pack (hosted on-call still open)."""
+    from backend.paging_escalation_ack_pack_drill import (
+        run_paging_escalation_ack_pack_drill,
+    )
+    evidence = run_paging_escalation_ack_pack_drill()
+    _audit(
+        "ops_paging_escalation_ack_pack",
+        ok=bool(evidence.get("ok")),
+        escalation_ok=bool(evidence.get("escalation_ok")),
+        ack_ok=bool(evidence.get("ack_ok")),
+    )
+    return {"gate_h_complete": False, "paging_escalation_ack_pack": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-principal-bootstrap")
+def ops_studio_sso_principal_bootstrap():
+    """Gate I: first-login principal bootstrap from OIDC claims (hosted IdP still open)."""
+    from backend.studio_sso_principal_bootstrap_drill import (
+        run_studio_sso_principal_bootstrap_drill,
+    )
+    evidence = run_studio_sso_principal_bootstrap_drill()
+    _audit(
+        "ops_studio_sso_principal_bootstrap",
+        ok=bool(evidence.get("ok")),
+        bootstrapped=bool((evidence.get("bootstrapped") or {}).get("present_after")),
+    )
+    return {"gate_i_complete": False, "studio_sso_principal_bootstrap": evidence}
+
+
+@app.post("/api/ops/drills/ci-artifact-upload-rehearsal")
+def ops_ci_artifact_upload_rehearsal():
+    """Gates D/F: local CI artifact staging rehearsal (hosted runners still open)."""
+    from backend.ci_artifact_upload_rehearsal_drill import (
+        run_ci_artifact_upload_rehearsal_drill,
+    )
+    evidence = run_ci_artifact_upload_rehearsal_drill()
+    _audit(
+        "ops_ci_artifact_upload_rehearsal",
+        ok=bool(evidence.get("ok")),
+        android=len((evidence.get("android") or {}).get("artifacts") or []),
+        browsers=len((evidence.get("browsers") or {}).get("artifacts") or []),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "ci_artifact_upload_rehearsal": evidence,
+    }
+
+
+@app.post("/api/ops/drills/production-healing-flaky-policy")
+def ops_production_healing_flaky_policy():
+    """Gate E: flaky/auth/infra no-auto-apply policy (production suite still open)."""
+    from backend.production_healing_flaky_policy_drill import (
+        run_production_healing_flaky_policy_drill,
+    )
+    evidence = run_production_healing_flaky_policy_drill()
+    _audit(
+        "ops_production_healing_flaky_policy",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_flaky_policy": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-readiness")
+def ops_production_healing_readiness():
+    """Gate E: production healing readiness score (third-party suite still open)."""
+    from backend.production_healing_readiness_drill import (
+        run_production_healing_readiness_drill,
+    )
+    evidence = run_production_healing_readiness_drill()
+    _audit(
+        "ops_production_healing_readiness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        score_of=int(evidence.get("score_of") or 0),
+    )
+    return {"gate_e_complete": False, "production_healing_readiness": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-suite-pack")
+def ops_production_healing_suite_pack():
+    """Gate E: readiness+flaky+replay+taxonomy+multi-app pack (prod suite still open)."""
+    from backend.production_healing_suite_pack_drill import (
+        run_production_healing_suite_pack_drill,
+    )
+    evidence = run_production_healing_suite_pack_drill()
+    _audit(
+        "ops_production_healing_suite_pack",
+        ok=bool(evidence.get("ok")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_suite_pack": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-third-party-sla")
+def ops_production_healing_third_party_sla():
+    """Gate E: third-party healing SLA contract (production suite still open)."""
+    from backend.production_healing_third_party_sla_drill import (
+        run_production_healing_third_party_sla_drill,
+    )
+    evidence = run_production_healing_third_party_sla_drill()
+    _audit(
+        "ops_production_healing_third_party_sla",
+        ok=bool(evidence.get("ok")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_third_party_sla": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-acceptance-gate")
+def ops_production_healing_acceptance_gate():
+    """Gate E: acceptance criteria gate (production suite still open / not accepted)."""
+    from backend.production_healing_acceptance_gate_drill import (
+        run_production_healing_acceptance_gate_drill,
+    )
+    evidence = run_production_healing_acceptance_gate_drill()
+    _audit(
+        "ops_production_healing_acceptance_gate",
+        ok=bool(evidence.get("ok")),
+        accepted=bool(evidence.get("accepted")),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_acceptance_gate": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-seed-catalog")
+def ops_production_healing_seed_catalog():
+    """Gate E: seed catalog for third-party healing (suite still open)."""
+    from backend.production_healing_seed_catalog_drill import (
+        run_production_healing_seed_catalog_drill,
+    )
+    evidence = run_production_healing_seed_catalog_drill()
+    _audit(
+        "ops_production_healing_seed_catalog",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        production=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_seed_catalog": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dispatch-payload-rehearsal")
+def ops_hosted_dispatch_payload_rehearsal():
+    """Gates D/F: dry-run workflow_dispatch payloads (hosted runners still open)."""
+    from backend.hosted_dispatch_payload_rehearsal_drill import (
+        run_hosted_dispatch_payload_rehearsal_drill,
+    )
+    evidence = run_hosted_dispatch_payload_rehearsal_drill()
+    _audit(
+        "ops_hosted_dispatch_payload_rehearsal",
+        ok=bool(evidence.get("ok")),
+        android=bool((evidence.get("android") or {}).get("ok")),
+        browsers=bool((evidence.get("browsers") or {}).get("ok")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_dispatch_payload_rehearsal": evidence,
+    }
+
+
+@app.post("/api/ops/drills/independent-review-integrity")
+def ops_independent_review_integrity():
+    """Gate G: unsigned integrity checksum over review artifacts."""
+    from backend.independent_review_integrity_drill import (
+        run_independent_review_integrity_drill,
+    )
+    evidence = run_independent_review_integrity_drill()
+    _audit(
+        "ops_independent_review_integrity",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        artifacts=len(evidence.get("artifacts") or []),
+    )
+    return {"gate_g_complete": False, "independent_review_integrity": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-evidence-catalog")
+def ops_independent_review_evidence_catalog():
+    """Gate G: catalog ops-evidence for reviewers (unsigned)."""
+    from backend.independent_review_evidence_catalog_drill import (
+        run_independent_review_evidence_catalog_drill,
+    )
+    evidence = run_independent_review_evidence_catalog_drill()
+    _audit(
+        "ops_independent_review_evidence_catalog",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+        entries=int(evidence.get("entry_count") or 0),
+    )
+    return {"gate_g_complete": False, "independent_review_evidence_catalog": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-attestation")
+def ops_independent_review_attestation():
+    """Gate G: unsigned attestation stub for external reviewers."""
+    from backend.independent_review_attestation_drill import (
+        run_independent_review_attestation_drill,
+    )
+    evidence = run_independent_review_attestation_drill()
+    _audit(
+        "ops_independent_review_attestation",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_attestation": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-sso-readiness-pack")
+def ops_hosted_idp_sso_readiness_pack():
+    """Gate I: IdP contract+readiness+ACL pack (hosted SSO still open)."""
+    from backend.hosted_idp_sso_readiness_pack_drill import (
+        run_hosted_idp_sso_readiness_pack_drill,
+    )
+    evidence = run_hosted_idp_sso_readiness_pack_drill()
+    _audit(
+        "ops_hosted_idp_sso_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_sso_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/oidc-org-tenant-acl")
+def ops_oidc_org_tenant_acl():
+    """Gate I: OIDC org/hd claim → tenant ACL (hosted IdP still open)."""
+    from backend.oidc_org_tenant_acl_drill import run_oidc_org_tenant_acl_drill
+    evidence = run_oidc_org_tenant_acl_drill()
+    _audit(
+        "ops_oidc_org_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_org_tenant_acl": evidence}
+
+
+@app.post("/api/ops/drills/oidc-acl-matrix-pack")
+def ops_oidc_acl_matrix_pack():
+    """Gate I: tid+email+org/hd+groups ACL matrix (hosted IdP still open)."""
+    from backend.oidc_acl_matrix_pack_drill import run_oidc_acl_matrix_pack_drill
+    evidence = run_oidc_acl_matrix_pack_drill()
+    _audit(
+        "ops_oidc_acl_matrix_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "oidc_acl_matrix_pack": evidence}
+
+
+@app.post("/api/ops/drills/android-device-ci-readiness-pack")
+def ops_android_device_ci_readiness_pack():
+    """Gate D: Android device CI readiness pack (hosted runners still open)."""
+    from backend.android_device_ci_readiness_pack_drill import (
+        run_android_device_ci_readiness_pack_drill,
+    )
+    evidence = run_android_device_ci_readiness_pack_drill()
+    _audit(
+        "ops_android_device_ci_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {"gate_d_complete": False, "android_device_ci_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/browser-portfolio-ci-readiness-pack")
+def ops_browser_portfolio_ci_readiness_pack():
+    """Gate F: browser portfolio CI readiness pack (hosted runners still open)."""
+    from backend.browser_portfolio_ci_readiness_pack_drill import (
+        run_browser_portfolio_ci_readiness_pack_drill,
+    )
+    evidence = run_browser_portfolio_ci_readiness_pack_drill()
+    _audit(
+        "ops_browser_portfolio_ci_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {"gate_f_complete": False, "browser_portfolio_ci_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-signoff-pack")
+def ops_independent_review_signoff_pack():
+    """Gate G: catalog+integrity+attestation pack (unsigned)."""
+    from backend.independent_review_signoff_pack_drill import (
+        run_independent_review_signoff_pack_drill,
+    )
+    evidence = run_independent_review_signoff_pack_drill()
+    _audit(
+        "ops_independent_review_signoff_pack",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_signoff_pack": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-handoff-pack")
+def ops_independent_review_handoff_pack():
+    """Gate G: request+signoff+summary handoff pack (unsigned)."""
+    from backend.independent_review_handoff_pack_drill import (
+        run_independent_review_handoff_pack_drill,
+    )
+    evidence = run_independent_review_handoff_pack_drill()
+    _audit(
+        "ops_independent_review_handoff_pack",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_handoff_pack": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-findings-template")
+def ops_independent_review_findings_template():
+    """Gate G: reviewer findings Markdown template (unsigned)."""
+    from backend.independent_review_findings_template_drill import (
+        run_independent_review_findings_template_drill,
+    )
+    evidence = run_independent_review_findings_template_drill()
+    _audit(
+        "ops_independent_review_findings_template",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_findings_template": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-claim-map-completeness")
+def ops_hosted_idp_claim_map_completeness():
+    """Gate I: OIDC claim-map completeness score (hosted IdP still open)."""
+    from backend.hosted_idp_claim_map_completeness_drill import (
+        run_hosted_idp_claim_map_completeness_drill,
+    )
+    evidence = run_hosted_idp_claim_map_completeness_drill()
+    _audit(
+        "ops_hosted_idp_claim_map_completeness",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_claim_map_completeness": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-login-path")
+def ops_studio_sso_login_path():
+    """Gate I: Studio SSO login-path contract (hosted IdP still open)."""
+    from backend.studio_sso_login_path_drill import run_studio_sso_login_path_drill
+    evidence = run_studio_sso_login_path_drill()
+    _audit(
+        "ops_studio_sso_login_path",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_login_path": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-session-rebind")
+def ops_studio_sso_session_rebind():
+    """Gate I: SSO session rebind same sub (hosted IdP still open)."""
+    from backend.studio_sso_session_rebind_drill import (
+        run_studio_sso_session_rebind_drill,
+    )
+    evidence = run_studio_sso_session_rebind_drill()
+    _audit(
+        "ops_studio_sso_session_rebind",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_session_rebind": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-scope-matrix")
+def ops_independent_review_scope_matrix():
+    """Gate G: gate→evidence scope matrix (unsigned)."""
+    from backend.independent_review_scope_matrix_drill import (
+        run_independent_review_scope_matrix_drill,
+    )
+    evidence = run_independent_review_scope_matrix_drill()
+    _audit(
+        "ops_independent_review_scope_matrix",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_scope_matrix": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-blocker-freeze")
+def ops_independent_review_blocker_freeze():
+    """Gate G: freeze hard-open blockers inventory hash (unsigned)."""
+    from backend.independent_review_blocker_freeze_drill import (
+        run_independent_review_blocker_freeze_drill,
+    )
+    evidence = run_independent_review_blocker_freeze_drill()
+    _audit(
+        "ops_independent_review_blocker_freeze",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_blocker_freeze": evidence}
+
+
+@app.post("/api/ops/drills/oidc-tid-tenant-acl")
+def ops_oidc_tid_tenant_acl():
+    """Gate I: OIDC tid claim → tenant ACL (hosted IdP still open)."""
+    from backend.oidc_tid_tenant_acl_drill import run_oidc_tid_tenant_acl_drill
+    evidence = run_oidc_tid_tenant_acl_drill()
+    _audit(
+        "ops_oidc_tid_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_tid_tenant_acl": evidence}
+
+
+@app.post("/api/ops/drills/oidc-email-domain-tenant-acl")
+def ops_oidc_email_domain_tenant_acl():
+    """Gate I: OIDC email domain → tenant ACL (hosted IdP still open)."""
+    from backend.oidc_email_domain_tenant_acl_drill import (
+        run_oidc_email_domain_tenant_acl_drill,
+    )
+    evidence = run_oidc_email_domain_tenant_acl_drill()
+    _audit(
+        "ops_oidc_email_domain_tenant_acl",
+        ok=bool(evidence.get("ok")),
+        passed=int(evidence.get("passed") or 0),
+    )
+    return {"gate_i_complete": False, "oidc_email_domain_tenant_acl": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-readiness-pack")
+def ops_hosted_oncall_readiness_pack():
+    """Gate H: on-call contract+readiness+paging pack (hosted paging still open)."""
+    from backend.hosted_oncall_readiness_pack_drill import (
+        run_hosted_oncall_readiness_pack_drill,
+    )
+    evidence = run_hosted_oncall_readiness_pack_drill()
+    _audit(
+        "ops_hosted_oncall_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/multi-region-dr-readiness-pack")
+def ops_multi_region_dr_readiness_pack():
+    """Gate H: multi-store DR + cutover + on-call pack (hosted DR still open)."""
+    from backend.multi_region_dr_readiness_pack_drill import (
+        run_multi_region_dr_readiness_pack_drill,
+    )
+    evidence = run_multi_region_dr_readiness_pack_drill()
+    _audit(
+        "ops_multi_region_dr_readiness_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "multi_region_dr_readiness_pack": evidence}
+
+
+@app.post("/api/ops/drills/dual-region-store-health-probe")
+def ops_dual_region_store_health_probe():
+    """Gate H: local dual-region store TCP health probe (hosted DR still open)."""
+    from backend.dual_region_store_health_probe_drill import (
+        run_dual_region_store_health_probe_drill,
+    )
+    evidence = run_dual_region_store_health_probe_drill()
+    _audit(
+        "ops_dual_region_store_health_probe",
+        ok=bool(evidence.get("ok")),
+        primary_up=int(evidence.get("primary_up") or 0),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_store_health_probe": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-cutover-checklist")
+def ops_hosted_dr_cutover_checklist():
+    """Gate H: hosted DR cutover checklist (hosted DR still open)."""
+    from backend.hosted_dr_cutover_checklist_drill import (
+        run_hosted_dr_cutover_checklist_drill,
+    )
+    evidence = run_hosted_dr_cutover_checklist_drill()
+    _audit(
+        "ops_hosted_dr_cutover_checklist",
+        ok=bool(evidence.get("ok")),
+        score=int(evidence.get("score") or 0),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_cutover_checklist": evidence}
+
+
+@app.post("/api/ops/drills/hosted-oncall-rota-contract")
+def ops_hosted_oncall_rota_contract():
+    """Gate H: hosted on-call rota contract (hosted paging still open)."""
+    from backend.hosted_oncall_rota_contract_drill import (
+        run_hosted_oncall_rota_contract_drill,
+    )
+    evidence = run_hosted_oncall_rota_contract_drill()
+    _audit(
+        "ops_hosted_oncall_rota_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "hosted_oncall_rota_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-artifact-gate-pack")
+def ops_hosted_ci_artifact_gate_pack():
+    """Gates D/F: readiness+dispatch+upload pack (hosted runners still open)."""
+    from backend.hosted_ci_artifact_gate_pack_drill import (
+        run_hosted_ci_artifact_gate_pack_drill,
+    )
+    evidence = run_hosted_ci_artifact_gate_pack_drill()
+    _audit(
+        "ops_hosted_ci_artifact_gate_pack",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_artifact_gate_pack": evidence,
+    }
+
+
+@app.post("/api/ops/drills/hosted-workflow-runner-audit")
+def ops_hosted_workflow_runner_audit():
+    """Gates D/F: audit workflow YAML for dispatch/runner/artifacts (not run)."""
+    from backend.hosted_workflow_runner_audit_drill import (
+        run_hosted_workflow_runner_audit_drill,
+    )
+    evidence = run_hosted_workflow_runner_audit_drill()
+    _audit(
+        "ops_hosted_workflow_runner_audit",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_workflow_runner_audit": evidence,
+    }
+
+
+@app.post("/api/ops/drills/hosted-ci-artifact-retention-contract")
+def ops_hosted_ci_artifact_retention_contract():
+    """Gates D/F: artifact retention contract (hosted runners still open)."""
+    from backend.hosted_ci_artifact_retention_contract_drill import (
+        run_hosted_ci_artifact_retention_contract_drill,
+    )
+    evidence = run_hosted_ci_artifact_retention_contract_drill()
+    _audit(
+        "ops_hosted_ci_artifact_retention_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_artifact_retention_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/studio-sso-audience-binding")
+def ops_studio_sso_audience_binding():
+    """Gate I: wrong-aud rejection (hosted IdP SSO still open)."""
+    from backend.studio_sso_audience_binding_drill import (
+        run_studio_sso_audience_binding_drill,
+    )
+    evidence = run_studio_sso_audience_binding_drill()
+    _audit(
+        "ops_studio_sso_audience_binding",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_audience_binding": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-rpo-contract")
+def ops_hosted_dr_rpo_contract():
+    """Gate H: RPO/backup retention contract (hosted DR still open)."""
+    from backend.hosted_dr_rpo_contract_drill import run_hosted_dr_rpo_contract_drill
+    evidence = run_hosted_dr_rpo_contract_drill()
+    _audit(
+        "ops_hosted_dr_rpo_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_rpo_contract": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-response-sla")
+def ops_independent_review_response_sla():
+    """Gate G: reviewer response SLA contract (unsigned)."""
+    from backend.independent_review_response_sla_drill import (
+        run_independent_review_response_sla_drill,
+    )
+    evidence = run_independent_review_response_sla_drill()
+    _audit(
+        "ops_independent_review_response_sla",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_response_sla": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-fixture-coverage")
+def ops_production_healing_fixture_coverage():
+    """Gate E: fixture coverage map (production suite still open)."""
+    from backend.production_healing_fixture_coverage_drill import (
+        run_production_healing_fixture_coverage_drill,
+    )
+    evidence = run_production_healing_fixture_coverage_drill()
+    _audit(
+        "ops_production_healing_fixture_coverage",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_fixture_coverage": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-token-expiry")
+def ops_studio_sso_token_expiry():
+    """Gate I: expired token rejection (hosted IdP SSO still open)."""
+    from backend.studio_sso_token_expiry_drill import run_studio_sso_token_expiry_drill
+    evidence = run_studio_sso_token_expiry_drill()
+    _audit(
+        "ops_studio_sso_token_expiry",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_token_expiry": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-permissions-contract")
+def ops_hosted_ci_permissions_contract():
+    """Gates D/F: workflow permissions contract (hosted runners still open)."""
+    from backend.hosted_ci_permissions_contract_drill import (
+        run_hosted_ci_permissions_contract_drill,
+    )
+    evidence = run_hosted_ci_permissions_contract_drill()
+    _audit(
+        "ops_hosted_ci_permissions_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_permissions_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/production-healing-rollback-policy")
+def ops_production_healing_rollback_policy():
+    """Gate E: healing rollback policy (production suite still open)."""
+    from backend.production_healing_rollback_policy_drill import (
+        run_production_healing_rollback_policy_drill,
+    )
+    evidence = run_production_healing_rollback_policy_drill()
+    _audit(
+        "ops_production_healing_rollback_policy",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_rollback_policy": evidence}
+
+
+@app.post("/api/ops/drills/independent-reviewer-roster-contract")
+def ops_independent_reviewer_roster_contract():
+    """Gate G: reviewer roster contract (unsigned)."""
+    from backend.independent_reviewer_roster_contract_drill import (
+        run_independent_reviewer_roster_contract_drill,
+    )
+    evidence = run_independent_reviewer_roster_contract_drill()
+    _audit(
+        "ops_independent_reviewer_roster_contract",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_reviewer_roster_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-dr-comms-contract")
+def ops_hosted_dr_comms_contract():
+    """Gate H: DR communications contract (hosted DR still open)."""
+    from backend.hosted_dr_comms_contract_drill import run_hosted_dr_comms_contract_drill
+    evidence = run_hosted_dr_comms_contract_drill()
+    _audit(
+        "ops_hosted_dr_comms_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "hosted_dr_comms_contract": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-state-binding")
+def ops_studio_sso_state_binding():
+    """Gate I: OIDC state binding (hosted IdP SSO still open)."""
+    from backend.studio_sso_state_binding_drill import run_studio_sso_state_binding_drill
+    evidence = run_studio_sso_state_binding_drill()
+    _audit(
+        "ops_studio_sso_state_binding",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_state_binding": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-timeout-budget")
+def ops_hosted_ci_timeout_budget():
+    """Gates D/F: workflow timeout budget contract (hosted runners still open)."""
+    from backend.hosted_ci_timeout_budget_drill import run_hosted_ci_timeout_budget_drill
+    evidence = run_hosted_ci_timeout_budget_drill()
+    _audit(
+        "ops_hosted_ci_timeout_budget",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_timeout_budget": evidence,
+    }
+
+
+@app.post("/api/ops/drills/production-healing-human-loop-contract")
+def ops_production_healing_human_loop_contract():
+    """Gate E: human-in-the-loop healing contract (production suite still open)."""
+    from backend.production_healing_human_loop_contract_drill import (
+        run_production_healing_human_loop_contract_drill,
+    )
+    evidence = run_production_healing_human_loop_contract_drill()
+    _audit(
+        "ops_production_healing_human_loop_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_human_loop_contract": evidence}
+
+
+@app.post("/api/ops/drills/independent-review-findings-freeze")
+def ops_independent_review_findings_freeze():
+    """Gate G: findings + blocker freeze hash (unsigned)."""
+    from backend.independent_review_findings_freeze_drill import (
+        run_independent_review_findings_freeze_drill,
+    )
+    evidence = run_independent_review_findings_freeze_drill()
+    _audit(
+        "ops_independent_review_findings_freeze",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_findings_freeze": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-metadata-contract")
+def ops_hosted_idp_metadata_contract():
+    """Gate I: IdP discovery metadata contract (hosted SSO still open)."""
+    from backend.hosted_idp_metadata_contract_drill import (
+        run_hosted_idp_metadata_contract_drill,
+    )
+    evidence = run_hosted_idp_metadata_contract_drill()
+    _audit(
+        "ops_hosted_idp_metadata_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_metadata_contract": evidence}
+
+
+@app.post("/api/ops/drills/paging-severity-routing-contract")
+def ops_paging_severity_routing_contract():
+    """Gate H: severity→rota routing contract (hosted paging still open)."""
+    from backend.paging_severity_routing_contract_drill import (
+        run_paging_severity_routing_contract_drill,
+    )
+    evidence = run_paging_severity_routing_contract_drill()
+    _audit(
+        "ops_paging_severity_routing_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_paging")),
+    )
+    return {"gate_h_complete": False, "paging_severity_routing_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-concurrency-contract")
+def ops_hosted_ci_concurrency_contract():
+    """Gates D/F: concurrency contract for manual dispatch workflows."""
+    from backend.hosted_ci_concurrency_contract_drill import (
+        run_hosted_ci_concurrency_contract_drill,
+    )
+    evidence = run_hosted_ci_concurrency_contract_drill()
+    _audit(
+        "ops_hosted_ci_concurrency_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_concurrency_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/independent-review-window-contract")
+def ops_independent_review_window_contract():
+    """Gate G: review window / embargo contract (unsigned)."""
+    from backend.independent_review_window_contract_drill import (
+        run_independent_review_window_contract_drill,
+    )
+    evidence = run_independent_review_window_contract_drill()
+    _audit(
+        "ops_independent_review_window_contract",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {"gate_g_complete": False, "independent_review_window_contract": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-budget-contract")
+def ops_production_healing_budget_contract():
+    """Gate E: healing suite budget contract (production suite still open)."""
+    from backend.production_healing_budget_contract_drill import (
+        run_production_healing_budget_contract_drill,
+    )
+    evidence = run_production_healing_budget_contract_drill()
+    _audit(
+        "ops_production_healing_budget_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_budget_contract": evidence}
+
+
+@app.post("/api/ops/drills/hosted-runner-os-matrix-contract")
+def ops_hosted_runner_os_matrix_contract():
+    """Gates D/F: runner OS matrix contract (hosted runners still open)."""
+    from backend.hosted_runner_os_matrix_contract_drill import (
+        run_hosted_runner_os_matrix_contract_drill,
+    )
+    evidence = run_hosted_runner_os_matrix_contract_drill()
+    _audit(
+        "ops_hosted_runner_os_matrix_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_os_matrix_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/healing-approval-queue")
+def ops_healing_approval_queue():
+    """Gate E: approvals queue applies a heal only when policy allows it."""
+    from backend.healing_approval_queue_drill import run_healing_approval_queue_drill
+    evidence = run_healing_approval_queue_drill()
+    _audit(
+        "ops_healing_approval_queue",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "healing_approval_queue": evidence}
+
+
+@app.post("/api/ops/drills/production-healing-approval-gate")
+def ops_production_healing_approval_gate():
+    """Gate E: level-3 repairs require a single-use approval token."""
+    from backend.production_healing_approval_gate_drill import (
+        run_production_healing_approval_gate_drill,
+    )
+    evidence = run_production_healing_approval_gate_drill()
+    _audit(
+        "ops_production_healing_approval_gate",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {
+        "gate_e_complete": False,
+        "production_healing_approval_gate": evidence,
+    }
+
+
+@app.post("/api/ops/drills/production-healing-escalation-enforcement")
+def ops_production_healing_escalation_enforcement():
+    """Gate E: escalation ladder enforced on the repair path."""
+    from backend.production_healing_escalation_enforcement_drill import (
+        run_production_healing_escalation_enforcement_drill,
+    )
+    evidence = run_production_healing_escalation_enforcement_drill()
+    _audit(
+        "ops_production_healing_escalation_enforcement",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {
+        "gate_e_complete": False,
+        "production_healing_escalation_enforcement": evidence,
+    }
+
+
+@app.post("/api/ops/drills/production-healing-escalation-ladder")
+def ops_production_healing_escalation_ladder():
+    """Gate E: healing escalation ladder (production suite still open)."""
+    from backend.production_healing_escalation_ladder_drill import (
+        run_production_healing_escalation_ladder_drill,
+    )
+    evidence = run_production_healing_escalation_ladder_drill()
+    _audit(
+        "ops_production_healing_escalation_ladder",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("production_suite_executed")),
+    )
+    return {"gate_e_complete": False, "production_healing_escalation_ladder": evidence}
+
+
+@app.post("/api/ops/drills/hosted-ci-cache-key-contract")
+def ops_hosted_ci_cache_key_contract():
+    """Gates D/F: CI cache-key contract (hosted runners still open)."""
+    from backend.hosted_ci_cache_key_contract_drill import (
+        run_hosted_ci_cache_key_contract_drill,
+    )
+    evidence = run_hosted_ci_cache_key_contract_drill()
+    _audit(
+        "ops_hosted_ci_cache_key_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_runners")),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_ci_cache_key_contract": evidence,
+    }
+
+
+@app.post("/api/ops/drills/independent-review-evidence-retention")
+def ops_independent_review_evidence_retention():
+    """Gate G: evidence retention contract (unsigned)."""
+    from backend.independent_review_evidence_retention_contract_drill import (
+        run_independent_review_evidence_retention_contract_drill,
+    )
+    evidence = run_independent_review_evidence_retention_contract_drill()
+    _audit(
+        "ops_independent_review_evidence_retention",
+        ok=bool(evidence.get("ok")),
+        signed_off=bool(evidence.get("signed_off")),
+    )
+    return {
+        "gate_g_complete": False,
+        "independent_review_evidence_retention": evidence,
+    }
+
+
+@app.post("/api/ops/drills/studio-sso-pkce-verifier")
+def ops_studio_sso_pkce_verifier():
+    """Gate I: PKCE verifier required on the Studio token POST when configured."""
+    from backend.studio_sso_pkce_verifier_drill import (
+        run_studio_sso_pkce_verifier_drill,
+    )
+    evidence = run_studio_sso_pkce_verifier_drill()
+    _audit(
+        "ops_studio_sso_pkce_verifier",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_pkce_verifier": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-code-reuse")
+def ops_studio_sso_code_reuse():
+    """Gate I: authorization-code single use (hosted IdP still open)."""
+    from backend.studio_sso_code_reuse_drill import run_studio_sso_code_reuse_drill
+    evidence = run_studio_sso_code_reuse_drill()
+    _audit(
+        "ops_studio_sso_code_reuse",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_code_reuse": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-redirect-allowlist-enforcement")
+def ops_studio_sso_redirect_allowlist_enforcement():
+    """Gate I: redirect URI allowlist enforcement (hosted IdP still open)."""
+    from backend.studio_sso_redirect_allowlist_enforcement_drill import (
+        run_studio_sso_redirect_allowlist_enforcement_drill,
+    )
+    evidence = run_studio_sso_redirect_allowlist_enforcement_drill()
+    _audit(
+        "ops_studio_sso_redirect_allowlist_enforcement",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_redirect_allowlist_enforcement": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-nbf")
+def ops_studio_sso_nbf():
+    """Gate I: Studio SSO nbf rejection (hosted IdP still open)."""
+    from backend.studio_sso_nbf_drill import run_studio_sso_nbf_drill
+    evidence = run_studio_sso_nbf_drill()
+    _audit(
+        "ops_studio_sso_nbf",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_nbf": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-jti-replay")
+def ops_studio_sso_jti_replay():
+    """Gate I: Studio SSO jti replay rejection (hosted IdP still open)."""
+    from backend.studio_sso_jti_replay_drill import run_studio_sso_jti_replay_drill
+    evidence = run_studio_sso_jti_replay_drill()
+    _audit(
+        "ops_studio_sso_jti_replay",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_jti_replay": evidence}
+
+
+@app.post("/api/ops/drills/studio-sso-nonce-binding")
+def ops_studio_sso_nonce_binding():
+    """Gate I: Studio SSO nonce binding (hosted IdP still open)."""
+    from backend.studio_sso_nonce_binding_drill import run_studio_sso_nonce_binding_drill
+    evidence = run_studio_sso_nonce_binding_drill()
+    _audit(
+        "ops_studio_sso_nonce_binding",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "studio_sso_nonce_binding": evidence}
+
+
+@app.post("/api/ops/drills/hosted-idp-redirect-uri-allowlist")
+def ops_hosted_idp_redirect_uri_allowlist():
+    """Gate I: redirect URI allowlist contract (hosted SSO still open)."""
+    from backend.hosted_idp_redirect_uri_allowlist_drill import (
+        run_hosted_idp_redirect_uri_allowlist_drill,
+    )
+    evidence = run_hosted_idp_redirect_uri_allowlist_drill()
+    _audit(
+        "ops_hosted_idp_redirect_uri_allowlist",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_sso")),
+    )
+    return {"gate_i_complete": False, "hosted_idp_redirect_uri_allowlist": evidence}
+
+
+@app.post("/api/ops/drills/dual-region-cutover-lag-gate")
+def ops_dual_region_cutover_lag_gate():
+    """Gate H: block cutover when measured lag exceeds the contract."""
+    from backend.dual_region_cutover_lag_gate_drill import (
+        run_dual_region_cutover_lag_gate_drill,
+    )
+    evidence = run_dual_region_cutover_lag_gate_drill()
+    _audit(
+        "ops_dual_region_cutover_lag_gate",
+        ok=bool(evidence.get("ok")),
+        blocked=bool(evidence.get("cutover_blocked")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_cutover_lag_gate": evidence}
+
+
+@app.post("/api/ops/drills/dual-region-replication-lag-contract")
+def ops_dual_region_replication_lag_contract():
+    """Gate H: replication lag contract (hosted DR still open)."""
+    from backend.dual_region_replication_lag_contract_drill import (
+        run_dual_region_replication_lag_contract_drill,
+    )
+    evidence = run_dual_region_replication_lag_contract_drill()
+    _audit(
+        "ops_dual_region_replication_lag_contract",
+        ok=bool(evidence.get("ok")),
+        live=bool(evidence.get("live_hosted_dr")),
+    )
+    return {"gate_h_complete": False, "dual_region_replication_lag_contract": evidence}
+
+
+@app.post("/api/ops/drills/multi-region-cutover-rehearsal")
+def ops_multi_region_cutover_rehearsal():
+    """Gate H: local multi-region cutover pack (hosted DR/on-call still open)."""
+    from backend.multi_region_cutover_rehearsal_drill import (
+        run_multi_region_cutover_rehearsal_drill,
+    )
+    evidence = run_multi_region_cutover_rehearsal_drill()
+    _audit(
+        "ops_multi_region_cutover_rehearsal",
+        ok=bool(evidence.get("ok")),
+        steps_passed=int(evidence.get("steps_passed") or 0),
+        elapsed_ms=int(evidence.get("elapsed_ms") or 0),
+    )
+    return {"gate_h_complete": False, "multi_region_cutover_rehearsal": evidence}
+
+
+@app.post("/api/ops/drills/hosted-runner-readiness")
+def ops_hosted_runner_readiness():
+    """Gates D/F: hosted runner readiness scores (execution still open)."""
+    from backend.hosted_runner_readiness_drill import (
+        run_hosted_runner_readiness_drill,
+    )
+    evidence = run_hosted_runner_readiness_drill()
+    _audit(
+        "ops_hosted_runner_readiness",
+        ok=bool(evidence.get("ok")),
+        device_score=int((evidence.get("multi_device") or {}).get("score") or 0),
+        browser_score=int((evidence.get("multi_browser") or {}).get("score") or 0),
+    )
+    return {
+        "gate_d_complete": False,
+        "gate_f_complete": False,
+        "hosted_runner_readiness": evidence,
+    }
+
+
+@app.post("/api/ops/drills/observability-probe")
+def ops_observability_probe():
+    """Gate H: local observability probe (central metrics stack still open)."""
+    from backend.observability_probe_drill import run_observability_probe_drill
+    evidence = run_observability_probe_drill()
+    _audit(
+        "ops_observability_probe",
+        ok=bool(evidence.get("ok")),
+        checks_ready=int(evidence.get("checks_ready") or 0),
+        checks_total=int(evidence.get("checks_total") or 0),
+    )
+    return {"gate_h_complete": False, "observability_probe": evidence}
+
+
+@app.post("/api/ops/drills/admin-portal-surfaces")
+def ops_admin_portal_surfaces():
+    """Gate A surface inventory against AdminPortal (still incomplete)."""
+    from backend.surface_evidence_drill import run_admin_portal_surface_drill
+    evidence = run_admin_portal_surface_drill()
+    _audit("ops_admin_portal_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
+@app.post("/api/ops/drills/demo-store-surfaces")
+def ops_demo_store_surfaces():
+    """Gate A: DemoStore surface_coverage inventory incl. /lab (still incomplete)."""
+    from backend.surface_evidence_drill import run_demo_store_surface_drill
+    evidence = run_demo_store_surface_drill()
+    _audit("ops_demo_store_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
+@app.post("/api/ops/drills/classic-shop-surfaces")
+def ops_classic_shop_surfaces():
+    """Gate A: ClassicShop surface_coverage inventory (still incomplete)."""
+    from backend.surface_evidence_drill import run_classic_shop_surface_drill
+    evidence = run_classic_shop_surface_drill()
+    _audit("ops_classic_shop_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
+@app.post("/api/ops/drills/travel-site-surfaces")
+def ops_travel_site_surfaces():
+    """Gate A: TravelSite surface_coverage inventory (still incomplete)."""
+    from backend.surface_evidence_drill import run_travel_site_surface_drill
+    evidence = run_travel_site_surface_drill()
+    _audit("ops_travel_site_surfaces", pages=len(evidence.get("pages_walked") or []), complete=False)
+    return {"gate_a_surfaces_complete": False, "surfaces": evidence}
+
+
+@app.post("/api/ops/drills/ci-rollback")
+def ops_ci_rollback():
+    """Offline CI/deploy rollback rehearsal (Gate H still incomplete)."""
+    from backend.ops_rollback_drill import run_ci_rollback_rehearsal
+    evidence = run_ci_rollback_rehearsal()
+    _audit("ops_ci_rollback", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "ci_rollback": evidence}
+
+
+@app.post("/api/ops/drills/paging")
+def ops_paging_rehearsal():
+    """Loopback paging rehearsal (Gate H still incomplete — no live on-call)."""
+    from backend.ops_paging_drill import run_paging_rehearsal
+    evidence = run_paging_rehearsal()
+    _audit("ops_paging_rehearsal", ok=bool(evidence.get("ok")))
+    return {"gate_h_complete": False, "paging": evidence}
+
+
+@app.post("/api/ops/drills/paging-escalation")
+def ops_paging_escalation():
+    """Gate H: primary→secondary paging escalation (hosted on-call still open)."""
+    from backend.paging_escalation_drill import run_paging_escalation_drill
+    evidence = run_paging_escalation_drill()
+    _audit("ops_paging_escalation", ok=bool(evidence.get("ok")),
+           escalated=bool(evidence.get("escalated")))
+    return {"gate_h_complete": False, "paging_escalation": evidence}
+
+
+def _approval_scope(authorization: str | None, x_qa_token: str | None):
+    """None lists every approval. A tenant id keeps the queue inside that tenant."""
+    from backend.dashboard_auth import auth_mode, authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="review.write")
+    if not verdict.get("ok"):
+        status = 403 if verdict.get("role") else 401
+        return JSONResponse({"detail": verdict.get("reason") or "unauthorized"}, status_code=status)
+    if auth_mode() not in ("principal", "oidc"):
+        return None
+    return str(verdict.get("tenant_id") or "")
+
+
+@app.get("/api/approvals")
+def list_approval_queue(
+    status: str = "pending",
+    limit: int = 50,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate I: list human-review approvals (pending by default)."""
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
+    from backend.approvals import list_approvals
+    return {"approvals": list_approvals(status=status, limit=limit, tenant_id=scope), "gate_i_complete": False}
+
+
+class CreateApproval(BaseModel):
+    kind: str
+    subject: str
+    detail: str = ""
+
+
+@app.post("/api/approvals")
+def create_approval(
+    req: CreateApproval,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Enqueue an uncertain_assertion / heal / sensitive item for a person."""
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
+    from backend.approvals import create
+    try:
+        row = create(req.kind, req.subject, detail=req.detail or "", tenant_id=scope or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    _audit("approval_create", approval=row["id"], kind=row["kind"])
+    return row
+
+
+class DecideApproval(BaseModel):
+    answer: str  # yes/accept/approved or no/reject (empty keeps safe reject)
+
+
+@app.post("/api/approvals/{approval_id}/decide")
+def decide_approval_api(
+    approval_id: str,
+    req: DecideApproval,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Record a person's answer via human_review.decide."""
+    scope = _approval_scope(authorization, x_qa_token)
+    if isinstance(scope, JSONResponse):
+        return scope
+    from backend.approvals import decide_approval
+    try:
+        row = decide_approval(approval_id, req.answer, tenant_id=scope)
+    except PermissionError as e:
+        raise HTTPException(403, "tenant isolation") from e
+    except KeyError as e:
+        raise HTTPException(404, "Approval not found.") from e
+    _audit("approval_decide", approval=approval_id, status=row.get("status"))
+    return row
+
+
+@app.get("/api/tenancy/runs")
+def tenancy_runs_for_principal(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: list runs visible to the authenticated principal (tenant isolation).
+
+    Requires QPILOT_DASHBOARD_AUTH=principal. Live Studio SSO remains open.
+    """
+    from backend.dashboard_auth import authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    if not verdict.get("ok"):
+        raise HTTPException(401, verdict.get("reason") or "unauthorized")
+    if verdict.get("mode") != "principal" or not verdict.get("principal_id"):
+        raise HTTPException(
+            400,
+            "Set QPILOT_DASHBOARD_AUTH=principal and pass Authorization: Bearer <principal_id>",
+        )
+    from backend.tenancy_store import runs_visible_to_principal
+    body = runs_visible_to_principal(verdict["principal_id"])
+    _audit("tenancy_runs", principal=verdict["principal_id"], ok=bool(body.get("ok")),
+           count=len(body.get("runs") or []))
+    return body
+
+
+@app.get("/api/tenancy/runs/{run_id}/access")
+def tenancy_run_access(
+    run_id: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Gate G: check (and audit) whether the principal may read ``run_id``."""
+    from backend.dashboard_auth import authorize
+    verdict = authorize(authorization, x_qa_token=x_qa_token, action="run.read")
+    if not verdict.get("ok"):
+        raise HTTPException(401, verdict.get("reason") or "unauthorized")
+    if verdict.get("mode") != "principal" or not verdict.get("principal_id"):
+        raise HTTPException(
+            400,
+            "Set QPILOT_DASHBOARD_AUTH=principal and pass Authorization: Bearer <principal_id>",
+        )
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=verdict["principal_id"], run_id=run_id)
+    _audit("tenancy_run_access", principal=verdict["principal_id"], run=run_id,
+           allowed=bool(access.get("allowed")))
+    if not access.get("allowed"):
+        raise HTTPException(403, access.get("reason") or "forbidden")
+    return {**access, "gate_g_complete": False}
+
+
 @app.get("/api/check")
-def check_source(source: str):
+def check_source(
+    source: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """Step 2: open the website once (or recognise a GitHub repo / project folder) before testing starts."""
     import html as _html
 
@@ -543,8 +3296,17 @@ def check_source(source: str):
     # (a single-page app's #/auth/register is only in the address: the server never sees the part after #)
     login = bool(_auth_link(url) or _auth_link(r.url) or re.search(r"type=[\"']?password", r.text[:300_000], re.I))
     from backend import my_tests  # (your own tests saved for this website: the chat shows them to edit)
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if reader is None:
+        saved_tests = my_tests.load(my_tests.site_key_of(url))
+    elif isinstance(reader, str):
+        from backend.tenancy_store import get_principal
+        row = get_principal(reader) or {}
+        saved_tests = my_tests.load(my_tests.site_key_of(url), tenant_id=str(row.get("tenant_id") or ""))
+    else:
+        saved_tests = []
     return {"kind": "website", "ok": r.status_code < 400, "url": url, "final_url": r.url,
-            "my_tests": [t["text"] for t in my_tests.load(my_tests.site_key_of(url))],
+            "my_tests": [t["text"] for t in saved_tests],
             "unwrapped": pasted if s != pasted else "",
             "status": r.status_code, "ms": int((time.time() - t0) * 1000), "login": login,
             "has_test_account": bool(os.environ.get("TEST_USERNAME") and os.environ.get("TEST_PASSWORD")),
@@ -669,7 +3431,29 @@ def _validate(req: RunRequest, source: str) -> None:
 
 
 @app.post("/api/runs")
-def start_run(req: RunRequest):
+def start_run(
+    req: RunRequest,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
+    if caller and req.reuse_from_run:
+        from backend.tenancy_store import assert_run_access
+        reused = Path(req.reuse_from_run).name
+        access = assert_run_access(principal_id=caller, run_id=reused, audit=True)
+        if not access.get("allowed"):
+            return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return _launch_run(req, caller if isinstance(caller, str) else None)
+
+
+def _launch_run(req: RunRequest, caller: str | None):
+    """Start one test. The HTTP route has already checked the caller.
+
+    A due schedule and a webhook call this directly. They have already shown
+    who may start it, and a schedule keeps that tenant's baseline.
+    """
     from backend.agents.discovery import unwrap_link
     from backend.safety import API_KEY_ENV, safe_url_for_display
     req.llm_provider = _privacy_provider(req.llm_provider, req.privacy_mode)
@@ -722,8 +3506,19 @@ def start_run(req: RunRequest):
         if req.reuse_tests:
             cmd.append("--reuse-tests")
         env = os.environ.copy()
-        if req.reuse_tests and req.reuse_from_run:
-            env["REUSE_FROM_RUN"] = Path(req.reuse_from_run).name
+        from backend.my_tests import current_baseline_tenant
+        if caller:
+            _stamp_tenant_env(env, caller or "")
+        else:
+            _stamp_tenant_env(env, tenant_id=current_baseline_tenant())
+        reused = Path(req.reuse_from_run).name if req.reuse_tests and req.reuse_from_run else ""
+        tenant = env.get("QPILOT_TENANT_ID") or ""
+        reuse_ok = bool(reused) and re.fullmatch(r"[\w.\-]+", reused) and not reused.startswith(".")
+        if reuse_ok and tenant:
+            from backend.tenancy_store import get_run_tenant
+            reuse_ok = get_run_tenant(reused) == tenant
+        if reuse_ok:
+            env["REUSE_FROM_RUN"] = reused
         elif "REUSE_FROM_RUN" in env:
             env.pop("REUSE_FROM_RUN", None)
         env["QA_CONTRACT_JSON"] = contract_json
@@ -821,7 +3616,7 @@ def start_run(req: RunRequest):
         jobs[job_id] = {"id": job_id, "source": source, "status": "running", "proc": proc, "lines": start_lines,
                         "pages": [], "stages": {}, "current": None, "run": None, "started": time.time(), "llm": llm,
                         "secrets": secrets, "discovery_only": req.discovery_only,
-                        "thorough": apply_thorough,
+                        "thorough": apply_thorough, "principal_id": caller or "",
                         "workflow": req.workflow, "privacy_mode": privacy["mode"]}  # (kept in memory only, to hide them in the live log)
     _audit("start_test", job=job_id, source=safe_url_for_display(source), environment=req.environment,
            authorized=True, allow_signup=req.allow_signup, test_account=bool(req.test_username),
@@ -924,8 +3719,13 @@ async def start_mobile_run(
     llm_provider: str | None = Form(None),
     llm_model: str | None = Form(None),
     apk: Annotated[UploadFile | None, File()] = None,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
 ):
     """Start an isolated native Appium run from a private APK upload or installed package."""
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     from backend.android import (
         MAX_APK_BYTES,
         AndroidEnvironmentError,
@@ -1006,9 +3806,12 @@ async def start_mobile_run(
         if any(job["status"] == "running" for job in jobs.values()):
             raise HTTPException(409, "A test is already running. Wait for it to finish or stop it first.")
     run_id = f"android_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-    run_dir = RUNS / run_id
+    from backend.android_runner import prepare_android_run
+    try:
+        run_dir = prepare_android_run(RUNS, run_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     private = run_dir / ".private"
-    private.mkdir(parents=True)
     if apk is not None:
         filename = (apk.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
         if Path(filename).suffix.lower() != ".apk":
@@ -1016,6 +3819,10 @@ async def start_mobile_run(
             await apk.close()
             raise HTTPException(400, "Upload an Android .apk file.")
         apk_path = private / "app.apk"
+        if apk_path.is_symlink():
+            shutil.rmtree(run_dir, ignore_errors=True)
+            await apk.close()
+            raise HTTPException(400, "The Android run is a link.")
         size = 0
         try:
             with apk_path.open("wb") as target:
@@ -1036,11 +3843,15 @@ async def start_mobile_run(
             shutil.rmtree(run_dir, ignore_errors=True)
             raise HTTPException(400, str(e)) from e
     config_path = private / "android_config.json"
-    config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    from backend.finalization import write_text_unless_linked
+    if not write_text_unless_linked(private, "android_config.json", json.dumps(config, indent=2)):
+        shutil.rmtree(run_dir, ignore_errors=True)
+        raise HTTPException(400, "The Android run is a link.")
     source = (f"Android Chrome {config['start_url']}" if app_mode == "web" else
               f"Android app {config['package_name']}" if config["package_name"] else "Uploaded Android APK")
     command = [sys.executable, "-u", "-m", "backend.android_runner", "--config", str(config_path)]
     env = os.environ.copy()
+    _stamp_tenant_env(env, caller or "")
     if llm_provider is not None:
         previous_provider = env.get("LLM_PROVIDER", "ollama")
         env["LLM_PROVIDER"] = llm_provider
@@ -1092,7 +3903,8 @@ async def start_mobile_run(
                         "secrets": [env[k] for k in KEY_ENV.values() if k and env.get(k)]
                         + [value for value in (test_username, test_password) if value]
                         + list(private_inputs['secrets'].values()), "target_type": "android",
-                         "workflow": workflow, "privacy_mode": privacy["mode"]}
+                         "workflow": workflow, "privacy_mode": privacy["mode"],
+                         "principal_id": caller or ""}
     _audit("start_android_test", job=job_id, run=run_id, app_mode=app_mode, device=device_id,
            package=package_name if app_mode == "installed" else "", authorized=True)
     threading.Thread(target=_reader, args=(jobs[job_id],), daemon=True).start()
@@ -1100,8 +3912,15 @@ async def start_mobile_run(
 
 
 @app.get("/api/runs/latest")
-def latest_run():
-    return _public(jobs[max(jobs)]) if jobs else None
+def latest_run(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    visible = [job for job in jobs.values() if _refuse_job(job, caller) is None]
+    return _public(max(visible, key=lambda job: job["id"])) if visible else None
 
 
 @app.get("/api/android/runs/{run}/coverage")
@@ -1114,11 +3933,18 @@ def android_coverage_dashboard(run: str):
 
 
 @app.post("/api/android/runs/{run}/resume")
-async def resume_android_run(run: str):
+async def resume_android_run(
+    run: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     from .android_resume import snapshot
     d = _run_dir(run)
     config_path = d / ".private/android_config.json"
-    if not config_path.is_file():
+    if _run_path_is_linked(RUNS, config_path) or not config_path.is_file():
         raise HTTPException(400, "The saved Android configuration is unavailable.")
     if not snapshot(d)["can_resume"]:
         raise HTTPException(409, "No safely resumable unexecuted cases remain.")
@@ -1133,6 +3959,7 @@ async def resume_android_run(run: str):
     except ValueError as error:
         raise HTTPException(409, "Restore the original private input references before resuming.") from error
     env = os.environ.copy()
+    _stamp_tenant_env(env, caller or "")
     # Resuming executes saved, validated cases; no new AI exploration is requested.
     env.update(LLM_PROVIDER="none", PYTHONUTF8="1", PYTHONUNBUFFERED="1")
     privacy = _worker_privacy(env, "none")
@@ -1151,15 +3978,27 @@ async def resume_android_run(run: str):
         jobs[job_id] = {"id": job_id, "source": "Resume Android " + run, "status": "running", "proc": proc,
                         "lines": [], "pages": [], "stages": {}, "current": None, "run": run, "started": time.time(),
                         "llm": {"provider": "none", "model": ""}, "secrets": list(inputs["secrets"].values()),
-                        "target_type": "android", "workflow": "standard", "privacy_mode": privacy["mode"]}
+                        "target_type": "android", "workflow": "standard", "privacy_mode": privacy["mode"],
+                        "principal_id": caller or ""}
     _audit("resume_android_test", job=job_id, run=run)
     threading.Thread(target=_reader, args=(jobs[job_id],), daemon=True).start()
     return _public(jobs[job_id])
 
 
 @app.get("/api/runs/{job_id}")
-def run_status(job_id: int, since: int = 0, psince: int = 0):
-    return _public(_job_or_404(job_id), since, psince)
+def run_status(
+    job_id: int, since: int = 0, psince: int = 0,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    return _public(job, since, psince)
 
 
 @app.get("/api/pages/{run}")
@@ -1196,9 +4035,19 @@ class ReviewAnswers(BaseModel):
 
 
 @app.get("/api/runs/{job_id}/events")
-def run_events(job_id: int, after: str = "", limit: int = Query(default=150, ge=1, le=500)):
+def run_events(
+    job_id: int, after: str = "", limit: int = Query(default=150, ge=1, le=500),
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     from backend.execution_events import read_events
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
     job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
     if not job.get("run"):
         return {"events": [], "cursor": after}
     try:
@@ -1208,20 +4057,41 @@ def run_events(job_id: int, after: str = "", limit: int = Query(default=150, ge=
 
 
 @app.get("/api/runs/{job_id}/review")
-def get_review(job_id: int):
+def get_review(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """The questions a running test asks you (what it can't know: is what it saw correct, is a rule allowed)."""
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
     job = jobs.get(job_id)
+    if job and (refused := _refuse_job(job, caller)) is not None:
+        return refused
     if not job or not job.get("run"):
         raise HTTPException(404, "no such test")
-    req = _read_json(RUNS / job["run"] / "review_request.json", None)
+    d = _plain_run_dir(str(job["run"]))
+    if d is None and _run_path_is_linked(RUNS, RUNS / str(job["run"])):
+        raise HTTPException(400, "Run directory must stay inside runs.")
+    req = _read_json(d / "review_request.json", None) if d is not None else None
     if not req:
         return {"questions": [], "answered": False}
-    return dict(req, answered=(RUNS / job["run"] / "review_answers.json").exists())
+    return dict(req, answered=_run_file(d / "review_answers.json"))
 
 
 @app.post("/api/runs/{job_id}/review")
-def post_review(job_id: int, body: ReviewAnswers):
+def post_review(
+    job_id: int, body: ReviewAnswers,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     job = jobs.get(job_id)
+    if job and (refused := _refuse_job(job, caller, "run.write")) is not None:
+        return refused
     if not job:
         raise HTTPException(404, "no such test")
     if not job.get("run") or job["status"] != "running":
@@ -1231,7 +4101,11 @@ def post_review(job_id: int, body: ReviewAnswers):
              for k, v in body.answers.items() if isinstance(v, dict) and v.get("answer") in allowed}
     leave_out = [str(x)[:20] for x in body.leave_out[:500]]
     add_tests = [str(x)[:300] for x in body.add_tests[:30] if str(x).strip()]
-    (RUNS / job["run"] / "review_answers.json").write_text(json.dumps(
+    d = _plain_run_dir(str(job["run"]))
+    dest = d / "review_answers.json" if d is not None else None
+    if dest is None or _run_path_is_linked(RUNS, dest):
+        raise HTTPException(400, "Run directory must stay inside runs.")
+    dest.write_text(json.dumps(
         {"answers": clean, "leave_out": leave_out, "add_tests": add_tests}, indent=2), encoding="utf-8")
     _audit("review_answers", job=job_id, run=job["run"], answers=len(clean), left_out=len(leave_out),
            added=len(add_tests))
@@ -1239,20 +4113,27 @@ def post_review(job_id: int, body: ReviewAnswers):
 
 
 @app.post("/api/runs/{job_id}/stop")
-def stop_run(job_id: int):
+def stop_run(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
     job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller, "run.write")
+    if refused is not None:
+        return refused
     if job["status"] != "running":
         raise HTTPException(400, "not running")
     job["stopping"] = True
     job["current"] = "stopping"
     _audit("stop_test", job=job_id, run=job.get("run"))
     run = job.get("run")
-    if run and (RUNS / run).is_dir():
+    if run:
         # Preserve the stop marker for diagnostics, then stop main.py and its browser/pytest/Appium children now.
-        try:
-            (RUNS / run / "STOP").write_text("stopped from the web UI", encoding="utf-8")
-        except OSError:
-            pass  # termination must not wait on a run folder that is being removed or is read-only
+        _write_stop(str(run))
     _kill(job)
     return {"ok": True, "stopped_immediately": True}
 
@@ -1276,9 +4157,22 @@ def _kill(job: dict) -> None:
 
 
 @app.get("/api/history")
-def history():
+def history(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(reader, JSONResponse):
+        return reader
+    folders = sorted(
+        (p for p in RUNS.iterdir() if p.is_dir() and not p.is_symlink()),
+        key=lambda p: p.stat().st_mtime, reverse=True)
+    if reader:
+        from backend.tenancy_store import assert_run_access
+        folders = [d for d in folders
+                   if assert_run_access(principal_id=reader, run_id=d.name, audit=False).get("allowed")]
     out = []
-    for d in sorted((p for p in RUNS.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
+    for d in folders[:30]:
         s = _read_json(d / "summary.json", None)
         date = time.strftime("%d %b %H:%M", time.localtime(d.stat().st_mtime))
         if s:
@@ -1311,7 +4205,7 @@ def report(run: str):
     return {
         "run": run,
         "summary": _read_json(d / "summary.json", None),
-        "cases_available": (d / "test_cases.json").is_file(),
+        "cases_available": _run_file(d / "test_cases.json"),
         "components_count": (_read_json(d / "components.json", {}) or {}).get("total_components"),
         "fixes": _read_json(d / "fixes.json", []),
         "failures": _read_json(d / "failures.json", []),
@@ -1319,7 +4213,7 @@ def report(run: str):
         "cost": _read_json(d / "cost.json", None),
         "healing": _read_json(d / "healing_log.json", []),
         "coverage": _read_json(d / "coverage.json", None),
-        "components_report": f"/runs/{run}/components.html" if (d / "components.html").exists() else None,
+        "components_report": f"/runs/{run}/components.html" if _run_file(d / "components.html") else None,
         "comparison": _read_json(d / "comparison.json", None),
         "crawl": _read_json(d / "crawl.json", None),
         "login": _read_json(d / "login.json", None),
@@ -1329,9 +4223,11 @@ def report(run: str):
         "recheck": _read_json(d / "recheck.json", {}),
         "pages": pages,
         "excel": f"/runs/{run}/{excel.name}" if excel else None,
-        "report_html": f"/runs/{run}/report.html" if (d / "report.html").exists() else None,
-        "videos": [f"/runs/{run}/videos/{v.name}" for v in sorted((d / "videos").glob("*.webm"))],
-        "console": console.read_text(encoding="utf-8", errors="replace").splitlines()[-400:] if console.exists() else [],
+        "report_html": f"/runs/{run}/report.html" if _run_file(d / "report.html") else None,
+        "videos": [f"/runs/{run}/videos/{v.name}" for v in sorted((d / "videos").glob("*.webm"))
+                   if _run_file(v)] if (d / "videos").is_dir() and not (d / "videos").is_symlink() else [],
+        "console": console.read_text(encoding="utf-8", errors="replace").splitlines()[-400:]
+        if _run_file(console) else [],
     }
 
 
@@ -1345,9 +4241,10 @@ def coverage(run: str):
 def cases_download(run: str):
     """The structured test cases (with their results) as JSON - to keep, review or reuse."""
     d = _run_dir(run)
-    if not (d / "test_cases.json").exists():
+    cases = d / "test_cases.json"
+    if not _run_file(cases):
         raise HTTPException(404, "no test cases yet")
-    return FileResponse(d / "test_cases.json", filename=f"test_cases_{run}.json", media_type="application/json")
+    return FileResponse(cases, filename=f"test_cases_{run}.json", media_type="application/json")
 
 
 @app.get("/api/cases/{run}")
@@ -1359,10 +4256,10 @@ def case_progress(run: str):
     progress = _case_progress(d, executing)
     summary = _read_json(d / "summary.json", {}) or {}
     progress.update({
-        "available": (d / "test_cases.json").is_file(),
+        "available": _run_file(d / "test_cases.json"),
         "excel_available": _excel_file(d) is not None,
         "discovery_only": bool(summary.get("discovery_only") or summary.get("mode") == "discovery"),
-        "complete": (d / "summary.json").is_file(),
+        "complete": _run_file(d / "summary.json"),
         "empty_reason": summary.get("setup_error") or summary.get("incomplete_reason") or "",
     })
     return progress
@@ -1408,10 +4305,11 @@ def delete_run(run: str, x_agentic_qa: str | None = Header(default=None)):
     if any(j.get("run") == run and j["status"] == "running" for j in jobs.values()):
         raise HTTPException(409, "This test is still running. Stop it first.")
     baseline_removed = False
-    for meta in (ROOT / "baseline").glob("*/meta.json"):  # the baseline saved by this test, if any
-        if (_read_json(meta, {}) or {}).get("run_id") == run:
-            shutil.rmtree(meta.parent, ignore_errors=True)
-            baseline_removed = True
+    from backend.my_tests import baseline_dirs_saved_by
+    from backend.tenancy_store import get_run_tenant
+    for site in baseline_dirs_saved_by(run, get_run_tenant(run) or ""):
+        shutil.rmtree(site, ignore_errors=True)
+        baseline_removed = True
 
     def _rmtree_force(path: Path) -> None:
         """Delete a run folder; clear read-only bits and retry (common on Windows when Excel held a file)."""
@@ -1532,7 +4430,9 @@ rechecks: dict[str, dict] = {}  # run -> {"running", "tests", "error"} (the re-c
 
 
 def _recheck_worker(run: str, tests: list[str]) -> None:
+    from backend.tenancy_store import get_run_tenant
     env = os.environ.copy()
+    _stamp_tenant_env(env, tenant_id=get_run_tenant(run) or "")
     env.update({"PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
     try:
         _worker_privacy(env)
@@ -1597,21 +4497,68 @@ def _next_time(s: dict, after):
     return t
 
 
+def _schedule_is_linked() -> bool:
+    from .finalization import folder_is_linked
+    return folder_is_linked(SCHEDULES)
+
+
 def _schedules() -> list[dict]:
+    if _schedule_is_linked():
+        return []
     return _read_json(SCHEDULES, [])
 
 
-def _save_schedules(items: list[dict]) -> None:
+def _save_schedules(items: list[dict]) -> bool:
+    if _schedule_is_linked():
+        return False
     SCHEDULES.write_text(json.dumps(items, indent=1), encoding="utf-8")
+    return True
+
+
+def _same_schedule_slot(old: dict, new: dict) -> bool:
+    """One tenant replaces only their own repeat of a website. Another tenant keeps theirs."""
+    return (old.get("source") == new.get("source") and old.get("every") == new.get("every")
+            and str(old.get("tenant_id") or "") == str(new.get("tenant_id") or ""))
+
+
+def _require_run_change(authorization: str | None, x_qa_token: str | None, run: str, action: str = "run.write"):
+    """None when the change may proceed. A signed-in principal must own the run."""
+    reader = _signed_in_reader(authorization, x_qa_token, action)
+    if reader is None or not isinstance(reader, str):
+        return reader
+    from backend.tenancy_store import assert_run_access
+    access = assert_run_access(principal_id=reader, run_id=run, audit=action == "run.write")
+    if not access.get("allowed"):
+        return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
+    return None
 
 
 @app.get("/api/schedules")
-def list_schedules():
-    return _schedules()
+def list_schedules(
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    reader = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(reader, JSONResponse):
+        return reader
+    items = _schedules()
+    if not reader:
+        return items
+    from backend.tenancy_store import assert_run_access
+    return [item for item in items
+            if assert_run_access(
+                principal_id=reader, run_id=str(item.get("from_run") or ""), audit=False).get("allowed")]
 
 
 @app.post("/api/schedules")
-def add_schedule(req: ScheduleRequest):
+def add_schedule(
+    req: ScheduleRequest,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    refused = _require_run_change(authorization, x_qa_token, req.run)
+    if refused is not None:
+        return refused
     from datetime import datetime
     d = _run_dir(req.run)
     if req.every not in EVERY or not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", req.at) or not 0 <= req.day <= 6:
@@ -1625,22 +4572,41 @@ def add_schedule(req: ScheduleRequest):
         raise HTTPException(400, f"A scheduled test runs without you: put the {prov} key in .env as {KEY_ENV[prov]} "
                                  "first (a key typed in the chat is never saved).")
     env_ = st.get("environment") if st.get("environment") in ("test", "staging", "production") else "test"
-    s = {"id": f"S{int(time.time())}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
+    reader = _signed_in_reader(authorization, x_qa_token, "run.write")
+    tenant = ""
+    principal = reader if isinstance(reader, str) else ""
+    if principal:
+        from backend.tenancy_store import get_principal
+        tenant = str((get_principal(principal) or {}).get("tenant_id") or "")
+    s = {"id": f"S{time.time_ns()}", "source": args["source"], "every": req.every, "at": req.at, "day": req.day,
+         "principal_id": principal,
+         "tenant_id": tenant if re.fullmatch(r"[\w.-]+", tenant) else "",
          "settings": {"llm_provider": prov or None, "llm_model": st.get("llm_model") or None, "environment": env_,
                       "production_confirmed": env_ == "production", "max_pages": int(st.get("max_pages") or 0),
                       "writes_confirmed": bool(st.get("confirm_writes"))},
          "from_run": req.run, "created": datetime.now().isoformat(timespec="minutes")}
     s["next"] = _next_time(s, datetime.now()).isoformat(timespec="minutes")
-    items = [x for x in _schedules() if not (x["source"] == s["source"] and x["every"] == s["every"])] + [s]
-    _save_schedules(items)
+    items = [x for x in _schedules() if not _same_schedule_slot(x, s)] + [s]
+    if not _save_schedules(items):
+        raise HTTPException(400, "The schedule file is a link.")
     _audit("add_schedule", schedule=s["id"], every=s["every"], at=s["at"])
     return s
 
 
 @app.delete("/api/schedules/{sid}")
-def delete_schedule(sid: str):
+def delete_schedule(
+    sid: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     items = _schedules()
-    _save_schedules([x for x in items if x["id"] != sid])
+    target = next((item for item in items if item.get("id") == sid), None)
+    if target is not None:
+        refused = _require_run_change(authorization, x_qa_token, str(target.get("from_run") or ""))
+        if refused is not None:
+            return refused
+    if not _save_schedules([x for x in items if x["id"] != sid]):
+        raise HTTPException(400, "The schedule file is a link.")
     _audit("delete_schedule", schedule=sid)
     return {"ok": True, "deleted": len(items) - len(_schedules())}
 
@@ -1661,8 +4627,25 @@ def run_due_schedules(now=None) -> list[str]:
             if not s.get("waiting"):  # (it was due while the UI was open: it waits for the running test)
                 s["waiting"], changed = True, True
             continue
+        owner = str(s.get("principal_id") or "")
+        tenant = str(s.get("tenant_id") or "")
+        if owner or tenant:
+            from backend.tenancy_store import get_principal
+            row = get_principal(owner) if owner else None
+            # A removed person, or a person who is no longer in this tenant, must not start
+            # into the shared baseline or another tenant's folder.
+            if not row or str(row.get("tenant_id") or "") != tenant:
+                s["last_error"] = "the person who scheduled this test is no longer in that tenant"
+                s["waiting"] = False
+                s["next"], changed = _next_time(s, now).isoformat(timespec="minutes"), True
+                continue
         try:
-            job = start_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})))
+            from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
+            token = push_baseline_tenant(tenant)
+            try:
+                job = _launch_run(RunRequest(source=s["source"], authorized=True, **s.get("settings", {})), owner or None)
+            finally:
+                pop_baseline_tenant(token)
             s.update(last=now.isoformat(timespec="minutes"), last_job=job["id"], last_error="", waiting=False)
             started.append(s["id"])
             _audit("scheduled_run", schedule=s["id"], job=job["id"])
@@ -1688,13 +4671,34 @@ class ApproveVisual(BaseModel):
 
 
 @app.post("/api/visual/{run}/approve")
-def approve_visual(run: str, req: ApproveVisual):
+def approve_visual(
+    run: str, req: ApproveVisual,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     """A person approved the new look of these pages: the next runs compare with it (backend/visual.py)."""
+    from backend.my_tests import pop_baseline_tenant, push_baseline_tenant
     from backend.visual import approve
+    reader = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(reader, JSONResponse):
+        return reader
+    tenant = ""
+    if isinstance(reader, str):
+        from backend.tenancy_store import get_principal
+        tenant = str((get_principal(reader) or {}).get("tenant_id") or "")
     d = _run_dir(run)
-    if not (d / "visual.json").exists():
-        raise HTTPException(404, "This run has no visual check.")
-    n = approve(d, req.pages)
+    token = push_baseline_tenant(tenant)
+    try:
+        if (d / "visual.json").is_symlink():
+            raise HTTPException(400, "This run's folder is a link. The look was not approved.")
+        if not (d / "visual.json").exists():
+            raise HTTPException(404, "This run has no visual check.")
+        try:
+            n = approve(d, req.pages)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+    finally:
+        pop_baseline_tenant(token)
     _audit("approve_visual", run=run, pages=n)
     return {"approved": n, "visual": _read_json(d / "visual.json", None)}
 
@@ -1735,7 +4739,7 @@ async def hook_run(request: Request):
     url = url or settings.webhook_test_url
     if not url:
         raise HTTPException(400, 'No website address: send {"url": "https://..."} or set WEBHOOK_TEST_URL in .env.')
-    job = start_run(RunRequest(source=str(url), authorized=True))
+    job = _launch_run(RunRequest(source=str(url), authorized=True), None)
     _audit("webhook_run", job=job["id"], event=event or "hook")
     return {"ok": True, "started": True, "job": job["id"]}
 
@@ -1783,7 +4787,10 @@ def _take_over(port: int) -> str:
 
 @app.get("/qa-lab")
 def qa_lab():
-    return FileResponse(STATIC / "qa-lab.html")
+    page = _studio_file("qa-lab.html")
+    if page is None:
+        raise HTTPException(404, "The Studio page is a link.")
+    return FileResponse(page)
 
 
 @app.get("/api/contracts/schema")
@@ -1825,12 +4832,22 @@ CONTRACT_EXAMPLES = {
 WEB_CONTRACT_EXAMPLE_IDS = {'chrome-dropdown', 'ecommerce-web'}
 
 
+def _demo_contract_file(filename: str) -> Path | None:
+    """A real demo contract. A link, or a name that leaves demo-apps, is refused."""
+    from .finalization import folder_is_linked
+    path = ROOT / "demo-apps" / filename
+    if (not filename or Path(filename).is_absolute() or ".." in Path(filename).parts
+            or folder_is_linked(path) or not path.is_file()):
+        return None
+    return path
+
+
 @app.get('/api/contracts/examples')
 def contract_examples():
     return {'examples': [{'id': key, 'name': name,
                           'app_mode': 'web' if key in WEB_CONTRACT_EXAMPLE_IDS else 'native'}
                          for key, (name, filename) in CONTRACT_EXAMPLES.items()
-                         if (ROOT / 'demo-apps' / filename).is_file()]}
+                         if _demo_contract_file(filename) is not None]}
 
 
 @app.get('/api/contracts/examples/{example_id}')
@@ -1839,8 +4856,8 @@ def contract_example(example_id: str):
     if example_id not in CONTRACT_EXAMPLES:
         raise HTTPException(404, 'Unknown test-flow example')
     name, filename = CONTRACT_EXAMPLES[example_id]
-    path = ROOT / 'demo-apps' / filename
-    if not path.is_file():
+    path = _demo_contract_file(filename)
+    if path is None:
         raise HTTPException(404, 'This test-flow example is unavailable')
     contract = parse_contract(path.read_text(encoding='utf-8'))
     return {'name': name, 'contract': contract.model_dump(mode='json', exclude_defaults=True, exclude_none=True),
@@ -1866,8 +4883,25 @@ def validate_qa_contract(payload: dict):
 
 
 @app.post("/api/qa/benchmark")
-def qa_benchmark(manifest: dict):
+def qa_benchmark(
+    manifest: dict,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
     from backend.qa_benchmark import save_showcase
+    caller = _signed_in_reader(authorization, x_qa_token, "run.read")
+    if isinstance(caller, JSONResponse):
+        return caller
+    if isinstance(caller, str):
+        from backend.tenancy_store import assert_run_access
+        names: list[str] = []
+        for group in (manifest or {}).get("groups") or []:
+            if isinstance(group, dict):
+                names.extend(str(name) for name in (group.get("runs") or []))
+        for name in names:
+            access = assert_run_access(principal_id=caller, run_id=name, audit=False)
+            if not access.get("allowed"):
+                return JSONResponse({"detail": access.get("reason") or "forbidden"}, status_code=403)
     run_id = "qa_showcase_" + time.strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
     directory = RUNS / run_id
     try:
@@ -1877,6 +4911,12 @@ def qa_benchmark(manifest: dict):
         if directory.is_dir():
             shutil.rmtree(directory)
         raise HTTPException(400, "Cannot benchmark these runs: " + str(error)[:400]) from error
+    if isinstance(caller, str):
+        from backend.tenancy_store import get_principal, index_run, upsert_tenant
+        tenant = str((get_principal(caller) or {}).get("tenant_id") or "")
+        if re.fullmatch(r"[\w.-]+", tenant):
+            upsert_tenant(tenant, tenant)
+            index_run(run_id, tenant, source="qa-benchmark", verdict=str((result or {}).get("precision") or ""))
     return {"run": run_id, "report": f"/runs/{run_id}/report.html", "measurement": result}
 
 
@@ -1905,7 +4945,7 @@ def component_inventory(run: str, page: str | None = None, offset: int = 0, limi
 # These read-only views have no optional MCP SDK dependency.
 from backend.mcp_api import register_mcp_api  # noqa: E402 - register views after their shared handlers exist
 
-register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence)
+register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence, _mcp_visible_job)
 register_privacy_api(app, jobs, lock, mcp_presence,
                      lambda: any(r.get("running") for r in rechecks.values()))
 

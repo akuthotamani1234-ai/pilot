@@ -1,0 +1,20 @@
+{
+  "gate_b_complete": false,
+  "drill": "redis_swarm_contention",
+  "ran_at": "2026-11-19T05:46:08Z",
+  "backend": "redis",
+  "redis_url_set": true,
+  "run_id": "swarm-contention-1795067167",
+  "claimed_a": [
+    "106f40370ee54ff295587f9503f1c5e3",
+    "a2353757bc684734a938a02ebdd525f9"
+  ],
+  "claimed_b": [
+    "0093912920ee47fda9765a498bb8bf5c",
+    "bb15b2bac7d7471ab86830f3f73831cc"
+  ],
+  "overlap": [],
+  "total_claimed": 4,
+  "ok": true,
+  "reason": "Redis swarm contention: workers claimed 4 distinct tasks (a=2, b=2, overlap=0); product-wide review still open"
+}

@@ -21,6 +21,10 @@ SAFE_SETTINGS = ("allowed_hosts", "environment", "allow_actions", "test_payment"
 
 
 def _json(path: Path, default):
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -42,10 +46,17 @@ def verdict(r: dict | None) -> str:
 
 def recheck(run_dir: Path, nodeids: list[str]) -> dict:
     """Run these tests of the run again. Returns {nodeid: {verdict, outcome, error, screenshot, when}} + a note."""
+    from .agents.change_detection import run_read_block
     from .agents.discovery import restore_login
     from .agents.executor import _read, _relative, _run_pytest
     from .agents.failure_analysis import _short_error
+    from .finalization import folder_is_linked
     run_dir = Path(run_dir)
+    if folder_is_linked(run_dir):
+        return {"results": {}, "note": "This run's folder is a link. It was not re-checked."}
+    blocked = run_read_block(run_dir, "generated_tests", "run_args.json", "recheck.json", "failures.json", ".private")
+    if blocked:
+        return {"results": {}, "note": blocked + " It was not re-checked."}
     saved = _json(run_dir / "run_args.json", {})
     for k, v in (saved.get("settings") or {}).items():  # (the run's own scope and limits - never a secret)
         if k in SAFE_SETTINGS and hasattr(settings, k):

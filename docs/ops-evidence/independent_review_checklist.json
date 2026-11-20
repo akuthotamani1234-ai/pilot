@@ -1,0 +1,9 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_checklist",
+  "ran_at": "2026-11-18T20:05:00Z",
+  "ok": true,
+  "checklist": "docs/INDEPENDENT_REVIEW_CHECKLIST.md",
+  "signed_off": false,
+  "reason": "Independent review checklist published; human/independent sign-off still pending — Gate G review remains open"
+}

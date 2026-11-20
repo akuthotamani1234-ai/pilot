@@ -1,0 +1,20 @@
+{
+  "gate_b_complete": false,
+  "drill": "swarm_lease_expiry_retry",
+  "ran_at": "2026-11-18T19:24:21Z",
+  "backend": "redis",
+  "redis_url_set": true,
+  "run_id": "swarm-retry-1795029861",
+  "task_id": "d7c4f82fb47340c7b4fc1328f468ef68",
+  "claimed": true,
+  "lease_forced_expired": true,
+  "recovered_ids": [
+    "d7c4f82fb47340c7b4fc1328f468ef68"
+  ],
+  "status_after_recover": "retry_wait",
+  "error_class": "lease_expired",
+  "reclaimed": true,
+  "reclaim_attempt": 2,
+  "ok": true,
+  "reason": "Swarm lease-expiry\u2192retry_wait drill on redis; product-wide durable supervisor review still open"
+}

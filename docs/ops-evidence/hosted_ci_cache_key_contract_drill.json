@@ -1,0 +1,53 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_cache_key_contract",
+  "ran_at": "2026-11-19T05:50:24Z",
+  "kind": "contract_only",
+  "contract": {
+    "android": {
+      "keys": [
+        "qpilot-android-${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}",
+        "qpilot-android-${{ runner.os }}-avd-api${{ matrix.api }}"
+      ],
+      "restore_keys": [
+        "qpilot-android-${{ runner.os }}-pip-",
+        "qpilot-android-${{ runner.os }}-avd-"
+      ],
+      "workflow": {
+        "path": ".github/workflows/android-appium.yml",
+        "present": true,
+        "actions_cache_mentioned": true,
+        "workflow_dispatch": true
+      }
+    },
+    "browsers": {
+      "keys": [
+        "qpilot-browsers-${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}",
+        "qpilot-browsers-${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}"
+      ],
+      "restore_keys": [
+        "qpilot-browsers-${{ runner.os }}-pip-",
+        "qpilot-browsers-${{ runner.os }}-playwright-"
+      ],
+      "workflow": {
+        "path": ".github/workflows/multi-browser-portfolios.yml",
+        "present": true,
+        "actions_cache_mentioned": true,
+        "workflow_dispatch": true
+      }
+    },
+    "note": "Cache-key contract only; live hosted multi-device/browser runners still required"
+  },
+  "live_hosted_runners": false,
+  "local_partial_present": [
+    "hosted_ci_runner_matrix_drill.json",
+    "hosted_ci_timeout_budget_drill.json",
+    "hosted_ci_concurrency_contract_drill.json",
+    "hosted_runner_os_matrix_contract_drill.json",
+    "workflow_dispatch_contract_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted CI cache-key contract recorded (5/5 local partials); broad hosted multi-device/browser runners still open"
+}

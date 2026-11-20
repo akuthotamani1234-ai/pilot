@@ -1,0 +1,94 @@
+"""Gate D: multi-device Appium artifact manifest for hosted CI upload shape.
+
+Hashes Android matrix / Appium evidence into a CI-upload-shaped manifest.
+Does **not** run broad multi-device hosted runners — ``gate_d_complete`` stays
+False.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "device_artifact_manifest_drill.json"
+
+REQUIRED = (
+    "android_appium_product_matrix_drill.json",
+    "android_emulator_smoke_drill.json",
+    "android_emulator_smoke_api24_drill.json",
+    "multi_api_android_matrix_drill.json",
+    "device_matrix_drill.json",
+    "cross_platform_journey_drill.json",
+    "multi_device_ci_contract.json",
+    "android_appium_ci_contract.json",
+)
+
+
+def _linked_manifest() -> dict:
+    return {
+        "gate_d_complete": False,
+        "ok": False,
+        "drill": "device_artifact_manifest",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_device_artifact_manifest_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    out_name = "device_artifact_manifest_drill.json"
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_manifest()
+    ops = ROOT / "docs" / "ops-evidence"
+    if folder_is_linked(ops):
+        return _linked_manifest()
+    artifacts: list[dict] = []
+    missing: list[str] = []
+    for name in REQUIRED:
+        path = ops / name
+        if folder_is_linked(path) or not path.is_file():
+            missing.append(name)
+            continue
+        artifacts.append({
+            "name": name,
+            "bytes": path.stat().st_size,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "ci_upload_path": f"docs/ops-evidence/{name}",
+        })
+    evidence = {
+        "gate_d_complete": False,
+        "drill": "device_artifact_manifest",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "manifest_only",
+        "required": list(REQUIRED),
+        "artifacts": artifacts,
+        "missing": missing,
+        "api_levels": [24, 30, 34],
+        "workflow": ".github/workflows/android-appium.yml",
+        "workflow_exists": (
+            not folder_is_linked(ROOT / ".github" / "workflows" / "android-appium.yml")
+            and (ROOT / ".github" / "workflows" / "android-appium.yml").is_file()
+        ),
+        "ok": not missing and (
+            not folder_is_linked(ROOT / ".github" / "workflows" / "android-appium.yml")
+            and (ROOT / ".github" / "workflows" / "android-appium.yml").is_file()
+        ),
+        "reason": (
+            f"Device/Appium artifact manifest {len(artifacts)}/{len(REQUIRED)} "
+            "hashed for CI upload shape; broad multi-device CI runners still open"
+        ),
+    }
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_manifest()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, json.dumps(evidence, indent=2)):
+        return _linked_manifest()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops" / "device_artifact_manifest_drill.json"
+        if not folder_is_linked(art) and not folder_is_linked(art.parent):
+            art.parent.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art.parent, art.name, json.dumps(evidence, indent=2))
+    return evidence

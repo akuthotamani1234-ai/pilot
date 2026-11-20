@@ -14,24 +14,74 @@ ROOT = Path(__file__).resolve().parent.parent
 RUNS = ROOT / "runs"
 
 
+def prepare_android_run(runs: Path, run_id: str) -> Path:
+    """Create this run's private folder. A link is refused before anything is written."""
+    runs = Path(runs)
+    if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
+        raise ValueError("The Android run is a link.")
+    if _path_is_linked(runs):
+        raise ValueError("The runs folder is a link.")
+    directory = runs / run_id
+    private = directory / ".private"
+    if any(path.is_symlink() for path in (
+            directory, private, private / "app.apk", private / "android_config.json", directory / "repeat.log",
+            directory / "report.html", directory / "summary.json")):
+        raise ValueError("The Android run is a link.")
+    private.mkdir(parents=True)
+    return directory
+
+
+def _path_is_linked(path: Path) -> bool:
+    """True when this file, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
 def _read_config(path: Path) -> tuple[dict, Path]:
-    path = path.resolve()
+    path = Path(path)
+    if _path_is_linked(path):
+        raise AndroidEnvironmentError("The Android run is a link.")
+    resolved = path.resolve()
     try:
-        relative = path.relative_to(RUNS.resolve())
+        relative = resolved.relative_to(RUNS.resolve())
     except ValueError as e:
         raise AndroidEnvironmentError("Android run configuration must be inside the runs folder.") from e
-    if path.parent.name != ".private" or not path.is_file() or len(relative.parts) != 3:
+    if resolved.parent.name != ".private" or not resolved.is_file() or len(relative.parts) != 3:
         raise AndroidEnvironmentError("Android run configuration is missing or is not in a private run folder.")
-    run_dir = path.parent.parent
+    run_dir = resolved.parent.parent
     config = json.loads(path.read_text(encoding="utf-8"))
     config = validate_mobile_config(config)
     if config["app_mode"] == "apk":
-        apk = Path(config.get("apk_path", "")).resolve()
+        apk = Path(config.get("apk_path", ""))
+        if _path_is_linked(apk):
+            raise AndroidEnvironmentError("The Android run is a link.")
         try:
-            apk.relative_to((run_dir / ".private").resolve())
+            apk.resolve().relative_to((run_dir / ".private").resolve())
         except ValueError as e:
             raise AndroidEnvironmentError("The APK must be stored in this run's private upload folder.") from e
     return config, run_dir
+
+
+def write_android_failure(run_dir: Path, run_id: str, source: str, message: str) -> bool:
+    """Write the short failure report. A linked report or summary is left untouched."""
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(run_dir):
+        return False
+    body = ("<!doctype html><meta charset='utf-8'><h1>Insufficient Evidence</h1><p>"
+            + html.escape(message) + "</p>")
+    summary = json.dumps({
+        "target_type": "android",
+        "run_id": run_id,
+        "source": source,
+        "verdict": "Insufficient Evidence",
+        "incomplete": True,
+        "reasons": [message],
+    })
+    wrote_report = write_text_unless_linked(run_dir, "report.html", body)
+    wrote_summary = write_text_unless_linked(run_dir, "summary.json", summary)
+    return wrote_report and wrote_summary
 
 
 def main() -> int:
@@ -111,25 +161,9 @@ def main() -> int:
     except Exception as e:
         traceback.print_exc()
         message = redact(str(e))[:500]
-        report_path = run_dir / "report.html"
-        report_path.write_text(
-            "<!doctype html><meta charset='utf-8'><h1>Insufficient Evidence</h1><p>" + html.escape(message) + "</p>",
-            encoding="utf-8",
-        )
-        (run_dir / "summary.json").write_text(
-            json.dumps(
-                {
-                    "target_type": "android",
-                    "run_id": run_id,
-                    "source": source,
-                    "verdict": "Insufficient Evidence",
-                    "incomplete": True,
-                    "reasons": [message],
-                }
-            ),
-            encoding="utf-8",
-        )
-        final = {"verdict": "Insufficient Evidence", "report_path": str(report_path)}
+        if not write_android_failure(run_dir, run_id, source, message):
+            return 2
+        final = {"verdict": "Insufficient Evidence", "report_path": str(run_dir / "report.html")}
     finally:
         runctl.finished()
         (run_dir / "STOP").unlink(missing_ok=True)

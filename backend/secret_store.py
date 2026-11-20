@@ -58,25 +58,49 @@ def unprotect(value: str, method: str) -> str:
     return value
 
 
-def save_account(site_key: str, account: dict, folder: Path = ACCOUNTS) -> Path:
+def _account_path(folder: Path, site_key: str) -> Path | None:
+    key = str(site_key or "")
+    if not key or key in {".", ".."} or "/" in key or "\\" in key or key != Path(key).name:
+        return None
+    from .finalization import folder_is_linked
+    folder = Path(folder)
+    if folder_is_linked(folder):
+        return None
+    dest = folder / f"{key}.json"
+    if dest.is_symlink():
+        return None
+    return dest
+
+
+def save_account(site_key: str, account: dict, folder: Path = ACCOUNTS) -> Path | None:
     """Save a created test account. The password is encrypted; nothing else is secret."""
-    folder.mkdir(exist_ok=True)
+    dest = _account_path(folder, site_key)
+    if dest is None:
+        return None
+    from .finalization import folder_is_linked
+    if folder_is_linked(folder):
+        return None
+    if not folder.exists():
+        folder.mkdir(exist_ok=True)
+    if folder_is_linked(folder) or dest.is_symlink():
+        return None
     secret, method = protect(account["password"])
     data = {k: v for k, v in account.items() if k != "password"}
     data.update(secret=secret, protection=method)
-    f = folder / f"{site_key}.json"
-    f.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    dest.write_text(json.dumps(data, indent=2), encoding="utf-8")
     if method != "dpapi":
         try:
-            os.chmod(f, 0o600)
+            os.chmod(dest, 0o600)
         except OSError:
             pass
-    return f
+    return dest
 
 
 def load_account(site_key: str, folder: Path = ACCOUNTS) -> dict | None:
     """The saved account with its password decrypted (in memory only), or None."""
-    f = folder / f"{site_key}.json"
+    f = _account_path(folder, site_key)
+    if f is None:
+        return None
     try:
         a = json.loads(f.read_text(encoding="utf-8"))
     except (OSError, ValueError):

@@ -135,6 +135,12 @@ Other settings you may want:
 - `VISION` (default `auto`): the AI looks at screenshots (on with a cloud AI or an Ollama vision model; `on` / `off`).
 - `TEST_RETRIES` (default 0): run failed tests again to spot flaky ones (1 = once).
 - `UI_PORT` (default 8000): the web UI's port.
+- Optional Studio SSO: `QPILOT_SSO_EXPECTED_STATE` and `QPILOT_SSO_EXPECTED_NONCE`. When set, `/api/sso/callback` rejects a mismatched OIDC state or ID-token nonce. `QPILOT_SSO_REPLAY_JTI=1` rejects a repeated or missing JWT `jti`. `QPILOT_OIDC_REDIRECT_ALLOWLIST` rejects a callback URI that is not listed. `QPILOT_OIDC_PKCE_REQUIRED=1` rejects a token exchange that has no `code_verifier` (the callback query or `QPILOT_OIDC_CODE_VERIFIER`). A future `nbf` is always rejected. Hosted IdP login stays open.
+- Optional enterprise URLs (`POSTGRES_URL`, `REDIS_URL`, `OBJECT_STORE_URI`): leave empty for local-first mode.
+  A URL alone does not enable Postgres/Redis/MinIO until those adapters are wired and verified.
+- Schema SQL lives in `migrations/`. Apply offline with
+  `python -c "from backend.migrate import apply_migrations; print(apply_migrations())"`
+  (SQLite default). Postgres apply/isolation drills are not established yet.
 
 **`.env` holds your keys. Never share it, copy it to another person or put it in a repository.** `.env.example` is
 the empty template that is shared. Git ignores `.env` (see `.gitignore`).
@@ -315,6 +321,21 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   are never sent.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
+- `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.
+- `QPILOT_DASHBOARD_AUTH` (optional): `none` | `bearer` | `webhook` | `principal` | `oidc`. Webhook also accepts
+  `X-QA-Token` / `WEBHOOK_TOKEN`; principal resolves Bearer `<principal_id>` via tenancy RBAC; `oidc` validates JWT
+  iss/aud/exp. Gate I still needs live hosted SSO before it can be marked complete.
+- `QPILOT_TENANT_ID` (optional): when set, finished runs are indexed into SQLite tenancy for
+  `GET /api/tenancy/runs` (principal mode). Cross-tenant denials are audited. Studio SSO still required for Gate G.
+- `QPILOT_OIDC_ISSUER` / `QPILOT_OIDC_CLIENT_ID` / `QPILOT_OIDC_AUDIENCE` / `QPILOT_DASHBOARD_HOST` (optional): declare
+  intended SSO/hosting contracts. `POST /api/sso/validate-bearer` checks JWT iss/aud/exp (and signature when
+  `PyJWT` + JWKS are available). Loopback drill: `POST /api/ops/drills/loopback-sso` — hosted IdP SSO still open.
+  Configuration alone never completes Gate I — live IdP login still required.
+- `REDIS_URL` (optional): when set, discovery swarm DurableQueue prefers Redis (else per-run SQLite).
+- `POSTGRES_URL` / `REDIS_URL` / `OBJECT_STORE_URI` (optional): live drills via
+  `POST /api/ops/drills/postgres-isolation`, `/redis-queue`, `/minio`. Evidence under `docs/ops-evidence/`.
+  Gate G stays incomplete without Studio SSO/multi-tenant ACLs and independent review.
+- `ADMIN_PORTAL_URL` (optional): use the AdminPortal `remote_delete` lifecycle adapter for Gate C cleanup.
 
 ## 7. AI cost
 Every AI call is logged with its tokens (`runs/<run>/llm_usage.jsonl`); `cost.json` holds the final breakdown.

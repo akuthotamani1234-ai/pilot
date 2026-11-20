@@ -58,3 +58,200 @@ def test_input(page):
     assert any(e["status"] == "running" and "Type" in e["text"] for e in events)
     assert any(e["status"] == "passed" for e in events)
     assert secret not in json.dumps(events)
+
+
+def test_a_test_suite_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    secret = b"tenant-b-only-suite"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "results.jsonl").write_bytes(secret)
+    (other / "results_junit.xml").write_bytes(secret)
+    (other / "results_pytest_output.txt").write_bytes(secret)
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (run / "results.jsonl").symlink_to(other / "results.jsonl")
+    (run / "results_junit.xml").symlink_to(other / "results_junit.xml")
+    (run / "results_pytest_output.txt").symlink_to(other / "results_pytest_output.txt")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", explode)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    assert (other / "results.jsonl").read_bytes() == secret
+    assert (other / "results_junit.xml").read_bytes() == secret
+    assert (other / "results_pytest_output.txt").read_bytes() == secret
+
+    (other / "traces").mkdir()
+    (other / "videos").mkdir()
+    (other / "auth.json").write_bytes(secret)
+    (other / "role.json").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    fresh = tmp_path / "fresh"
+    tests = fresh / "generated_tests"
+    tests.mkdir(parents=True)
+    (fresh / "traces").symlink_to(other / "traces", target_is_directory=True)
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    (fresh / "traces").unlink()
+    (fresh / "videos").symlink_to(other / "videos", target_is_directory=True)
+    monkeypatch.setattr(settings, "record_video", True)
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    (fresh / "videos").unlink()
+    private = fresh / ".private"
+    private.mkdir()
+    (private / "auth.json").symlink_to(other / "auth.json")
+    info = _run_pytest({}, tests, fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    (private / "auth.json").unlink()
+    (private / "role.json").symlink_to(other / "role.json")
+    info = _run_pytest({"roles": {"roles": {"shopper": {"state": "role.json"}}}}, tests,
+                       fresh / "results.jsonl", fresh / "screenshots")
+    assert info["stopped"] is True
+    assert (other / "auth.json").read_bytes() == secret
+    assert (other / "role.json").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert list((other / "traces").iterdir()) == []
+    assert list((other / "videos").iterdir()) == []
+
+    owned = tmp_path / "owned"
+    (owned / "generated_tests").mkdir(parents=True)
+    from backend.agents.executor import _env
+    env = _env(owned, owned / "generated_tests", owned / "results.jsonl", owned / "screenshots", {})
+    assert Path(env["QA_RUN_DIR"]) == owned.resolve()
+    assert secret.decode() not in env["QA_RUN_DIR"]
+
+
+def test_a_screenshot_path_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _relative
+
+    secret = "tenant-b-only-shot"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "secret-shot.png").write_bytes(secret.encode())
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    rows = [{"screenshot": str(other / "secret-shot.png"), "trace": str(other / "keep.txt")}]
+    _relative(rows, linked)
+    assert rows[0]["screenshot"] == ""
+    assert rows[0]["trace"] == ""
+    assert "secret-shot" not in json.dumps(rows)
+    assert secret not in json.dumps(rows)
+    assert (other / "secret-shot.png").read_bytes() == secret.encode()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / "screenshots").mkdir(parents=True)
+    shot = real / "screenshots" / "home-own.png"
+    shot.write_bytes(b"home-own")
+    real_rows = [{"screenshot": str(shot)}]
+    _relative(real_rows, real)
+    assert real_rows[0]["screenshot"] == "screenshots/home-own.png"
+    assert secret not in json.dumps(real_rows)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
+def test_a_test_environment_does_not_follow_a_run_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _env
+
+    secret = "tenant-b-only-run"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    (other / "results.jsonl").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    env = _env(linked, linked / "generated_tests", linked / "results.jsonl", linked / "screenshots", {})
+    assert env["QA_RUN_DIR"] == ""
+    assert env["QA_RESULTS_FILE"] == ""
+    assert env["QA_SCREENSHOT_DIR"] == ""
+    assert env["QA_TRACE_DIR"] == ""
+    assert secret not in json.dumps(env)
+    assert str(other) not in json.dumps(env)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert (other / "results.jsonl").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "keep.txt").write_text("home-own", encoding="utf-8")
+    real_env = _env(real, real / "generated_tests", real / "results.jsonl", real / "screenshots", {})
+    assert Path(real_env["QA_RUN_DIR"]) == real.resolve()
+    assert Path(real_env["QA_RESULTS_FILE"]) == (real / "results.jsonl").resolve()
+    assert secret not in json.dumps(real_env)
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
+def test_a_resumed_login_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.discovery import restore_login
+
+    secret = "tenant-b-only-resume"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    private = run / ".private"
+    private.mkdir(parents=True)
+    (private / "auth.json").symlink_to(other / "auth.json")
+    note = restore_login({"login": {"logged_in": True, "page": "https://shop.example/login"}, "run_dir": str(run)})
+    assert "link" in note
+    assert secret not in note
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert not (private / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_private = real / ".private"
+    real_private.mkdir(parents=True)
+    (real_private / "auth.json").write_text('{"cookies":"home-own"}\n', encoding="utf-8")
+    assert restore_login({"login": {"logged_in": True, "page": "https://shop.example/login"}, "run_dir": str(real)}) == ""
+    assert (real_private / "auth.json").read_text(encoding="utf-8") == '{"cookies":"home-own"}\n'
+    assert secret not in (real_private / "auth.json").read_text(encoding="utf-8")
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
+def test_a_saved_login_is_not_passed_to_tests_through_a_link(tmp_path):
+    from backend.agents.executor import _env
+
+    secret = "tenant-b-only-login"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "auth.json").write_text(secret, encoding="utf-8")
+    (other / "role.json").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    private = run / ".private"
+    private.mkdir(parents=True)
+    (run / "generated_tests").mkdir()
+    (private / "auth.json").symlink_to(other / "auth.json")
+    (private / "role.json").symlink_to(other / "role.json")
+    state = {"roles": {"roles": {"shopper": {"state": "role.json"}}}}
+    env = _env(run, run / "generated_tests", run / "results.jsonl", run / "screenshots", state)
+    assert env["QA_AUTH_STATE"] == ""
+    assert env["QA_ROLE_STATES"] == "{}"
+    assert secret not in json.dumps(env)
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "role.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_private = real / ".private"
+    real_private.mkdir(parents=True)
+    (real / "generated_tests").mkdir()
+    (real_private / "auth.json").write_text('{"cookies":"home-own"}\n', encoding="utf-8")
+    (real_private / "role.json").write_text('{"cookies":"home-own-role"}\n', encoding="utf-8")
+    real_env = _env(real, real / "generated_tests", real / "results.jsonl", real / "screenshots", state)
+    assert Path(real_env["QA_AUTH_STATE"]) == (real_private / "auth.json").resolve()
+    assert json.loads(real_env["QA_ROLE_STATES"])["shopper"] == str((real_private / "role.json").resolve())
+    assert secret not in json.dumps(real_env)
+    assert (other / "auth.json").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret

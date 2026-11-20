@@ -230,7 +230,21 @@ class ClassicShop:
 <form id="subscribeFrm" action="index.php?rt=account/subscriber" method="post">
  <input type="text" placeholder="Subscribe to Newsletter" name="email" id="appendedInputButton">
  <button class="btn btn-orange" type="submit">Subscribe</button></form>
-<p>ClassicShop &copy; 2026 · <a id="gotop" href="#">Back to top</a></p></div>"""
+<p>ClassicShop &copy; 2026 · <a id="gotop" href="#">Back to top</a></p>
+<section id="surface-lab" aria-label="Surface discovery lab">
+ <iframe name="classic-help" title="Classic help" src="index.php?rt=content/content&amp;content_id=1" width="120" height="40"></iframe>
+ <img loading="lazy" alt="" width="1" height="1" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+ <input type="file" id="classic-avatar" accept="image/*" aria-label="Avatar upload">
+ <shop-badge></shop-badge>
+ <script>
+ customElements.define('shop-badge', class extends HTMLElement {
+   connectedCallback() {
+     const r = this.attachShadow({mode:'open'});
+     r.innerHTML = '<span>Classic surface badge</span>';
+   }
+ });
+ </script>
+</section></div>"""
 
             def _page(self, title, body, status=200, route="", base=False):
                 css_class = (route or "index/home").replace("/", "-")

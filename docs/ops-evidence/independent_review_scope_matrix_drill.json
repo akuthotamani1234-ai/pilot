@@ -1,0 +1,151 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_scope_matrix",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "kind": "unsigned_scope_matrix",
+  "gates": [
+    {
+      "gate": "A",
+      "label": "Durable swarm / checkpoint",
+      "artifacts": [
+        "swarm_control_drill.json",
+        "redis_durable_queue_drill.json"
+      ],
+      "present": [
+        "swarm_control_drill.json",
+        "redis_durable_queue_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "B",
+      "label": "DemoStore mutation / seeded defects",
+      "artifacts": [
+        "mutation_score_drill.json"
+      ],
+      "present": [
+        "mutation_score_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "C",
+      "label": "Classic/Admin/Travel mutation",
+      "artifacts": [
+        "classic_mutation_score_drill.json"
+      ],
+      "present": [
+        "classic_mutation_score_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "D",
+      "label": "Android / multi-device CI",
+      "artifacts": [
+        "android_device_ci_readiness_pack_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
+      ],
+      "present": [
+        "android_device_ci_readiness_pack_drill.json",
+        "hosted_ci_artifact_gate_pack_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "E",
+      "label": "Production healing suite",
+      "artifacts": [
+        "production_healing_acceptance_gate_drill.json",
+        "production_healing_suite_pack_drill.json"
+      ],
+      "present": [
+        "production_healing_acceptance_gate_drill.json",
+        "production_healing_suite_pack_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "F",
+      "label": "Multi-browser portfolio CI",
+      "artifacts": [
+        "browser_portfolio_ci_readiness_pack_drill.json",
+        "multi_browser_portfolio_suite_drill.json"
+      ],
+      "present": [
+        "browser_portfolio_ci_readiness_pack_drill.json",
+        "multi_browser_portfolio_suite_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "G",
+      "label": "Independent review sign-off",
+      "artifacts": [
+        "independent_review_handoff_pack_drill.json",
+        "independent_review_findings_template_drill.json",
+        "INDEPENDENT_REVIEW_FINDINGS.md"
+      ],
+      "present": [
+        "independent_review_handoff_pack_drill.json",
+        "independent_review_findings_template_drill.json",
+        "INDEPENDENT_REVIEW_FINDINGS.md"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "H",
+      "label": "Hosted multi-region DR / on-call",
+      "artifacts": [
+        "hosted_dr_cutover_checklist_drill.json",
+        "multi_region_dr_readiness_pack_drill.json"
+      ],
+      "present": [
+        "hosted_dr_cutover_checklist_drill.json",
+        "multi_region_dr_readiness_pack_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "I",
+      "label": "Hosted IdP Studio SSO",
+      "artifacts": [
+        "studio_sso_login_path_drill.json",
+        "hosted_idp_claim_map_completeness_drill.json",
+        "oidc_acl_matrix_pack_drill.json"
+      ],
+      "present": [
+        "studio_sso_login_path_drill.json",
+        "hosted_idp_claim_map_completeness_drill.json",
+        "oidc_acl_matrix_pack_drill.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    },
+    {
+      "gate": "J",
+      "label": "Benchmark / seeded demos",
+      "artifacts": [
+        "remaining_blockers.json"
+      ],
+      "present": [
+        "remaining_blockers.json"
+      ],
+      "ready": true,
+      "reviewed": false
+    }
+  ],
+  "score": 10,
+  "score_of": 10,
+  "signed_off": false,
+  "ok": true,
+  "reason": "Independent review scope matrix 10/10 (unsigned); external sign-off still open"
+}

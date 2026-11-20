@@ -33,8 +33,20 @@ class Manifest(Model):
 def run_path(root, name):
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,150}", name):
         raise ValueError("Use run IDs, not filesystem paths")
-    path = (Path(root) / name).resolve(strict=True)
-    path.relative_to(Path(root).resolve())
+    root_path = Path(root)
+    path = root_path / name
+    # Resolving a link named like one run still lands inside runs/ and would
+    # read the other run. A folder on the way to the runs folder is the same.
+    from .finalization import folder_is_linked
+    if folder_is_linked(root_path) or path.is_symlink():
+        raise ValueError("Run directory must stay inside runs.")
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(root_path.resolve())
+    except (OSError, ValueError) as exc:
+        raise ValueError("Use run IDs, not filesystem paths") from exc
+    if resolved.parent != root_path.resolve():
+        raise ValueError("Use run IDs, not filesystem paths")
     return path
 
 
@@ -50,7 +62,11 @@ def measure(root, value):
             raise ValueError("Known outcomes must be passed (clean) or failed (known defect)")
         for run in group.runs:
             directory = run_path(root, run)
-            results = json.loads((directory / "results.json").read_text(encoding="utf-8"))
+            results_file = directory / "results.json"
+            from .finalization import folder_is_linked
+            if results_file.is_symlink() or folder_is_linked(results_file.parent):
+                raise ValueError("Run directory must stay inside runs.")
+            results = json.loads(results_file.read_text(encoding="utf-8"))
             by_id = defaultdict(list)
             for result in results:
                 by_id[result.get("id") or result.get("test", "").removeprefix("test_")].append(result)
@@ -118,10 +134,17 @@ def measure(root, value):
 
 
 def save_showcase(root, manifest, output):
+    from .finalization import folder_is_linked
     output = Path(output)
+    benchmark = output / "benchmark.json"
+    report = output / "report.html"
+    if folder_is_linked(output) or benchmark.is_symlink() or report.is_symlink():
+        raise ValueError("The showcase folder is a link.")
     output.mkdir(parents=True, exist_ok=True)
     result = measure(root, manifest)
-    (output / "benchmark.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    if not write_text_unless_linked(output, "benchmark.json", json.dumps(result, indent=2)):
+        raise ValueError("The showcase folder is a link.")
     esc = lambda value: html.escape(str(value), quote=True)  # noqa: E731
     rows = []
     for row in result["rows"]:
@@ -161,7 +184,8 @@ body{margin:0;background:#f0f3fa;color:#17243d;font:16px/1.6 system-ui}main{max-
         "ENV_WHEN": esc(env["measured_at"]),
     }.items():
         document = document.replace(key, str(value))
-    (output / "report.html").write_text(document, encoding="utf-8")
+    if not write_text_unless_linked(output, "report.html", document):
+        raise ValueError("The showcase folder is a link.")
     return result
 
 
@@ -171,31 +195,50 @@ def repeat_android(config_file, repeats, root):
     from datetime import datetime
 
     from .android_pipeline import _run_mobile_process
-    from .android_runner import _read_config
+    from .android_runner import _read_config, prepare_android_run
+    from .finalization import write_text_unless_linked
 
+    root = Path(root)
+    if root.is_symlink():
+        raise ValueError("The runs folder is a link.")
     config, _ = _read_config(Path(config_file))
     if not 1 <= repeats <= 10:
         raise ValueError("Repeats must be between 1 and 10")
     ids = []
     for index in range(repeats):
         run_id = "repeat_" + datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + str(index + 1)
-        directory = Path(root) / run_id
+        directory = prepare_android_run(root, run_id)
         private = directory / ".private"
-        private.mkdir(parents=True)
         current = dict(config)
         if current["app_mode"] == "apk":
-            shutil.copyfile(current["apk_path"], private / "app.apk")
-            current["apk_path"] = str((private / "app.apk").resolve())
+            dest = private / "app.apk"
+            apk = Path(current["apk_path"])
+            from .android_runner import _path_is_linked
+            if dest.is_symlink() or _path_is_linked(apk):
+                raise ValueError("The Android run is a link.")
+            shutil.copyfile(apk, dest)
+            current["apk_path"] = str(dest.absolute())
+        if not write_text_unless_linked(private, "android_config.json", json.dumps(current)):
+            raise ValueError("The Android run is a link.")
         path = private / "android_config.json"
-        path.write_text(json.dumps(current), encoding="utf-8")
         completed, timed_out = _run_mobile_process(
-            [sys.executable, "-m", "backend.android_runner", "--config", str(path.resolve())], os.environ.copy(), 3600
+            [sys.executable, "-m", "backend.android_runner", "--config", str(path.absolute())], os.environ.copy(), 3600
         )
-        (directory / "repeat.log").write_text(completed.stdout + completed.stderr, encoding="utf-8")
+        if not write_text_unless_linked(directory, "repeat.log", completed.stdout + completed.stderr):
+            raise ValueError("The Android run is a link.")
         if timed_out or not (directory / "results.json").exists():
             raise RuntimeError("The repeat did not finish; inspect its preserved evidence: " + run_id)
         ids.append(run_id)
     return ids
+
+
+def load_manifest(path: Path) -> dict:
+    """The showcase manifest. A link is not this install's known-truth list."""
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if folder_is_linked(path):
+        raise ValueError("The showcase manifest is a link.")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main():
@@ -211,7 +254,7 @@ def main():
     if args.config:
         print(json.dumps({"runs": repeat_android(args.config, args.repeats, args.runs_root)}, indent=2))
     elif args.manifest:
-        result = save_showcase(args.runs_root, json.loads(args.manifest.read_text(encoding="utf-8")), args.out)
+        result = save_showcase(args.runs_root, load_manifest(args.manifest), args.out)
         print(json.dumps({k: v for k, v in result.items() if k != "rows"}, indent=2))
     else:
         parser.error("Provide --manifest or --config")

@@ -76,27 +76,36 @@ def _local_appium_url(server_url: str) -> str:
 
 
 def _adb_path() -> str | None:
+    from .finalization import folder_is_linked
     found = shutil.which("adb")
     if found:
         return found
     sdk = _sdk_path()
     if sdk:
         candidate = Path(sdk) / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")
-        if candidate.is_file():
+        if not folder_is_linked(candidate) and candidate.is_file():
             return str(candidate)
     return None
 
 
 def _sdk_path() -> str | None:
+    from .finalization import folder_is_linked
     sdk = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")
-    if sdk and Path(sdk).is_dir():
+    sdk_path = Path(sdk) if sdk else None
+    if sdk_path and folder_is_linked(sdk_path):
+        sdk = None
+        sdk_path = None
+    if sdk_path and sdk_path.is_dir():
         return sdk
     local = os.environ.get("LOCALAPPDATA")
     candidate = Path(local) / "Android" / "Sdk" if local else None
-    return str(candidate) if candidate and candidate.is_dir() else sdk
+    if candidate and not folder_is_linked(candidate) and candidate.is_dir():
+        return str(candidate)
+    return sdk
 
 
 def _appium_path() -> str | None:
+    from .finalization import folder_is_linked
     found = shutil.which("appium")
     if found:
         return found
@@ -111,22 +120,26 @@ def _appium_path() -> str | None:
         if local
         else None
     )
-    return str(candidate) if candidate and candidate.is_file() else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
+        return str(candidate)
+    return None
 
 
 def _java_path() -> str | None:
+    from .finalization import folder_is_linked
     home = os.environ.get("JAVA_HOME")
-    candidate = Path(home) / "bin" / ("java.exe" if os.name == "nt" else "java") if home else None
-    if candidate and candidate.is_file():
+    name = "java.exe" if os.name == "nt" else "java"
+    candidate = Path(home) / "bin" / name if home else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
         return str(candidate)
     found = shutil.which("java")
     if found:
         return found
     local = os.environ.get("LOCALAPPDATA")
-    candidate = (
-        Path(local) / "BlowAI" / "jdk-21" / "bin" / ("java.exe" if os.name == "nt" else "java") if local else None
-    )
-    return str(candidate) if candidate and candidate.is_file() else None
+    candidate = Path(local) / "BlowAI" / "jdk-21" / "bin" / name if local else None
+    if candidate and not folder_is_linked(candidate) and candidate.is_file():
+        return str(candidate)
+    return None
 
 
 def _run_cli(program: str, args: list[str], timeout: int) -> subprocess.CompletedProcess:
@@ -155,6 +168,9 @@ def _uiautomator_installation() -> str | None:
     package = home / "node_modules" / "appium-uiautomator2-driver"
     manifest = home / "node_modules" / ".cache" / "appium" / "extensions.yaml"
     try:
+        from .finalization import folder_is_linked
+        if folder_is_linked(manifest) or folder_is_linked(package):
+            return None
         if manifest.stat().st_size > 262144:
             return None
         drivers = manifest.read_text(encoding="utf-8").split("\nplugins:", 1)[0]
@@ -347,6 +363,10 @@ def require_device(device_id: str, devices: list[dict]) -> None:
 
 def validate_apk(path: Path) -> Path:
     """Validate an APK from controlled storage, including archive structure and size."""
+    from .finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path):
+        raise AndroidEnvironmentError("The Android package is a link.")
     path = path.resolve()
     if path.suffix.lower() != ".apk":
         raise AndroidEnvironmentError("Upload an Android .apk file (filename must end with .apk).")
@@ -573,18 +593,18 @@ def validate_mobile_config(config: dict) -> dict:
 
 def _managed_web_chromedriver(config: dict) -> str | None:
     """Reuse an installed managed driver only when its major matches device Chrome."""
+    from .finalization import folder_is_linked
     root = Path(__file__).resolve().parent.parent
     candidates = [root / "tools" / "chromedriver" / "chromedriver.exe",
                   root / "runs" / "android_verification_tools" / "chromedriver.exe"]
     adb = _adb_path()
-    if not adb or not any(p.is_file() for p in candidates):
+    owned = [path for path in candidates if not folder_is_linked(path) and path.is_file()]
+    if not adb or not owned:
         return None
     try:
         installed = _run_cli(adb, ["-s", config["device_id"], "shell", "dumpsys", "package", "com.android.chrome"], 10)
         chrome = re.search(r"versionName=(\d+)\.", installed.stdout)
-        for candidate in candidates:
-            if not candidate.is_file():
-                continue
+        for candidate in owned:
             version = _run_cli(str(candidate), ["--version"], 5)
             driver = re.search(r"ChromeDriver (\d+)\.", version.stdout)
             if chrome and driver and chrome[1] == driver[1] and version.returncode == 0:
@@ -920,7 +940,10 @@ def capture_screenshot(driver, run_dir: Path, name: str, package_name: str | Non
     """Evidence stays inside the run. A failed capture must not mask the original failure."""
     if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
         raise ValueError("Invalid evidence name")
+    from .finalization import folder_is_linked
     path = run_dir / "screenshots" / (name + ".png")
+    if folder_is_linked(run_dir) or folder_is_linked(path.parent) or path.is_symlink():
+        return None
     path.parent.mkdir(exist_ok=True)
     try:
         if getattr(driver, "current_context", "NATIVE_APP") != "NATIVE_APP":

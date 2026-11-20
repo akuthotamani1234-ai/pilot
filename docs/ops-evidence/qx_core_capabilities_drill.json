@@ -1,0 +1,115 @@
+{
+  "gate_complete": false,
+  "drill": "qx_core_capabilities_a03_a11",
+  "ran_at": "2026-11-18T20:11:42Z",
+  "checks": {
+    "A01_swarm_listing": true,
+    "A01_redis_evidence": true,
+    "A03_coverage_listing": true,
+    "A03_coverage_sources": true,
+    "A04_oracle_ai_blocked": true,
+    "A04_oracle_cart_ok": true,
+    "A04_oracle_bind": true,
+    "A05_lifecycle_prod": true,
+    "A05_lifecycle_customer": true,
+    "A06_sessions": true,
+    "A08_replay_complete": true,
+    "A11_locale": true
+  },
+  "details": {
+    "listing": {
+      "complete": true,
+      "covered": [
+        "https://shop.example/saree-1",
+        "https://shop.example/saree-2",
+        "https://shop.example/about"
+      ],
+      "missed": [],
+      "blocked": [
+        {
+          "url": "https://shop.example/checkout",
+          "reason": "checkout, payment and placing an order are never tested"
+        }
+      ],
+      "unknown": []
+    },
+    "sources": {
+      "complete": false,
+      "missed": [
+        "https://shop.example/b"
+      ],
+      "unknown": [
+        "https://shop.example/wishlist"
+      ]
+    },
+    "oracle": {
+      "cart_ok": true,
+      "assertion_id": "f13183161b5f492eb5500a46fe394d11"
+    },
+    "sessions": {
+      "run_id": "qx-core-drill",
+      "roles": {
+        "shopper": {
+          "vault_ref": "vault:shopper",
+          "state": "session_expired",
+          "access": [
+            {
+              "url": "https://shop.example/orders",
+              "result": "refused"
+            }
+          ]
+        }
+      }
+    },
+    "replay": {
+      "complete_ran": true,
+      "incomplete_missing": [
+        "browser",
+        "seed",
+        "starting_state",
+        "test_data",
+        "network",
+        "screenshots",
+        "assertion"
+      ]
+    },
+    "locale": {
+      "ok": true,
+      "checks": [
+        {
+          "field": "language",
+          "ok": true,
+          "expected": "en",
+          "observed": "en"
+        },
+        {
+          "field": "currency",
+          "ok": true,
+          "expected": "USD",
+          "observed": "USD"
+        },
+        {
+          "field": "date_format",
+          "ok": true,
+          "expected": "MDY",
+          "observed": "MDY"
+        },
+        {
+          "field": "tax",
+          "ok": true,
+          "expected": "0",
+          "observed": "0"
+        },
+        {
+          "field": "offered",
+          "ok": true,
+          "expected": true,
+          "observed": true
+        }
+      ]
+    },
+    "sample": 3
+  },
+  "ok": true,
+  "reason": "QX core capabilities A01/A03\u2013A06/A08/A11 offline drill: 12/12 checks passed; gates stay Partial until hosted/live evidence + independent review"
+}

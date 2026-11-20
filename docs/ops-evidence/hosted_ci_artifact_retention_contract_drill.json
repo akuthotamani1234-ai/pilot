@@ -1,0 +1,61 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_artifact_retention_contract",
+  "ran_at": "2026-11-19T05:22:05Z",
+  "kind": "contract_only",
+  "contract": {
+    "retention_days": 14,
+    "compression": "zip",
+    "android_workflow": ".github/workflows/android-appium.yml",
+    "browser_workflow": ".github/workflows/multi-browser-portfolios.yml",
+    "android_artifact_name": "android-appium-matrix-evidence",
+    "browser_artifact_name": "multi-browser-portfolio-evidence",
+    "note": "Contract only; hosted multi-device/browser runners still open"
+  },
+  "android": {
+    "required": [
+      "android_appium_ci_contract.json",
+      "android_appium_product_matrix_drill.json",
+      "android_emulator_smoke_drill.json",
+      "multi_api_android_matrix_drill.json",
+      "device_matrix_drill.json",
+      "device_artifact_manifest_drill.json",
+      "multi_device_ci_contract.json",
+      "android_device_ci_readiness_pack_drill.json",
+      "hosted_workflow_runner_audit_drill.json"
+    ],
+    "present": [
+      "android_appium_ci_contract.json",
+      "android_appium_product_matrix_drill.json",
+      "android_emulator_smoke_drill.json",
+      "multi_api_android_matrix_drill.json",
+      "device_matrix_drill.json",
+      "device_artifact_manifest_drill.json",
+      "multi_device_ci_contract.json",
+      "android_device_ci_readiness_pack_drill.json",
+      "hosted_workflow_runner_audit_drill.json"
+    ],
+    "missing": []
+  },
+  "browsers": {
+    "required": [
+      "multi_browser_portfolio_suite_drill.json",
+      "portfolio_artifact_manifest_drill.json",
+      "multi_browser_ci_contract.json",
+      "browser_portfolio_ci_readiness_pack_drill.json",
+      "hosted_workflow_runner_audit_drill.json"
+    ],
+    "present": [
+      "multi_browser_portfolio_suite_drill.json",
+      "portfolio_artifact_manifest_drill.json",
+      "multi_browser_ci_contract.json",
+      "browser_portfolio_ci_readiness_pack_drill.json",
+      "hosted_workflow_runner_audit_drill.json"
+    ],
+    "missing": []
+  },
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Hosted CI artifact retention contract recorded (android 9/9, browser 5/5); broad hosted multi-device/browser runners still open"
+}

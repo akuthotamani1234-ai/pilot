@@ -145,3 +145,328 @@ def test_benchmark_records_environment_and_refuses_overall_accuracy(tmp_path):
     assert "environment" in bench and "metric_labels" in bench
     assert "not overall product accuracy" in html.lower()
     assert "overall_accuracy_percent remains unset" in html.lower()
+
+
+def test_a_showcase_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    secret = b"tenant-b-only-showcase"
+    other = tmp_path / "other"
+    nested = other / "showcase"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "benchmark.json").write_bytes(secret)
+    (nested / "report.html").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, {"groups": []}, linked / "showcase")
+    assert sorted(path.name for path in nested.iterdir()) == ["benchmark.json", "keep.txt", "report.html"]
+    assert (nested / "benchmark.json").read_bytes() == secret
+    assert (nested / "report.html").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real_root = tmp_path / "real"
+    run = real_root / "clean_run"
+    run.mkdir(parents=True)
+    (run / "results.json").write_text(json.dumps([
+        {"id": "login", "test": "test_login", "outcome": "passed"},
+    ]), encoding="utf-8")
+    (run / "report.html").write_text("<html></html>", encoding="utf-8")
+    manifest = {"groups": [{"name": "clean", "runs": ["clean_run"], "expected": {"login": "passed"}}]}
+    out = real_root / "showcase"
+    save_showcase(real_root, manifest, out)
+    saved = (out / "benchmark.json").read_bytes()
+    assert b"login" in saved and secret not in saved
+    assert (out / "report.html").is_file() and not (out / "report.html").is_symlink()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_published_report_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import datetime as dt
+
+    import pytest
+
+    from backend.merge import merge_runs
+
+    secret = "tenant-b-only-report"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "benchmark.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    linked_out = tmp_path / "linked-showcase"
+    linked_out.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, {"groups": []}, linked_out)
+    assert json.loads((other / "benchmark.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    run = tmp_path / "clean_run"
+    run.mkdir()
+    (run / "results.json").write_text(json.dumps([
+        {"id": "login", "outcome": "passed", "checks": 1},
+    ]), encoding="utf-8")
+    (run / "report.html").write_text("<html></html>", encoding="utf-8")
+    manifest = {"groups": [{"name": "clean", "runs": ["clean_run"], "expected": {"login": "passed"}}]}
+    showcase = tmp_path / "showcase"
+    showcase.mkdir()
+    (showcase / "benchmark.json").symlink_to(other / "benchmark.json")
+    (showcase / "report.html").symlink_to(other / "report.html")
+    with pytest.raises(ValueError, match="link"):
+        save_showcase(tmp_path, manifest, showcase)
+    assert json.loads((other / "benchmark.json").read_text(encoding="utf-8"))["secret"] == secret
+
+    class _Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 19, 13, 22, 0)
+
+    monkeypatch.setattr("backend.merge.datetime", _Clock)
+    runs = tmp_path / "runs"
+    runs.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], runs)
+    planted = tmp_path / "real-runs"
+    planted.mkdir()
+    merged = planted / "merged_20261119_132200"
+    merged.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], planted)
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    own = tmp_path / "own-runs"
+    own.mkdir()
+    folder = own / "run_a"
+    folder.mkdir()
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["ok"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}, "items": []},
+    }), encoding="utf-8")
+    published = merge_runs([folder], own)
+    assert (published / "summary.json").is_file() and not (published / "summary.json").is_symlink()
+    assert (published / "report.html").is_file()
+    saved = save_showcase(tmp_path, manifest, tmp_path / "own-showcase")
+    assert saved["counts"]["tn"] == 1
+    assert (tmp_path / "own-showcase" / "benchmark.json").is_file()
+
+
+def test_a_merged_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.merge import merge_runs
+
+    secret = b"tenant-b-only-merge"
+    other = tmp_path / "other"
+    nested = other / "runs"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        merge_runs([], linked / "runs")
+    assert list(nested.iterdir()) == [nested / "keep.txt"]
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    folder = real / "run_a"
+    folder.mkdir(parents=True)
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["ok"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}, "items": []},
+    }), encoding="utf-8")
+    published = merge_runs([folder], real)
+    assert published.parent == real
+    assert (published / "summary.json").is_file() and not (published / "summary.json").is_symlink()
+    assert secret not in (published / "summary.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_merged_summary_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.merge import _read, merge_runs
+
+    secret = "tenant-b-only-verdict"
+    other = tmp_path / "other"
+    nested = other / "runs" / "runb"
+    nested.mkdir(parents=True)
+    summary = nested / "summary.json"
+    summary.write_text(json.dumps({
+        "verdict": secret, "pages": 1, "reasons": [secret],
+        "coverage_card": {"pages": {}, "features": {}, "frames": {}, "tests": {}, "data": {}},
+    }), encoding="utf-8")
+    (nested / "crawl.json").write_text(json.dumps({"section": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _read(linked / "runs" / "runb" / "summary.json", None) is None
+    refused_root = tmp_path / "refused"
+    refused_root.mkdir()
+    refused = merge_runs([linked / "runs" / "runb"], refused_root)
+    assert secret not in (refused / "summary.json").read_text(encoding="utf-8")
+    assert secret in summary.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    folder = real / "runa"
+    folder.mkdir(parents=True)
+    (folder / "summary.json").write_text(json.dumps({
+        "verdict": "Ready", "pages": 1, "reasons": ["home-own"],
+        "coverage_card": {"pages": {"found": 1}, "features": {}, "frames": {}, "tests": {}, "data": {}},
+    }), encoding="utf-8")
+    (folder / "crawl.json").write_text("{}", encoding="utf-8")
+    loaded = _read(folder / "summary.json", None)
+    assert loaded["reasons"][0] == "home-own"
+    published = merge_runs([folder], real)
+    text = (published / "summary.json").read_text(encoding="utf-8")
+    assert "home-own" in text
+    assert secret not in text
+    assert secret in summary.read_text(encoding="utf-8")
+
+
+def test_an_accuracy_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.accuracy import write_report
+
+    secret = "tenant-b-only-count"
+    other = tmp_path / "other"
+    nested = other / "reports"
+    nested.mkdir(parents=True)
+    target = nested / "accuracy.json"
+    target.write_text(json.dumps({"note": secret}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert write_report(linked / "reports" / "accuracy.json", {"note": "ours"}) is False
+    assert write_report(linked / "fresh" / "accuracy.json", {"note": "ours"}) is False
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    own = real / "accuracy.json"
+    assert write_report(own, {"note": "home-own"}) is True
+    assert json.loads(own.read_text(encoding="utf-8"))["note"] == "home-own"
+    assert secret not in own.read_text(encoding="utf-8")
+    assert secret in target.read_text(encoding="utf-8")
+
+
+def test_a_discovery_report_or_defect_handoff_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    from backend.config import settings
+    from backend.integrations import create_jira_issues, integrations_agent
+    from backend.privacy import PrivacyPolicy
+
+    secret = "tenant-b-only-handoff"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "jira.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "integrations.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "cart.png").write_bytes(secret.encode())
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    discovery_report({"run_id": "linked", "run_dir": str(linked), "url": "https://shop.test",
+                      "app_map": [], "crawl": {}, "log": []})
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "summary.json").symlink_to(other / "summary.json")
+    (real / "report.html").symlink_to(other / "report.html")
+    (real / "integrations.json").symlink_to(other / "integrations.json")
+    shots = real / "failure_screenshots"
+    shots.mkdir()
+    (shots / "cart.png").symlink_to(other / "cart.png")
+    discovery_report({"run_id": "real", "run_dir": str(real), "url": "https://shop.test",
+                      "app_map": [{"url": "https://shop.test/", "title": "Home", "status": 200}],
+                      "crawl": {}, "log": []})
+    assert (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_symlink()
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    base = tmp_path / "baseline"
+    site = base / "shop"
+    site.mkdir(parents=True)
+    (site / "jira.json").symlink_to(other / "jira.json")
+    monkeypatch.delenv("QPILOT_TENANT_ID", raising=False)
+    monkeypatch.setattr(settings, "baseline_dir", base)
+    monkeypatch.setattr(settings, "slack_webhook_url", "")
+    monkeypatch.setattr(settings, "jira_url", "https://jira.test")
+    monkeypatch.setattr(settings, "jira_email", "qa@shop.test")
+    monkeypatch.setattr(settings, "jira_api_token", "jira-secret-token")
+    monkeypatch.setattr(settings, "jira_project", "QA")
+    monkeypatch.setattr("backend.privacy.load_policy", lambda: PrivacyPolicy(mode="cloud", cloud_consent=True))
+    bodies = []
+
+    class _Response:
+        status_code = 201
+        text = ""
+
+        def json(self):
+            return {"key": "QA-1"}
+
+    class _Session:
+        def __init__(self):
+            self.headers = {}
+            self.auth = None
+
+        def post(self, url, timeout=30, json=None, headers=None, files=None, **kwargs):
+            if files:
+                bodies.append(files["file"][1].read())
+            return _Response()
+
+    monkeypatch.setattr("backend.integrations.requests.Session", _Session)
+    failure = {"category": "product_defect", "confidence": "high", "severity": "high",
+               "test": "test_cart", "page_url": "https://shop.test/cart", "screenshot": "failure_screenshots/cart.png",
+               "bug": {"title": "Cart total"}}
+    state = {"url": "https://shop.test/", "run_dir": str(real), "run_id": "real", "site_key": "shop",
+             "verdict": "Not Ready", "failures": [failure], "log": []}
+    create_jira_issues(state, [failure])
+    integrations_agent(state)
+    assert json.loads((other / "jira.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (real / "integrations.json").is_symlink()
+    assert json.loads((other / "integrations.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert all(secret.encode() not in body for body in bodies)
+
+
+def test_a_consistency_check_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = "tenant-b-only-created"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "created.json").write_text(json.dumps({
+        "created": 77, "deleted": 70, "left": [secret],
+    }), encoding="utf-8")
+    (nested / "app_map.json").write_text(json.dumps([
+        {"frames": [{"status": "testable"} for _ in range(9)]},
+    ]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = json.dumps(metrics.more_checks(None, linked / "run" / "generated_tests"))
+    assert "77 = 70" not in refused
+    assert "9 + 0 + 0 = 9" not in refused
+    assert secret not in refused
+    file_run = tmp_path / "file-link" / "run"
+    (file_run / "generated_tests").mkdir(parents=True)
+    (file_run / "created.json").symlink_to(nested / "created.json")
+    (file_run / "app_map.json").symlink_to(nested / "app_map.json")
+    refused_file = json.dumps(metrics.more_checks(None, file_run / "generated_tests"))
+    assert "77 = 70" not in refused_file
+    assert "9 + 0 + 0 = 9" not in refused_file
+    assert secret in (nested / "created.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "run"
+    (real / "generated_tests").mkdir(parents=True)
+    (real / "created.json").write_text(json.dumps({
+        "created": 1, "deleted": 0, "left": ["home-own"],
+    }), encoding="utf-8")
+    (real / "app_map.json").write_text(json.dumps([
+        {"frames": [{"status": "testable"}]},
+    ]), encoding="utf-8")
+    own = json.dumps(metrics.more_checks(None, real / "generated_tests"))
+    assert "1 = 0 + 1" in own
+    assert "1 + 0 + 0 = 1" in own
+    assert secret not in own
+    assert secret in (nested / "created.json").read_text(encoding="utf-8")

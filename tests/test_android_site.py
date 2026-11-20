@@ -18,6 +18,60 @@ from backend.android_web import BotCheckGate, bot_check, guard_url
 from backend.qa_contracts import origin, parse_contract
 from tests.android_fake_site import BASE, FakeShop
 
+
+def test_a_website_test_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from types import SimpleNamespace
+
+    from backend.android import AndroidEnvironmentError
+    from backend.android_interact import Budget
+    from backend.android_site import SiteDevice, SiteSession
+
+    secret = "tenant-b-only-site"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    calls = []
+
+    class Driver:
+        def __getattr__(self, name):
+            calls.append(name)
+            raise AssertionError(name)
+
+    device = SiteDevice(Driver(), {"start_url": "https://shop.example"}, [], run / "STOP", time.monotonic() + 30, 5)
+    with pytest.raises(AndroidEnvironmentError, match="link") as checked:
+        device._check()
+    assert secret not in str(checked.value)
+    session = SimpleNamespace(device=SimpleNamespace(stop_path=run / "STOP", deadline=time.monotonic() + 30))
+    with pytest.raises(AndroidEnvironmentError, match="link") as paused:
+        SiteSession.checkpoint(session)
+    assert secret not in str(paused.value)
+    assert calls == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    stopped = SiteDevice(Driver(), {"start_url": "https://shop.example"}, [], real / "STOP", time.monotonic() + 30, 5)
+    with pytest.raises(Budget, match="Stop requested"):
+        stopped._check()
+    real_session = SimpleNamespace(device=SimpleNamespace(stop_path=real / "STOP", deadline=time.monotonic() + 30))
+    with pytest.raises(Budget, match="Stop requested"):
+        SiteSession.checkpoint(real_session)
+    open_device = SiteDevice(Driver(), {"start_url": "https://shop.example"}, [], real / "missing", time.monotonic() + 30, 5)
+    open_device._check()
+    SiteSession.checkpoint(SimpleNamespace(device=SimpleNamespace(stop_path=real / "missing", deadline=time.monotonic() + 30)))
+    assert calls == []
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 CONFIG = {"app_mode": "web", "device_id": "emulator-5554", "start_url": BASE + "/", "interaction_testing": True,
           "test_all_discovered": True,
           "max_actions": 60, "max_screens": 40, "discovery_timeout_s": 600, "max_interactions": 500,

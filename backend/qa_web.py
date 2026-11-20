@@ -23,7 +23,9 @@ class BrowserContractAdapter:
         self.origins = {origin(start_url), *[origin(u) for u in contract.allowed_origins]}
 
     def guard(self):
-        if self.stop_path and self.stop_path.exists():
+        from .qa_runtime import _user_stopped
+
+        if _user_stopped(self.stop_path):
             raise InterruptedError("The approved browser flow was stopped by the user")
         if origin(self.page.url) not in self.origins:
             raise ValueError("The browser contract left its approved origins")
@@ -68,10 +70,16 @@ class BrowserContractAdapter:
         element.click(timeout=10000)
 
     def open(self, url):
-        """Open a page inside the approved origins (an `open` flow step)."""
+        """Open a page inside the approved origins (an `open` flow step).
+
+        A checkout document, including one reached by a redirect, is not loaded.
+        """
         if origin(url) not in self.origins:
             raise ValueError("The browser contract may open only pages of its approved origins")
-        self.page.goto(url, timeout=30000)
+        from .swarm import open_guarded
+        _response, blocked = open_guarded(self.page, url, timeout=30000)
+        if blocked:
+            raise ValueError("checkout, payment and placing an order are never tested")
         self.guard()
 
     @staticmethod
@@ -116,7 +124,28 @@ class BrowserContractAdapter:
         return element.is_visible()
 
 
+def _contract_paths_linked(run_dir) -> bool:
+    """True when the contract or its result files follow a link out of this run."""
+    from .finalization import folder_is_linked
+    run = Path(run_dir)
+    private = run / ".private"
+    if folder_is_linked(run) or private.is_symlink():
+        return True
+    return any(path.is_symlink() for path in (
+        private / "qa_contract.json", run / "qa_contracts.json", run / "contract_results.json"))
+
+
+def _write_contract_text(run_dir, name: str, text: str) -> bool:
+    from .finalization import folder_is_linked, write_text_unless_linked
+    folder = Path(run_dir)
+    if folder_is_linked(folder):
+        return False
+    return write_text_unless_linked(folder, name, text)
+
+
 def run_contracts(run_dir, url, contract_value, headless=True, completed=None, slow_mo_ms=0):
+    if _contract_paths_linked(run_dir):
+        return {"test_cases": [], "results": []}
     from playwright.sync_api import sync_playwright
 
     contract = parse_contract(contract_value)
@@ -135,7 +164,7 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None, s
             tests=["test_" + case["id"]],
             script_source="contract",
         )
-    Path(run_dir, "qa_contracts.json").write_text(contract.model_dump_json(indent=2), encoding="utf-8")
+    _write_contract_text(run_dir, "qa_contracts.json", contract.model_dump_json(indent=2))
     private = resolve_private_inputs(contract)
     results = []
     secrets = list(private["secrets"].values())
@@ -180,7 +209,10 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None, s
                         BrowserContractAdapter(page, url, contract, stop_path=Path(run_dir) / "STOP"), contract.model_dump(), private
                     )
                     try:
-                        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                        from .swarm import open_guarded
+                        _response, blocked = open_guarded(page, url, timeout=20000)
+                        if blocked:
+                            raise ValueError("checkout, payment and placing an order are never tested")
                         runtime.execute(case["contract_id"])
                     except Exception as error:
                         record.update(
@@ -201,13 +233,15 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None, s
                 results.append(record)
         finally:
             browser.close()
-    Path(run_dir, "contract_results.json").write_text(redact(json.dumps(results, indent=2), secrets), encoding="utf-8")
+    _write_contract_text(run_dir, "contract_results.json", redact(json.dumps(results, indent=2), secrets))
     return {"test_cases": cases, "results": results}
 
 
 def execute_pipeline_contracts(state):
     from .config import settings
 
+    if _contract_paths_linked(state["run_dir"]):
+        return {"test_cases": [], "results": []}
     path = Path(state["run_dir"]) / ".private" / "qa_contract.json"
     value = path.read_text(encoding="utf-8") if path.exists() else os.environ.get("QA_CONTRACT_JSON", "")
     if not value.strip():
@@ -261,5 +295,5 @@ def execute_pipeline_contracts(state):
                     "error": redact(str(error))[:500],
                 }
             )
-        Path(state["run_dir"], "contract_results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+        _write_contract_text(state["run_dir"], "contract_results.json", json.dumps(results, indent=2))
         return {"test_cases": cases, "results": results}

@@ -98,6 +98,16 @@ def chain_steps(chain: list[dict]) -> list[dict]:
     return [step for element in chain for step in reach(element) + [tap(element)]]
 
 
+def _stop_requested(stop_path) -> bool:
+    """True when the user wrote a real stop file. A link is refused."""
+    from .android_runtime import stop_file_note
+
+    note = stop_file_note(stop_path)
+    if "link" in note:
+        raise AndroidEnvironmentError(note)
+    return bool(note)
+
+
 class SiteDevice:
     """The browser for SiteSession: a fresh visit, opening a page, reading it, scrolling it, its messages."""
 
@@ -107,7 +117,7 @@ class SiteDevice:
         self.deadline, self.max_tries, self._record = deadline, max_tries, record
 
     def _check(self):
-        if self.stop_path.exists():
+        if _stop_requested(self.stop_path):
             raise Budget("Stop requested")
         if time.monotonic() >= self.deadline:
             raise Budget("User-like testing time limit reached")
@@ -227,7 +237,7 @@ class SiteSession(Session):
 
     def checkpoint(self):
         """Stop and time limit, for reading pages (no user-like try is spent)."""
-        if self.device.stop_path.exists():
+        if _stop_requested(self.device.stop_path):
             raise Budget("Stop requested")
         if time.monotonic() >= self.device.deadline:
             raise Budget("User-like testing time limit reached")

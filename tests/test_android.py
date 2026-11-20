@@ -25,6 +25,98 @@ def test_java_path_discovers_user_local_blowai_jdk_without_java_home(tmp_path, m
     assert android._java_path() == str(java)
 
 
+def test_an_appium_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-appium"
+    name = "appium.cmd" if android.os.name == "nt" else "appium"
+    other = tmp_path / "other"
+    binary = other / "BlowAI" / "AndroidTools" / "node_modules" / ".bin" / name
+    binary.parent.mkdir(parents=True)
+    binary.write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-local"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("LOCALAPPDATA", str(linked))
+    monkeypatch.setattr(android.shutil, "which", lambda _name: None)
+    assert android._appium_path() is None
+    assert binary.read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-local"
+    own = real / "BlowAI" / "AndroidTools" / "node_modules" / ".bin" / name
+    own.parent.mkdir(parents=True)
+    own.write_text("home-own", encoding="utf-8")
+    monkeypatch.setenv("LOCALAPPDATA", str(real))
+    found = android._appium_path()
+    assert found == str(own)
+    assert secret not in found
+    assert own.read_text(encoding="utf-8") == "home-own"
+    assert binary.read_text(encoding="utf-8") == secret
+
+
+def test_an_android_sdk_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-sdk"
+    name = "adb.exe" if android.os.name == "nt" else "adb"
+    other = tmp_path / "other"
+    binary = other / "platform-tools" / name
+    binary.parent.mkdir(parents=True)
+    binary.write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-sdk"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("ANDROID_SDK_ROOT", str(linked))
+    monkeypatch.delenv("ANDROID_HOME", raising=False)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(android.shutil, "which", lambda _name: None)
+    assert android._sdk_path() is None
+    assert android._adb_path() is None
+    assert binary.read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-sdk"
+    own = real / "platform-tools" / name
+    own.parent.mkdir(parents=True)
+    own.write_text("home-own", encoding="utf-8")
+    monkeypatch.setenv("ANDROID_SDK_ROOT", str(real))
+    assert android._sdk_path() == str(real)
+    found = android._adb_path()
+    assert found == str(own)
+    assert secret not in found
+    assert own.read_text(encoding="utf-8") == "home-own"
+    assert binary.read_text(encoding="utf-8") == secret
+
+
+def test_a_java_path_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    secret = "tenant-b-only-java"
+    name = "java.exe" if android.os.name == "nt" else "java"
+    other = tmp_path / "other"
+    binary = other / "bin" / name
+    binary.parent.mkdir(parents=True)
+    binary.write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    linked = tmp_path / "linked-home"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setenv("JAVA_HOME", str(linked))
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setattr(android.shutil, "which", lambda _name: None)
+    assert android._java_path() is None
+    assert binary.read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real-home"
+    own = real / "bin" / name
+    own.parent.mkdir(parents=True)
+    own.write_text("home-own", encoding="utf-8")
+    monkeypatch.setenv("JAVA_HOME", str(real))
+    found = android._java_path()
+    assert found == str(own)
+    assert secret not in found
+    assert own.read_text(encoding="utf-8") == "home-own"
+    assert binary.read_text(encoding="utf-8") == secret
+
+
 def test_parse_devices_keeps_status_and_details():
     assert parse_devices(
         "List of devices attached\nemulator-5554 device product:sdk_gphone\nphone offline\n"
@@ -65,6 +157,34 @@ def test_validate_apk_checks_manifest_and_archive(tmp_path):
         apk.writestr("classes.dex", b"dex")
     with pytest.raises(AndroidEnvironmentError, match="manifest missing"):
         validate_apk(invalid_path)
+
+
+def test_an_apk_check_does_not_follow_a_link_into_another_folder(tmp_path):
+    secret = b"tenant-b-only-apk"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.apk").write_bytes(secret)
+    (other / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked.apk"
+    linked.symlink_to(other / "app.apk")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        validate_apk(linked)
+    parent = tmp_path / "parent"
+    parent.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        validate_apk(parent / "app.apk")
+    assert (other / "app.apk").read_bytes() == secret
+    assert (other / "keep.txt").read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "home.apk"
+    with zipfile.ZipFile(real, "w") as apk:
+        apk.writestr("AndroidManifest.xml", b"home-own")
+        apk.writestr("classes.dex", b"dex")
+    assert validate_apk(real) == real.resolve()
+    own = real.read_bytes()
+    assert b"home-own" in own and secret not in own
+    assert (other / "app.apk").read_bytes() == secret
 
 
 def test_validate_apk_rejects_non_apk_and_unsafe_paths(tmp_path):

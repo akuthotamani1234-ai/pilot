@@ -1,0 +1,88 @@
+"""Gate H: hosted DR/on-call readiness score (not live paging).
+
+Scores local dual-region + paging + RTO evidence against the hosted on-call
+contract. Does **not** page a live rota — ``gate_h_complete`` stays False.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+EVIDENCE = ROOT / "docs" / "ops-evidence" / "hosted_oncall_readiness_drill.json"
+
+CHECKS = (
+    ("multi_region_dr_drill.json", "Local dual-region Postgres failover"),
+    ("minio_multi_region_drill.json", "Local MinIO dual-bucket failover"),
+    ("redis_multi_region_drill.json", "Local Redis dual-DB failover"),
+    ("multi_store_dr_drill.json", "Combined multi-store DR pack"),
+    ("failover_rto_drill.json", "Local failover RTO measurement"),
+    ("multi_region_cutover_rehearsal_drill.json", "Local multi-region cutover pack"),
+    ("paging_escalation_drill.json", "Loopback primary→secondary paging"),
+    ("paging_ack_drill.json", "Loopback paging ack→resolve"),
+    ("observability_probe_drill.json", "Local observability probe"),
+    ("hosted_oncall_contract_drill.json", "Hosted on-call contract snapshot"),
+    ("dual_region_store_health_probe_drill.json", "Dual-region store health probe"),
+    ("hosted_dr_cutover_checklist_drill.json", "Hosted DR cutover checklist"),
+    ("multi_region_dr_readiness_pack_drill.json", "Multi-region DR readiness pack"),
+    ("hosted_oncall_rota_contract_drill.json", "Hosted on-call rota contract"),
+    ("hosted_dr_rpo_contract_drill.json", "Hosted DR RPO / backup contract"),
+    ("hosted_dr_comms_contract_drill.json", "Hosted DR communications contract"),
+    ("paging_severity_routing_contract_drill.json", "Paging severity routing contract"),
+    ("dual_region_replication_lag_contract_drill.json", "Replication lag contract"),
+    ("dual_region_cutover_lag_gate_drill.json", "Cutover blocked when lag exceeds budget"),
+)
+
+
+def _linked_oncall() -> dict:
+    return {
+        "gate_h_complete": False,
+        "ok": False,
+        "drill": "hosted_oncall_readiness",
+        "reason": "The ops folder is a link, so the drill was not saved.",
+    }
+
+
+def run_hosted_oncall_readiness_drill(*, ops_dir: Path | None = None) -> dict:
+    from .finalization import folder_is_linked, write_text_unless_linked
+
+    dest = Path(ops_dir) if ops_dir else EVIDENCE.parent
+    out_name = "hosted_oncall_readiness_drill.json"
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_oncall()
+
+    ops = ROOT / "docs" / "ops-evidence"
+    rows = []
+    for name, label in CHECKS:
+        path = ops / name
+        ready = (not folder_is_linked(path)) and path.is_file()
+        rows.append({"artifact": name, "label": label, "ready": ready})
+    score = sum(1 for row in rows if row["ready"])
+    evidence = {
+        "gate_h_complete": False,
+        "drill": "hosted_oncall_readiness",
+        "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "kind": "readiness_score_only",
+        "score": score,
+        "score_of": len(CHECKS),
+        "checks": rows,
+        "live_hosted_paging": False,
+        "ok": score == len(CHECKS),
+        "reason": (
+            f"Hosted DR/on-call readiness {score}/{len(CHECKS)}; "
+            "live hosted multi-region DR / on-call paging still open"
+        ),
+    }
+    text = json.dumps(evidence, indent=2)
+    if folder_is_linked(dest) or folder_is_linked(dest / out_name):
+        return _linked_oncall()
+    dest.mkdir(parents=True, exist_ok=True)
+    if not write_text_unless_linked(dest, out_name, text):
+        return _linked_oncall()
+    if ops_dir is None:
+        art = ROOT / "artifacts" / "ops"
+        if not folder_is_linked(art) and not folder_is_linked(art / out_name):
+            art.mkdir(parents=True, exist_ok=True)
+            write_text_unless_linked(art, out_name, text)
+    return evidence

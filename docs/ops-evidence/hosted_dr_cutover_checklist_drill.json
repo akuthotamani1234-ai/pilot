@@ -1,0 +1,69 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_dr_cutover_checklist",
+  "ran_at": "2026-11-19T05:22:08Z",
+  "kind": "checklist_local_only",
+  "score": 8,
+  "score_of": 8,
+  "checklist": [
+    {
+      "id": "primary_health",
+      "artifact": "dual_region_store_health_probe_drill.json",
+      "label": "Primary store health probe",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "multi_store",
+      "artifact": "multi_store_dr_drill.json",
+      "label": "Multi-store DR pack",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "failover_rto",
+      "artifact": "failover_rto_drill.json",
+      "label": "Failover RTO measured",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "cutover_rehearsal",
+      "artifact": "multi_region_cutover_rehearsal_drill.json",
+      "label": "Cutover rehearsal pack",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "dr_readiness_pack",
+      "artifact": "multi_region_dr_readiness_pack_drill.json",
+      "label": "DR readiness pack",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "oncall_pack",
+      "artifact": "hosted_oncall_readiness_pack_drill.json",
+      "label": "On-call readiness pack",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "paging_escalation",
+      "artifact": "paging_escalation_ack_pack_drill.json",
+      "label": "Paging escalation+ack pack",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "id": "observability",
+      "artifact": "observability_probe_drill.json",
+      "label": "Observability probe",
+      "ready": true,
+      "hosted_verified": false
+    }
+  ],
+  "live_hosted_dr": false,
+  "ok": true,
+  "reason": "Hosted DR cutover checklist 8/8; live hosted multi-region DR / on-call still open"
+}

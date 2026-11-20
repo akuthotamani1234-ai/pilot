@@ -1,0 +1,61 @@
+{
+  "gate_a_complete": false,
+  "drill": "multi_fixture_discovery_score",
+  "ran_at": "2026-11-19T00:00:54Z",
+  "fixtures": [
+    {
+      "fixture": "AdminPortal",
+      "pages": 7,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "dialogs",
+        "downloads",
+        "file_upload",
+        "web_component"
+      ],
+      "score": 1.0,
+      "ok": true
+    },
+    {
+      "fixture": "DemoStore",
+      "pages": 5,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "canvas",
+        "web_component"
+      ],
+      "score": 1.0,
+      "ok": true
+    },
+    {
+      "fixture": "ClassicShop",
+      "pages": 6,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "file_upload",
+        "web_component"
+      ],
+      "score": 1.0,
+      "ok": true
+    },
+    {
+      "fixture": "TravelSite",
+      "pages": 3,
+      "surface_keys_hit": [
+        "frames",
+        "shadow",
+        "file_upload",
+        "web_component"
+      ],
+      "score": 1.0,
+      "ok": true
+    }
+  ],
+  "passed": 4,
+  "total": 4,
+  "ok": true,
+  "reason": "Discovery score 4/4 fixtures \u2265 threshold; full Gate A live completeness matrix still open"
+}

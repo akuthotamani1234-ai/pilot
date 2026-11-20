@@ -6,9 +6,12 @@ from .android_runtime import read_only_case
 
 
 def records(path: Path) -> list[dict]:
+    path = Path(path)
+    from .finalization import folder_is_linked
     rows = []
-    if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
+    if path.is_symlink() or folder_is_linked(path.parent) or not path.is_file():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 row = json.loads(line)
             except ValueError:
@@ -38,7 +41,12 @@ def plan(root: Path, cases: list[dict]) -> dict:
 
 
 def snapshot(root: Path) -> dict:
-    cases = json.loads((root / "test_cases.json").read_text(encoding="utf-8"))
+    root = Path(root)
+    from .finalization import folder_is_linked
+    cases_path = root / "test_cases.json"
+    if folder_is_linked(root) or cases_path.is_symlink():
+        return {"pending": [], "completed": 0, "uncertain": [], "can_resume": False}
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
     result = plan(root, cases)
     return {"pending": [{"id": c["id"], "title": c["title"]} for c in result["pending"]],
             "completed": len(result["completed"]), "uncertain": result["uncertain"],

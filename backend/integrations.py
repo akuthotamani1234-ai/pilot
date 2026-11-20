@@ -81,7 +81,10 @@ def slack_message(state: QAState, found: list[dict]) -> str:
     if len(found) > 5:
         lines.append(f"... and {len(found) - 5} more")
     link = _ci_link()
-    lines.append(f"Report: {link}" if link else f"Report: {(run_dir / 'report.html').resolve()} (on the PC that ran it)")
+    report = run_dir / "report.html"
+    from .finalization import folder_is_linked
+    shown = str(report) if folder_is_linked(report) else str(report.resolve())
+    lines.append(f"Report: {link}" if link else f"Report: {shown} (on the PC that ran it)")
     return redact("\n".join(lines))
 
 
@@ -129,12 +132,16 @@ def issue_text(f: dict, state: QAState) -> tuple[str, str]:
 def create_jira_issues(state: QAState, failures: list[dict]) -> dict:
     if not _url_ok(settings.jira_url):
         return {"created": [], "why": "JIRA_URL must start with https://"}
+    from .my_tests import baseline_is_linked
     found = defects(failures, settings.jira_min_severity)
     known_file = baseline_path(state["site_key"]) / "jira.json"
-    try:
-        known = json.loads(known_file.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    if baseline_is_linked(known_file):
         known = {}
+    else:
+        try:
+            known = json.loads(known_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            known = {}
     s = requests.Session()
     s.auth = (settings.jira_email, settings.jira_api_token)
     s.headers["Accept"] = "application/json"
@@ -157,16 +164,20 @@ def create_jira_issues(state: QAState, failures: list[dict]) -> dict:
                 break
             continue
         key = r.json().get("key", "")
-        shot = run_dir / f["screenshot"] if f.get("screenshot") else None
-        if key and shot and shot.is_file():
+        from .agents.change_detection import relative_path_is_linked
+        shot_name = str(f.get("screenshot") or "")
+        shot = run_dir / shot_name if shot_name else None
+        if (key and shot is not None and not relative_path_is_linked(run_dir, shot_name)
+                and shot.is_file() and not shot.is_symlink()):
             with shot.open("rb") as fh:
                 s.post(f"{settings.jira_url}/rest/api/2/issue/{key}/attachments", timeout=60,
                        headers={"X-Atlassian-Token": "no-check"}, files={"file": (shot.name, fh, "image/png")})
         known[fp] = key
         created.append(key)
-    if created:
+    if created and not baseline_is_linked(known_file):
         known_file.parent.mkdir(parents=True, exist_ok=True)
-        known_file.write_text(json.dumps(known, indent=1), encoding="utf-8")
+        if not known_file.is_symlink() and not known_file.parent.is_symlink():
+            known_file.write_text(json.dumps(known, indent=1), encoding="utf-8")
     return {"created": created, "already_reported": already, "errors": errors, "defects": len(found)}
 
 
@@ -193,7 +204,8 @@ def integrations_agent(state: QAState) -> QAState:
             out[name] = send(state, failures)
         except Exception as e:  # (no network, a wrong address: the run itself is finished and stays as it is)
             out[name] = {"error": redact(str(e).splitlines()[0][:200]) if str(e) else type(e).__name__}
-    Path(state["run_dir"], "integrations.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(Path(state["run_dir"]), "integrations.json", json.dumps(out, indent=1))
     notes = []
     if "slack" in out:
         notes.append("Slack: message sent" if out["slack"].get("sent") else

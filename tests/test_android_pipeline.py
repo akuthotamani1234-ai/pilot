@@ -81,6 +81,40 @@ def test_discovery_only_clicks_safe_navigation_and_restores_the_start_screen(tmp
     assert json.loads((tmp_path / "app_map.json").read_text(encoding="utf-8"))[0]["platform"] == "android"
 
 
+def test_android_discovery_does_not_follow_a_stop_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-stop"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    calls = []
+    monkeypatch.setattr(android_pipeline, "create_session", lambda config: calls.append(config))
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent(_state(run))
+    assert calls == []
+    assert secret not in json.dumps(calls)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    driver = FakeDriver()
+    monkeypatch.setattr(android_pipeline, "create_session", lambda _config: driver)
+    found = android_pipeline.discovery_agent(_state(real))
+    assert len(found["screens"]) == 2
+    assert secret not in json.dumps(found)
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_test_design_records_safe_cases_and_blocked_controls(tmp_path, monkeypatch):
     driver = FakeDriver()
     monkeypatch.setattr(android_pipeline, "create_session", lambda _config: driver)
@@ -168,3 +202,352 @@ def test_junit_results_keep_pass_skip_and_failure_outcomes(tmp_path):
         ("android_navigation_001", "failed"),
         ("android_navigation_002", "inconclusive"),
     ]
+
+
+def test_an_android_discovery_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-discovery"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / ".private").mkdir()
+    (nested / ".private" / "android_config.json").write_bytes(secret)
+    (nested / "progress.log").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr(android_pipeline, "create_session", lambda *_args, **_kwargs: pytest.fail("started"))
+    state = {
+        "run_dir": str(linked / "run"),
+        "config": {"app_mode": "installed", "package_name": "com.example.shop", "device_id": "emulator-5554"},
+    }
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent(state)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.discovery_agent({**state, "run_dir": str(linked / "fresh")})
+    assert android_pipeline._remember_package(linked / "run", {"package_name": "com.example.shop"}) is False
+    assert not (other / "fresh").exists()
+    assert (nested / ".private" / "android_config.json").read_bytes() == secret
+    assert (nested / "progress.log").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "android_config.json").write_text(
+        json.dumps({"app_mode": "installed", "package_name": ""}), encoding="utf-8")
+    assert android_pipeline._remember_package(real, {"package_name": "com.example.shop"}) is True
+    written = (real / ".private" / "android_config.json").read_bytes()
+    assert b"com.example.shop" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_android_record_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-android"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "app_map.json").write_bytes(secret)
+    (nested / "android_results.jsonl").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    android_pipeline._save_json(linked / "run" / "app_map.json", [{"url": "https://stolen.test"}])
+    android_pipeline._save_json(linked / "fresh" / "app_map.json", [{"url": "https://stolen.test"}])
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline._execute_mobile({"run_dir": str(linked / "run"), "test_cases": [{"id": "home"}]})
+    assert not (other / "fresh").exists()
+    assert (nested / "app_map.json").read_bytes() == secret
+    assert (nested / "android_results.jsonl").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    android_pipeline._save_json(real / "app_map.json", [{"url": "https://shop.test/home", "title": "Home"}])
+    written = (real / "app_map.json").read_bytes()
+    assert b"https://shop.test/home" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_android_setup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import pytest
+
+    from backend.android import AndroidEnvironmentError
+
+    secret = b"tenant-b-only-setup"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "keep.txt").write_bytes(secret)
+    (other / "app.apk").write_bytes(secret)
+    calls = []
+    monkeypatch.setattr(android_pipeline, "android_environment", lambda _url: calls.append("env") or {
+        "ok": True, "devices": [{"device_id": "emulator-5554", "status": "device"}]})
+    monkeypatch.setattr("backend.llm.llm_enabled", lambda: False)
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.setup_agent(_state(linked / "run"))
+    planted = tmp_path / "planted"
+    planted.mkdir()
+    (planted / ".private").symlink_to(other, target_is_directory=True)
+    planted_state = _state(planted)
+    planted_state["config"].update(app_mode="apk", package_name="", apk_path=str(planted / ".private" / "app.apk"))
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        android_pipeline.setup_agent(planted_state)
+    assert calls == []
+    assert (other / "keep.txt").read_bytes() == secret
+    assert (other / "app.apk").read_bytes() == secret
+    assert not (other / "run").exists()
+    assert not (other / "android_environment.json").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    apk = real / ".private" / "app.apk"
+    apk.write_bytes(b"mine")
+    state = _state(real)
+    state["config"].update(app_mode="apk", package_name="", apk_path=str(apk))
+    result = android_pipeline.setup_agent(state)
+    assert result["environment"]["ok"] is True
+    assert apk.read_bytes() == b"mine"
+    saved = (real / "android_environment.json").read_text(encoding="utf-8")
+    assert "emulator-5554" in saved
+    assert secret.decode() not in saved
+    assert (other / "keep.txt").read_bytes() == secret
+
+
+def test_an_android_config_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import pytest
+
+    import backend.android_runner as runner
+    from backend.android import AndroidEnvironmentError
+    from backend.android_runner import _read_config
+
+    secret = b"tenant-b-only-config"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "android_config.json").write_bytes(secret)
+    (other / "app.apk").write_bytes(secret)
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    monkeypatch.setattr(runner, "RUNS", runs)
+
+    linked_private = runs / "run-a" / ".private"
+    linked_private.parent.mkdir()
+    linked_private.symlink_to(other, target_is_directory=True)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        _read_config(linked_private / "android_config.json")
+    assert (other / "android_config.json").read_bytes() == secret
+
+    real = runs / "run-b" / ".private"
+    real.mkdir(parents=True)
+    config = {
+        "app_mode": "installed", "package_name": "com.example",
+        "device_id": "emulator-5554", "appium_url": "http://127.0.0.1:4723",
+    }
+    (real / "android_config.json").write_text(json.dumps(config), encoding="utf-8")
+    loaded, run_dir = _read_config(real / "android_config.json")
+    assert loaded["package_name"] == "com.example"
+    assert run_dir == runs / "run-b"
+    assert secret not in (real / "android_config.json").read_bytes()
+
+    apk_dir = runs / "run-c" / ".private"
+    apk_dir.mkdir(parents=True)
+    (apk_dir / "app.apk").symlink_to(other / "app.apk")
+    (apk_dir / "android_config.json").write_text(json.dumps({
+        **config, "app_mode": "apk", "package_name": "", "apk_path": str(apk_dir / "app.apk"),
+    }), encoding="utf-8")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        _read_config(apk_dir / "android_config.json")
+    assert (other / "app.apk").read_bytes() == secret
+
+
+def test_an_android_run_does_not_follow_a_link_into_another_folder(tmp_path):
+    import pytest
+
+    from backend.android_runner import prepare_android_run
+
+    secret = b"tenant-b-only-android-run"
+    other = tmp_path / "other"
+    nested = other / "runs"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "android_real").mkdir()
+    (nested / "android_real" / "keep.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked / "runs", "android_real")
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked / "fresh", "android_new")
+    assert not (other / "fresh").exists()
+    assert not (nested / "android_real" / ".private").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert (nested / "android_real" / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real-runs"
+    real.mkdir()
+    created = prepare_android_run(real, "android_real")
+    private = created / ".private"
+    assert private.is_dir() and not private.is_symlink()
+    (private / "note.txt").write_text("shop", encoding="utf-8")
+    assert (private / "note.txt").read_text(encoding="utf-8") == "shop"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_android_run_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import datetime as dt
+    from pathlib import Path
+
+    import pytest
+
+    from backend.android_runner import prepare_android_run
+    from backend.qa_benchmark import repeat_android
+
+    secret = b"tenant-b-only-apk"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "app.apk").write_bytes(secret)
+    (other / "android_config.json").write_bytes(secret)
+    (other / "repeat.log").write_bytes(secret)
+
+    linked_root = tmp_path / "linked-runs"
+    linked_root.symlink_to(other, target_is_directory=True)
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(linked_root, "android_run")
+    with pytest.raises(ValueError, match="link"):
+        repeat_android(tmp_path / "missing.json", 1, linked_root)
+    assert (other / "app.apk").read_bytes() == secret
+    assert (other / "android_config.json").read_bytes() == secret
+    assert (other / "repeat.log").read_bytes() == secret
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    planted = runs / "repeat_20261119_132600_1"
+    planted.symlink_to(other, target_is_directory=True)
+
+    class _Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 19, 13, 26, 0)
+
+    monkeypatch.setattr(dt, "datetime", _Clock)
+    monkeypatch.setattr("backend.android_runner._read_config", lambda _path: ({"app_mode": "web"}, Path(".")))
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.android_pipeline._run_mobile_process", explode)
+    with pytest.raises(ValueError, match="link"):
+        repeat_android(tmp_path / "config.json", 1, runs)
+    assert (other / "app.apk").read_bytes() == secret
+    assert not (other / ".private").exists()
+
+    created = prepare_android_run(runs, "android_real")
+    assert (created / ".private").is_dir() and not (created / ".private").is_symlink()
+
+
+def test_an_android_report_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_reporting import analyze, collect_healing, report
+    from backend.android_runner import write_android_failure
+
+    secret = b"tenant-b-only-android-report"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "summary.json").write_bytes(secret)
+    (nested / "report.html").write_bytes(secret)
+    (nested / "failures.json").write_bytes(secret)
+    (nested / "healing_log.json").write_bytes(secret)
+    (nested / "android_healing.jsonl").write_bytes(secret + b"\n")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    state = {
+        "run_dir": str(linked / "run"), "run_id": "linked", "config": {}, "screens": [],
+        "test_cases": [], "results": [{"id": "t1", "outcome": "failed", "error": "boom"}], "log": [],
+    }
+    skipped = report(state)
+    assert "link" in skipped["log"][-1]
+    assert analyze(state)["failures"]
+    assert collect_healing(state)["healing_log"] == []
+    assert write_android_failure(linked / "run", "linked", "Android app", "boom") is False
+    for name in ("summary.json", "report.html", "failures.json", "healing_log.json"):
+        assert (nested / name).read_bytes() == secret
+    assert (nested / "android_healing.jsonl").read_bytes() == secret + b"\n"
+    assert not (nested / "test_cases.json").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    written = report({**state, "run_dir": str(real), "run_id": "real", "results": []})
+    assert written["verdict"]
+    assert (real / "summary.json").is_file() and not (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_file()
+    assert secret not in (real / "summary.json").read_bytes()
+    assert secret not in (real / "report.html").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_android_report_does_not_follow_a_link_into_another_run(tmp_path):
+    import pytest
+
+    from backend.android_reporting import report
+    from backend.android_runner import prepare_android_run, write_android_failure
+
+    secret = "tenant-b-only-mobile"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "summary.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "report.html").write_text(secret, encoding="utf-8")
+    (other / "dynamic.json").write_text(json.dumps({"events": [{"secret": secret}]}), encoding="utf-8")
+    (other / "healing_log.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+
+    linked = tmp_path / "linked-run"
+    linked.symlink_to(other, target_is_directory=True)
+    report({"run_dir": str(linked), "run_id": "linked", "config": {}, "screens": [],
+            "test_cases": [], "results": []})
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    assert "test_cases.json" not in {path.name for path in other.iterdir()}
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "summary.json").symlink_to(other / "summary.json")
+    (real / "report.html").symlink_to(other / "report.html")
+    (real / "dynamic.json").symlink_to(other / "dynamic.json")
+    (real / "healing_log.json").symlink_to(other / "healing_log.json")
+    report({"run_dir": str(real), "run_id": "real", "config": {}, "screens": [],
+            "test_cases": [], "results": []})
+    assert (real / "summary.json").is_symlink()
+    assert (real / "report.html").is_symlink()
+    assert (real / "healing_log.json").is_symlink()
+    assert json.loads((other / "summary.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    assert (other / "healing_log.json").read_text(encoding="utf-8") == json.dumps({"secret": secret})
+    for path in real.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        assert secret not in path.read_text(encoding="utf-8", errors="replace")
+
+    runs = tmp_path / "runs"
+    planted = runs / "android_report"
+    planted.mkdir(parents=True)
+    (planted / "report.html").symlink_to(other / "report.html")
+    with pytest.raises(ValueError, match="link"):
+        prepare_android_run(runs, "android_report")
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+
+    assert write_android_failure(real, "real", "Android app", "boom") is False
+    assert (other / "report.html").read_text(encoding="utf-8") == secret
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert write_android_failure(plain, "plain", "Android app", "boom") is True
+    assert "Insufficient Evidence" in (plain / "report.html").read_text(encoding="utf-8")
+    assert json.loads((plain / "summary.json").read_text(encoding="utf-8"))["verdict"] == "Insufficient Evidence"

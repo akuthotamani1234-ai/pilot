@@ -1,0 +1,38 @@
+{
+  "gate_d_complete": false,
+  "gate_f_complete": false,
+  "drill": "hosted_ci_concurrency_contract",
+  "ran_at": "2026-11-19T05:45:41Z",
+  "kind": "contract_only",
+  "android": {
+    "path": ".github/workflows/android-appium.yml",
+    "checks": {
+      "present": true,
+      "workflow_dispatch": true,
+      "manual_only": true,
+      "single_job": true
+    },
+    "concurrency_group_declared": false,
+    "cancel_in_progress_declared": false,
+    "ok": true,
+    "live_hosted_runners": false,
+    "note": "Manual workflow_dispatch jobs may omit concurrency groups; contract records presence/absence without requiring them yet"
+  },
+  "browsers": {
+    "path": ".github/workflows/multi-browser-portfolios.yml",
+    "checks": {
+      "present": true,
+      "workflow_dispatch": true,
+      "manual_only": true,
+      "single_job": true
+    },
+    "concurrency_group_declared": false,
+    "cancel_in_progress_declared": false,
+    "ok": true,
+    "live_hosted_runners": false,
+    "note": "Manual workflow_dispatch jobs may omit concurrency groups; contract records presence/absence without requiring them yet"
+  },
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Hosted CI concurrency contract recorded (manual dispatch jobs); broad hosted multi-device/browser runners still open"
+}

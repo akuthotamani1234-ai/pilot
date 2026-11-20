@@ -73,6 +73,7 @@ def build(app_map: list[dict], crawl: dict) -> dict:
     from .agents.test_design import features as basic_features
     from .auth import login_form
     from .features import page_features
+    from .swarm import control_opens_payment, is_payment_url, stored_control_opens_payment
 
     pages, features, edges, by_url = {}, {}, [], {}
     seen_on = Counter()  # control key -> on how many page patterns (shared header / footer controls: one feature)
@@ -113,12 +114,17 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             "error": p.get("error") or "", "lazy": bool(p.get("lazy")), "features": [], "state": "discovered"})
         pg["urls"].append(p.get("url"))
         pg["slugs"].append(p.get("slug"))
+        if is_payment_url(p.get("final_url") or "") or is_payment_url(p.get("url") or ""):
+            pg["state"] = "blocked"
+            pg["why"] = "checkout, payment and placing an order are never tested"
+            continue
         # (an API address the crawl opened from a link answers 405: its error page - 'Media type', 'Content', 'OPTIONS'
         # on automationexercise.com/api/createAccount - is no feature of the website)
         if p.get("error") or p.get("needs_permission") or p.get("status") == 405:
             continue
         pg["state"] = "inspected"
         slug, auth = p.get("slug"), bool(p.get("auth"))
+        page_url = p.get("final_url") or p.get("url") or ""
         learned = {(b.get("control"), b.get("selector")): b for b in p.get("behaviour", [])}
         by_sel = {b.get("selector"): b for b in p.get("behaviour", [])}
         basic = basic_features(p)
@@ -166,7 +172,8 @@ def build(app_map: list[dict], crawl: dict) -> dict:
             if lf and lf["submit"] == (fm.get("submit") or {}).get("selector"):
                 continue  # (the login form IS the login feature)
             name = ((fm.get("submit") or {}).get("text") or "form").strip()[:40]
-            sends = action_risk(name, (fm.get("submit") or {}).get("selector")) == "protected"
+            sends = (action_risk(name, (fm.get("submit") or {}).get("selector")) == "protected"
+                     or stored_control_opens_payment(page_url, fm))
             pg["features"].append(add(dict({"id": feature_id(pid, "form", fm.get("selector") or name),
                                             "level": "feature", "kind": "form", "name": f"form '{name}'", "page": pid,
                                             "pages": [slug], "auth": auth, "selector": fm.get("selector"),
@@ -183,7 +190,10 @@ def build(app_map: list[dict], crawl: dict) -> dict:
                 or next((b for b in p.get("behaviour", []) if b.get("selector") == x["selector"]), None)
             name = (x.get("accname") or x.get("text") or x.get("label") or "control").split("\n")[0].strip()[:60]
             extra = {}
-            if x in p.get("buttons", []) and action_risk(x.get("text") or name, x["selector"]) == "protected":
+            if x in p.get("buttons", []) and (
+                    action_risk(x.get("text") or name, x["selector"]) == "protected"
+                    or stored_control_opens_payment(page_url, x)
+                    or (isinstance(ev, dict) and is_payment_url(str(ev.get("to") or "")))):
                 extra = {"status": "blocked", "why": "protected action: never performed without explicit approval in "
                                                      "a test environment"}
             pg["features"].append(add(dict({
@@ -195,10 +205,11 @@ def build(app_map: list[dict], crawl: dict) -> dict:
                 "frame": x.get("frame", ""), "shadow": " > ".join(x.get("shadow_path") or [])}, **extra)))
         # edges: links and actions that lead to other pages
         for l in p.get("links", []):
-            if not l.get("external"):
-                edges.append({"from": pid, "to_url": l["href"], "via": "link", "label": (l.get("text") or "")[:40]})
+            if l.get("external") or control_opens_payment(page_url, str(l.get("href") or "")):
+                continue
+            edges.append({"from": pid, "to_url": l["href"], "via": "link", "label": (l.get("text") or "")[:40]})
         for b in p.get("behaviour", []):
-            if b.get("to"):
+            if b.get("to") and not is_payment_url(str(b.get("to") or "")):
                 edges.append({"from": pid, "to_url": b["to"], "via": "action", "label": b.get("control")})
     for pg in pages.values():
         pg["features"] = sorted(set(pg["features"]))
@@ -244,7 +255,9 @@ def _step_links(step: dict, slug: str, idx: dict) -> list[tuple[str, str]]:
     out = []
     sid = step.get("id", "")
     if sid == "buttons_click":  # click each button, no checked result: a click proves nothing
-        return [(f, "clicks") for f in idx.get(("controls", slug), [])]
+        feats = idx.get("_features") or {}
+        return [(f, "clicks") for f in idx.get(("controls", slug), [])
+                if (feats.get(f) or {}).get("status") != "blocked"]
     kind = STEP_KIND.get(sid) or {"login_wrong": "login", "login_ok": "login"}.get(step.get("kind")) \
         or ("suggestions" if step.get("kind") == "opens" and step.get("typing") else "") \
         or ("form" if sid.endswith(("_required_validation", "_invalid_email")) else "")
@@ -598,11 +611,19 @@ def counts(reg: dict, crawl: dict | None = None) -> dict:
 
 
 def save(reg: dict, run_dir) -> None:
-    Path(run_dir, "registry.json").write_text(json.dumps(reg, indent=2), encoding="utf-8")
+    from .finalization import folder_is_linked
+    path = Path(run_dir, "registry.json")
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
+        return
+    path.write_text(json.dumps(reg, indent=2), encoding="utf-8")
 
 
 def load(run_dir) -> dict | None:
+    from .finalization import folder_is_linked
+    path = Path(run_dir, "registry.json")
+    if folder_is_linked(Path(run_dir)) or path.is_symlink():
+        return None
     try:
-        return json.loads(Path(run_dir, "registry.json").read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None

@@ -1,0 +1,13 @@
+{
+  "gate_h_complete": false,
+  "drill": "incident_tabletop_stub",
+  "ran_at": "2026-11-18T19:36:20Z",
+  "ok": true,
+  "runbook": "docs/INCIDENT_RUNBOOK.md",
+  "roles_exercised": [
+    "local_operator"
+  ],
+  "outcome": "Cross-checked local backup/paging/soak; no live paging/restore",
+  "reason": "Offline incident tabletop cross-checked local backup/paging/soak evidence; live hosted on-call still open",
+  "superseded_by": "incident_tabletop_drill.json"
+}

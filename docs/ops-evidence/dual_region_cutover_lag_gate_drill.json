@@ -1,0 +1,38 @@
+{
+  "gate_h_complete": false,
+  "drill": "dual_region_cutover_lag_gate",
+  "ran_at": "2026-11-19T07:21:29Z",
+  "kind": "local_lag_gate",
+  "budgets_s": {
+    "postgres": 30,
+    "redis": 5,
+    "minio": 60
+  },
+  "measured": [
+    {
+      "store": "postgres",
+      "ok": true,
+      "elapsed_ms": 595,
+      "budget_s": 30,
+      "over_budget": false
+    },
+    {
+      "store": "minio",
+      "ok": true,
+      "elapsed_ms": 116,
+      "budget_s": 60,
+      "over_budget": false
+    },
+    {
+      "store": "redis",
+      "ok": true,
+      "elapsed_ms": 36,
+      "budget_s": 5,
+      "over_budget": false
+    }
+  ],
+  "cutover_blocked": false,
+  "live_hosted_dr": false,
+  "ok": true,
+  "reason": "Local cutover lag gate evaluated (3/3 stores, cutover_blocked=false); live hosted multi-region DR / on-call still open"
+}

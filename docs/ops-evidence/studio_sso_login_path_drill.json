@@ -1,0 +1,105 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_login_path",
+  "ran_at": "2026-11-19T05:41:01Z",
+  "kind": "login_path_contract",
+  "path": {
+    "authorize": "/authorize",
+    "token": "/token",
+    "callback": "/api/sso/callback",
+    "dashboard_auth_mode": "oidc",
+    "code_challenge_method": "S256",
+    "id_token_alg": "RS256"
+  },
+  "steps": [
+    {
+      "step": "discovery",
+      "artifact": "loopback_sso_drill.json",
+      "label": "OIDC discovery + JWKS",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "authorize_code",
+      "artifact": "loopback_auth_code_sso_drill.json",
+      "label": "Authorization-code exchange",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "pkce",
+      "artifact": "loopback_pkce_sso_drill.json",
+      "label": "PKCE S256 challenge",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "callback",
+      "artifact": "studio_oidc_callback_drill.json",
+      "label": "Studio /api/sso/callback",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "principal",
+      "artifact": "studio_sso_principal_bootstrap_drill.json",
+      "label": "Principal bootstrap",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "rebind",
+      "artifact": "studio_sso_session_rebind_drill.json",
+      "label": "Session rebind same sub",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "audience",
+      "artifact": "studio_sso_audience_binding_drill.json",
+      "label": "Audience binding",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "expiry",
+      "artifact": "studio_sso_token_expiry_drill.json",
+      "label": "Token expiry rejection",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "state",
+      "artifact": "studio_sso_state_binding_drill.json",
+      "label": "State binding",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "acl_matrix",
+      "artifact": "oidc_acl_matrix_pack_drill.json",
+      "label": "Claim ACL matrix",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "claim_map",
+      "artifact": "hosted_idp_claim_map_completeness_drill.json",
+      "label": "Claim-map completeness",
+      "ready": true,
+      "hosted_verified": false
+    },
+    {
+      "step": "idp_pack",
+      "artifact": "hosted_idp_sso_readiness_pack_drill.json",
+      "label": "IdP SSO readiness pack",
+      "ready": true,
+      "hosted_verified": false
+    }
+  ],
+  "score": 12,
+  "score_of": 12,
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO login-path 12/12; live hosted IdP Studio SSO still open"
+}

@@ -95,10 +95,18 @@ def save_log(run_dir: Path, case_id: str, lines: list[str], package: str, device
             or "ANR in" in line or _message(line)[0] in pids]
     if not kept:
         return None
-    path = run_dir / "logcat" / (case_id + ".txt")
+    from .agents.change_detection import relative_path_is_linked
+    from .finalization import folder_is_linked
+    rel = f"logcat/{case_id}.txt"
+    run_dir = Path(run_dir)
+    if folder_is_linked(run_dir) or relative_path_is_linked(run_dir, rel):
+        return None
+    path = run_dir / "logcat" / f"{case_id}.txt"
     path.parent.mkdir(exist_ok=True)
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return None
     path.write_text(redact("\n".join(kept[-400:])) + "\n", encoding="utf-8")
-    return path.relative_to(run_dir).as_posix()
+    return rel
 
 
 def start_recording(driver) -> bool:
@@ -125,7 +133,9 @@ def stop_recording(driver, run_dir: Path, case_id: str, keep: bool) -> str | Non
         return None
     if not raw or len(raw) > MAX_VIDEO_BYTES:
         return None
-    path = run_dir / "videos" / (case_id + ".mp4")
-    path.parent.mkdir(exist_ok=True)
-    path.write_bytes(raw)
-    return path.relative_to(run_dir).as_posix()
+    from .finalization import write_bytes_unless_linked
+    run_dir = Path(run_dir)
+    path = run_dir / "videos" / f"{case_id}.mp4"
+    if run_dir.is_symlink() or not write_bytes_unless_linked(path, raw):
+        return None
+    return f"videos/{case_id}.mp4"

@@ -44,7 +44,15 @@ from ..run_rules import apply_discovery, priority_urls
 from ..safety import Scope, blocked_tracker_said, guard_context
 from ..secret_store import load_account, save_account
 from ..state import QAState
-from ..swarm import SiteSwarm, assign_workers, choose_listing, is_payment_url, sample_limit
+from ..swarm import (
+    SiteSwarm,
+    WorkerBrowser,
+    assign_workers,
+    choose_listing,
+    is_payment_url,
+    open_guarded,
+    sample_limit,
+)
 from ..swarm_protocol import tasks_for_listing
 
 PRIVATE = ".private"  # runs/<run>/.private/ holds the saved login (session cookies): never served, deleted after the run
@@ -488,6 +496,8 @@ EXTRACT_JS = r"""
     .filter(b => visible(b) && !bookmark(b)).slice(0, 300).map(b => ({ ...shadowOf(b),
       text: nameOf(b), accname: accName(b), role: roleOf(b), selector: sel(b), type: b.getAttribute('type') || '',
       tag: b.tagName.toLowerCase(), href: b.getAttribute('href') || '',
+      form_action: b.getAttribute('formaction') || (b.closest('form') && b.closest('form').getAttribute('action')) || '',
+      onclick: (b.getAttribute('onclick') || '').slice(0, 240),
       // a real name (a word a person reads or hears), not one made of its CSS classes ('btn btn orange')
       named: /[\p{L}\p{N}]/u.test(`${accName(b)} ${b.getAttribute('title') || ''}`) || !!b.querySelector('img[alt]:not([alt=""])'),
       in_form: !!b.closest('form'), disabled: !!b.disabled || b.classList.contains('disabled'),
@@ -603,7 +613,8 @@ EXTRACT_JS = r"""
         readonly: i.readOnly, disabled: i.disabled,
         placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i),
         chrome: chromeShell(i), in_table: inTableRow(i)})),
-      submit: submit ? {text: accName(submit), selector: sel(submit)} : null
+      submit: submit ? {text: accName(submit), selector: sel(submit),
+        formaction: submit.getAttribute('formaction') || ''} : null
     };
   }).filter(f => f.selector);
   for (const f of forms.filter(f => f.fields.length && f.submit)) {
@@ -648,6 +659,12 @@ EXTRACT_JS = r"""
   const images = [...document.querySelectorAll('img')];
   const brokenImages = images.filter(i => i.complete && i.naturalWidth === 0 && i.src)
                              .map(i => i.src).slice(0, 20);
+  // Gate F a11y: visible images with their alt text (empty alt is a finding; missing attribute too)
+  const imageAlts = images.filter(visible).slice(0, 40).map(i => ({
+    src: (i.currentSrc || i.src || '').slice(0, 200),
+    alt: i.hasAttribute('alt') ? (i.getAttribute('alt') || '') : '',
+    missing_alt_attr: !i.hasAttribute('alt'),
+  }));
 
   const headings = [...document.querySelectorAll('h1, h2')].map(h => h.innerText.trim()).filter(Boolean).slice(0, 10);
 
@@ -690,7 +707,7 @@ EXTRACT_JS = r"""
   if (qaLocaleIso) locale.currency = qaLocaleIso[1];
   else if (qaLocaleSym) locale.currency = qaLocaleSym[0];
   return { component_snapshot, links, buttons, inputs, forms, headings, itemNames: [...new Set([...cardNames, ...itemNames])].slice(0, 20), draggables, droppables, hovers, iframes, itemLinks,
-           productNames, imageCount: images.length, brokenImages, unsupported, shadowRoots: roots.length - 1, tables,
+           productNames, imageCount: images.length, brokenImages, imageAlts, unsupported, shadowRoots: roots.length - 1, tables,
            totals, skeleton, locale };
 }
 """
@@ -902,7 +919,10 @@ def _create_account(browser, signup_url: str) -> tuple[dict | None, str]:
     context = browser.new_context(viewport={"width": 1366, "height": 900}, ignore_https_errors=True)
     tab = context.new_page()
     try:
-        tab.goto(signup_url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        from ..payment_nav import open_refusing_checkout
+        blocked = open_refusing_checkout(tab, signup_url, timeout=settings.page_timeout_ms)
+        if blocked:
+            return None, "checkout, payment and placing an order are never tested"
         _settle(tab)
         tab.wait_for_timeout(1000)
         close_consent(tab)
@@ -1356,6 +1376,108 @@ class _Frontier:
         return sum(len(v) for v in self.lanes.values())
 
 
+def click_actions_allowed(url: str) -> bool:
+    """A checkout or payment page is recorded. Its controls are not clicked."""
+    return not is_payment_url(url)
+
+
+def resume_seen(saved_pages: list[dict]) -> tuple[set[str], set[tuple[str, bool]]]:
+    """URLs already inventoried, and the visits that are done.
+
+    Each visit is (address, logged-in). A guest inventory does not count as
+    the logged-in visit of the same address.
+    """
+    urls: set[str] = set()
+    done: set[tuple[str, bool]] = set()
+    for page in saved_pages or []:
+        if not isinstance(page, dict):
+            continue
+        saved = _normalize(str(page.get("url") or ""))
+        if not saved:
+            continue
+        urls.add(saved)
+        done.add((saved, bool(page.get("auth"))))
+    return urls, done
+
+
+def drop_expired_login(queue, skipped: dict) -> None:
+    """The login is gone. Pages that still wait behind it are not left for a resume to open."""
+    for item in [row for row in queue if row[3]]:
+        queue.remove(item)
+        skipped[item[0]] = "not visited: the login expired"
+
+
+def waiting_rows(queue, priorities: list[str] | None = None) -> list[dict]:
+    """Queue rows for a resume file. A logged-in visit stays logged in.
+
+    Higher-scored addresses stay ahead. Two visits of one address keep the
+    logged-in one first.
+    """
+    rows = [
+        {"url": url, "auth": bool(auth), "depth": depth, "inside": inside}
+        for url, depth, inside, auth in queue
+    ]
+    ranked = rank_candidates([
+        {"url": row["url"], "new_template": True, "journey_distance": 1,
+         "changed": any(token and token in row["url"] for token in (priorities or []))}
+        for row in rows
+    ])
+    order = {row["url"]: index for index, row in enumerate(ranked)}
+    rows.sort(key=lambda row: (order.get(row["url"], len(order)), 0 if row["auth"] else 1))
+    return rows
+
+
+def pending_visit(raw) -> tuple[str, bool]:
+    """A waiting address, and whether that visit was behind the login.
+
+    Older progress files stored only the address. Those stay guest visits.
+    """
+    if isinstance(raw, dict):
+        return _normalize(str(raw.get("url") or "")), bool(raw.get("auth"))
+    return _normalize(str(raw or "")), False
+
+
+def refuse_checkout_redirect(page, url: str, timeout: int) -> str:
+    """Return the checkout address a safe URL would open, or '' when the crawl may open it.
+
+    A URL that is already checkout is left to the crawl, which records that page
+    once and does not click it. A probe that cannot reach the host returns ''
+    so the browser open still runs.
+    """
+    if is_payment_url(url):
+        return ""
+    try:
+        from ..payment_nav import follow_get
+        _open, blocked = follow_get(page.request.get, url, timeout=timeout)
+    except Exception:
+        return ""
+    return blocked or ""
+
+
+def resume_session(page, landing: str, timeout: int) -> str:
+    """Re-open the page after login, unless that GET would enter checkout.
+
+    Returns the checkout address when the open was refused, otherwise ''.
+    A landing that is already checkout is not opened again. A navigation the
+    browser cancels is tried once more.
+    """
+    from ..payment_nav import open_refusing_checkout
+
+    return open_refusing_checkout(page, landing, timeout=timeout)
+
+
+def click_page(requested: str, final: str = "") -> str:
+    """The address whose controls may be clicked.
+
+    A checkout or payment landing wins over the address that was requested,
+    so a redirect onto checkout is not clicked.
+    """
+    landed = (final or requested or "").strip()
+    if landed and not click_actions_allowed(landed):
+        return landed
+    return (requested or landed).strip()
+
+
 def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool = False,
                priorities: list[str] | None = None, failed: bool = False, uncertain: bool = False) -> bool:
     """Queue one normal link by its next-page score. Menu links stay in the menu band.
@@ -1392,15 +1514,32 @@ def place_link(queue: _Frontier, item: tuple, *, known: bool = False, menu: bool
     return True
 
 
+def record_created(run_dir: Path, what: str, tag: str, where: str) -> bool:
+    """Append one record the crawl created. A linked run or file is left untouched."""
+    from ..finalization import append_text_unless_linked
+    line = json.dumps({"what": what, "tag": tag, "where": where, "status": "created",
+                       "time": time.time(), "by": "exploring"}) + "\n"
+    return append_text_unless_linked(Path(run_dir) / "created.jsonl", line)
+
+
 def store_api_spec(run_dir: Path, operations: list[dict] | None) -> bool:
     """Write this run's API spec. A missing baseline spec is not invented."""
     if operations is None:
         return False
     folder = Path(run_dir)
+    from ..finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(folder):
+        return False
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "api_spec.json").write_text(
-        json.dumps({"operations": operations}, indent=2), encoding="utf-8")
-    return True
+    return write_text_unless_linked(
+        folder, "api_spec.json", json.dumps({"operations": operations}, indent=2))
+
+
+def saved_roles(run_dir: Path) -> dict:
+    """Roles saved for this run. A linked file or folder is not another tenant's list."""
+    from ..finalization import read_json
+    loaded = read_json(Path(run_dir) / "roles.json", {})
+    return loaded if isinstance(loaded, dict) else {}
 
 
 # At phone width: does the page scroll sideways, and which controls are cut off (outside the screen) or covered?
@@ -1493,11 +1632,13 @@ def _sitemap_urls(context, start_url: str, limit: int = 50000) -> list[str]:
     """The addresses the website itself lists: robots.txt 'Sitemap:' lines and /sitemap.xml (a sitemap index is
     followed, at most 10 sitemaps). Only read - never anything else of robots.txt. (50,000 = what one sitemap file
     may hold: they are counted, and only a sample of each page type is visited.)"""
+    from ..payment_nav import read_safe
+
     base = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
     todo, done, out = [f"{base}/sitemap.xml"], set(), []
     try:
-        r = context.request.get(f"{base}/robots.txt", timeout=10000)
-        if r.ok:
+        r = read_safe(context.request.get, f"{base}/robots.txt", timeout=10000)
+        if r is not None and r.ok:
             todo = [l.split(":", 1)[1].strip() for l in r.text().splitlines()
                     if l.lower().startswith("sitemap:")] + todo
     except Exception:
@@ -1508,8 +1649,8 @@ def _sitemap_urls(context, start_url: str, limit: int = 50000) -> list[str]:
             continue
         done.add(sm)
         try:
-            r = context.request.get(sm, timeout=15000)
-            if not r.ok:
+            r = read_safe(context.request.get, sm, timeout=15000)
+            if r is None or not r.ok:
                 continue
             body = r.text()
         except Exception:
@@ -1767,6 +1908,17 @@ def discovery_agent(state: QAState) -> QAState:
     start_url = _normalize(state["url"])
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
+    from ..finalization import folder_is_linked
+    if folder_is_linked(run_dir) or shots.is_symlink():
+        reason = "This run's folder is a link, so the crawl was not started."
+        print(f"  [discovery] stopped before the crawl: {reason}", flush=True)
+        return {
+            "app_map": [], "crawl_issues": [], "roles": {},
+            "login": {"found": False, "logged_in": False, "note": reason, "outcome": "not_required"},
+            "crawl": {"start_url": start_url, "stopped": reason, "visited": 0, "sample_unchanged": True,
+                      "swarm": {"sample": settings.swarm_sample}},
+            "log": state.get("log", []) + [f"Discovery stopped before the crawl: {reason}"],
+        }
     shots.mkdir(parents=True, exist_ok=True)
     target = read_target(run_dir)
     if target is not None and target.get("ok") is False:
@@ -1811,23 +1963,21 @@ def discovery_agent(state: QAState) -> QAState:
     seen = {(start_url, False)}
     skipped: dict = {}  # url -> reason (filled as links are refused)
     resumed_urls: set[str] = set()
+    resumed_visits: set[tuple[str, bool]] = set()
     if state.get("resuming"):
         saved_pages, pending = load_saved_crawl(run_dir)
         if saved_pages:
             app_map.extend(saved_pages)
-            for page in saved_pages:
-                saved_url = _normalize(page.get("url") or "")
-                if not saved_url:
-                    continue
-                resumed_urls.add(saved_url)
-                seen.add((saved_url, False))
-                seen.add((saved_url, True))
+            resumed_urls, resumed_visits = resume_seen(saved_pages)
+            seen.update(resumed_visits)
             for raw in pending:
-                waiting = _normalize(raw)
-                if not waiting or (waiting, False) in seen:
+                waiting, auth_wait = pending_visit(raw)
+                if not waiting or (waiting, auth_wait) in seen:
                     continue
-                seen.add((waiting, False))
-                place_link(queue, (waiting, 1, True, False), priorities=priorities, uncertain=True)
+                depth = int(raw.get("depth") or 1) if isinstance(raw, dict) else 1
+                inside = bool(raw.get("inside", True)) if isinstance(raw, dict) else True
+                seen.add((waiting, auth_wait))
+                place_link(queue, (waiting, depth, inside, auth_wait), priorities=priorities, uncertain=True)
             print(f"  [discovery] resumed {len(saved_pages)} inventoried page(s), "
                   f"{len(pending)} still waiting", flush=True)
     crawl_started, time_limited, stopped = time.time(), False, ""
@@ -1847,9 +1997,7 @@ def discovery_agent(state: QAState) -> QAState:
     MAX_NOT_APP = 10  # after this many, stop checking outside links (keeps the crawl quick)
     # learns what each control does (observe -> act -> verify -> expand); shared controls are learned once
     def created(what: str, tag: str, where: str) -> None:  # (a form exploring SENT - staging: for the cleanup)
-        with (run_dir / "created.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"what": what, "tag": tag, "where": where, "status": "created", "time": time.time(),
-                                 "by": "exploring"}) + "\n")
+        record_created(run_dir, what, tag, where)
     explorer = Explorer(EXTRACT_JS, _settle, crawl_started + crawl_budget_min * 60,
                         tag_base=re.sub(r"\D", "", run_dir.name)[-6:] or "run", on_created=created)
     # the AI looks at each page's screenshot while the crawl goes on (2 at a time): what it saw is tried too
@@ -1878,8 +2026,9 @@ def discovery_agent(state: QAState) -> QAState:
         work = [row["work"] for row in rows if isinstance(row.get("work"), dict)]
         if not work:
             return
-        (run_dir / "swarm_work.json").write_text(json.dumps(work, indent=2), encoding="utf-8")
-        print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
+        from ..finalization import write_text_unless_linked
+        if write_text_unless_linked(run_dir, "swarm_work.json", json.dumps(work, indent=2)):
+            print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -1914,8 +2063,11 @@ def discovery_agent(state: QAState) -> QAState:
                 from ..scrape_seed import harvest_openapi_operations, seed_entries
                 start_html = ""
                 try:
-                    r0 = contexts[False].request.get(start_url, timeout=15000)
-                    if getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400:
+                    from ..payment_nav import read_safe
+                    r0 = read_safe(contexts[False].request.get, start_url, timeout=15000)
+                    if r0 is not None and (
+                        getattr(r0, "ok", False) or int(getattr(r0, "status", 0) or 0) < 400
+                    ):
                         start_html = r0.text() if callable(getattr(r0, "text", None)) else (r0.text or "")
                 except Exception:
                     start_html = ""
@@ -2048,11 +2200,14 @@ def discovery_agent(state: QAState) -> QAState:
                 from playwright.sync_api import sync_playwright
                 playwright = sync_playwright().start()
                 worker_browser = playwright.chromium.launch(headless=settings.headless)
+                session = WorkerBrowser(worker_browser, saved_login)
 
                 def open_page(address: str) -> dict:
-                    page = worker_browser.new_page()
+                    page = session.page()
                     try:
-                        response = page.goto(address, wait_until="domcontentloaded", timeout=20000)
+                        response, blocked = open_guarded(page, address)
+                        if blocked:
+                            return blocked
                         data = page.evaluate(EXTRACT_JS) or {}
                         links = len(data.get("links") or [])
                         buttons = len(data.get("buttons") or [])
@@ -2074,6 +2229,7 @@ def discovery_agent(state: QAState) -> QAState:
 
                 def close() -> None:
                     try:
+                        session.close()
                         worker_browser.close()
                     finally:
                         playwright.stop()
@@ -2104,7 +2260,7 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
-            if url in resumed_urls and (url, auth) not in reread:
+            if (url, auth) in resumed_visits and (url, auth) not in reread:
                 continue
             if not inside and not_app >= MAX_NOT_APP:
                 continue
@@ -2135,6 +2291,7 @@ def discovery_agent(state: QAState) -> QAState:
                 used_slugs.discard(old["slug"])
             if not browser.is_connected() and not reopen():  # (its window was closed, or Chrome stopped)
                 queue.appendleft((url, depth, inside, auth))
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
                 break
             page, context = tabs[auth], contexts[auth]
@@ -2144,6 +2301,7 @@ def discovery_agent(state: QAState) -> QAState:
                 except Exception as e:  # (the whole browser / session went with it)
                     if not _gone(e) or not reopen():
                         queue.appendleft((url, depth, inside, auth))
+                        save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                         stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
                         break
                     page, context = tabs[auth], contexts[auth]
@@ -2162,13 +2320,18 @@ def discovery_agent(state: QAState) -> QAState:
                      "found_by": found_by.get(url, "start" if depth == 0 else "link")}
             t0 = time.time()
             try:
+                from ..payment_nav import navigate_for_crawl
+
+                def _open(limit, wait="domcontentloaded"):
+                    return navigate_for_crawl(page, url, timeout=limit, wait_until=wait)
+
                 pace.wait()  # (polite speed: MAX_REQUESTS_PER_SEC, slower after HTTP 429 / 503)
                 try:
-                    resp = page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    resp, pay_to = _open(settings.page_timeout_ms)
                 except PageTimeout:  # a slow answer once (a busy demo server): one more try, with twice the time
                     print(f"      ↳ slow to open - trying once more with {2 * settings.page_timeout_ms // 1000} s",
                           flush=True)
-                    resp = page.goto(url, wait_until="commit", timeout=2 * settings.page_timeout_ms)
+                    resp, pay_to = _open(2 * settings.page_timeout_ms, "commit")
                     try:
                         page.wait_for_load_state("domcontentloaded", timeout=2 * settings.page_timeout_ms)
                     except PageTimeout:
@@ -2179,8 +2342,20 @@ def discovery_agent(state: QAState) -> QAState:
                             raise
                         entry["still_loading"] = True
                         print("      ↳ the page shows but never finished loading - testing it as it shows", flush=True)
+                if pay_to:
+                    used_slugs.discard(slug)
+                    skipped[url] = "checkout, payment and placing an order are never tested"
+                    routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
+                    print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
+                    continue
                 if resp is not None and resp.status in (429, 503) and pace.back_off(resp.status):
-                    resp = page.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    resp, pay_to = _open(settings.page_timeout_ms)
+                    if pay_to:
+                        used_slugs.discard(slug)
+                        skipped[url] = "checkout, payment and placing an order are never tested"
+                        routes["redirected_out"].append({"url": url, "to": pay_to, "reason": skipped[url]})
+                        print(f"  [discovery] not opened: {url} redirects into checkout", flush=True)
+                        continue
                 try:
                     page.wait_for_load_state("networkidle", timeout=5000)
                 except Exception:
@@ -2194,6 +2369,16 @@ def discovery_agent(state: QAState) -> QAState:
                 entry["status"] = resp.status if resp else (200 if "#" in url else None)
                 entry["load_time_ms"] = int((time.time() - t0) * 1000)
                 entry["final_url"] = page.url
+                if resp is not None:
+                    try:
+                        hdrs = resp.headers or {}
+                        keep = ("content-security-policy", "strict-transport-security",
+                                "x-content-type-options", "content-type")
+                        captured = {k: hdrs.get(k) for k in keep if hdrs.get(k)}
+                        if captured:
+                            entry["response_headers"] = captured
+                    except Exception:
+                        pass
                 # a redirect that left the approved scope: what the browser got there is not used
                 why = scope.navigation_blocked(page.url)
                 if why and not app_map and _same_site(urlparse(page.url).hostname, base_host):
@@ -2256,7 +2441,10 @@ def discovery_agent(state: QAState) -> QAState:
                         layout = page.evaluate(LAYOUT_JS)
                         if visual.enabled():  # its look at phone width, for the visual check (backend/visual.py)
                             phone_shot = shots / f"phone_{shot_path.name}"
-                            page.screenshot(path=str(phone_shot))
+                            from ..finalization import path_unless_linked
+                            allowed = path_unless_linked(shots, phone_shot.name)
+                            if allowed is not None:
+                                page.screenshot(path=str(allowed))
                             look_phone = dict(page.evaluate(visual.VISUAL_JS),
                                               shot=phone_shot.relative_to(run_dir).as_posix())
                         desk = {x.get("selector") for x in entry.get("buttons", []) + entry.get("inputs", [])}
@@ -2277,12 +2465,17 @@ def discovery_agent(state: QAState) -> QAState:
                 if not inside and app_map and not _same_app(entry, app_map[0], base_host):
                     raise _NotTheApp()
                 try:  # the page's HTML code, so the report can point at the exact line to change
+                    from ..finalization import path_unless_linked, write_text_unless_linked
                     html_dir = run_dir / "html"
-                    html_dir.mkdir(exist_ok=True)
-                    (html_dir / f"{slug}.html").write_text(page.content(), encoding="utf-8")
+                    if path_unless_linked(run_dir, "html") is not None:
+                        html_dir.mkdir(exist_ok=True)
+                        write_text_unless_linked(html_dir, f"{slug}.html", page.content())
                 except Exception:
                     pass
-                page.screenshot(path=str(shot_path), full_page=True)
+                from ..finalization import path_unless_linked
+                allowed_shot = path_unless_linked(shots, shot_path.name)
+                if allowed_shot is not None:
+                    page.screenshot(path=str(allowed_shot), full_page=True)
                 if visual.enabled():  # its look at desktop width: compared with the approved look (backend/visual.py)
                     try:
                         look = dict(page.evaluate(visual.VISUAL_JS), shot=entry["screenshot"])
@@ -2322,7 +2515,10 @@ def discovery_agent(state: QAState) -> QAState:
                 used_slugs.discard(slug)
                 alive = False  # is the login really gone? the page right after login must still open logged in
                 try:
-                    page.goto(session["landing"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    pay_to = resume_session(page, session["landing"], settings.page_timeout_ms)
+                    if pay_to:
+                        skipped[url] = "checkout, payment and placing an order are never tested"
+                        continue
                     _settle(page)
                     alive = not looks_logged_out(page, session["form"])
                 except Exception:
@@ -2344,15 +2540,15 @@ def discovery_agent(state: QAState) -> QAState:
                         routes["session_expired"].append({"url": url, "action": "logged in again"})
                         print(f"  [discovery] login: the session expired at {url} - logged in again", flush=True)
                         queue.appendleft((url, depth, inside, auth))
+                        save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                         continue
                     new_tab.close()
                 routes["session_expired"].append({"url": url, "action": "stopped testing the pages behind the login"})
                 login["session_expired"] = True
                 print(f"  [discovery] login: the session expired at {url} and logging in again did not work - "
                       "the remaining pages behind the login are not tested", flush=True)
-                for item in [q for q in queue if q[3]]:
-                    queue.remove(item)
-                    skipped[item[0]] = "not visited: the login expired"
+                drop_expired_login(queue, skipped)
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 continue
             except Exception as e:
                 if _gone(e) and not runctl.stopping():  # our browser went away mid-page: never the website's error
@@ -2361,6 +2557,7 @@ def discovery_agent(state: QAState) -> QAState:
                         for k in (u, _normalize(u), _no_index(_normalize(u))):
                             landed.discard((k, auth))
                     queue.appendleft((url, depth, inside, auth))
+                    save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                     if reopen():
                         continue
                     stopped = "the browser kept closing (its window was closed, or Chrome stopped)"
@@ -2380,6 +2577,7 @@ def discovery_agent(state: QAState) -> QAState:
                     print("      ↳ the browser cancelled the page load (the website was still moving) - once more",
                           flush=True)
                     queue.appendleft((url, depth, inside, auth))
+                    save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                     continue
                 if "ERR_BLOCKED_BY_CLIENT" in str(e):  # the safety rules stopped where this address leads
                     used_slugs.discard(slug)
@@ -2397,7 +2595,12 @@ def discovery_agent(state: QAState) -> QAState:
                 entry["status"] = None
                 entry["error"] = str(e).split("\n")[0][:300]
                 try:
-                    page.screenshot(path=str(shot_path))
+                    from ..finalization import path_unless_linked
+                    allowed_shot = path_unless_linked(shots, shot_path.name)
+                    if allowed_shot is None:
+                        entry["screenshot"] = None
+                    else:
+                        page.screenshot(path=str(allowed_shot))
                 except Exception:
                     entry["screenshot"] = None
 
@@ -2629,6 +2832,9 @@ def discovery_agent(state: QAState) -> QAState:
                     key = _pattern(nxt, auth)
                     folder = _parent_path(nxt)
                     if n_sample > 0 and not key and folder in typed:
+                        if is_payment_url(nxt):
+                            skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
+                            return False
                         # a page of a folder whose pages share one design: its kind is
                         kind = f"{folder}/* (one design)"  # known - a sample is tested, the rest smoke-checked
                         kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
@@ -2650,6 +2856,10 @@ def discovery_agent(state: QAState) -> QAState:
                                                                                         "smoke": []})
                         kinds["found"] += 1
                         if n_sample > 0 and patterns[key] > n_sample:
+                            if is_payment_url(nxt):
+                                kinds["found"] -= 1
+                                skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
+                                return False
                             routes["sampled"] += 1
                             if len(kinds["smoke"]) < 10:  # (up to 10 more of the same kind: smoke-checked by a test)
                                 kinds["smoke"].append(nxt)
@@ -2689,8 +2899,19 @@ def discovery_agent(state: QAState) -> QAState:
                         swarm_workers.update(row["worker"] for row in assigned)
                         print(f"  [discovery] swarm chose {len(picked_norm)} of {len(items)} products "
                               f"({settings.test_workers} workers)", flush=True)
-                    swarm_tasks.extend(tasks_for_listing(url, picked_norm, left_norm, settings.test_workers))
+                    listing_batch = tasks_for_listing(url, picked_norm, left_norm, settings.test_workers)
+                    swarm_tasks.extend(listing_batch)
                     swarm_checks.append(verify_listing(listed, picked_norm, left_norm))
+                    # Gate B: dual-write listing handoffs into durable SQLite while crawling.
+                    try:
+                        from ..swarm_evidence import mirror_listing
+                        mirrored = mirror_listing(run_dir, listing_batch, run_id=run_dir.name)
+                        if mirrored.get("mirrored"):
+                            print(f"  [discovery] durable swarm mirrored {mirrored['mirrored']} "
+                                  f"listing task(s) (Gate B not complete)", flush=True)
+                    except Exception as e:
+                        print(f"  [discovery] durable listing mirror skipped: "
+                              f"{str(e).splitlines()[0][:120]}", flush=True)
                 elif n_sample > 0 and len(items) >= 3:
                     odd = [h for h in (entry.get("itemLinks") or {}).get("odd") or [] if h in items][:1]
                     picked = list(dict.fromkeys([items[0], *odd, items[len(items) // 2], items[-1]]))
@@ -2738,7 +2959,14 @@ def discovery_agent(state: QAState) -> QAState:
                 # 'Add to cart' -> the cart link) leads to are queued, controls revealed by an action are added,
                 # and a page an action changed (the menu says 'Cart (1)' now) is read again.
                 # (errors caused by these actions don't count for this page - its own tests check them)
-                if inside and not entry.get("error"):
+                acted = click_page(url, str(entry.get("final_url") or ""))
+                if inside and not entry.get("error") and not click_actions_allowed(acted):
+                    entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
+                    print(f"  [discovery] {_normalize(acted)} is a checkout or payment page - seen, not clicked",
+                          flush=True)
+                    current["console"], current["failed"] = [], []
+                    explorer.explore(page, acted, entry)
+                elif inside and not entry.get("error"):
                     current["console"], current["failed"] = [], []
                     if slug in looks:  # (what the AI saw on this page: the explorer tries it too - waited for 15 s
                         try:       # at most: a slow answer is used for the report and the AI's tests, not here)
@@ -2765,7 +2993,12 @@ def discovery_agent(state: QAState) -> QAState:
                             reread.add((nxt, auth))
                             queue.appendleft((nxt, done["depth"], True, auth))
                             print(f"  [discovery] an action changed {nxt} - it is read again")
-            if mode == "page" and inside and not entry.get("error"):
+            acted = click_page(url, str(entry.get("final_url") or ""))
+            if mode == "page" and inside and not entry.get("error") and not click_actions_allowed(acted):
+                entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
+                current["console"], current["failed"] = [], []
+                explorer.explore(page, acted, entry)
+            elif mode == "page" and inside and not entry.get("error"):
                 # a specific page: what its controls do is learned too (the pages they lead to are listed, not opened)
                 current["console"], current["failed"] = [], []
                 new, _changed = explorer.explore(page, url, entry)
@@ -2805,17 +3038,12 @@ def discovery_agent(state: QAState) -> QAState:
                 print(f"  [discovery] {url} was cut off by the stop - not counted", flush=True)
                 stopped = runctl.reason()
                 queue.appendleft((url, depth, inside, auth))  # (counted as not visited)
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 break
             app_map.append(entry)
             if remember_locale(locale_seen, entry):
                 write_locale(run_dir, locale_seen)
-            waiting = [item[0] for item in queue]
-            ranked_waiting = rank_candidates([
-                {"url": item, "new_template": True, "journey_distance": 1,
-                 "changed": any(token and token in item for token in priorities)} for item in waiting
-            ])
-            ranked_urls = [row["url"] for row in ranked_waiting]
-            save_crawl_progress(run_dir, app_map, ranked_urls + [item for item in waiting if item not in set(ranked_urls)])
+            save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
             # the sign-up page is found only now (a 'Create new account' button in a login popup opens it): the account
             # step had given up at the start (advantageonlineshopping.com, Nov 3, 2026: "no sign-up page was found" -
             # its #/register was found later, so nothing behind the login was tested). Sign up and log in now: the
@@ -2827,6 +3055,7 @@ def discovery_agent(state: QAState) -> QAState:
                 login["found"] = False
                 reread.add((at, False))
                 queue.appendleft((at, at_depth, at_inside, False))
+                save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 print(f"  [discovery] login: the sign-up page was found now ({url}) - creating the test account and "
                       "logging in from the login page again", flush=True)
             learned = [b for b in entry.get("behaviour", []) if b.get("effect") not in ("error", None)]
@@ -2852,8 +3081,8 @@ def discovery_agent(state: QAState) -> QAState:
 
         if login["logged_in"]:  # the tests reuse this login (cookies + local storage), so they don't log in each time
             try:  # (kept in runs/<run>/.private/: never served by the web UI, deleted when the run ends)
-                (run_dir / PRIVATE).mkdir(exist_ok=True)
-                contexts[True].storage_state(path=str(run_dir / PRIVATE / "auth.json"))
+                from ..finalization import save_login_state
+                save_login_state(run_dir, lambda path: contexts[True].storage_state(path=path))
             except Exception as e:
                 print(f"  [discovery] could not save the login for the tests: {str(e)[:150]}")
             # several user roles: what each other role may open (its access is tested - a lower role must be refused)
@@ -2866,7 +3095,8 @@ def discovery_agent(state: QAState) -> QAState:
                 role_map = {}
                 print(f"  [discovery] the other roles could not be explored: {str(e).splitlines()[0][:150]}")
             if role_map:
-                (run_dir / "roles.json").write_text(json.dumps(role_map, indent=2), encoding="utf-8")
+                from ..finalization import write_text_unless_linked
+                write_text_unless_linked(run_dir, "roles.json", json.dumps(role_map, indent=2))
         if site_swarm is not None:
             _close_swarm()
         browser.close()
@@ -2907,7 +3137,8 @@ def discovery_agent(state: QAState) -> QAState:
         roles=sorted(role_map),
         catalog_size=sum(len((page.get("itemLinks") or {}).get("links") or []) for page in app_map),
     )
-    (run_dir / "capabilities.json").write_text(json.dumps(capabilities, indent=2), encoding="utf-8")
+    from ..finalization import write_text_unless_linked
+    write_text_unless_linked(run_dir, "capabilities.json", json.dumps(capabilities, indent=2))
     crawl = {
         "start_url": start_url, "approved_hosts": list(dict.fromkeys([base_host] + scope.extra)),
         "mode": mode, "section": section, "limit": limit, "max_depth": settings.max_depth,
@@ -2949,7 +3180,7 @@ def discovery_agent(state: QAState) -> QAState:
     look_pool.shutdown(wait=True)  # (the AI looks at the pages it has not seen yet: what a person can use there)
     if not settings.discovery_only:
         vision.look_at_pages(app_map, run_dir)
-    (run_dir / "app_map.json").write_text(json.dumps(app_map, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "app_map.json", json.dumps(app_map, indent=2))
     records = [page_record(page) for page in app_map]
     target = read_target(run_dir) or {}
     found = inventory_pages(records, done=sorted(resumed_urls), page_budget=int(target.get("page_budget") or limit))
@@ -2962,14 +3193,48 @@ def discovery_agent(state: QAState) -> QAState:
           f"{len(found['remaining'])} still waiting", flush=True)
     print(f"  [discovery] graph: {len(graph['templates'])} template(s), {len(graph['elements'])} element(s), "
           f"{len(graph['transitions'])} transition(s)", flush=True)
-    (run_dir / "login.json").write_text(json.dumps(login, indent=2), encoding="utf-8")
-    (run_dir / "crawl.json").write_text(json.dumps(crawl, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "login.json", json.dumps(login, indent=2))
+    write_text_unless_linked(run_dir, "crawl.json", json.dumps(crawl, indent=2))
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)
+    from ..discovery_graph import write_graph
     reg = registry.build(app_map, crawl)
     registry.save(reg, run_dir)
     save_inventory(run_dir, app_map, reg)
+    provenanced = write_graph(run_dir, app_map, crawl)
+    from ..portfolio_capture import capture_portfolios
+    portfolios = capture_portfolios(
+        run_dir, app_map, source_url=state.get("url") or start_url, crawl=crawl if isinstance(crawl, dict) else None)
     print(f"  [discovery] registry: {len(reg['pages'])} page pattern(s), {len(reg['features'])} feature(s) / "
           f"control(s), {len(reg['edges'])} link(s) between pages")
+    print(f"  [discovery] provenance graph: {provenanced['counts']['nodes']} node(s), "
+          f"{provenanced['counts']['edges']} edge(s) (Gate A not complete)")
+    print(f"  [discovery] portfolio capture: a11y={bool(portfolios.get('a11y_page'))} "
+          f"perf={portfolios.get('performance') is not None} "
+          f"security={portfolios.get('security_headers') is not None} "
+          f"compat={portfolios.get('compatibility') is not None} (Gate F not complete)", flush=True)
+    from ..device_matrix import viewport_evidence_from_app_map
+    from ..surface_coverage import summarize_surfaces
+    from ..swarm_evidence import record_swarm
+    viewport_rows = viewport_evidence_from_app_map(app_map)
+    write_text_unless_linked(run_dir, "device_matrix_evidence.json", json.dumps(viewport_rows, indent=2))
+    surfaces = summarize_surfaces(app_map, crawl)
+    write_text_unless_linked(run_dir, "surface_coverage.json", json.dumps(surfaces, indent=2))
+    swarm = record_swarm(
+        run_dir,
+        [page.get("url") or "" for page in app_map if page.get("url")],
+        run_id=run_dir.name,
+        worker_count=max(1, int(settings.test_workers or 1)),
+        listing_tasks=swarm_tasks[:300],
+    )
+    print(f"  [discovery] device matrix evidence: {len(viewport_rows)} profile row(s) "
+          f"(Gate D not complete)", flush=True)
+    print(f"  [discovery] surface coverage: pages={surfaces.get('pages')} "
+          f"frames={((surfaces.get('frames') or {}).get('listed_iframes'))} "
+          f"shadow_roots={((surfaces.get('shadow') or {}).get('open_roots_seen'))} "
+          f"lazy={((surfaces.get('evidence') or {}).get('lazy') or {}).get('pages_with_lazy')} "
+          f"(Gate A not complete)", flush=True)
+    print(f"  [discovery] durable swarm: processed={swarm.get('processed')} "
+          f"statuses={swarm.get('statuses')} (Gate B not complete)", flush=True)
     if blocked:
         print(f"  [discovery] the safety rules blocked {len(blocked)} request(s) (private network / outside the scope)")
     log = state.get("log", []) + [
@@ -2979,7 +3244,7 @@ def discovery_agent(state: QAState) -> QAState:
            if pending else "(all reachable pages within the limits were visited).")
         + (f" {len(skipped)} link(s) were skipped on purpose (see the coverage section)." if skipped else "")
     ] + ([f"Login: {login['note']}"] if login["found"] else [])
-    roles = json.loads((run_dir / "roles.json").read_text(encoding="utf-8")) if (run_dir / "roles.json").exists() else {}
+    roles = saved_roles(run_dir)
     locale_written = write_locale(run_dir, locale_seen)
     if locale_written["observed"]:
         shown = ", ".join(f"{key}={locale_written['observed'][key]}" for key in locale_written["observed"])
@@ -3012,9 +3277,20 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
     roles = [a for a in settings.test_accounts if a["username"] != main][:5]
     if not roles or not session.get("form") or not session.get("login_page"):
         return {}
-    pages = [p for p in app_map if p.get("auth") and not p.get("error")][:60]
+    blocked, openable = [], []
+    for p in app_map:
+        if not p.get("auth") or p.get("error"):
+            continue
+        target = p.get("final_url") or p.get("url") or ""
+        if is_payment_url(target) or is_payment_url(p.get("url") or ""):
+            blocked.append(p)
+        else:
+            openable.append(p)
+    pages = openable[:60]
     for p in pages:  # (the main role opened them)
         p.setdefault("roles", {})[_role_name(main)] = "denied" if p.get("needs_permission") else "ok"
+    for p in blocked:  # recorded once by the crawl; a role check does not open checkout again
+        p.setdefault("roles", {})[_role_name(main)] = "blocked"
     out = {}
     for a in roles:
         ctx = new_context()
@@ -3025,12 +3301,29 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
                 print(f"  [discovery] role '{a['role']}': could not sign in ({res['outcome']})", flush=True)
                 continue
             safe = re.sub(r"[^A-Za-z0-9_-]", "_", a["role"])
-            (run_dir / PRIVATE).mkdir(exist_ok=True)
-            ctx.storage_state(path=str(run_dir / PRIVATE / f"auth_{safe}.json"))
+            from ..finalization import private_file
+            auth_path = private_file(run_dir, f"auth_{safe}.json")
+            if auth_path is not None:
+                ctx.storage_state(path=str(auth_path))
             seen = {}
+            for p in blocked:
+                seen[p["url"]] = {"access": "blocked", "status": None, "to": ""}
+                p.setdefault("roles", {})[a["role"]] = "blocked"
+            from ..payment_nav import navigate_for_crawl
             for p in pages:
                 try:
-                    resp = tab.goto(p["url"], wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+                    try:
+                        resp, pay_to = navigate_for_crawl(
+                            tab, p["url"], timeout=settings.page_timeout_ms)
+                    except Exception as first:
+                        if not CANCELLED.search(str(first)):
+                            raise
+                        resp, pay_to = navigate_for_crawl(
+                            tab, p["url"], timeout=settings.page_timeout_ms)
+                    if pay_to:
+                        seen[p["url"]] = {"access": "blocked", "status": None, "to": pay_to}
+                        p.setdefault("roles", {})[a["role"]] = "blocked"
+                        continue
                     _settle(tab)
                     status = resp.status if resp else None
                     text = tab.locator("body").inner_text(timeout=5000)[:4000]
@@ -3046,7 +3339,8 @@ def _explore_roles(new_context, session: dict, app_map: list[dict], run_dir: Pat
                     p.setdefault("roles", {})[a["role"]] = access
                 except Exception as e:
                     seen[p["url"]] = {"access": "error", "error": str(e).splitlines()[0][:120]}
-            out[a["role"]] = {"login": "success", "state": f"auth_{safe}.json", "pages": seen}
+            out[a["role"]] = {"login": "success", "state": auth_path.name if auth_path is not None else "",
+                              "pages": seen}
             n_ok = sum(1 for v in seen.values() if v["access"] == "ok")
             print(f"  [discovery] role '{a['role']}': may open {n_ok} of {len(seen)} page(s) behind the login", flush=True)
         except Exception as e:
@@ -3063,7 +3357,11 @@ def restore_login(state: QAState) -> str:
     """`main.py --resume`: the saved login (.private/auth.json) was deleted when the first part of the run ended.
     Sign in once more with the same test account, so the tests still start logged in. Returns a note for the log."""
     login, run_dir = state.get("login") or {}, Path(state["run_dir"])
-    if not login.get("logged_in") or (run_dir / PRIVATE / "auth.json").exists():
+    auth = run_dir / PRIVATE / "auth.json"
+    from ..finalization import folder_is_linked
+    if folder_is_linked(auth):
+        return "Resume: the saved login is a link, so it was not read."
+    if not login.get("logged_in") or auth.is_file():
         return ""
     entry = next((p for p in state.get("app_map", []) if p["url"] == login.get("page")), None)
     form = login_form(entry) if entry else None
@@ -3085,8 +3383,11 @@ def restore_login(state: QAState) -> str:
             _tab, res = log_in(context, login["page"], form, name, account["password"], scope)
             if not res["logged_in"]:
                 return f"Resume: signing in again did not work ({res['outcome']}) - the tests start logged out."
-            (run_dir / PRIVATE).mkdir(exist_ok=True)
-            context.storage_state(path=str(run_dir / PRIVATE / "auth.json"))
+            from ..finalization import private_file
+            auth_path = private_file(run_dir, "auth.json")
+            if auth_path is None:
+                return "Resume: the saved login is a link, so it was not written."
+            context.storage_state(path=str(auth_path))
         finally:
             browser.close()
     return "Resume: signed in again with the test account (the saved login is deleted when the run ends)."

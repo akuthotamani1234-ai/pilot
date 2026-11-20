@@ -1,0 +1,47 @@
+{
+  "gate_h_complete": false,
+  "drill": "hosted_oncall_rota_contract",
+  "ran_at": "2026-11-19T05:00:30Z",
+  "kind": "contract_only",
+  "rota": {
+    "tiers": [
+      {
+        "name": "primary",
+        "ack_sla_minutes": 5,
+        "resolve_target_minutes": 60
+      },
+      {
+        "name": "secondary",
+        "ack_sla_minutes": 15,
+        "resolve_target_minutes": 120
+      }
+    ],
+    "escalation": {
+      "primary_to_secondary_after_minutes": 10,
+      "evidence": "paging_escalation_ack_pack_drill.json"
+    },
+    "channels": [
+      "loopback_webhook",
+      "hosted_pager_pending"
+    ],
+    "required_actions": [
+      "ack",
+      "resolve",
+      "page_secondary"
+    ],
+    "note": "Rota contract only; live hosted pager acknowledgement still required"
+  },
+  "live_hosted_paging": false,
+  "local_partial_present": [
+    "paging_escalation_drill.json",
+    "paging_ack_drill.json",
+    "paging_escalation_ack_pack_drill.json",
+    "hosted_oncall_contract_drill.json",
+    "hosted_oncall_readiness_drill.json",
+    "hosted_oncall_readiness_pack_drill.json",
+    "hosted_dr_cutover_checklist_drill.json"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Hosted on-call rota contract recorded (7/7 local partials present); live hosted multi-region DR / on-call paging still open"
+}

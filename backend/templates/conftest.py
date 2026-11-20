@@ -43,7 +43,18 @@ HEADLESS = os.environ.get("HEADLESS", "true").lower() != "false"
 SLOW_MO_MS = int(os.environ.get("SLOW_MO_MS", "0"))
 NAV_TIMEOUT_MS = int(os.environ.get("QA_NAV_TIMEOUT_MS", "30000"))  # time a page may take to open
 TEST_TIMEOUT_S = float(os.environ.get("QA_TEST_TIMEOUT_S", "180"))
-RUN_DIR = Path(os.environ.get("QA_RUN_DIR") or Path(__file__).resolve().parent.parent).resolve()
+
+
+def _output_is_linked(path: Path) -> bool:
+    """A result file, or a folder on the way to it, that is a link is another run's file."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+_raw_run = Path(os.environ.get("QA_RUN_DIR") or Path(__file__).resolve().parent.parent)
+RUN_DIR = _raw_run if _output_is_linked(_raw_run) else _raw_run.resolve()
 ALLOWED_HOSTS = [h.strip().lower() for h in os.environ.get("QA_ALLOWED_HOSTS", "").split(",") if h.strip()]
 TARGET_LOCAL = os.environ.get("QA_TARGET_LOCAL") == "1"
 VIDEO_DIR = os.environ.get("QA_VIDEO_DIR", "")  # set: a video of every browser window is saved there (RECORD_VIDEO)
@@ -58,7 +69,8 @@ ACTION_DELAY_MS = 0 if HEADLESS else max(0, min(SLOW_MO_MS, 3000))
 EVENT_SESSION = uuid.uuid4().hex[:12]
 EVENT_FILE = RUN_DIR / f"events.{EVENT_SESSION}.{os.environ.get('PYTEST_XDIST_WORKER', 'main')}.jsonl"
 _EVENT_SEQUENCE = 0
-SHOT_DIR.mkdir(parents=True, exist_ok=True)
+if not _output_is_linked(SHOT_DIR):
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
 REDACTED = "[REDACTED]"
 
 
@@ -213,14 +225,21 @@ _real_head = APIRequestContext.head
 def _checked(real):
     def call(self, url, **kwargs):
         hops, current = 0, url
+        checker = globals().get("_payment_target")
         while True:
+            # A direct read of checkout is refused. A redirect into checkout is not followed.
+            if checker and checker(str(current or "")):
+                pytest.skip("Blocked: checkout or payment is recorded and not opened again")
             why = _blocked(current)
             if why:
                 raise PermissionError(f"blocked by the test sandbox: {current} ({why})")
             r = real(self, current, **dict(kwargs, max_redirects=0))
             location = r.headers.get("location")
             if r.status in (301, 302, 303, 307, 308) and location and hops < 5:
-                current, hops = urljoin(current, location), hops + 1
+                nxt = urljoin(current, location)
+                if checker and checker(nxt):
+                    return r
+                current, hops = nxt, hops + 1
                 continue
             return r
     return call
@@ -260,6 +279,21 @@ def _inside_run(path) -> bool:
         return False
 
 
+def _link_escapes(path) -> bool:
+    """True when a path in this run resolves outside it: a link, or .. ."""
+    text = os.fsdecode(path)
+    raw = Path(text)
+    if not raw.is_absolute():
+        raw = Path.cwd() / raw
+    try:
+        inside = Path(os.path.normpath(raw)).is_relative_to(RUN_DIR)
+    except (TypeError, ValueError, OSError):
+        inside = False
+    if not inside and ".." not in Path(text).parts:
+        return False
+    return not _inside_run(path)
+
+
 def _audit(event, args):
     if _SANDBOX["thread"] is None or threading.get_ident() != _SANDBOX["thread"]:
         return
@@ -269,7 +303,7 @@ def _audit(event, args):
         path, mode, flags = (list(args) + [None, None])[:3]
         writing = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (
             isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT))
-        if SENSITIVE.search(os.fsdecode(path)) or (writing and not _inside_run(path)):
+        if SENSITIVE.search(os.fsdecode(path)) or (writing and not _inside_run(path)) or _link_escapes(path):
             raise PermissionError(f"blocked by the test sandbox: open {os.fsdecode(path)!r}")
     if event in _FILE_EVENTS and args and not all(_inside_run(a) for a in args[:2] if isinstance(a, (str, bytes))):
         raise PermissionError(f"blocked by the test sandbox: {event}")
@@ -318,6 +352,8 @@ RUNNING_FILE = RESULTS_FILE.parent / f"running.{RESULTS_FILE.stem}.{os.environ.g
 
 def _running(item=None) -> None:
     """Which test this browser runs now, since when, and its steps so far (the chat shows them ticking)."""
+    if _output_is_linked(RUNNING_FILE):
+        return
     try:
         RUNNING_FILE.write_text(json.dumps({"file": Path(str(item.fspath)).name, "test": item.name,
                                             "since": getattr(item, "_qa_t0", time.time()), "limit_s": TEST_TIMEOUT_S,
@@ -470,6 +506,8 @@ pytest.qa_step = _step  # (a journey's own verified steps - `_step_ok()` in the 
 
 def _event(text, status, **details):
     global _EVENT_SEQUENCE
+    if _output_is_linked(EVENT_FILE):
+        return
     item = _CURRENT["item"]
     if item is None:
         return
@@ -628,10 +666,88 @@ def _patched_goto(real):
         try:
             return _open(self, url, kwargs)
         except _pw.Error as e:
-            _did_not_open(url, e)
-            raise
+            # The browser cancelled the load while the website was still moving. Once more,
+            # as the crawl does. A second cancellation is a page that did not open.
+            if not re.search(r"net::ERR_ABORTED|NS_BINDING_ABORTED|interrupted by another navigation", str(e)):
+                _did_not_open(url, e)
+                raise
+            try:
+                return _open(self, url, kwargs)
+            except _pw.Error as again:
+                _did_not_open(url, again)
+                raise
 
     def _open(self, url, kwargs):
+        # Checkout is recorded by the crawl. A later test must not open it again.
+        # Cart routes stay open. The check lives in this file, so a helper that only
+        # calls page.goto still stops.
+        def _meta_refresh_target(probe, current):
+            headers = getattr(probe, "headers", None) or {}
+            header = headers.get("refresh") or headers.get("Refresh") or ""
+            if header:
+                import re as _re
+                from urllib.parse import urljoin as _join
+                delay = _re.match(r"\s*(\d+)", str(header))
+                if not (delay and int(delay.group(1)) > 1):
+                    target = _re.search(r"""url\s*=\s*['"]?([^'";>\s]+)""", str(header), _re.I)
+                    if target:
+                        return _join(current, target.group(1).strip())
+            text = getattr(probe, "text", None)
+            try:
+                raw = text() if callable(text) else (text or "")
+            except Exception:
+                return ""
+            raw = raw[:8000].decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)[:8000]
+            if "refresh" not in raw.lower():
+                return ""
+            import re as _re
+            from urllib.parse import urljoin as _join
+            for attrs in _re.findall(r"<meta\b([^>]*)>", raw, _re.I):
+                if not _re.search(r"""http-equiv\s*=\s*['"]?\s*refresh\b""", attrs, _re.I):
+                    continue
+                found = _re.search(r"""content\s*=\s*(?:(['"])(.*?)\1|([^\s>]+))""", attrs, _re.I)
+                if not found:
+                    continue
+                value = found.group(2) if found.group(2) is not None else (found.group(3) or "")
+                delay = _re.match(r"\s*(\d+)", value)
+                if delay and int(delay.group(1)) > 1:
+                    continue
+                target = _re.search(r"""url\s*=\s*['"]?([^'";>\s]+)""", value, _re.I)
+                if target:
+                    return _join(current, target.group(1).strip())
+            return ""
+
+        checker = globals().get("_payment_target")
+        if checker and checker(str(url or "")):
+            pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+        # A cart address stays open. A redirect from it into checkout is not loaded.
+        request = getattr(getattr(self, "request", None), "get", None)
+        if checker and request is not None:
+            from urllib.parse import urljoin as _join
+            current = str(url or "")
+            for _hop in range(5):
+                try:
+                    probe = request(current, max_redirects=0, timeout=10000)
+                except Exception:
+                    break
+                if getattr(probe, "status", None) not in (301, 302, 303, 307, 308):
+                    nxt = _meta_refresh_target(probe, current)
+                    if not nxt or nxt == current:
+                        break
+                    if checker(nxt):
+                        pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+                    current = nxt
+                    continue
+                headers = getattr(probe, "headers", None) or {}
+                location = headers.get("location") or headers.get("Location") or ""
+                if not location:
+                    break
+                nxt = _join(current, location)
+                if checker(nxt):
+                    pytest.skip("Blocked: checkout or payment is recorded and not opened again")
+                current = nxt
+            else:
+                pytest.skip("Blocked: checkout or payment is recorded and not opened again")
         kwargs.setdefault("wait_until", "domcontentloaded")
         kwargs.setdefault("timeout", NAV_TIMEOUT_MS)
         if kwargs["wait_until"] != "domcontentloaded" or not kwargs["timeout"]:
@@ -787,14 +903,72 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
   const i = said ? null : e.querySelector('i, svg, img, [class*=icon]');
   const icon = i ? [i.getAttribute('class'), i.getAttribute('data-icon'), i.getAttribute('aria-label'),
                     i.getAttribute('alt')].filter(Boolean).join(' ').replace(/[-_]+/g, ' ') : '';
+  const action = e.getAttribute('formaction') || (f ? (f.getAttribute('action') || '') : '');
+  const clicked = (e.getAttribute('onclick') || '').slice(0, 240);
   return [box ? '' : said, e.getAttribute('aria-label') || '', e.getAttribute('title') || '', e.getAttribute('href') || '',
-          icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : ''].map(s => s.trim().slice(0, 100)); }"""
+          icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : '', action, clicked].map(s => s.trim().slice(0, 180)); }"""
+
+
+def _payment_target(raw: str) -> bool:
+    """True when this address is checkout or payment, including a page the browser already opened.
+
+    A cart route (index.php?rt=checkout/cart) stays open. The checkout step
+    (index.php?rt=checkout/checkout or checkout/confirm) does not.
+    """
+    from urllib.parse import unquote
+    text = raw or ""
+    path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
+    if re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
+        r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
+        path, re.I):
+        return True
+    query = text.split("?", 1)[1].split("#", 1)[0] if "?" in text else ""
+    for piece in query.split("&"):
+        if "=" not in piece:
+            continue
+        key, value = piece.split("=", 1)
+        if not re.fullmatch(r"rt|route|r|controller|ctrl|action|act|task|cmd|do|page|step|view|screen", key, re.I):
+            continue
+        bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
+        if not bits or not any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+                               for bit in bits):
+            continue
+        cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
+            re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+        if not cart:
+            return True
+    if "#" in text:
+        route = unquote(text.split("#", 1)[1])
+        if route.startswith("!/"):
+            route = route[1:]
+        if route.startswith("/"):
+            bits = [bit for bit in re.split(r"[/.]", route.split("?", 1)[0].replace("_", "-")) if bit]
+            if bits and any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+                            for bit in bits):
+                cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
+                    re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+                if not cart:
+                    return True
+    return False
 
 
 def _risky(names: list) -> bool:
-    shown, other = names[0], " ".join(names[1:])
+    shown = names[0]
+    other = " ".join(names[1:8])
     both = f"{shown} {other}"
     href = names[3] if len(names) > 3 else ""
+    # A payment address is blocked even when the label does not say pay.
+    # Cart routes (index.php?rt=checkout/cart) and product names stay open.
+    if _payment_target(href):
+        return True
+    action = names[8] if len(names) > 8 else ""
+    if _payment_target(action):
+        return True
+    # A javascript: link or button can hide the checkout address in quotes.
+    for blob in (href, action, names[9] if len(names) > 9 else ""):
+        for quoted in re.findall(r"""['"]([^'"]+)['"]""", blob or ""):
+            if _payment_target(quoted):
+                return True
     reference = re.compile(os.environ.get('QA_REFERENCE_NAV_RX') or r'(?!)', re.I)
     if len(names) >= 8 and reference.fullmatch(shown) and names[5] == 'a' and not names[7] and (
             names[6] == 'menuitem' or bool(href and href != '#')) and not re.search(
@@ -815,10 +989,54 @@ def _risky(names: list) -> bool:
     return bool(PROTECTED_RX.search(other))  # no telling text: its label / address decides
 
 
+def _redirects_to_payment(loc, names: list) -> bool:
+    """True when this control's address redirects into checkout. The document is not loaded."""
+    checker = globals().get("_payment_target")
+    page = getattr(loc, "page", None)
+    request = getattr(getattr(page, "request", None), "get", None)
+    if not checker or request is None:
+        return False
+    from urllib.parse import urljoin as _join
+
+    base = getattr(page, "url", "") or ""
+    for raw in ((names[3] if len(names) > 3 else ""), (names[8] if len(names) > 8 else "")):
+        current = (raw or "").strip()
+        if not current or current.startswith("#") or current.lower().startswith("javascript:"):
+            continue
+        if base:
+            current = _join(base, current)
+        if checker(current):
+            return True
+        for _hop in range(5):
+            try:
+                probe = request(current, max_redirects=0, timeout=10000)
+            except Exception:
+                break
+            if getattr(probe, "status", None) not in (301, 302, 303, 307, 308):
+                break
+            headers = getattr(probe, "headers", None) or {}
+            location = headers.get("location") or headers.get("Location") or ""
+            if not location:
+                return True
+            nxt = _join(current, location)
+            if checker(nxt):
+                return True
+            current = nxt
+        else:
+            return True
+    return False
+
+
 def _refuse_protected(loc) -> None:
     """A click on a protected control is not done - the test step is Blocked instead."""
     if not getattr(Locator, "_qa_guard", False):
         return
+    try:
+        landed = loc.page.url or ""
+    except Exception:
+        landed = ""
+    if _payment_target(landed):
+        pytest.skip("Blocked: this page is checkout or payment - its controls are never clicked")
     try:  # [visible text, aria-label, title, link address] - None = allowed (login button / an approved click)
         names = loc.first.evaluate(CONTROL_TEXT_JS, bool(getattr(Locator, "_qa_strict", False)), timeout=3000)
     except Exception:
@@ -828,6 +1046,10 @@ def _refuse_protected(loc) -> None:
         pytest.skip(f"Blocked: '{label}' is a protected action (it could pay, order, delete, send or log out) - "
                     "never clicked without ALLOW_ACTIONS naming the class "
                     "(and TEST_PAYMENT=1 for pay, staging only)")
+    # A label can stay ordinary while the address redirects into checkout.
+    # That document is not opened.
+    if names and _redirects_to_payment(loc, names):
+        pytest.skip("Blocked: checkout or payment is recorded and not opened again")
 
 
 def _acts(key_arg, args, kwargs) -> bool:
@@ -993,6 +1215,8 @@ def _adopt_saved_login(context) -> bool:
     sandbox, _SANDBOX["thread"] = _SANDBOX["thread"], None  # (the saved login is closed to test code, not to this file)
     try:
         saved = Path(AUTH_STATE)
+        if _output_is_linked(saved):
+            return False
         if saved.stat().st_mtime <= _SESSION["loaded"]:
             return False
         _SESSION["loaded"] = saved.stat().st_mtime
@@ -1010,8 +1234,15 @@ def _save_login(context) -> None:
         return
     sandbox, _SANDBOX["thread"] = _SANDBOX["thread"], None
     try:
-        tmp = Path(AUTH_STATE).with_name(f"auth.{os.getpid()}.tmp")
+        saved = Path(AUTH_STATE)
+        if _output_is_linked(saved):
+            return
+        tmp = saved.with_name(f"auth.{os.getpid()}.tmp")
+        if _output_is_linked(tmp):
+            return
         context.storage_state(path=str(tmp))
+        if _output_is_linked(tmp) or _output_is_linked(saved):
+            return
         os.replace(tmp, AUTH_STATE)
         _SESSION["loaded"] = Path(AUTH_STATE).stat().st_mtime
     except Exception:
@@ -1191,6 +1422,34 @@ DIALOG_JS = r"""(() => {
 })();"""
 
 
+def _login_file(path: str) -> str:
+    """A real saved login. A link is not this run's cookies."""
+    saved = Path(path or "")
+    if not path or _output_is_linked(saved) or not saved.is_file():
+        return ""
+    return str(saved)
+
+
+def _context_options(kind: str) -> dict:
+    """Browser options for one kind of window. A linked login is not loaded."""
+    opts = {"viewport": {"width": 1366, "height": 900}, "ignore_https_errors": True, "accept_downloads": True}
+    if BASE_URL:
+        opts["base_url"] = BASE_URL
+    state = ""
+    if kind == "user":
+        state = _login_file(AUTH_STATE)
+    elif kind.startswith("role:"):  # (another user role: its own saved login - never its password)
+        state = _login_file(str(ROLE_STATES.get(kind[5:], "") or ""))
+    if state:
+        opts["storage_state"] = state
+        if kind == "user":
+            _SESSION["loaded"] = Path(state).stat().st_mtime
+    if VIDEO_DIR and not _output_is_linked(Path(VIDEO_DIR)):
+        # the video is complete when the window closes at the end of the run
+        opts.update(record_video_dir=VIDEO_DIR, record_video_size={"width": 1366, "height": 900})
+    return opts
+
+
 @pytest.fixture(scope="session")
 def _shared(browser):
     """ONE browser window per session for the whole test run (it doesn't open/close for every test):
@@ -1200,16 +1459,7 @@ def _shared(browser):
     def make(kind):
         # (downloads are accepted so a download link can be checked: the browser keeps them in its own temporary
         # folder, deleted with the window - a test never saves a file anywhere)
-        opts = {"viewport": {"width": 1366, "height": 900}, "ignore_https_errors": True, "accept_downloads": True}
-        if BASE_URL:
-            opts["base_url"] = BASE_URL
-        if kind == "user":
-            opts["storage_state"] = AUTH_STATE
-            _SESSION["loaded"] = Path(AUTH_STATE).stat().st_mtime
-        elif kind.startswith("role:"):  # (another user role: its own saved login - never its password)
-            opts["storage_state"] = ROLE_STATES[kind[5:]]
-        if VIDEO_DIR:  # (the video is complete when the window closes at the end of the run)
-            opts.update(record_video_dir=VIDEO_DIR, record_video_size={"width": 1366, "height": 900})
+        opts = _context_options(kind)
         context = browser.new_context(**opts)
         context.set_default_timeout(10000)
         context.set_default_navigation_timeout(NAV_TIMEOUT_MS)
@@ -1252,10 +1502,15 @@ def _name(item) -> str:
 
 def _redact_zip(path: Path) -> None:
     """A trace records what was typed and sent (also the test password): replace it with [REDACTED]."""
+    path = Path(path)
+    if _output_is_linked(path):
+        return
     secrets = [s.encode("utf-8") for s in _secrets()]
     if not secrets or not path.exists():
         return
     tmp = path.with_suffix(".tmp")
+    if _output_is_linked(tmp):
+        return
     with zipfile.ZipFile(path) as src, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as dst:
         for info in src.infolist():
             data = src.read(info.filename)
@@ -1269,7 +1524,7 @@ def _redact_zip(path: Path) -> None:
 def page(_shared, request):
     """The shared tab, cleaned before each test so every test still starts fresh.
     Logged in with the test account when the website has a login, except for tests marked 'guest'."""
-    kind = "user" if AUTH_STATE and Path(AUTH_STATE).exists() and not request.node.get_closest_marker("guest") \
+    kind = "user" if _login_file(AUTH_STATE) and not request.node.get_closest_marker("guest") \
         else "guest"
     _shared["only"](kind)
     tab = _shared.get(kind) or _shared["make"](kind)
@@ -1317,7 +1572,7 @@ def page(_shared, request):
     del p.on
     if tracing:  # keep the trace only when the test failed (it shows every step, with snapshots)
         try:
-            if getattr(request.node, "_qa_trace", None):
+            if getattr(request.node, "_qa_trace", None) and not _output_is_linked(Path(request.node._qa_trace)):
                 context.tracing.stop_chunk(path=request.node._qa_trace)
                 _redact_zip(Path(request.node._qa_trace))
             else:
@@ -1384,9 +1639,16 @@ def _cov_save(cdp) -> None:
         out[url] = {"length": length, "covered": covered}
     if out:
         d = RUN_DIR / "jscov"
-        d.mkdir(exist_ok=True)
         worker = os.environ.get("PYTEST_XDIST_WORKER", "main")
-        with (d / f"tests_{worker}.jsonl").open("a", encoding="utf-8") as f:
+        if not worker or worker in {".", ".."} or "/" in worker or "\\" in worker:
+            return
+        dest = d / f"tests_{worker}.jsonl"
+        if _output_is_linked(d) or _output_is_linked(dest):
+            return
+        d.mkdir(exist_ok=True)
+        if _output_is_linked(d) or _output_is_linked(dest):
+            return
+        with dest.open("a", encoding="utf-8") as f:
             f.write(json.dumps(out) + "\n")
 
 
@@ -1395,7 +1657,7 @@ def as_role(_shared):
     """as_role('viewer') -> a fresh tab signed in as that role (its saved login). Skipped when the role could not sign
     in while exploring."""
     def open_as(role: str):
-        if role not in ROLE_STATES or not Path(ROLE_STATES[role]).exists():
+        if role not in ROLE_STATES or not _login_file(str(ROLE_STATES[role])):
             pytest.skip(f"the role '{role}' has no saved login (it could not sign in while exploring)")
         tab = _shared.get(f"role:{role}") or _shared["make"](f"role:{role}")
         if tab["page"].is_closed():
@@ -1456,8 +1718,11 @@ def _worker_account_tag() -> str:
 
     Same choice as data_lifecycle.account_tag_for_worker: gw0 is worker 1, and a cleaned record is left unused.
     """
+    path = RUN_DIR / "qx_lifecycle.json"
+    if _output_is_linked(path):
+        return ""
     try:
-        payload = json.loads((RUN_DIR / "qx_lifecycle.json").read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return ""
     prepared = payload.get("prepared") if isinstance(payload, dict) else None
@@ -1498,8 +1763,11 @@ def track_created():
     """record(what, tag, where, status) - everything a staging test created (runs/<run>/created.jsonl): the report
     says what was cleaned up, and what is left for manual cleanup."""
     def record(what: str, tag: str, where: str, status: str = "created"):
+        path = RUN_DIR / "created.jsonl"
+        if _output_is_linked(path):
+            return
         line = json.dumps({"what": what, "tag": tag, "where": where, "status": status, "time": time.time()})
-        with (RUN_DIR / "created.jsonl").open("a", encoding="utf-8") as f:
+        with path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
     return record
 
@@ -1508,7 +1776,7 @@ def track_created():
 def created_so_far():
     """Everything the run created so far (for the cleanup at the end)."""
     f = RUN_DIR / "created.jsonl"
-    if not f.exists():
+    if _output_is_linked(f) or not f.exists():
         return []
     out = []
     for line in f.read_text(encoding="utf-8").splitlines():
@@ -1646,6 +1914,8 @@ def console_errors(page, request):
 
 
 def _record(entry):
+    if _output_is_linked(RESULTS_FILE):
+        return
     entry = {k: _redact(v) for k, v in entry.items()}  # (the test password never reaches the results)
     with RESULTS_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
@@ -1708,15 +1978,16 @@ def pytest_runtest_makereport(item, call):
                 path = SHOT_DIR / f"{_name(item)}_{int(time.time())}.png"
                 try:
                     entry["url"] = p.url
-                    p.screenshot(path=str(path), full_page=True)
-                    entry["screenshot"] = str(path)
+                    if not _output_is_linked(SHOT_DIR) and not path.is_symlink():
+                        p.screenshot(path=str(path), full_page=True)
+                        entry["screenshot"] = str(path)
                 except Exception:
                     pass
                 # the session ended DURING the test: the login page is no failure of the page this test is about
                 if rep.when == "call" and getattr(item, "_qa_kind", "") == "user" and _logged_out(p):
                     entry["outcome"] = "inconclusive"
                     entry["error"] = LOGGED_OUT + "\n" + entry["error"]
-            if RECORD_TRACES and rep.when == "call":  # saved when the page fixture ends (just after this)
+            if RECORD_TRACES and rep.when == "call" and not _output_is_linked(TRACE_DIR):
                 TRACE_DIR.mkdir(parents=True, exist_ok=True)
                 item._qa_trace = str(TRACE_DIR / f"{_name(item)}.zip")
                 entry["trace"] = item._qa_trace
@@ -1725,8 +1996,9 @@ def pytest_runtest_makereport(item, call):
             if p is not None and not p.is_closed():
                 try:
                     path = SHOT_DIR / f"{_name(item)}_{int(time.time())}.png"
-                    p.screenshot(path=str(path), full_page=True)
-                    entry.update(screenshot=str(path), url=p.url)
+                    if not _output_is_linked(SHOT_DIR) and not path.is_symlink():
+                        p.screenshot(path=str(path), full_page=True)
+                        entry.update(screenshot=str(path), url=p.url)
                 except Exception:
                     pass  # the unavailable screenshot is not a passing check
         _event(entry.get("error") or "Test finished", entry["outcome"], checks=entry["checks"])

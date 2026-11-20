@@ -180,6 +180,19 @@ def _checkbox_test(cid: str, title: str, c: dict) -> list[str]:
     ]
 
 
+def _textbox_test(cid: str, title: str, c: dict) -> list[str]:
+    """Fill a standalone text box (including open-shadow Nickname) and assert the value sticks."""
+    sample = c.get("value") or "QA Tester"
+    return _head(cid, title) + [
+        f"    box = page.locator({c['selector']!r}).first",
+        "    expect(box, 'it should be visible').to_be_visible()",
+        "    box.fill('')",
+        f"    box.fill({sample!r})",
+        f"    expect(box, 'it should keep the typed text').to_have_value({sample!r})",
+        "",
+    ]
+
+
 def _opens_test(cid: str, title: str, c: dict) -> list[str]:
     action = [
         "    opened = False",
@@ -565,7 +578,8 @@ def _login_ok_test(cid: str, title: str, c: dict) -> list[str]:
     ]
 
 
-CONTROL_TESTS = {"dropdown": _dropdown_test, "radio": _radio_test, "checkbox": _checkbox_test, "opens": _opens_test,
+CONTROL_TESTS = {"dropdown": _dropdown_test, "radio": _radio_test, "checkbox": _checkbox_test,
+                 "textbox": _textbox_test, "opens": _opens_test,
                  "tabs": _tabs_test, "modal": _modal_test, "dialog": _dialog_test, "sort": _sort_test,
                  "next": _next_test, "hover": _hover_test, "drag": _drag_test, "slider": _slider_test,
                  "upload": _upload_test, "login_wrong": _login_wrong_test, "login_ok": _login_ok_test,
@@ -2005,16 +2019,26 @@ FEATURE_BODY = {
         "        page.goto(F['url'])",
         "        _settle(page)",
         "        _choose_options(page, F['add'])",
-        "        page.locator(F['qty']).first.fill(qty)",
+        "        box = page.locator(F['qty']).first",
+        "        box.fill('')  # clear first: leftover cart lines / number inputs otherwise keep the old value",
+        "        box.fill(qty)",
         "        said = _messages(page)",
         "        page.locator(F['add']).first.click(timeout=5000)",
         "        page.wait_for_timeout(1000)",
         "        _settle(page)",
         "        return _new_messages(page, said, 1500)",
+        "    # Isolate from earlier cart journeys: remove any existing line for this product first.",
+        "    page.goto(F['cart_url'])",
+        "    _settle(page)",
+        "    while _cart_row(page, name[:40]) is not None:",
+        "        _remove_own(page, name[:40])",
+        "        page.goto(F['cart_url'])",
+        "        _settle(page)",
         "    start = in_cart()",
         "    if start is None:",
         "        _inconclusive(f\"the cart lists '{name}', but its quantity could not be read\")",
         "        return",
+        "    assert start == 0, f\"cart still held '{name}' after cleanup (qty {start:g})\"",
         "    msgs = add('2')",
         "    bad = [m for m in msgs if _tone(m) in ('error', 'login_needed')]",
         "    if bad and _tone(bad[0]) == 'login_needed' and F.get('guest'):",
@@ -2035,8 +2059,7 @@ FEATURE_BODY = {
         "    assert now is not None and now >= got, (f\"Quantity -1 was accepted: the cart's quantity of '{name}' went \"",
         "                                           f\"{got:g} -> {now if now is None else format(now, 'g')}\")",
         "    _step_ok(f'an invalid quantity (-1) was refused or corrected ({got:g} -> {now:g})')",
-        "    if start == 0:",
-        "        _remove_own(page, name[:40])  # cleanup: the line this test added",
+        "    _remove_own(page, name[:40])  # always cleanup the line this test owns",
     ],
     "search": [
         "    box = page.locator(F['selector']).first",
@@ -2261,9 +2284,13 @@ def journeys_script(journeys: list[dict]) -> str:
 
 
 def site_script(pages: list[dict]) -> str:
-    """test_site.py: the small checks that run on EVERY page (opens, no JavaScript errors, pictures load)."""
+    """test_site.py: the small checks that run on EVERY page (opens, no JavaScript errors, pictures load).
+
+    A checkout or payment page is recorded by the crawl and is not opened again here.
+    """
+    from ..swarm import is_payment_url
     rows = [{"slug": _ident(p["slug"]), "url": p["url"], "guest": not p.get("auth"), "images": p.get("imageCount") or 0}
-            for p in pages]
+            for p in pages if not is_payment_url(p.get("final_url") or p.get("url") or "")]
     return "\n".join([
         '"""Small checks for the whole website: every page opens, has no JavaScript errors, and its pictures load."""',
         "import pytest",
@@ -2561,12 +2588,13 @@ def all_links_script(app_map: list[dict]) -> tuple[str, int]:
     """One test per UNIQUE link on the whole website (internal + external), and one per link to a part of a page
     (#projects): that part must exist. Returns (code, number of checks)."""
     from ..config import settings
+    from ..swarm import is_payment_url
     from .test_design import section_links
     links, seen = [], set()
     for p in app_map:
         for l in p.get("links", []):
             href = l["href"].split("#")[0]
-            if href in seen or any(w in href.lower() for w in settings.unsafe_link_words) \
+            if href in seen or is_payment_url(href) or any(w in href.lower() for w in settings.unsafe_link_words) \
                     or (l.get("external") and not settings.check_external_links):
                 continue
             seen.add(href)
@@ -2665,22 +2693,40 @@ VALIDATION_JS = r"""(before) => {
 
 def _check_counts(out_dir: Path) -> dict[str, int]:
     """How many single checks each small test case runs, read from the scripts themselves (new or reused)."""
+    from ..finalization import folder_is_linked
+
     def read(name: str) -> str:
         f = out_dir / name
-        return f.read_text(encoding="utf-8") if f.exists() else ""
+        if f.is_symlink() or folder_is_linked(f.parent) or not f.is_file():
+            return ""
+        try:
+            return f.read_text(encoding="utf-8")
+        except OSError:
+            return ""
     site = read("test_site.py")
     n_pages = site.count("'slug':")
+    counted = 0
+    for f in out_dir.glob("test_*_data.py"):
+        if f.is_symlink() or folder_is_linked(f.parent):
+            continue
+        try:
+            counted += len(re.findall(r"^def test_data_", f.read_text(encoding="utf-8"), re.M))
+        except OSError:
+            continue
     return {"site_pages_open": n_pages, "site_no_js_errors": n_pages,
             "site_images": len(re.findall(r"'images': [1-9]", site)),
             "site_links": read("test_all_links.py").count("'id': "),
-            "site_input_values": sum(len(re.findall(r"^def test_data_", f.read_text(encoding="utf-8"), re.M))
-                                     for f in out_dir.glob("test_*_data.py"))}
+            "site_input_values": counted}
 
 
 def _hold_broken_workflows(state: QAState, cases: list[dict]) -> tuple[list[dict], list[dict]]:
     """A workflow whose API changed is not turned into a trusted test."""
+    from ..finalization import folder_is_linked
     try:
-        schema = json.loads((Path(state["run_dir"]) / "qx_schema.json").read_text(encoding="utf-8"))
+        path = Path(state["run_dir"]) / "qx_schema.json"
+        if path.is_symlink() or folder_is_linked(path.parent):
+            return cases, []
+        schema = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, KeyError):
         return cases, []
     if not isinstance(schema, dict) or not schema.get("trust_broken"):
@@ -2814,7 +2860,8 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
             rejected.append({"page": "site", "error": f"test_mobile.py: {err}"})
         else:
             save("test_mobile.py", code, "template")
-    role_c = [c for c in cases if c.get("kind") == "role"]
+    from ..swarm import is_payment_url
+    role_c = [c for c in cases if c.get("kind") == "role" and not is_payment_url(c.get("url") or "")]
     if role_c:
         from ..roles import roles_script
         code = roles_script(role_c, header)
@@ -2913,20 +2960,38 @@ def script_generator_agent(state: QAState) -> QAState:
         return {"scripts": [], "script_sources": {"qa_contracts.json": "contract"},
                 "script_errors": [], "test_cases": state.get("test_cases", []),
                 "log": state.get("log", []) + [note]}
+    from ..finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
     out_dir = run_dir / "generated_tests"
+    if folder_is_linked(run_dir) or out_dir.is_symlink():
+        note = "The generated tests folder is a link, so no scripts were written."
+        return {"scripts": [], "script_sources": {}, "script_errors": [],
+                "log": state.get("log", []) + [note], "test_cases": state.get("test_cases", [])}
     out_dir.mkdir(parents=True, exist_ok=True)
+    for old in [out_dir / "conftest.py", out_dir / "pytest.ini"]:
+        if old.is_symlink():
+            old.unlink()
     for old in list(out_dir.glob("test_*.py")) + list(out_dir.glob("steps_*.py")):
-        old.unlink()  # (a healing re-run never comes back here, so this only clears an earlier attempt)
-    shutil.copy(TEMPLATES / "conftest.py", out_dir / "conftest.py")  # fixtures + the runtime sandbox
-    shutil.copy(TEMPLATES / "pytest.ini", out_dir / "pytest.ini")
+        old.unlink()  # a link is removed; the file it pointed at stays
+    template = TEMPLATES / "conftest.py"
+    ini = TEMPLATES / "pytest.ini"
+    if folder_is_linked(template) or folder_is_linked(ini):
+        note = "The test template is a link, so no scripts were written."
+        return {"scripts": [], "script_sources": {}, "script_errors": [],
+                "log": state.get("log", []) + [note], "test_cases": state.get("test_cases", [])}
+    shutil.copy(template, out_dir / "conftest.py")  # fixtures + the runtime sandbox
+    shutil.copy(ini, out_dir / "pytest.ini")
 
     pages = {p["slug"]: p for p in state["app_map"] if not p.get("error") and (p.get("status") or 0) < 400}
     cases = list(state["test_cases"])
     scripts, sources, rejected, notes = [], {}, [], []
 
     def save(name: str, code: str, source: str):
-        (out_dir / name).write_text(f"# generated by: {source}\n" + code, encoding="utf-8")
+        path = out_dir / name
+        if not name or Path(name).is_absolute() or ".." in Path(name).parts or path.is_symlink():
+            rejected.append({"page": name, "error": "the script is a link"})
+            return
+        path.write_text(f"# generated by: {source}\n" + code, encoding="utf-8")
         if name.startswith("test_"):
             scripts.append(str(out_dir / name))
         sources[name] = source
@@ -2967,22 +3032,25 @@ def script_generator_agent(state: QAState) -> QAState:
     cases = finalize_cases(cases, state)  # structured fields + stable IDs (also for built-in replacements)
 
     # 5) coverage: every control found, and whether a generated test really uses it (chat, Excel, report)
-    all_code = "\n".join(f.read_text(encoding="utf-8") for f in out_dir.glob("*.py") if f.name != "conftest.py")
+    all_code = "\n".join(
+        f.read_text(encoding="utf-8") for f in out_dir.glob("*.py")
+        if f.name != "conftest.py" and not f.is_symlink())
     from .test_design import COVERAGE_SCRIPTED_NOTE, coverage
     cov = [coverage(p, all_code) for p in pages.values()]
     tested, total = sum(x["tested"] for x in cov), sum(x["total"] for x in cov)
     login = state.get("login") or {}
     honesty = [COVERAGE_SCRIPTED_NOTE]
-    Path(run_dir, "coverage.json").write_text(json.dumps(
+    from ..finalization import write_text_unless_linked
+    write_text_unless_linked(run_dir, "coverage.json", json.dumps(
         {"tested": tested, "total": total, "pages": cov,
          # (not logged in -> say why; logged in with an account the tester created -> say which one)
          "notes": honesty + ([login["note"]] if login.get("found") and (not login.get("logged_in") or
                                                               (login.get("account") or {}).get("how") != "given")
                    else []) + notes},
-        indent=2), encoding="utf-8")
+        indent=2))
     print(f"  [script-gen] coverage: {tested} of {total} controls are used by the tests")
 
-    Path(run_dir, "test_cases.json").write_text(json.dumps(cases, indent=2), encoding="utf-8")
+    write_text_unless_linked(run_dir, "test_cases.json", json.dumps(cases, indent=2))
     write_workbook(run_dir, cases)  # Excel now shows the Automation Status
 
     counts = {}

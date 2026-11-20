@@ -5,8 +5,10 @@ from pathlib import Path
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
-    """Tiny .env loader so we don't need an extra dependency."""
-    if not path.exists():
+    """Tiny .env loader so we don't need an extra dependency. A link is not this install's settings."""
+    from .finalization import folder_is_linked
+    path = Path(path)
+    if folder_is_linked(path) or not path.is_file():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -214,6 +216,11 @@ class Settings:
     runs_dir: Path = Path(os.getenv("RUNS_DIR", "runs"))
     baseline_dir: Path = Path(os.getenv("BASELINE_DIR", "baseline"))
     workspace_dir: Path = Path(os.getenv("WORKSPACE_DIR", "workspace"))
+
+    # Optional enterprise backends (empty = local-first SQLite / filesystem). A URL is not readiness.
+    postgres_url: str = os.getenv("POSTGRES_URL", "") or os.getenv("DATABASE_URL", "")
+    redis_url: str = os.getenv("REDIS_URL", "") or os.getenv("QPILOT_REDIS_URL", "")
+    object_store_uri: str = os.getenv("OBJECT_STORE_URI", "") or os.getenv("MINIO_URL", "")
 
 
 DEFAULT_MODELS = {

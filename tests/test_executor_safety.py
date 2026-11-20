@@ -1,3 +1,6 @@
+import json
+import time
+
 import pytest
 
 
@@ -66,3 +69,487 @@ def test_windows_job_object_failure_stops_generated_pytest(tmp_path, monkeypatch
     assert taskkill == [["taskkill", "/F", "/T", "/PID", "4321"]]
     if job is not None:
         assert job.closed
+
+
+def test_a_generated_test_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _run_pytest
+
+    secret = b"tenant-b-only-generated-test"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_secret.py").write_bytes(secret)
+    before = sorted(path.name for path in other.iterdir())
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "linked").symlink_to(other, target_is_directory=True)
+    (tests / "test_home.py").write_text("def test_home():\n    assert 'home-own' == 'home-own'\n", encoding="utf-8")
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("started")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", explode)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["stopped"] is True and info["returncode"] == -1
+    assert (other / "test_secret.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    (tests / "linked").unlink()
+    # This half checks that a real suite is started. Windows Job Object limits are covered elsewhere.
+    monkeypatch.setattr("backend.agents.executor.IS_WINDOWS", False)
+    started = []
+
+    class Finished:
+        returncode = 0
+        pid = 4242
+
+        def communicate(self, timeout=None):
+            return ("home-own-suite\n", None)
+
+    def record(cmd, **_kwargs):
+        started.append(cmd)
+        return Finished()
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.Popen", record)
+    info = _run_pytest({}, tests, run / "results.jsonl", run / "screenshots")
+    assert info["returncode"] == 0 and info["stopped"] is False
+    assert started and any("test_home.py" in str(part) or str(tests) in str(part) for part in started[0])
+    assert secret.decode() not in " ".join(str(part) for part in started[0])
+    assert (other / "test_secret.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+    written = (run / "results_pytest_output.txt").read_text(encoding="utf-8")
+    assert "home-own-suite" in written and secret.decode() not in written
+
+
+def test_an_undone_script_folder_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"click('new')\nSECRET-TENANT-B-FOLDER"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "test_home.py").write_bytes(secret)
+    before = sorted(path.name for path in other.iterdir())
+    run = tmp_path / "run"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "linked").symlink_to(other, target_is_directory=True)
+    entries = [
+        {"status": "reverted", "method": "selector-match", "from": "old", "to": "new", "why": "still failing"},
+        {"status": "healed", "method": "selector-match", "from": "keep", "to": "kept", "why": ""},
+    ]
+    _undo(tests, run, "linked/test_home.py", entries)
+    assert (other / "test_home.py").read_bytes() == secret
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("click('new')\n", encoding="utf-8")
+    _undo(real, tmp_path / "real", "test_home.py", entries)
+    written = (real / "test_home.py").read_text(encoding="utf-8")
+    assert written == "click('old')\n"
+    assert b"SECRET-TENANT-B-FOLDER" not in written.encode()
+    assert (other / "test_home.py").read_bytes() == secret
+
+
+def test_a_test_result_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _run_pytest, _write_run_json
+
+    secret = b"tenant-b-only-result"
+    other = tmp_path / "other"
+    nested = other / "run"
+    (nested / "generated_tests").mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "results.json").write_bytes(secret)
+    (nested / "results.jsonl").write_bytes(secret)
+    (nested / "results_pytest_output.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "run"
+    _write_run_json(run, "results.json", [{"nodeid": "test_home.py::test_home", "outcome": "passed"}])
+    info = _run_pytest({}, run / "generated_tests", run / "results.jsonl", run / "shots")
+    assert info["stopped"] is True
+    assert (nested / "results.json").read_bytes() == secret
+    assert (nested / "results.jsonl").read_bytes() == secret
+    assert (nested / "results_pytest_output.txt").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    _write_run_json(real, "results.json", [{
+        "nodeid": "test_home.py::test_home", "outcome": "passed", "url": "https://shop.test/home",
+    }])
+    written = (real / "results.json").read_bytes()
+    assert b"https://shop.test/home" in written and secret not in written
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_undone_repair_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"click('new')\nSECRET-TENANT-B"
+    other = tmp_path / "other"
+    nested = other / "run" / "generated_tests"
+    nested.mkdir(parents=True)
+    (nested / "test_home.py").write_bytes(secret)
+    names = sorted(path.name for path in nested.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    run = linked / "run"
+    entries = [
+        {"status": "reverted", "method": "selector-match", "from": "old", "to": "new", "why": "still failing"},
+        {"status": "healed", "method": "selector-match", "from": "keep", "to": "kept", "why": ""},
+    ]
+    _undo(run / "generated_tests", run, "test_home.py", entries)
+    assert (nested / "test_home.py").read_bytes() == secret
+    assert sorted(path.name for path in nested.iterdir()) == names
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("click('new')\n", encoding="utf-8")
+    _undo(real, tmp_path / "real", "test_home.py", entries)
+    written = (real / "test_home.py").read_text(encoding="utf-8")
+    assert written == "click('old')\n"
+    assert b"SECRET-TENANT-B" not in written.encode()
+    assert (nested / "test_home.py").read_bytes() == secret
+
+
+def test_an_undone_repair_does_not_restore_a_backup_through_a_link(tmp_path):
+    from backend.agents.executor import _undo
+
+    secret = b"tenant-b-only-backup"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "test_home.round1.before.py"
+    target.write_bytes(secret)
+    run = tmp_path / "linked-backup"
+    tests = run / "generated_tests"
+    tests.mkdir(parents=True)
+    script = tests / "test_home.py"
+    script.write_text("click('ours')\n", encoding="utf-8")
+    (run / "healing").symlink_to(other, target_is_directory=True)
+    entries = [{"status": "reverted", "method": "llm", "backup": "healing/test_home.round1.before.py", "why": "broke"}]
+    _undo(tests, run, "test_home.py", entries)
+    file_run = tmp_path / "file-link"
+    file_tests = file_run / "generated_tests"
+    file_tests.mkdir(parents=True)
+    file_script = file_tests / "test_home.py"
+    file_script.write_text("click('ours')\n", encoding="utf-8")
+    (file_run / "healing").mkdir()
+    (file_run / "healing" / "test_home.round1.before.py").symlink_to(target)
+    _undo(file_tests, file_run, "test_home.py", entries)
+    assert script.read_text(encoding="utf-8") == "click('ours')\n"
+    assert file_script.read_text(encoding="utf-8") == "click('ours')\n"
+    assert target.read_bytes() == secret
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_tests = real / "generated_tests"
+    real_tests.mkdir(parents=True)
+    real_script = real_tests / "test_home.py"
+    real_script.write_text("click('changed')\n", encoding="utf-8")
+    (real / "healing").mkdir()
+    (real / "healing" / "test_home.round1.before.py").write_text("click('home-own')\n", encoding="utf-8")
+    _undo(real_tests, real, "test_home.py", entries)
+    restored = real_script.read_bytes()
+    assert real_script.read_text(encoding="utf-8") == "click('home-own')\n"
+    assert secret not in restored
+    assert target.read_bytes() == secret
+
+
+def test_a_live_test_status_does_not_follow_a_link_into_another_file(tmp_path):
+    from backend.agents.executor import _running_status
+
+    secret = "tenant-b-only-step"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "running.results.main.json"
+    target.write_text(json.dumps({
+        "file": "secret.py", "test": secret, "since": 1, "steps": [{"text": secret}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _running_status(linked / "results.jsonl") == "between tests"
+    real = tmp_path / "file-link"
+    real.mkdir()
+    (real / "running.results.main.json").symlink_to(target)
+    assert _running_status(real / "results.jsonl") == "between tests"
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / "running.results.main.json").write_text(json.dumps({
+        "file": "home.py", "test": "home-own", "since": time.time(), "steps": [{"text": "home-own"}],
+    }), encoding="utf-8")
+    status = _running_status(own / "results.jsonl")
+    assert "home.py::home-own" in status
+    assert "home-own" in status
+    assert secret not in status
+    assert secret in target.read_text(encoding="utf-8")
+
+
+def test_a_second_cleanup_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _clean_up_again
+
+    secret = "tenant-b-only-created"
+    other = tmp_path / "other"
+    nested = other / "run"
+    tests = nested / "generated_tests"
+    tests.mkdir(parents=True)
+    (tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (nested / "created.jsonl").write_text(
+        json.dumps({"tag": secret, "status": "created"}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+    monkeypatch.setattr("backend.agents.executor.runctl.stopping", lambda: False)
+    monkeypatch.setattr("backend.agents.executor._run_pytest", lambda *args, **kwargs: started.append(args))
+    _clean_up_again({}, linked / "run", linked / "run" / "generated_tests", linked / "run" / "shots")
+    file_run = tmp_path / "file-link"
+    file_tests = file_run / "generated_tests"
+    file_tests.mkdir(parents=True)
+    (file_tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (file_run / "created.jsonl").symlink_to(nested / "created.jsonl")
+    _clean_up_again({}, file_run, file_tests, file_run / "shots")
+    script_run = tmp_path / "script-link"
+    script_tests = script_run / "generated_tests"
+    script_tests.mkdir(parents=True)
+    (script_tests / "test_cleanup.py").symlink_to(tests / "test_cleanup.py")
+    (script_run / "created.jsonl").write_text(
+        json.dumps({"tag": "home-script", "status": "created"}) + "\n", encoding="utf-8")
+    _clean_up_again({}, script_run, script_tests, script_run / "shots")
+    assert started == []
+    assert secret in (nested / "created.jsonl").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real_tests = real / "generated_tests"
+    real_tests.mkdir(parents=True)
+    (real_tests / "test_cleanup.py").write_text("def test_cleanup():\n    pass\n", encoding="utf-8")
+    (real / "created.jsonl").write_text(
+        json.dumps({"tag": "home-own", "status": "created"}) + "\n", encoding="utf-8")
+    _clean_up_again({}, real, real_tests, real / "shots")
+    assert len(started) == 1
+    assert secret not in repr(started)
+    assert real_tests in started[0]
+    assert secret in (nested / "created.jsonl").read_text(encoding="utf-8")
+
+
+def test_a_failure_screenshot_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import execution_agent
+
+    secret = b"tenant-b-only-shots"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    names = sorted(path.name for path in nested.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+
+    def refuse_suite(*_args, **_kwargs):
+        started.append(True)
+        raise AssertionError("the suite must not start through a link")
+
+    monkeypatch.setattr("backend.agents.executor._run_pytest", refuse_suite)
+    out = execution_agent({"run_dir": str(linked / "run"), "test_cases": [], "results": [], "log": []})
+    assert started == []
+    assert "failure screenshots folder is a link" in out["log"][-1]
+    assert sorted(path.name for path in nested.iterdir()) == names
+    assert (nested / "keep.txt").read_bytes() == secret
+    assert not (nested / "failure_screenshots").exists()
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+
+    def keep_suite(*_args, **_kwargs):
+        return {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "test"}
+
+    monkeypatch.setattr("backend.agents.executor._run_pytest", keep_suite)
+    execution_agent({
+        "run_dir": str(real),
+        "test_cases": [{"tc_id": "home-own", "expected_source": "The home page loads for this shop."}],
+        "results": [],
+        "log": [],
+    })
+    assert (real / "failure_screenshots").is_dir()
+    assert secret not in (real / "row.json").read_bytes()
+    assert b"home-own" in (real / "row.json").read_bytes()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_a_collected_suite_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.agents.executor import _collect_nodeids
+
+    secret = "tenant-b-only-node"
+    other = tmp_path / "other"
+    suite = other / "generated_tests"
+    suite.mkdir(parents=True)
+    (suite / "test_secret.py").write_text(
+        f"def test_secret():\n    assert {secret!r}\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    started = []
+
+    def refuse(*_args, **kwargs):
+        started.append(kwargs.get("cwd"))
+        raise AssertionError("pytest started in a linked folder")
+
+    monkeypatch.setattr("backend.agents.executor.subprocess.run", refuse)
+    assert _collect_nodeids(linked / "generated_tests") == []
+    assert started == []
+    assert secret in (suite / "test_secret.py").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+    monkeypatch.undo()
+
+    real = tmp_path / "real" / "generated_tests"
+    real.mkdir(parents=True)
+    (real / "test_home.py").write_text("def test_home_own():\n    assert True\n", encoding="utf-8")
+    ids = _collect_nodeids(real)
+    assert any("test_home_own" in item for item in ids)
+    assert secret not in "\n".join(ids)
+    assert secret in (suite / "test_secret.py").read_text(encoding="utf-8")
+
+
+def test_a_saved_result_line_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.agents.executor import _read, _result_count
+
+    secret = "tenant-b-only-result"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "results.jsonl").write_text(
+        json.dumps({"nodeid": secret, "outcome": "failed"}) + "\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _read(linked / "run" / "results.jsonl") == []
+    assert _result_count(linked / "run" / "results.jsonl") == 0
+    assert secret in (nested / "results.jsonl").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "results.jsonl").write_text(
+        json.dumps({"nodeid": "home-own", "outcome": "passed"}) + "\n", encoding="utf-8")
+    rows = _read(real / "results.jsonl")
+    assert rows == [{"nodeid": "home-own", "outcome": "passed"}]
+    assert _result_count(real / "results.jsonl") == 1
+    assert secret not in json.dumps(rows)
+    assert secret in (nested / "results.jsonl").read_text(encoding="utf-8")
+
+
+def test_a_proof_reading_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.assert_strength import analyse
+
+    secret = "tenant-b-only-proof"
+    other = tmp_path / "other"
+    suite = other / "runs" / "run" / "generated_tests"
+    suite.mkdir(parents=True)
+    script = suite / "test_secret.py"
+    script.write_text(f"def test_secret():\n    assert {secret!r}\n", encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert analyse(linked / "runs" / "run" / "generated_tests") == {}
+    assert secret in script.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_home.py").write_text("def test_home_own():\n    assert True\n", encoding="utf-8")
+    scores = analyse(real)
+    assert scores.get("test_home.py::test_home_own")
+    assert secret not in json.dumps(scores)
+    assert secret in script.read_text(encoding="utf-8")
+
+
+def test_an_accuracy_count_does_not_follow_a_link_into_another_folder(tmp_path):
+    import json
+
+    from backend.accuracy import measure
+
+    secret = "tenant-b-only-page"
+    truth = {"pages": [], "features": []}
+    other = tmp_path / "other"
+    nested = other / "runs" / "run"
+    nested.mkdir(parents=True)
+    (nested / "app_map.json").write_text(json.dumps([{"slug": secret, "url": "https://other.test/"}]), encoding="utf-8")
+    (nested / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "other", "title": secret, "execution_status": "Failed",
+    }]), encoding="utf-8")
+    (nested / "failures.json").write_text(json.dumps([{
+        "tc_id": "other", "category": "rule_violation", "title": secret,
+    }]), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    refused = measure(linked / "runs" / "run", truth)
+    assert refused["pages"]["discovered"] == 0
+    assert refused["truth"]["questions"] == []
+    assert secret not in json.dumps(refused)
+    assert secret in (nested / "app_map.json").read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "app_map.json").write_text(json.dumps([{"slug": "home-own", "url": "https://home.test/"}]), encoding="utf-8")
+    (real / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "home-own", "title": "home-own question", "execution_status": "Failed",
+    }]), encoding="utf-8")
+    (real / "failures.json").write_text(json.dumps([{
+        "tc_id": "home-own", "category": "rule_violation",
+    }]), encoding="utf-8")
+    counted = measure(real, truth)
+    assert counted["pages"]["discovered"] == 1
+    assert counted["truth"]["questions"][0]["tc_id"] == "home-own"
+    assert secret not in json.dumps(counted)
+    assert secret in (nested / "failures.json").read_text(encoding="utf-8")
+
+
+def test_a_repaired_steps_file_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.agents.executor import _related
+
+    secret = "tenant-b-only-related"
+    other = tmp_path / "other"
+    other.mkdir()
+    leaked = other / "test_checks.py"
+    leaked.write_text(
+        f"# {secret}\ndef test_tenant_b():\n    steps_home.step_secret()\n",
+        encoding="utf-8",
+    )
+    before = sorted(path.name for path in other.iterdir())
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    results = [{
+        "nodeid": "test_checks.py::test_tenant_b",
+        "file": "test_checks.py",
+        "test": "test_tenant_b",
+    }]
+    assert _related(results, "steps_home.py", linked) == []
+    leaf = tmp_path / "leaf"
+    leaf.mkdir()
+    (leaf / "test_checks.py").symlink_to(leaked)
+    assert _related(results, "steps_home.py", leaf) == []
+    assert secret in leaked.read_text(encoding="utf-8")
+    assert sorted(path.name for path in other.iterdir()) == before
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_checks.py").write_text(
+        "def test_home_own():\n    steps_home.step_ok()\n",
+        encoding="utf-8",
+    )
+    own = [{
+        "nodeid": "test_checks.py::test_home_own",
+        "file": "test_checks.py",
+        "test": "test_home_own",
+    }]
+    found = _related(own, "steps_home.py", real)
+    assert found == ["test_checks.py::test_home_own"]
+    assert secret not in json.dumps(found)
+    assert secret in leaked.read_text(encoding="utf-8")

@@ -28,18 +28,26 @@ from .state import QAState
 
 
 def _expect_file(site_key: str) -> Path:
-    return settings.baseline_dir / site_key / "expectations.json"
+    from .my_tests import baseline_folder
+    return baseline_folder(site_key) / "expectations.json"
 
 
 def load_expectations(site_key: str) -> dict:
+    from .my_tests import baseline_is_linked
+    path = _expect_file(site_key)
+    if baseline_is_linked(path):
+        return {}
     try:
-        return json.loads(_expect_file(site_key).read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
 
 def save_expectations(site_key: str, answers: dict) -> None:
+    from .my_tests import baseline_is_linked
     f = _expect_file(site_key)
+    if baseline_is_linked(f):
+        return
     f.parent.mkdir(parents=True, exist_ok=True)
     known = load_expectations(site_key)
     known.update(answers)
@@ -49,7 +57,11 @@ def save_expectations(site_key: str, answers: dict) -> None:
 def open_rule_questions(site_key: str) -> list[dict]:
     """The rule questions earlier runs left open (saved with the baseline)."""
     try:
-        return json.loads((settings.baseline_dir / site_key / "open_questions.json").read_text(encoding="utf-8"))
+        from .my_tests import baseline_folder, baseline_is_linked
+        path = baseline_folder(site_key) / "open_questions.json"
+        if baseline_is_linked(path):
+            return []
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -126,16 +138,25 @@ def review_gate_agent(state: QAState) -> QAState:
         return {"test_cases": cases, "log": log + ["Review: nothing to ask."]}
     listed = [{"tc_id": c["tc_id"], "title": c.get("title"), "feature": c.get("feature"), "scenario": c.get("scenario"),
                "fixed": c.get("kind") == "cleanup"} for c in cases if c.get("tc_id")]
-    (run_dir / "review_request.json").write_text(json.dumps({"questions": qs, "cases": listed, "asked": time.time(),
-                                                             "timeout_s": settings.review_timeout_s}, indent=2),
-                                                 encoding="utf-8")
+    from .finalization import folder_is_linked, write_text_unless_linked
+    if folder_is_linked(run_dir):
+        note = "Review skipped: this run's folder is a link."
+        return {"test_cases": cases, "log": log + [note]}
+    write_text_unless_linked(run_dir, "review_request.json", json.dumps(
+            {"questions": qs, "cases": listed, "asked": time.time(), "timeout_s": settings.review_timeout_s},
+            indent=2))
     print(f"::review::{json.dumps({'questions': len(qs), 'cases': len(listed)})}", flush=True)
     print(f"  [review] {len(qs)} question(s) and {len(listed)} test case(s) for you to review in the chat (or "
           f"runs/{run_dir.name}/review_request.json) - waiting up to {settings.review_timeout_s} s", flush=True)
     answers_file, deadline = run_dir / "review_answers.json", time.time() + settings.review_timeout_s
-    while time.time() < deadline and not answers_file.exists() and not runctl.stopping():
-        time.sleep(1)
-    if not answers_file.exists():
+    if run_dir.is_symlink() or answers_file.is_symlink():
+        answers_ready = False
+    else:
+        answers_ready = answers_file.is_file()
+        while time.time() < deadline and not answers_ready and not runctl.stopping():
+            time.sleep(1)
+            answers_ready = answers_file.is_file() and not answers_file.is_symlink()
+    if not answers_ready:
         cases, held = withhold_unanswered(cases)
         note = "Review: no answers in time - the test cases run as designed."
         if held:

@@ -1,0 +1,19 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_review_readiness",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "signed_off": false,
+  "checks": {
+    "checklist_present": true,
+    "pack_ok": true,
+    "pack_unsigned": true,
+    "blockers_inventoried": true,
+    "pack_has_artifacts": true
+  },
+  "score": 5,
+  "score_of": 5,
+  "open_blockers": 6,
+  "artifact_count": 149,
+  "ok": true,
+  "reason": "Independent review readiness 5/5 (artifacts=149, blockers=6); human sign-off still pending"
+}

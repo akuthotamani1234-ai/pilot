@@ -1,0 +1,22 @@
+{
+  "gate_g_complete": false,
+  "drill": "postgres_tenant_isolation",
+  "ran_at": "2026-11-18T23:57:02Z",
+  "backend": "postgres",
+  "ok": true,
+  "reason": "Live Postgres migration + tenant-filtered run_index isolation verified via psql; product-wide multi-tenant Studio path + independent review still open",
+  "migrations": {
+    "ok": true,
+    "applied": [],
+    "files": [
+      "001_tenancy.sql"
+    ]
+  },
+  "tenant_a_runs": [
+    "drill-run-a"
+  ],
+  "tenant_b_runs": [
+    "drill-run-b"
+  ],
+  "cross_tenant_hits": "0"
+}

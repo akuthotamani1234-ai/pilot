@@ -249,6 +249,67 @@ def test_permission_actions_cannot_control_a_phone_or_bypass_irreversible_action
     assert not driver.changes
 
 
+def test_an_approved_android_flow_does_not_follow_a_stop_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+
+    secret = "tenant-b-only-flow"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    touched = []
+
+    class Driver:
+        def __getattr__(self, name):
+            touched.append(name)
+            raise AssertionError(name)
+
+    config = {"package_name": PACKAGE, "device_id": "emulator-5554"}
+    adapter = AndroidContractAdapter(Driver(), config, None, run / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as flow:
+        adapter.guard()
+    assert secret not in str(flow.value)
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.relaunch()
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.device_action("back")
+    with pytest.raises(AndroidEnvironmentError, match="link"):
+        adapter.permissions.check_stop()
+    assert touched == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    session = PermissionSession(Driver(), config, None, lambda: None, linked / "STOP")
+    with pytest.raises(AndroidEnvironmentError, match="link") as permission:
+        session.check_stop()
+    assert secret not in str(permission.value)
+    assert touched == []
+    assert not (other / "screenshots").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    real_adapter = AndroidContractAdapter(Driver(), config, None, real / "STOP")
+    with pytest.raises(InterruptedError, match="approved Android flow was stopped"):
+        real_adapter.guard()
+    with pytest.raises(InterruptedError, match="relaunch was stopped"):
+        real_adapter.relaunch()
+    with pytest.raises(InterruptedError, match="approved Android flow was stopped"):
+        real_adapter.device_action("back")
+    with pytest.raises(InterruptedError, match="permission test was stopped"):
+        real_adapter.permissions.check_stop()
+    assert touched == []
+    assert secret not in (real / "STOP").read_text(encoding="utf-8")
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+
+
 def test_permission_changes_are_restored_after_a_failed_assertion(monkeypatch):
     contract = parse_contract({'test_environment': True,
         'android_permissions': {'approved': True, 'app_label': 'Fixture App', 'allowed': [CAMERA]},
@@ -357,6 +418,64 @@ def test_permission_stop_does_not_accept_a_prompt_and_still_allows_cleanup(tmp_p
         session.handle(CAMERA, 'allow_while_using')
     session.restore()
     assert not driver.clicks and not driver.granted
+
+
+def test_a_scroll_stop_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android import AndroidEnvironmentError
+    from backend.android_scroll import discover_viewports, seek_observed
+
+    secret = "tenant-b-only-scroll"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "STOP").write_text(secret, encoding="utf-8")
+    (other / "keep.txt").write_text(secret, encoding="utf-8")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "STOP").symlink_to(other / "STOP")
+    calls = []
+
+    class Driver:
+        def execute_script(self, *args):
+            calls.append(args)
+
+    element = {"scroll_hint": {"direction": "down"}, "locators": [{"strategy": "accessibility id", "value": "home-own"}]}
+    screen = {"identity": ["home"], "elements": []}
+    with pytest.raises(AndroidEnvironmentError, match="link") as stopped:
+        seek_observed(Driver(), screen, element, {}, run / "STOP")
+    assert secret not in str(stopped.value)
+    assert calls == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "fresh").exists()
+
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    scroll = {
+        "visible": True, "scrollable": True, "locator_unique": True,
+        "locators": [{"strategy": "accessibility id", "value": "home-own"}],
+        "accessibility_id": "home-own", "class_name": "android.widget.ScrollView",
+    }
+    listed = {"identity": ["home"], "id": "s1", "elements": [scroll]}
+    config = {"package_name": PACKAGE, "max_scroll_actions": 5, "max_scrolls_per_screen": 5}
+    with pytest.raises(AndroidEnvironmentError, match="link") as listed_stop:
+        discover_viewports(Driver(), listed, config, {}, time.monotonic() + 10, linked)
+    assert secret not in str(listed_stop.value)
+    assert calls == []
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
+    assert not (other / "screenshots").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "STOP").write_text("home-own", encoding="utf-8")
+    with pytest.raises(AndroidEnvironmentError, match="stopped by the user"):
+        seek_observed(Driver(), screen, element, {}, real / "STOP")
+    gaps = discover_viewports(Driver(), listed, config, {}, time.monotonic() + 10, real)
+    assert gaps[0]["label"] == "home-own"
+    assert gaps[0]["reason"] == "Stop requested during viewport discovery"
+    assert secret not in json.dumps(gaps)
+    assert calls == []
+    assert (other / "STOP").read_text(encoding="utf-8") == secret
+    assert (other / "keep.txt").read_text(encoding="utf-8") == secret
 
 
 def test_offscreen_inventory_and_replay_use_observed_controls_and_restore_the_top(tmp_path):

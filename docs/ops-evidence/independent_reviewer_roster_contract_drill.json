@@ -1,0 +1,56 @@
+{
+  "gate_g_complete": false,
+  "drill": "independent_reviewer_roster_contract",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "kind": "unsigned_roster_contract",
+  "roles": [
+    {
+      "role": "security",
+      "gates": [
+        "G",
+        "I",
+        "H"
+      ],
+      "required": true
+    },
+    {
+      "role": "reliability",
+      "gates": [
+        "A",
+        "E",
+        "H"
+      ],
+      "required": true
+    },
+    {
+      "role": "platform_ci",
+      "gates": [
+        "D",
+        "F"
+      ],
+      "required": true
+    },
+    {
+      "role": "product_qa",
+      "gates": [
+        "B",
+        "C",
+        "J"
+      ],
+      "required": false
+    }
+  ],
+  "assignees": [],
+  "signed_off": false,
+  "local_partial_present": [
+    "independent_review_request_drill.json",
+    "independent_review_scope_matrix_drill.json",
+    "independent_review_handoff_pack_drill.json",
+    "independent_review_response_sla_drill.json",
+    "independent_review_attestation_drill.json",
+    "INDEPENDENT_REVIEW_SUMMARY.md"
+  ],
+  "local_partial_missing": [],
+  "ok": true,
+  "reason": "Independent reviewer roster contract recorded (6/6 local partials); external sign-off still open"
+}

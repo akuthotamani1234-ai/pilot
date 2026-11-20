@@ -69,7 +69,12 @@ artifacts/
 .claude/
 .cursor/
 *.log
-deep_validation/
+# Keep deep_validation scratch local, but allow committed Phase evidence under live_runs.
+deep_validation/*
+!deep_validation/live_runs/
+deep_validation/live_runs/*
+!deep_validation/live_runs/*.md
+!deep_validation/live_runs/*.json
 
 # Node (if a demo or tooling adds it later)
 node_modules/

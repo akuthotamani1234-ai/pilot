@@ -232,7 +232,9 @@ def wait_for_person(tab, form: dict, seconds: int) -> dict | None:
             evidence = ["a person completed the one-time code / CAPTCHA in the browser window", "the password box is gone"]
             evidence += [f"the address changed to {tab.url.split('?')[0]}"] if moved else []
             evidence += ["a log-out control is shown"] if has_logout else []
-            tab.goto(tab.url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)  # the login must hold
+            landing = tab.url
+            if reopen_if_safe(tab, landing, evidence, settings.page_timeout_ms):
+                return {"outcome": "success", "logged_in": True, "evidence": evidence, "final_url": landing}
             _settle(tab)
             if looks_logged_out(tab, form):
                 continue
@@ -241,6 +243,17 @@ def wait_for_person(tab, form: dict, seconds: int) -> dict | None:
         except Exception:
             continue  # (the page is changing right now)
     return None
+
+
+def reopen_if_safe(tab, landing: str, evidence: list, timeout: int) -> bool:
+    """Return True when the post-login page is checkout and was not opened again."""
+    from .payment_nav import open_refusing_checkout
+
+    blocked = open_refusing_checkout(tab, landing, timeout=timeout)
+    if blocked:
+        evidence.append("checkout was not opened again")
+        return True
+    return False
 
 
 def log_in(context, url: str, form: dict, user: str, password: str, scope=None) -> tuple[object, dict]:
@@ -264,7 +277,10 @@ def log_in(context, url: str, form: dict, user: str, password: str, scope=None) 
         return tab, result
 
     try:
-        tab.goto(url, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        from .payment_nav import open_refusing_checkout
+        blocked = open_refusing_checkout(tab, url, timeout=settings.page_timeout_ms)
+        if blocked:
+            return done("failed", "checkout, payment and placing an order are never tested")
         _settle(tab)
         if CAPTCHA.search(tab.content()):
             if not settings.headless:  # a person will solve it: the account is typed in, the rest is up to them
@@ -362,7 +378,8 @@ def log_in(context, url: str, form: dict, user: str, password: str, scope=None) 
             return done("failed", *evidence, "no second sign of being logged in (address / log-out control)")
         # the login must hold: open the page again and check the login form does not come back
         landing = tab.url
-        tab.goto(landing, wait_until="domcontentloaded", timeout=settings.page_timeout_ms)
+        if reopen_if_safe(tab, landing, evidence, settings.page_timeout_ms):
+            return done("success", *evidence)
         _settle(tab)
         if looks_logged_out(tab, form):
             return done("failed", *evidence, "but the login form came back after opening the page again")

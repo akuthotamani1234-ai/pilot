@@ -7,8 +7,10 @@
   it in the test cases as 'Not automated' with the reason - it is never silently dropped.
   Where you write them: the chat's start card ('Your own tests'), the review step, or main.py --my-test "...".
 """
+import contextvars
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,23 @@ from .config import settings
 
 MAX_TESTS = 30  # per website
 FILE = "my_tests.json"
+_baseline_tenant: contextvars.ContextVar[str] = contextvars.ContextVar("qpilot_baseline_tenant", default="")
+
+
+def push_baseline_tenant(tenant_id: str):
+    """Use this tenant's baseline until the token is reset. A bad id uses the shared folder."""
+    tenant = (tenant_id or "").strip()
+    if tenant and not re.fullmatch(r"[\w.-]+", tenant):
+        tenant = ""
+    return _baseline_tenant.set(tenant)
+
+
+def pop_baseline_tenant(token) -> None:
+    _baseline_tenant.reset(token)
+
+
+def current_baseline_tenant() -> str:
+    return _baseline_tenant.get()
 
 
 def site_key_of(url: str) -> str:
@@ -26,13 +45,82 @@ def site_key_of(url: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", (p.hostname or "") + (f"_{p.port}" if p.port else ""))
 
 
-def _file(site_key: str) -> Path:
-    return settings.baseline_dir / site_key / FILE
+def baseline_folder(site_key: str, tenant_id: str | None = None) -> Path:
+    """baseline/<site>, or baseline/<tenant>/<site> when a tenant is signed in.
+
+    An explicit tenant id never falls back to the shared folder. A missing id uses
+    QPILOT_TENANT_ID from the worker, then the shared folder.
+    """
+    key = site_key or "site"
+    if tenant_id is None:
+        tenant = (_baseline_tenant.get() or os.getenv("QPILOT_TENANT_ID") or "").strip()
+        if tenant and re.fullmatch(r"[\w.-]+", tenant):
+            return settings.baseline_dir / tenant / key
+        return settings.baseline_dir / key
+    tenant = tenant_id.strip()
+    if not re.fullmatch(r"[\w.-]+", tenant):
+        return settings.baseline_dir / ".none" / key
+    return settings.baseline_dir / tenant / key
 
 
-def load(site_key: str) -> list[dict]:
+def _file(site_key: str, tenant_id: str | None = None) -> Path:
+    return baseline_folder(site_key, tenant_id) / FILE
+
+
+def baseline_dirs_saved_by(run_id: str, tenant_id: str = "") -> list[Path]:
+    """Site folders whose meta names this run.
+
+    A tenant only matches baseline/<tenant>/<site>. A run with no tenant only
+    matches the shared baseline/<site>. A link is left in place.
+    """
+    root = Path(settings.baseline_dir)
+    tenant = (tenant_id or "").strip()
+    parent = root / tenant if tenant and re.fullmatch(r"[\w.-]+", tenant) else root
+    if not parent.is_dir() or baseline_is_linked(parent):
+        return []
+    found: list[Path] = []
+    for meta in parent.glob("*/meta.json"):
+        if baseline_is_linked(meta):
+            continue
+        try:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        site = meta.parent
+        if isinstance(data, dict) and data.get("run_id") == run_id and not site.is_symlink():
+            found.append(site)
+    return found
+
+
+def baseline_is_linked(path: Path) -> bool:
+    """True when a baseline path follows a symlink.
+
+    A tenant folder that is a link can point at another tenant. Reading or
+    writing that path would use the other tenant's files. The baseline folder
+    itself is refused when it, or a folder on the way to it, is a link.
+    """
+    from .finalization import folder_is_linked
+    root = Path(settings.baseline_dir)
+    if folder_is_linked(root):
+        return True
     try:
-        return json.loads(_file(site_key).read_text(encoding="utf-8"))
+        rel = Path(os.path.normpath(path)).relative_to(Path(os.path.normpath(root)))
+    except ValueError:
+        return True
+    cursor = root
+    for part in rel.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+    return False
+
+
+def load(site_key: str, tenant_id: str | None = None) -> list[dict]:
+    path = _file(site_key, tenant_id)
+    if baseline_is_linked(path):
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
 
@@ -51,20 +139,22 @@ def _entry(text: str, old: dict | None = None) -> dict:
                    "text": text, "added": datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
-def save(site_key: str, texts) -> list[dict]:
+def save(site_key: str, texts, tenant_id: str | None = None) -> list[dict]:
     """The list becomes exactly these tests (the chat's box: what is in it is the list; empty = none)."""
-    known = {t["text"].lower(): t for t in load(site_key)}
+    f = _file(site_key, tenant_id)
+    if baseline_is_linked(f):
+        return []
+    known = {t["text"].lower(): t for t in load(site_key, tenant_id)}
     tests = [_entry(t, known.get(t.lower())) for t in _clean(texts)]
-    f = _file(site_key)
     if tests or f.exists():
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(tests, indent=1), encoding="utf-8")
     return tests
 
 
-def add(site_key: str, texts) -> list[dict]:
+def add(site_key: str, texts, tenant_id: str | None = None) -> list[dict]:
     """More tests on top of the saved ones (the review step, main.py --my-test)."""
-    return save(site_key, [t["text"] for t in load(site_key)] + list(texts or []))
+    return save(site_key, [t["text"] for t in load(site_key, tenant_id)] + list(texts or []), tenant_id)
 
 
 def lines(text: str) -> list[str]:

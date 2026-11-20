@@ -1,0 +1,23 @@
+{
+  "gate_h_complete": false,
+  "drill": "minio_dual_bucket_failover",
+  "ran_at": "2026-11-19T07:21:29Z",
+  "ok": true,
+  "region_a": "qpilot-region-a",
+  "region_b": "qpilot-region-b",
+  "key": "dr/multi-region/1795072889.bin",
+  "open_a": {
+    "ready": true,
+    "backend": "minio",
+    "reason": ""
+  },
+  "open_b": {
+    "ready": true,
+    "backend": "minio",
+    "reason": ""
+  },
+  "bytes": 20,
+  "failover_read_ok": true,
+  "primary_deleted": true,
+  "reason": "Local MinIO dual-bucket failover (region-a\u2192region-b) verified; hosted multi-region object DR still open"
+}

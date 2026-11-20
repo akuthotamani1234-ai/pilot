@@ -162,7 +162,7 @@ def test_search_results_that_all_say_view_post_are_judged_on_their_own_pages(sit
         ns["test_search_finds_item"](_blog(site, [4]), [])  # a post that doesn't say 'hairy': still a failure
 
 
-def _guard(monkeypatch):
+def _guard_ns(monkeypatch):
     """The generated tests' click guard (templates/conftest.py: _risky and its patterns), with this run's patterns
     in production - only those parts, so the guard is not installed in this test process."""
     import ast
@@ -175,12 +175,89 @@ def _guard(monkeypatch):
     monkeypatch.setenv("QA_SAFE_TEXT_RX", SAFE_TEXT.pattern)
     monkeypatch.setenv("QA_WRITE_RX", WRITE.pattern)
     tree = ast.parse(Path("backend/templates/conftest.py").read_text(encoding="utf-8"))
-    want = {"PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX", "_risky"}
+    want = {
+        "PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX",
+        "CONTROL_TEXT_JS", "_payment_target", "_risky", "_redirects_to_payment", "_refuse_protected",
+    }
     nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in want)
              or (isinstance(n, ast.FunctionDef) and n.name in want)]
-    ns = {"re": re, "os": os}
+    ns = {"re": re, "os": os, "pytest": pytest, "Locator": type("Locator", (), {"_qa_guard": True})}
     exec(compile(ast.Module(nodes, []), "conftest.py", "exec"), ns)
-    return ns["_risky"]
+    return ns
+
+
+def _guard(monkeypatch):
+    """The click-risk function the other lesson tests call."""
+    return _guard_ns(monkeypatch)["_risky"]
+
+
+def test_a_generated_click_on_a_checkout_page_is_blocked(monkeypatch):
+    guard = _guard_ns(monkeypatch)
+
+    class OnCheckout:
+        class page:
+            url = "https://shop.example/checkout"
+
+    with pytest.raises(pytest.skip.Exception, match="checkout or payment"):
+        guard["_refuse_protected"](OnCheckout())
+
+    class OnProduct:
+        class page:
+            url = "https://shop.example/product/1"
+
+        class first:
+            @staticmethod
+            def evaluate(*_args, **_kwargs):
+                return ["Continue", "", "", "/product/1", "", "button", "", "", "", ""]
+
+    guard["_refuse_protected"](OnProduct())
+
+
+def test_a_javascript_link_that_opens_checkout_is_not_clicked(monkeypatch):
+    risky = _guard(monkeypatch)
+    assert risky(["Continue", "", "", "javascript:location.href='/checkout'", "", "a", "", "", "", ""])
+    assert risky(["Continue", "", "", "#", "", "button", "", "in_form",
+                  "javascript:location='/index.php?rt=checkout/confirm'", ""])
+    assert not risky(["Cart", "", "", "javascript:location.href='/cart'", "", "a", "", "", "", ""])
+    assert not risky(["Back", "", "", "javascript:history.back()", "", "a", "", "", "", ""])
+
+
+def test_a_generated_click_does_not_follow_a_redirect_into_checkout(monkeypatch):
+    guard = _guard_ns(monkeypatch)
+
+    class Probe:
+        def __init__(self, status, location=""):
+            self.status = status
+            self.headers = {"location": location} if location else {}
+
+    class Page:
+        url = "https://shop.example/product/1"
+
+        def get(self, url, **kwargs):
+            assert kwargs.get("max_redirects") == 0
+            if "checkout/cart" in str(url):
+                return Probe(200)
+            if str(url).endswith("/promo"):
+                return Probe(302, "https://shop.example/checkout")
+            if str(url).endswith("/cart"):
+                return Probe(302, "https://shop.example/index.php?rt=checkout/cart")
+            return Probe(200)
+
+    page = Page()
+    page.request = page
+
+    class Loc:
+        def __init__(self, href, label):
+            self.page = page
+            self.first = self
+            self._names = [label, "", "", href, "", "a", "", "", "", ""]
+
+        def evaluate(self, *_args, **_kwargs):
+            return self._names
+
+    with pytest.raises(pytest.skip.Exception, match="not opened"):
+        guard["_refuse_protected"](Loc("/promo", "Continue"))
+    guard["_refuse_protected"](Loc("/cart", "Cart"))
 
 
 def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
@@ -192,6 +269,21 @@ def test_a_link_that_says_post_or_share_only_opens_a_page(monkeypatch):
     assert risky(["Log out", "", "", "/logout"])  # pay / delete / log out: even a link
     assert risky(["Buy now", "", "", "/product/1"])
     assert risky(["Delete", "", "", "/items"])
+    assert risky(["Continue", "", "", "https://www.paypal.com/cgi-bin/webscr"])
+    assert risky(["Continue", "", "", "/checkout.html"])
+    assert risky(["Continue", "", "", "/cart/checkout%2Ehtml"])
+    assert not risky(["Cart", "", "", "http://shop.example/index.php?rt=checkout/cart"])
+    assert not risky(["Saree", "", "", "/product/buy-saree"])
+    assert risky(["Continue", "", "", "", "", "button", "", "in_form", "/checkout.html", ""])
+    assert risky(["Continue", "", "", "", "", "button", "", "in_form",
+                  "https://www.paypal.com/cgi-bin/webscr", ""])
+    assert risky(["Continue", "", "", "", "", "button", "", "", "", "location='/checkout'"])
+    assert not risky(["Continue", "", "", "", "", "button", "", "in_form",
+                      "index.php?rt=checkout/cart", ""])
+    assert risky(["Continue", "", "", "", "", "button", "", "in_form",
+                  "index.php?rt=checkout/confirm", ""])
+    assert risky(["Continue", "", "", "index.php?rt=checkout/checkout"])
+    assert not risky(["Continue", "", "", "", "", "button", "", "in_form", "/product/buy-saree", ""])
 
 
 def test_blog_posts_whose_links_say_view_post_open_with_the_name_on_their_card(site):

@@ -8,9 +8,106 @@ from .safety import redact
 ADVERSE = {"failed", "error", "inconclusive"}
 
 
-def read_json(path: Path, default):
+def folder_is_linked(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+def path_unless_linked(folder: Path, name: str) -> Path | None:
+    """A real file path in this folder. A link, or a name that leaves the folder, is refused."""
+    folder = Path(folder)
+    path = folder / name
+    if (not name or folder_is_linked(folder) or folder_is_linked(path)
+            or Path(name).is_absolute() or ".." in Path(name).parts):
+        return None
+    return path
+
+
+def write_bytes_unless_linked(path: Path, data: bytes) -> bool:
+    """Write bytes at this path. A linked file or folder is left untouched."""
+    path = Path(path)
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return True
+
+
+def copy_unless_linked(src: Path, dest: Path) -> bool:
+    """Copy one real file onto another. A linked source or destination is left untouched."""
+    import shutil
+    src, dest = Path(src), Path(dest)
+    if folder_is_linked(src) or not src.is_file() or dest.is_symlink() or folder_is_linked(dest.parent):
+        return False
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dest)
+    return True
+
+
+def append_text_unless_linked(path: Path, text: str) -> bool:
+    """Append to a real file. A linked file or folder is left untouched."""
+    path = Path(path)
+    parent = path.parent
+    if path.is_symlink() or folder_is_linked(parent):
+        return False
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        if not parent.exists():
+            parent.mkdir(exist_ok=True)
+        if path.is_symlink() or folder_is_linked(parent) or not parent.is_dir():
+            return False
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError:
+        return False
+    return True
+
+
+def write_text_unless_linked(run_dir: Path, name: str, text: str) -> bool:
+    """Write one file in this run. A link, or a name that leaves the run, is left untouched."""
+    path = path_unless_linked(Path(run_dir), name)
+    if path is None:
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def private_file(run_dir: Path, name: str) -> Path | None:
+    """A real file in this run's private folder. A link, or a name that leaves it, is refused."""
+    run_dir = Path(run_dir)
+    if not name or Path(name).is_absolute() or "/" in name or "\\" in name or name in {".", ".."}:
+        return None
+    private = run_dir / ".private"
+    if folder_is_linked(run_dir) or private.is_symlink():
+        return None
+    private.mkdir(exist_ok=True)
+    path = private / name
+    if path.is_symlink():
+        return None
+    return path
+
+
+def save_login_state(run_dir: Path, write) -> bool:
+    """Save this run's login. A linked private folder or auth file is not written."""
+    auth_path = private_file(run_dir, "auth.json")
+    if auth_path is None:
+        return False
+    write(str(auth_path))
+    return True
+
+
+def _path_is_linked(path: Path) -> bool:
+    path = Path(path)
+    return path.is_symlink() or folder_is_linked(path.parent)
+
+
+def read_json(path: Path, default):
+    if _path_is_linked(path):
+        return default
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
 
@@ -22,13 +119,17 @@ def finding_nodes(finding: dict) -> set[str]:
 def ingest_results(state: dict, *, recover: bool = True) -> list[dict]:
     """Keep final aggregates authoritative; recover missing worker records and torn JSONL safely."""
     root = Path(state["run_dir"])
+    if folder_is_linked(root):
+        return [] if recover or "results" not in state else list(state.get("results") or [])
     if not recover and "results" in state:
         return list(state.get("results") or [])
     rows = {}
     for result in read_json(root / "results.json", []) + list(state.get("results") or []):
-        if result.get("nodeid"):
+        if isinstance(result, dict) and result.get("nodeid"):
             rows[result["nodeid"]] = result
     for path in sorted(root.glob("results*.jsonl")):
+        if path.is_symlink():
+            continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -49,6 +150,8 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
     from .excel import case_hits
 
     root = Path(state["run_dir"])
+    if folder_is_linked(root):
+        return dict(state)
     results = ingest_results(state, recover=recover)
     cases = state.get("test_cases") or read_json(root / "test_cases.json", [])
     adverse = {r["nodeid"]: r for r in results if r.get("outcome") in ADVERSE}
@@ -109,5 +212,8 @@ def reconcile(state: dict, *, save: bool = True, recover: bool = True) -> dict:
         for name, value in (("results.json", results), ("failures.json", failures), ("test_cases.json", cases),
                             ("pending_cases.json", {"pending": pending, "completed_nodeids": sorted(
                                 r["nodeid"] for r in results)})):
-            (root / name).write_text(json.dumps(value, indent=2), encoding="utf-8")
+            dest = root / name
+            if folder_is_linked(root) or dest.is_symlink():
+                continue
+            dest.write_text(json.dumps(value, indent=2), encoding="utf-8")
     return recovered

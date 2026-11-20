@@ -74,10 +74,15 @@ def take(cdp) -> dict:
 def append(run_dir: Path, name: str, data: dict) -> None:
     if not data:
         return
-    d = Path(run_dir) / "jscov"
-    d.mkdir(exist_ok=True)
-    with (d / f"{name}.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps(data) + "\n")
+    key = str(name or "")
+    if not key or key in {".", ".."} or "/" in key or "\\" in key or Path(key).name != key:
+        return
+    run = Path(run_dir)
+    folder = run / "jscov"
+    from .finalization import append_text_unless_linked, folder_is_linked
+    if folder_is_linked(run) or folder.is_symlink():
+        return
+    append_text_unless_linked(folder / f"{key}.jsonl", json.dumps(data) + "\n")
 
 
 def _union(a: list[list[int]], b: list[list[int]]) -> list[list[int]]:
@@ -92,11 +97,15 @@ def _union(a: list[list[int]], b: list[list[int]]) -> list[list[int]]:
 
 def summary(run_dir: Path, host: str) -> dict | None:
     """Every take of the run merged: the share of the website's OWN JavaScript that ran, and its least-used scripts."""
-    d = Path(run_dir) / "jscov"
-    if not d.is_dir():
+    run = Path(run_dir)
+    d = run / "jscov"
+    from .finalization import folder_is_linked
+    if folder_is_linked(run) or d.is_symlink() or not d.is_dir():
         return None
     scripts: dict[str, dict] = {}
     for f in d.glob("*.jsonl"):
+        if f.is_symlink():
+            continue
         for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             try:
                 data = json.loads(line)
@@ -113,5 +122,6 @@ def summary(run_dir: Path, host: str) -> dict | None:
                    "bytes": s["length"]} for u, s in own.items() if s["length"] >= 200), key=lambda x: x["percent"])
     out = {"own_scripts": len(own), "own_bytes": total, "percent": round(100 * ran / total, 1) if total else None,
            "other_scripts": len(scripts) - len(own), "least_used": per[:8]}
-    (Path(run_dir) / "jscov.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    from .finalization import write_text_unless_linked
+    write_text_unless_linked(run, "jscov.json", json.dumps(out, indent=2))
     return out

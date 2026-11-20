@@ -1,0 +1,13 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_escalation_enforcement",
+  "ran_at": "2026-11-19T07:32:27Z",
+  "kind": "policy_enforcement",
+  "auth_blocked": true,
+  "infrastructure_blocked": true,
+  "timeout_allowed": true,
+  "locator_allowed": true,
+  "production_suite_executed": false,
+  "ok": true,
+  "reason": "Healing escalation enforced on the repair path (auth/infrastructure refused, timeout and locator still reviewed); production / third-party healing suite still open"
+}

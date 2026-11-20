@@ -466,6 +466,35 @@ def test_assert_flow_runs_a_kept_flow_through_the_trusted_runtime(tmp_path, monk
         runtime.assert_flow("auto_invented_999")
 
 
+def test_a_kept_flow_does_not_follow_a_link_into_another_folder(tmp_path):
+    from backend.android_runtime import load_auto_contract
+
+    secret = "tenant-b-only-flow"
+    other = tmp_path / "other"
+    private = other / ".private"
+    private.mkdir(parents=True)
+    target = private / "auto_contract.json"
+    target.write_text(json.dumps({"flows": [{"id": secret}]}), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert load_auto_contract(linked) is None
+    run = tmp_path / "file-link"
+    (run / ".private").mkdir(parents=True)
+    (run / ".private" / "auto_contract.json").symlink_to(target)
+    assert load_auto_contract(run) is None
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    (real / ".private").mkdir(parents=True)
+    (real / ".private" / "auto_contract.json").write_text(
+        json.dumps({"flows": [{"id": "home-own"}]}), encoding="utf-8")
+    loaded = load_auto_contract(real)
+    assert loaded["flows"][0]["id"] == "home-own"
+    assert secret not in json.dumps(loaded)
+    assert secret in target.read_text(encoding="utf-8")
+
+
 def test_a_failed_rotation_flow_still_restores_portrait(tmp_path):
     from backend.qa_runtime import AndroidContractAdapter, ContractRuntime
 
@@ -523,6 +552,119 @@ def test_a_recording_is_written_only_as_failure_evidence(tmp_path):
     assert stop_recording(driver, tmp_path, "case_ok", keep=False) is None
     assert stop_recording(driver, tmp_path, "case_bad", keep=True) == "videos/case_bad.mp4"
     assert (tmp_path / "videos" / "case_bad.mp4").read_bytes() == b"mp4-bytes"
+
+
+def test_a_device_log_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    import base64
+
+    from backend.android_evidence import save_log, stop_recording
+
+    monkeypatch.setattr("backend.android_evidence._adb", lambda: None)
+    secret = b"tenant-b-only-log"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "logcat").mkdir()
+    (nested / "logcat" / "case.txt").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert save_log(linked / "run", "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    assert save_log(linked / "fresh", "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    driver = SimpleNamespace(stop_recording_screen=lambda: base64.b64encode(b"ours-video").decode())
+    assert stop_recording(driver, linked / "run", "case", keep=True) is None
+    assert not (other / "fresh").exists()
+    assert (nested / "logcat" / "case.txt").read_bytes() == secret
+    assert not (nested / "videos").exists()
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    saved = save_log(real, "case", CRASH_LOG, PACKAGE, "emulator-5554")
+    text = (real / saved).read_bytes()
+    assert b"Cart is null" in text and secret not in text
+    assert stop_recording(driver, real, "case", keep=True) == "videos/case.mp4"
+    video = (real / "videos" / "case.mp4").read_bytes()
+    assert video == b"ours-video" and secret not in video
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_an_android_script_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+    from backend.android_design import generate_scripts
+
+    monkeypatch.setattr("backend.android_design.llm.llm_enabled", lambda: False)
+    secret = b"tenant-b-only-script"
+    other = tmp_path / "other"
+    nested = other / "run"
+    nested.mkdir(parents=True)
+    (nested / "keep.txt").write_bytes(secret)
+    (nested / "generated_tests").mkdir()
+    (nested / "generated_tests" / "test_android_generated.py").write_bytes(secret)
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    case = {"id": "home", "page": "home", "plan": [["open_screen", ["S1"]], ["assert_visible", ["E1"]]]}
+    refused = generate_scripts({"run_dir": str(linked / "run"), "test_cases": [case], "screens": []})
+    fresh = generate_scripts({"run_dir": str(linked / "fresh"), "test_cases": [case], "screens": []})
+    assert "link" in refused["script_errors"][0]
+    assert "link" in fresh["script_errors"][0]
+    assert not (other / "fresh").exists()
+    assert (nested / "generated_tests" / "test_android_generated.py").read_bytes() == secret
+    assert (nested / "keep.txt").read_bytes() == secret
+
+    real = tmp_path / "real"
+    real.mkdir()
+    own = generate_scripts({"run_dir": str(real), "test_cases": [dict(case)], "screens": []})
+    text = (real / "generated_tests" / "test_android_generated.py").read_bytes()
+    assert b"def test_home" in text and b"assert_visible" in text and secret not in text
+    assert own["script_sources"]["test_android_generated.py"] == "template"
+    assert (nested / "keep.txt").read_bytes() == secret
+
+
+def test_android_evidence_does_not_follow_a_link_into_another_run(tmp_path, monkeypatch):
+    import base64
+
+    from backend.android_design import generate_scripts
+    from backend.android_dynamic import ActionRecovery
+    from backend.android_evidence import save_log, stop_recording
+    from backend.android_reporting import analyze
+
+    secret = "tenant-b-only-evidence"
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "case.txt").write_text(secret, encoding="utf-8")
+    (other / "case.mp4").write_bytes(secret.encode())
+    (other / "dynamic.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "failures.json").write_text(json.dumps({"secret": secret}), encoding="utf-8")
+    (other / "test_android_generated.py").write_text(f"# {secret}\n", encoding="utf-8")
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "logcat").symlink_to(other, target_is_directory=True)
+    (run / "videos").symlink_to(other, target_is_directory=True)
+    (run / "dynamic.json").symlink_to(other / "dynamic.json")
+    (run / "failures.json").symlink_to(other / "failures.json")
+    (run / "generated_tests").symlink_to(other, target_is_directory=True)
+    monkeypatch.setattr("backend.android_evidence._adb", lambda: None)
+    monkeypatch.setattr("backend.android_design.llm.llm_enabled", lambda: False)
+    assert save_log(run, "case", CRASH_LOG, PACKAGE, "emulator-5554") is None
+    driver = SimpleNamespace(stop_recording_screen=lambda: base64.b64encode(b"ours").decode())
+    assert stop_recording(driver, run, "case", keep=True) is None
+    ActionRecovery().record(run, {"action": "note", "message": secret})
+    analyze({"run_dir": str(run), "test_cases": [], "results": [
+        {"id": "c", "outcome": "failed", "exception_type": "AppCrash", "error": "crashed"}]})
+    refused = generate_scripts({"run_dir": str(run), "test_cases": [
+        {"id": "home", "plan": [["open_screen", ["S1"]]]}]})
+    assert "link" in refused["script_errors"][0]
+    assert (other / "case.txt").read_text(encoding="utf-8") == secret
+    assert (other / "case.mp4").read_bytes() == secret.encode()
+    assert json.loads((other / "dynamic.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert json.loads((other / "failures.json").read_text(encoding="utf-8"))["secret"] == secret
+    assert (other / "test_android_generated.py").read_text(encoding="utf-8") == f"# {secret}\n"
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    saved = save_log(plain, "case", CRASH_LOG, PACKAGE, "emulator-5554")
+    assert saved == "logcat/case.txt" and "Cart is null" in (plain / saved).read_text(encoding="utf-8")
 
 
 def test_a_crash_is_reported_as_a_high_severity_app_defect(tmp_path):

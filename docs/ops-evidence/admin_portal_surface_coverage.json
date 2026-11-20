@@ -1,0 +1,118 @@
+{
+  "gate_a_surfaces_complete": false,
+  "drill": "admin_portal_surface_coverage",
+  "ran_at": "2026-11-19T00:03:45Z",
+  "fixture": "AdminPortal",
+  "pages_walked": [
+    "home",
+    "users",
+    "users/new",
+    "widgets",
+    "reports",
+    "help",
+    "help/guide"
+  ],
+  "surfaces": {
+    "gate_a_surfaces_complete": false,
+    "pages": 7,
+    "frames": {
+      "testable": 1,
+      "external": 0,
+      "unreachable": 0,
+      "pages_with_frames": 1,
+      "listed_iframes": 1
+    },
+    "shadow": {
+      "open_roots_seen": 2,
+      "pages_with_shadow": 1,
+      "closed_unsupported": 0
+    },
+    "dialogs": {
+      "pages_with_dialogs": 1,
+      "form_dialogs": 1,
+      "modal_buttons": 4
+    },
+    "downloads": {
+      "pages_with_downloads": 1,
+      "links": 1
+    },
+    "lazy": {
+      "pages_with_lazy": 0,
+      "items_seen": 0
+    },
+    "metadata": {
+      "pages_with_locale": 7,
+      "pages_with_skeleton": 0,
+      "title_or_meta": 7
+    },
+    "viewports": {
+      "desktop_or_default": 7,
+      "mobile_checked": 1
+    },
+    "api": {
+      "network_seeded": 0,
+      "openapi_or_scrape": 0,
+      "blocked_requests": 0
+    },
+    "rich_controls": {
+      "canvas": 0,
+      "file_upload": 1,
+      "web_component": 2,
+      "pages_with_rich": 1
+    },
+    "unknown": [
+      "no API/network/openapi seeds recorded",
+      "no lazy-loaded content signals recorded"
+    ],
+    "evidence": {
+      "pages": 7,
+      "frames": {
+        "testable": 1,
+        "external": 0,
+        "unreachable": 0,
+        "pages_with_frames": 1,
+        "listed_iframes": 1
+      },
+      "shadow": {
+        "open_roots_seen": 2,
+        "pages_with_shadow": 1,
+        "closed_unsupported": 0
+      },
+      "api": {
+        "network_seeded": 0,
+        "openapi_or_scrape": 0,
+        "blocked_requests": 0
+      },
+      "lazy": {
+        "pages_with_lazy": 0,
+        "items_seen": 0
+      },
+      "metadata": {
+        "pages_with_locale": 7,
+        "pages_with_skeleton": 0,
+        "title_or_meta": 7
+      },
+      "viewports": {
+        "desktop_or_default": 7,
+        "mobile_checked": 1
+      },
+      "dialogs": {
+        "pages_with_dialogs": 1,
+        "form_dialogs": 1,
+        "modal_buttons": 4
+      },
+      "downloads": {
+        "pages_with_downloads": 1,
+        "links": 1
+      },
+      "rich_controls": {
+        "canvas": 0,
+        "file_upload": 1,
+        "web_component": 2,
+        "pages_with_rich": 1
+      }
+    },
+    "note": "Surface counts are run-local. Empty does not prove the site lacks iframes/shadow/API/lazy/metadata/dialogs/downloads/rich controls."
+  },
+  "reason": "AdminPortal surface inventory captured (iframe/shadow/dialog/download/rich when present); full Gate A live matrix still open"
+}

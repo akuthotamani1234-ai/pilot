@@ -5,12 +5,21 @@ same time, then close. Payment and checkout links are never handed to a worker.
 A long product list can still keep a short sample for the deeper crawl.
 """
 import re
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 _PAYMENT_PATH = re.compile(
-    r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:/|$)",
+    r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)"
+    r"(?:\.[a-z0-9]+)?(?:/|$)",
     re.I,
 )
+_PAYMENT_HOST = re.compile(r"(?:^|\.)paypal\.com$", re.I)
+# A one-script shop picks the page in the query: index.php?rt=checkout/cart is the cart.
+_ROUTE_KEY = re.compile(
+    r"^(?:rt|route|r|controller|ctrl|action|act|task|cmd|do|page|step|view|screen)$",
+    re.I,
+)
+_PAY_STEP = re.compile(r"^(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)$", re.I)
+_CART_STEP = re.compile(r"^(?:cart|basket|bag|trolley)$", re.I)
 
 
 def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
@@ -20,10 +29,96 @@ def sample_limit(swarm_sample: int, pattern_samples: int) -> int:
     return max(0, pattern_samples)
 
 
+def _route_bits_are_payment(value: str) -> bool:
+    """True when a route's pieces pick checkout or payment, and not the cart."""
+    bits = [bit for bit in re.split(r"[/.]", unquote(value or "").replace("_", "-")) if bit]
+    if not bits or not any(_PAY_STEP.fullmatch(bit) for bit in bits):
+        return False
+    cart = bool(_CART_STEP.fullmatch(bits[-1])) and any(
+        re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
+    return not cart
+
+
+def _query_route_is_payment(query: str) -> bool:
+    """True when the query picks a checkout or payment step, and not the cart."""
+    from urllib.parse import parse_qsl
+
+    for key, value in parse_qsl(query or "", keep_blank_values=True):
+        if _ROUTE_KEY.match(key) and _route_bits_are_payment(value):
+            return True
+    return False
+
+
+def _fragment_route_is_payment(fragment: str) -> bool:
+    """True when a single-page #/route or #!/route picks checkout, and not the cart.
+
+    A normal #section anchor is not a page.
+    """
+    route = fragment or ""
+    if route.startswith("!/"):
+        route = route[1:]
+    if not route.startswith("/"):
+        return False
+    return _route_bits_are_payment(route.split("?", 1)[0])
+
+
 def is_payment_url(url: str) -> bool:
     """True when the address itself is a checkout or payment step."""
-    path = urlsplit(url or "").path.replace("_", "-")
-    return bool(_PAYMENT_PATH.search(path))
+    parts = urlsplit(url or "")
+    host = parts.hostname or ""
+    if _PAYMENT_HOST.search(host):
+        return True
+    path = unquote(parts.path).replace("_", "-")
+    if _PAYMENT_PATH.search(path):
+        return True
+    if _query_route_is_payment(parts.query):
+        return True
+    return _fragment_route_is_payment(parts.fragment)
+
+
+_QUOTED = re.compile(r"""['"]([^'"]+)['"]""")
+
+
+def _script_opens_payment(base: str, script: str) -> bool:
+    """True when a javascript: address quotes a checkout or payment URL."""
+    from urllib.parse import urljoin
+
+    for quoted in _QUOTED.findall(script or ""):
+        text = quoted.strip()
+        if not text or text.startswith("#") or text.lower().startswith("javascript:"):
+            continue
+        if is_payment_url(urljoin(base, text)):
+            return True
+    return False
+
+
+def control_opens_payment(page_url: str, href: str = "", form_action: str = "", onclick: str = "") -> bool:
+    """True when the control's address is checkout or payment, whatever its label says."""
+    from urllib.parse import urljoin
+
+    base = page_url or ""
+    for raw in (href or "", form_action or ""):
+        text = raw.strip()
+        if not text or text.startswith("#"):
+            continue
+        if text.lower().startswith("javascript:"):
+            if _script_opens_payment(base, text):
+                return True
+            continue
+        if is_payment_url(urljoin(base, text)):
+            return True
+    return _script_opens_payment(base, onclick or "")
+
+
+def stored_control_opens_payment(page_url: str, control: dict | None) -> bool:
+    """True when a saved button, link, or form opens checkout or payment."""
+    item = control or {}
+    return control_opens_payment(
+        page_url,
+        str(item.get("href") or item.get("to") or ""),
+        str(item.get("form_action") or item.get("formaction") or item.get("action") or ""),
+        str(item.get("onclick") or ""),
+    )
 
 
 def choose_listing(urls: list[str], sample_size: int) -> tuple[list[str], list[tuple[str, str]]]:
@@ -93,6 +188,60 @@ def partition_site(urls: list[str], worker_count: int, limit: int | None = None)
     return assign_workers(picked, worker_count)
 
 
+def landed_on_payment(found) -> bool:
+    """True when a page that looked safe ended on checkout or payment."""
+    if not isinstance(found, dict):
+        return False
+    if found.get("status") == "blocked":
+        return True
+    return is_payment_url(str(found.get("final_url") or ""))
+
+
+def _payment_block(url: str, final: str) -> dict:
+    return {
+        "url": url,
+        "final_url": final,
+        "status": "blocked",
+        "summary": "checkout, payment and placing an order are never tested",
+    }
+
+
+def open_guarded(page, address: str, *, timeout: int = 20000):
+    """Open one worker page. A checkout document, including after a redirect, is not loaded.
+
+    A navigation the browser cancels is tried once more.
+    """
+    from .payment_nav import _CANCELLED, follow_get
+
+    def once():
+        try:
+            current, landed = follow_get(page.request.get, address, timeout=timeout)
+        except Exception:
+            # The probe never ran. Do not open checkout, and abort a redirect into it.
+            if is_payment_url(address):
+                return None, _payment_block(address, address)
+            from .payment_nav import open_falling_back
+            _response, blocked_url = open_falling_back(page, address, timeout=timeout)
+            final = blocked_url or str(getattr(page, "url", "") or "")
+            if blocked_url or is_payment_url(final):
+                return None, _payment_block(address, final or address)
+            return _response, None
+        if landed:
+            return None, _payment_block(address, landed)
+        response = page.goto(current, wait_until="domcontentloaded", timeout=timeout)
+        final = page.url or current
+        if is_payment_url(final):
+            return None, _payment_block(address, final)
+        return response, None
+
+    try:
+        return once()
+    except Exception as exc:
+        if not _CANCELLED.search(str(exc)):
+            raise
+        return once()
+
+
 def perform(assignments: list[dict], open_page, *, on_status=None, session=None) -> list[dict]:
     """Each worker opens its own pages, then finishes. Workers run at the same time.
 
@@ -125,11 +274,17 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
                     done.append({**row, "status": "blocked"})
                     continue
                 try:
-                    own_open(url)
+                    found = own_open(url)
                 except Exception:
                     if on_status:
                         on_status(worker, "stopped", url)
                     done.append({**row, "status": "stopped"})
+                    continue
+                if landed_on_payment(found):
+                    final = str(found.get("final_url") or url) if isinstance(found, dict) else url
+                    if on_status:
+                        on_status(worker, "blocked", final)
+                    done.append({**row, "status": "blocked", "work": found})
                     continue
                 if on_status:
                     on_status(worker, "opened", url)
@@ -145,6 +300,38 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
     with ThreadPoolExecutor(max_workers=max(1, len(order))) as pool:
         parts = list(pool.map(run_group, order))
     return [row for part in parts for row in part]
+
+
+class WorkerBrowser:
+    """One worker's browser. After a login is saved, later pages use that session."""
+
+    def __init__(self, browser, login_state: dict):
+        self.browser = browser
+        self.login_state = login_state if isinstance(login_state, dict) else {}
+        self.context = None
+        self.authed = False
+
+    def page(self):
+        state = self.login_state.get("state")
+        if self.context is None or (state and not self.authed):
+            if self.context is not None:
+                self.context.close()
+            if state:
+                self.context = self.browser.new_context(storage_state=state)
+                self.authed = True
+            else:
+                self.context = self.browser.new_context()
+                self.authed = False
+        return self.context.new_page()
+
+    def close(self) -> None:
+        if self.context is None:
+            return
+        try:
+            self.context.close()
+        except Exception:
+            pass
+        self.context = None
 
 
 class SiteSwarm:
@@ -213,6 +400,17 @@ class SiteSwarm:
                 except Exception:
                     if self._on_status:
                         self._on_status(worker, "stopped", url)
+                    continue
+                if landed_on_payment(found):
+                    final = str(found.get("final_url") or url)
+                    if self._on_status:
+                        self._on_status(worker, "blocked", final)
+                    with self._lock:
+                        for row in self.rows:
+                            if row.get("worker") == worker and row.get("url") == url and "work" not in row:
+                                row["status"] = "blocked"
+                                row["work"] = found
+                                break
                     continue
                 summary = ""
                 if isinstance(found, dict):

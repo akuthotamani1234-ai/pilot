@@ -1,0 +1,36 @@
+{
+  "gate_h_complete": false,
+  "drill": "postgres_dump_restore_isolated",
+  "ran_at": "2026-11-18T20:03:07Z",
+  "ok": true,
+  "isolated_db": "qpilot_dr_restore",
+  "dump_bytes": 4211,
+  "steps": [
+    {
+      "step": "pg_dump",
+      "rc": 0
+    },
+    {
+      "step": "terminate",
+      "rc": 1
+    },
+    {
+      "step": "DROP",
+      "rc": 0
+    },
+    {
+      "step": "CREATE",
+      "rc": 0
+    },
+    {
+      "step": "psql_restore",
+      "rc": 0
+    },
+    {
+      "step": "verify_tables",
+      "rc": 0,
+      "tables": 5
+    }
+  ],
+  "reason": "Postgres dump restored into isolated DB qpilot_dr_restore (5 user tables); hosted multi-region DR / on-call still open"
+}

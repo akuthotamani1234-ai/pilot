@@ -1,0 +1,52 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_replay_pack",
+  "ran_at": "2026-11-19T05:43:40Z",
+  "kind": "fixture_replay_pack",
+  "apps": [
+    "demo_store",
+    "classic_shop",
+    "admin_portal",
+    "travel_site"
+  ],
+  "pairs": [
+    {
+      "app": "demo_store",
+      "before_sha256": "fee8a00fbaa6039464368d43761e2f3c296cf83a0449fb3a070e9a0a527911d7",
+      "after_sha256": "9ebd7a0e63d216d2abd73ed2653dcb291e8d3cbecab23d3ccc7cae7a75508358",
+      "locator_repair_allowed": true,
+      "weaken_denied": true,
+      "ok": true
+    },
+    {
+      "app": "classic_shop",
+      "before_sha256": "4b83500dfec8c9f4f9fd1612cfbb112a1408721b02c6c5ae81d2ffe7c57d99d9",
+      "after_sha256": "ce895e48bffce30a46673928dabd3887fb2dd1f3be0cfb3f5cfff4e77045de67",
+      "locator_repair_allowed": true,
+      "weaken_denied": true,
+      "ok": true
+    },
+    {
+      "app": "admin_portal",
+      "before_sha256": "803b97d8ae6e9c69ba58920251906a52d40a42b94a3faa94f552708904d98dc7",
+      "after_sha256": "a8cd23bd32fc6e3b5276520e267dff43bf53dae778f5ca2072b08a0e968d6859",
+      "locator_repair_allowed": true,
+      "weaken_denied": true,
+      "ok": true
+    },
+    {
+      "app": "travel_site",
+      "before_sha256": "5dcd228ac8df6b7cc2b05d0c6b882fc05de274fab516a39f2eff3492c44a75b4",
+      "after_sha256": "5b1d486ceb53abe4caf8992583cdecabde99e6e684d24a66ef8aab41e727d290",
+      "locator_repair_allowed": true,
+      "weaken_denied": true,
+      "ok": true
+    }
+  ],
+  "passed": 4,
+  "pack_sha256": "1fed82e9abd712a83f381a50018179ffe6d8e5c9ada49d7098d7527da4e1db41",
+  "suite_ok": true,
+  "contract_ok": true,
+  "ok": true,
+  "reason": "Production healing replay pack 4/4 apps hashed; production / third-party healing suite still open"
+}

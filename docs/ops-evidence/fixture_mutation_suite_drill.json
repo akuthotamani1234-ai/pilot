@@ -1,0 +1,82 @@
+{
+  "gate_j_complete": false,
+  "drill": "fixture_mutation_suite",
+  "ran_at": "2026-11-18T22:31:43Z",
+  "suites": [
+    {
+      "fixture": "admin_portal",
+      "source": "deep_validation/live_runs/phase1_admin_portal_run4_summary.json",
+      "planted": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "reported": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "score": {
+        "caught": [
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "B6",
+          "B7"
+        ],
+        "missed": [],
+        "false_reports": [],
+        "qpilot_defects": []
+      },
+      "ok": true
+    },
+    {
+      "fixture": "travel_site",
+      "source": "deep_validation/live_runs/phase1_travel_site_run2_summary.json",
+      "planted": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "reported": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6"
+      ],
+      "score": {
+        "caught": [
+          "T1",
+          "T2",
+          "T3",
+          "T4",
+          "T5",
+          "T6"
+        ],
+        "missed": [],
+        "false_reports": [],
+        "qpilot_defects": []
+      },
+      "ok": true
+    }
+  ],
+  "passed": 2,
+  "total": 2,
+  "ok": true,
+  "reason": "Fixture mutation suite 2/2 (AdminPortal + TravelSite); broader third-party suites still open"
+}

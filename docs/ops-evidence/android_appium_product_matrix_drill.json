@@ -1,0 +1,101 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_appium_product_matrix",
+  "ran_at": "2026-11-19T00:07:11Z",
+  "ok": true,
+  "appium_ready": true,
+  "appium_url": "http://127.0.0.1:4723",
+  "device_id": "emulator-5556",
+  "api_level": 30,
+  "devices_online": 1,
+  "apps": [
+    {
+      "package": "com.android.settings",
+      "activity": ".Settings",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 7.6,
+      "current_package": "com.android.settings",
+      "page_source_len": 81778,
+      "clickables": 12,
+      "interacted": true,
+      "kind": "system"
+    },
+    {
+      "package": "com.android.contacts",
+      "activity": ".activities.PeopleActivity",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 6.6,
+      "current_package": "com.android.contacts",
+      "page_source_len": 47056,
+      "clickables": 4,
+      "interacted": true,
+      "kind": "system"
+    },
+    {
+      "package": "com.android.chrome",
+      "activity": "com.google.android.apps.chrome.Main",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 6.8,
+      "current_package": "com.android.chrome",
+      "page_source_len": 40332,
+      "clickables": 2,
+      "interacted": true,
+      "kind": "system"
+    },
+    {
+      "package": "io.appium.android.apis",
+      "activity": ".ApiDemos",
+      "ok": true,
+      "outcome": "passed",
+      "seconds": 5.6,
+      "current_package": "io.appium.android.apis",
+      "page_source_len": 42187,
+      "clickables": 12,
+      "interacted": true,
+      "kind": "third_party_apk",
+      "install": {
+        "package": "io.appium.android.apis",
+        "installed": true,
+        "apk": "/agent/repos/pilot/demo-apps/ApiDemos-debug.apk",
+        "apk_bytes": 4809449,
+        "install_rc": 0
+      }
+    }
+  ],
+  "apps_passed": 4,
+  "apps_total": 4,
+  "system_apps_passed": 3,
+  "third_party_apk_passed": true,
+  "third_party_install": {
+    "package": "io.appium.android.apis",
+    "installed": true,
+    "apk": "/agent/repos/pilot/demo-apps/ApiDemos-debug.apk",
+    "apk_bytes": 4809449,
+    "install_rc": 0
+  },
+  "matrix_rows": [
+    {
+      "surface": "android",
+      "device_id": "emulator-5556",
+      "form": "emulator",
+      "api_level": 30,
+      "outcome": "passed",
+      "source": "android_appium_product_matrix",
+      "apps_passed": [
+        "com.android.settings",
+        "com.android.contacts",
+        "com.android.chrome",
+        "io.appium.android.apis"
+      ],
+      "third_party_apk": true
+    }
+  ],
+  "android_profiles_verified": [
+    "android.emulator",
+    "android.api24+"
+  ],
+  "reason": "Live Appium product matrix on emulator-5556 API 30: 3 system + ApiDemos APK; broad multi-device CI product-matrix artifacts still open"
+}

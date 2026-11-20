@@ -1,0 +1,37 @@
+{
+  "gate_j_complete": false,
+  "drill": "mutation_score_demostore",
+  "ran_at": "2026-11-19T05:52:56Z",
+  "source": "deep_validation/live_runs/phase1_demo_store_run7_summary.json",
+  "planted": [
+    "cart_total",
+    "dead_button",
+    "qty_below_min",
+    "search_wrong_hit",
+    "sort_price",
+    "wishlist_error"
+  ],
+  "reported": [
+    "cart_total",
+    "dead_button",
+    "qty_below_min",
+    "search_wrong_hit",
+    "sort_price",
+    "wishlist_error"
+  ],
+  "score": {
+    "caught": [
+      "cart_total",
+      "dead_button",
+      "qty_below_min",
+      "search_wrong_hit",
+      "sort_price",
+      "wishlist_error"
+    ],
+    "missed": [],
+    "false_reports": [],
+    "qpilot_defects": []
+  },
+  "ok": true,
+  "reason": "DemoStore mutation score 6/6 caught, 0 missed, 0 false reports; broader third-party mutation suites still open"
+}

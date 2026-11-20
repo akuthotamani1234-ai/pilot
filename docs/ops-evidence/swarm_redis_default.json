@@ -1,0 +1,51 @@
+{
+  "gate_b_complete": false,
+  "ran": true,
+  "reason": "durable redis plan/drain (+ listing dual-write); Gate B product-wide review still open",
+  "backend": "redis",
+  "run_id": "redis-default-ev",
+  "urls_planned": 2,
+  "listing_mirrored": 0,
+  "tasks_enqueued": 5,
+  "processed": 5,
+  "statuses": [
+    "succeeded"
+  ],
+  "tasks": [
+    {
+      "task_id": "ea6b603933cf4690a56f1a7a658c0685",
+      "role": "leader",
+      "status": "succeeded",
+      "attempt": 1,
+      "url": "https://shop.example/"
+    },
+    {
+      "task_id": "4ac40556a2964b5e81cc43aa66914a8f",
+      "role": "worker",
+      "status": "succeeded",
+      "attempt": 1,
+      "url": "https://shop.example/"
+    },
+    {
+      "task_id": "b50bc44f0c224cbdbe3701ae04de9671",
+      "role": "worker",
+      "status": "succeeded",
+      "attempt": 1,
+      "url": "https://shop.example/p/1"
+    },
+    {
+      "task_id": "3ddcf3315fe942e38945375b7eabf2b5",
+      "role": "coverage",
+      "status": "succeeded",
+      "attempt": 1,
+      "url": "https://shop.example/"
+    },
+    {
+      "task_id": "db108920729f45df8dc8e93f300f6980",
+      "role": "oracle",
+      "status": "succeeded",
+      "attempt": 1,
+      "url": "https://shop.example/"
+    }
+  ]
+}

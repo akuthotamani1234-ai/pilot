@@ -72,8 +72,38 @@ def _mask(text: str) -> str:
     return re.sub(r"//[^/@\s]+@github\.com", "//***@github.com", text)
 
 
+def _contains_symlink(path: Path) -> bool:
+    """True when this folder, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_symlink():
+        return True
+    return any(parent.is_symlink() for parent in path.parents)
+
+
+def _path_is_linked(path: Path) -> bool:
+    """True when this path, or a folder on the way to it, is a link."""
+    path = Path(path)
+    if path.is_absolute():
+        cursor = Path(path.anchor)
+        parts = path.parts[1:]
+    else:
+        cursor = Path()
+        parts = path.parts
+    for part in parts:
+        if not part or part in {".", ".."}:
+            return True
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return True
+        if not cursor.exists():
+            return False
+    return False
+
+
 def _run(cmd: str, cwd: Path, log_file: Path, timeout: int = 900) -> None:
     print(f"  [setup] $ {_mask(cmd)}")
+    if _path_is_linked(log_file) or _path_is_linked(cwd):
+        raise RuntimeError("The setup log is a link.")
     with log_file.open("a", encoding="utf-8", errors="replace") as log:
         log.write(f"\n$ {_mask(cmd)}\n")
         log.flush()
@@ -94,6 +124,10 @@ def _download_zip(owner: str, repo: str, branch: str | None, dest: Path) -> Path
     if r.status_code == 404:
         raise RuntimeError(f"GitHub repo not found: {owner}/{repo} (private repo? set GITHUB_TOKEN in .env)")
     r.raise_for_status()
+    if _path_is_linked(dest) or _path_is_linked(dest.parent / f"_{repo}_zip"):
+        raise RuntimeError("The project folder is a link.")
+    if dest.is_symlink():
+        raise RuntimeError("The project folder is a link.")
     shutil.rmtree(dest, ignore_errors=True)
     with zipfile.ZipFile(io.BytesIO(r.content)) as z:
         top = z.namelist()[0].split("/")[0]          # GitHub puts everything in one top folder
@@ -105,8 +139,15 @@ def _download_zip(owner: str, repo: str, branch: str | None, dest: Path) -> Path
 
 def _clone(source: str, log_file: Path) -> Path:
     owner, repo, branch = GITHUB_RE.match(source.strip()).groups()
-    settings.workspace_dir.mkdir(parents=True, exist_ok=True)
-    dest = (settings.workspace_dir / repo).resolve()
+    workspace = settings.workspace_dir
+    if _path_is_linked(workspace):
+        raise RuntimeError("The workspace folder is a link.")
+    workspace.mkdir(parents=True, exist_ok=True)
+    if _path_is_linked(workspace):
+        raise RuntimeError("The workspace folder is a link.")
+    dest = workspace / repo
+    if _path_is_linked(dest):
+        raise RuntimeError("The project folder is a link.")
     if not shutil.which("git"):
         return _download_zip(owner, repo, branch, dest)
     auth = f"x-access-token:{settings.github_token}@" if settings.github_token else ""
@@ -118,12 +159,17 @@ def _clone(source: str, log_file: Path) -> Path:
         except RuntimeError:
             shutil.rmtree(dest, ignore_errors=True)
     branch_opt = f"--branch {branch} " if branch else ""
-    _run(f'git clone --depth 1 {branch_opt}"{url}" "{dest}"', settings.workspace_dir.resolve(), log_file, timeout=600)
+    _run(f'git clone --depth 1 {branch_opt}"{url}" "{dest}"', workspace, log_file, timeout=600)
     return dest
 
 
 def _find_python_app(root: Path, marker: str) -> str | None:
+    from ..finalization import folder_is_linked
+    if folder_is_linked(root):
+        return None
     for f in sorted(root.glob("*.py")) + sorted(root.glob("app/*.py")) + sorted(root.glob("src/*.py")):
+        if folder_is_linked(f):
+            continue
         try:
             if marker in f.read_text(encoding="utf-8", errors="ignore"):
                 return ".".join(f.relative_to(root).with_suffix("").parts)
@@ -132,17 +178,27 @@ def _find_python_app(root: Path, marker: str) -> str | None:
     return None
 
 
+def _real_project_file(path: Path) -> bool:
+    """A real file in this project. A link into another folder is not that file."""
+    from ..finalization import folder_is_linked
+    return not folder_is_linked(path) and path.is_file()
+
+
 def detect_project(root: Path, port: int) -> dict:
     """Decide how to install and start the project."""
+    from ..finalization import folder_is_linked
+    root = Path(root)
+    if folder_is_linked(root):
+        raise RuntimeError("The project folder is a link.")
     py = f'"{sys.executable}"'
     req = root / "requirements.txt"
-    pip = [f"{py} -m pip install -r requirements.txt"] if req.exists() else []
+    pip = [f"{py} -m pip install -r requirements.txt"] if _real_project_file(req) else []
 
     if settings.start_cmd:
         return {"type": "custom", "install": [], "start": settings.start_cmd.replace("{port}", str(port))}
 
     pkg = root / "package.json"
-    if pkg.exists():
+    if _real_project_file(pkg):
         scripts = json.loads(pkg.read_text(encoding="utf-8")).get("scripts", {})
         install = ["npm install"]
         if "dev" in scripts:
@@ -156,7 +212,7 @@ def detect_project(root: Path, port: int) -> dict:
         if "serve" in scripts:
             return {"type": "node (npm run serve)", "install": install, "start": f"npm run serve -- --port {port}"}
 
-    if (root / "manage.py").exists():
+    if _real_project_file(root / "manage.py"):
         return {"type": "django", "install": pip + [f"{py} manage.py migrate --noinput"],
                 "start": f"{py} manage.py runserver 127.0.0.1:{port} --noreload"}
 
@@ -170,7 +226,7 @@ def detect_project(root: Path, port: int) -> dict:
                 "start": f"{py} -m uvicorn {mod}:app --port {port}"}
 
     for d in ("", "dist", "build", "public", "docs", "site", "www", "src"):
-        if (root / d / "index.html").exists():
+        if _real_project_file(root / d / "index.html"):
             folder = root / d
             return {"type": "static html", "install": [],
                     "start": f'{py} -m http.server {port} --bind 127.0.0.1 --directory "{folder}"'}
@@ -183,6 +239,8 @@ def _start_server(cmd: str, cwd: Path, port: int, log_file: Path) -> subprocess.
     from ..safety import clean_env
     env = clean_env(os.environ.copy())  # the started app never sees your API keys, tokens or the test password
     env.update({"PORT": str(port), "BROWSER": "none", "CI": "true", "HOST": "127.0.0.1"})
+    if _path_is_linked(log_file) or _path_is_linked(cwd):
+        raise RuntimeError("The setup log is a link.")
     log = log_file.open("a", encoding="utf-8", errors="replace")
     log.write(f"\n$ {cmd}\n")
     log.flush()
@@ -197,6 +255,8 @@ def _start_server(cmd: str, cwd: Path, port: int, log_file: Path) -> subprocess.
 
 def _wait_until_up(proc: subprocess.Popen, port: int, log_file: Path) -> str:
     """Wait until the website answers. Returns its URL."""
+    if _path_is_linked(log_file):
+        raise RuntimeError("The setup log is a link.")
     deadline = time.time() + settings.server_start_timeout
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -244,8 +304,15 @@ def setup_agent(state: QAState) -> QAState:
 
     run_dir = Path(state["run_dir"])
     log_file = run_dir / "setup.log"
+    source_path = Path(source).expanduser()
+    if is_local_project(source) and _contains_symlink(source_path):
+        msg = "Setup: the project folder is a link, so it was not started."
+        return {"setup_error": msg, "log": state.get("log", []) + [msg]}
+    if _path_is_linked(log_file):
+        msg = "Setup: the setup log is a link, so the project was not started."
+        return {"setup_error": msg, "log": state.get("log", []) + [msg]}
     try:
-        root = _clone(source, log_file) if is_github(source) else Path(source).expanduser().resolve()
+        root = _clone(source, log_file) if is_github(source) else source_path.resolve()
         port = settings.app_port or _free_port()
         info = detect_project(root, port)
         print(f"  [setup] project: {root}  type: {info['type']}")

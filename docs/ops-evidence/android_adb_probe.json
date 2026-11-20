@@ -1,0 +1,22 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_adb_probe",
+  "ran_at": "2026-11-18T19:54:12Z",
+  "adb": "/home/ubuntu/Android/Sdk/platform-tools/adb",
+  "adb_present": true,
+  "appium_reachable": false,
+  "devices_listed": 1,
+  "devices_online": 1,
+  "device_ids": [
+    "emulator-5556"
+  ],
+  "api_levels": [
+    {
+      "device_id": "emulator-5556",
+      "api_level": 30
+    }
+  ],
+  "errors": [],
+  "ok": true,
+  "reason": "ADB present with online device(s); live Appium product matrix still required"
+}

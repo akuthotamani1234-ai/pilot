@@ -1,0 +1,16 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_principal_bootstrap",
+  "ran_at": "2026-11-19T05:48:41Z",
+  "bootstrapped": {
+    "principal_id": "bootstrap-user-1",
+    "tenant_id": "tenant-bootstrap",
+    "email": "bootstrap@example.test",
+    "was_missing": true,
+    "present_after": true
+  },
+  "oidc_ok": true,
+  "same_tenant_allowed": true,
+  "ok": true,
+  "reason": "Studio SSO principal bootstrap from OIDC claims ok; live hosted IdP Studio SSO still open"
+}

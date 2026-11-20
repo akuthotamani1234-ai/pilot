@@ -9,7 +9,13 @@ from pathlib import Path
 
 from .agent_eval import evaluate, model_change_allowed
 from .config import settings
-from .data_lifecycle import Lifecycle, production_environment
+from .data_lifecycle import (
+    choose_remote_delete,
+    ingest_created,
+    load_lifecycle,
+    production_environment,
+    save_lifecycle,
+)
 from .dependency_fault import inject_fault
 from .env_controls import CONTROLS, action_still_blocked, enable_control
 from .journey_map import compare_journey
@@ -38,6 +44,10 @@ ORDER = (
 
 
 def _read(path: Path):
+    path = Path(path)
+    from .finalization import folder_is_linked
+    if path.is_symlink() or folder_is_linked(path.parent):
+        return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -45,19 +55,30 @@ def _read(path: Path):
 
 
 def _store(run_dir: Path, name: str, payload: dict) -> None:
+    from .finalization import folder_is_linked
+    run_dir = Path(run_dir)
+    live = run_dir / "qx_live.json"
+    one = run_dir / f"qx_{name}.json"
+    if (folder_is_linked(run_dir) or live.is_symlink() or one.is_symlink()
+            or not name or Path(name).is_absolute() or ".." in Path(name).parts):
+        return
     run_dir.mkdir(parents=True, exist_ok=True)
-    current = _read(run_dir / "qx_live.json")
+    current = _read(live)
     if not isinstance(current, dict):
         current = {}
     current["order"] = list(ORDER)
     current[name] = payload
-    (run_dir / "qx_live.json").write_text(json.dumps(current, indent=2), encoding="utf-8")
-    (run_dir / f"qx_{name}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    live.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    one.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def priority_urls(site_key: str) -> list[str]:
     """Areas the previous runs asked the next crawl to open first."""
-    payload = _read(settings.baseline_dir / (site_key or "site") / "next_priority.json")
+    from .my_tests import baseline_folder, baseline_is_linked
+    path = baseline_folder(site_key or "site") / "next_priority.json"
+    if baseline_is_linked(path):
+        return []
+    payload = _read(path)
     if isinstance(payload, dict) and isinstance(payload.get("next_priority"), list):
         return [str(item) for item in payload["next_priority"] if item]
     if isinstance(payload, list):
@@ -135,7 +156,9 @@ def schema_for(state: dict) -> dict:
     if previous is None:
         site = str(state.get("site_key") or "")
         if site:
-            previous = _read(settings.baseline_dir / site / "api_spec.json")
+            from .my_tests import baseline_folder, baseline_is_linked
+            spec = baseline_folder(site) / "api_spec.json"
+            previous = None if baseline_is_linked(spec) else _read(spec)
     if not isinstance(current, dict) or not isinstance(previous, dict):
         return {"compared": False, "broken": [], "trust_broken": False}
     diff = diff_specs(previous, current)
@@ -184,7 +207,11 @@ def plugin_cases(root: Path | None = None) -> list[dict]:
 
 
 def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
-    """Prepare each worker's synthetic records. They stay ready until the suite has finished."""
+    """Prepare each worker's records and persist them for a later confirmed cleanup.
+
+    Finish reloads the durable lifecycle, ingests ``created.jsonl`` tags, and only
+    marks cleaned when ``created_jsonl_delete`` (or synthetic-unused proof) confirms.
+    """
     run_dir = Path(state.get("run_dir") or ".")
     environment = str(state.get("environment") or settings.environment or "test")
     crawl = state.get("crawl") or {}
@@ -192,13 +219,26 @@ def lifecycle_for(state: dict, *, finish: bool = False) -> dict:
     count = int(swarm.get("workers") or settings.test_workers or 1)
     workers = list(range(1, max(count, 1) + 1))
     if production_environment(environment):
-        return {"refused": "production customer data is not used as fixture data", "prepared": [], "cleaned": []}
-    life = Lifecycle(run_dir.name, environment)
+        return {"refused": "production customer data is not used as fixture data", "prepared": [], "cleaned": [],
+                "cleanup": {"confirmed": [], "failed": [], "complete": False, "local_only": False}}
+    life = load_lifecycle(run_dir, run_id=run_dir.name, environment=environment)
     for worker in workers:
         life.prepare(worker)
-    cleaned = life.cleanup() if finish else []
-    prepared = [life.snapshot(worker) for worker in workers]
-    return {"refused": "", "prepared": prepared, "cleaned": cleaned}
+    ingested = []
+    cleanup = {"confirmed": [], "failed": [], "complete": True, "local_only": False}
+    if finish:
+        ingested = ingest_created(life, run_dir)
+        cleanup = life.cleanup_confirmed(remote_delete=choose_remote_delete(run_dir, state))
+    save_lifecycle(run_dir, life)
+    prepared = [life.snapshot(worker) for worker in sorted(set(workers) | set(life._by_worker))]
+    return {
+        "refused": "",
+        "prepared": prepared,
+        "cleaned": cleanup["confirmed"],
+        "cleanup": cleanup,
+        "ingested_created": len(ingested),
+        "durable": True,
+    }
 
 
 def dependency_for(environment: str) -> dict:
@@ -287,28 +327,43 @@ def evaluation_for(results: list[dict]) -> dict:
     return scored
 
 
-def trends_for(state: dict, verdict: str, failures: list[dict]) -> dict:
+def trends_for(state: dict, verdict: str, failures: list[dict],
+               results: list[dict] | None = None) -> dict:
     """Cluster repeated failures. The verdict of this run stays as it was."""
     run_dir = Path(state.get("run_dir") or ".")
     areas = [str(item.get("category") or item.get("page_url") or "") for item in failures
              if item.get("category") or item.get("page_url")]
-    runs = [{"verdict": verdict, "failures": areas, "flaky": []}]
+    flaky_now = [
+        str(row.get("nodeid") or row.get("id") or row.get("test") or "")
+        for row in (results or [])
+        if row.get("flaky")
+    ]
+    runs = [{"verdict": verdict, "failures": areas, "flaky": flaky_now}]
     parent = run_dir.parent
-    if parent.is_dir():
+    from .finalization import folder_is_linked
+    if parent.is_dir() and not folder_is_linked(parent):
+        from .agents.change_detection import tenant_owns_run
         for path in sorted(parent.glob("*/summary.json")):
-            if path.parent == run_dir:
+            if path.parent == run_dir or path.is_symlink() or path.parent.is_symlink():
+                continue
+            if not tenant_owns_run(path.parent.name):
                 continue
             summary = _read(path)
             if isinstance(summary, dict) and isinstance(summary.get("qx_areas"), list):
+                prior_flaky = summary.get("flaky") if isinstance(summary.get("flaky"), list) else []
                 runs.append({"verdict": summary.get("verdict") or "", "failures": summary.get("qx_areas") or [],
-                             "flaky": []})
+                             "flaky": prior_flaky})
     trends = cluster_runs(runs)
     trends["verdict"] = keep_verdict(verdict, trends)
     site = str(state.get("site_key") or "")
     if site and trends["next_priority"]:
-        folder = settings.baseline_dir / site
+        from .my_tests import baseline_folder, baseline_is_linked
+        folder = baseline_folder(site)
+        dest = folder / "next_priority.json"
+        if baseline_is_linked(folder) or dest.is_symlink():
+            return trends
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "next_priority.json").write_text(
+        dest.write_text(
             json.dumps({"next_priority": trends["next_priority"]}, indent=2), encoding="utf-8")
     return trends
 
@@ -346,8 +401,19 @@ def apply_analysis(state: dict, failures: list[dict]) -> dict:
     """Replay packages and the mutation score for this run's failures."""
     run_dir = Path(state["run_dir"])
     environment = str(state.get("environment") or settings.environment or "test")
+    packages = replay_for(failures, environment)
+    replay_payload = {"packages": packages}
+    # Persist packages before run_saved so the same call can re-execute complete ones.
+    _store(run_dir, "replay", replay_payload)
+    from .replay_pack import run_saved
+    try:
+        executed = run_saved(run_dir, limit=3)
+    except Exception as exc:
+        executed = {"ran": False, "reason": f"replay execute failed: {type(exc).__name__}", "results": {},
+                    "selected": []}
+    replay_payload["execution"] = executed
     rules = {
-        "replay": {"packages": replay_for(failures, environment)},
+        "replay": replay_payload,
         "mutation": mutation_for(run_dir, failures),
     }
     for name, payload in rules.items():
@@ -361,7 +427,7 @@ def apply_report(state: dict, *, verdict: str, failures: list[dict], results: li
     rules = {
         "journeys": {"compared": journeys_for(state)},
         "evaluation": evaluation_for(results),
-        "trends": trends_for(dict(state, run_dir=str(run_dir)), verdict, failures),
+        "trends": trends_for(dict(state, run_dir=str(run_dir)), verdict, failures, results),
     }
     for name, payload in rules.items():
         _store(run_dir, name, payload)

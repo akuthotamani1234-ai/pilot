@@ -28,6 +28,73 @@ def test_a_changed_api_workflow_is_not_trusted(tmp_path):
     assert held[0]["skip_reason"].startswith("this workflow changed")
 
 
+def test_a_broken_api_workflow_does_not_follow_a_link_into_another_file(tmp_path):
+    secret = "tenant-b-only-api"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "qx_schema.json"
+    target.write_text(json.dumps({
+        "trust_broken": True,
+        "broken": [{"operation": f"POST /{secret}"}],
+    }), encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    cases = [{"id": "orders", "url": f"https://shop.example/{secret}", "title": "create"}]
+    kept, held = _hold_broken_workflows({"run_dir": str(linked)}, cases)
+    assert held == []
+    assert kept[0]["id"] == "orders"
+    assert "blocked" not in kept[0]
+    run = tmp_path / "file-link"
+    run.mkdir()
+    (run / "qx_schema.json").symlink_to(target)
+    kept_file, held_file = _hold_broken_workflows({"run_dir": str(run)}, [dict(cases[0])])
+    assert held_file == []
+    assert "blocked" not in kept_file[0]
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "qx_schema.json").write_text(json.dumps({
+        "trust_broken": True,
+        "broken": [{"operation": "POST /home-own"}],
+    }), encoding="utf-8")
+    kept_own, held_own = _hold_broken_workflows(
+        {"run_dir": str(real)},
+        [{"id": "orders", "url": "https://shop.example/home-own", "title": "create"}],
+    )
+    assert held_own[0]["id"] == "orders"
+    assert secret not in json.dumps(held_own)
+    assert secret in target.read_text(encoding="utf-8")
+
+
+def test_a_script_check_count_does_not_follow_a_link_into_another_file(tmp_path):
+    from backend.agents.script_generator import _check_counts
+
+    secret = "tenant-b-only-slug"
+    other = tmp_path / "other"
+    other.mkdir()
+    target = other / "test_site.py"
+    target.write_text(("'slug': " + secret + "\n") * 8, encoding="utf-8")
+    linked = tmp_path / "linked"
+    linked.symlink_to(other, target_is_directory=True)
+    assert _check_counts(linked)["site_pages_open"] == 0
+    run = tmp_path / "file-link"
+    run.mkdir()
+    (run / "test_site.py").symlink_to(target)
+    assert _check_counts(run)["site_pages_open"] == 0
+    assert secret in target.read_text(encoding="utf-8")
+    assert not (other / "fresh").exists()
+
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "test_site.py").write_text("'slug': home-own\n", encoding="utf-8")
+    counts = _check_counts(real)
+    assert counts["site_pages_open"] == 1
+    assert secret not in json.dumps(counts)
+    assert secret in target.read_text(encoding="utf-8")
+
+
 def test_a_stub_answers_a_fault_and_never_a_payment(tmp_path):
     (tmp_path / "qx_environment.json").write_text(json.dumps({
         "environment": "staging",
@@ -52,10 +119,14 @@ def test_a_complete_package_names_the_test_that_can_run_again(tmp_path, monkeypa
     }), encoding="utf-8")
     (tmp_path / "generated_tests").mkdir()
     assert replay_tests(tmp_path) == ["test_price.py::test_see"]
-    monkeypatch.setattr("backend.recheck.recheck", lambda folder, names: {"results": {names[0]: {"verdict": "fixed"}}})
+    # run_saved only reports ran=True when a selected test actually executed (outcome set).
+    monkeypatch.setattr(
+        "backend.recheck.recheck",
+        lambda folder, names: {"results": {names[0]: {"outcome": "failed", "verdict": "still broken"}}},
+    )
     played = run_saved(tmp_path)
     assert played["ran"] is True
-    assert played["results"]["test_price.py::test_see"]["verdict"] == "fixed"
+    assert played["results"]["test_price.py::test_see"]["outcome"] == "failed"
 
 
 def test_the_rule_count_is_eighteen_capabilities_and_seven_release_steps():

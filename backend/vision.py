@@ -94,10 +94,22 @@ def _password_page(p: dict | None, url: str = "") -> bool:
 def _read(run_dir: Path, rel: str | None) -> bytes | None:
     if not rel:
         return None
-    f = Path(run_dir) / rel
+    run_dir = Path(run_dir)
+    rel_path = Path(rel)
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or rel_path.is_absolute() or ".." in rel_path.parts:
+        return None
+    cursor = run_dir
+    for part in rel_path.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return None
+    f = run_dir / rel
     try:
+        if not f.resolve().is_relative_to(run_dir.resolve()):
+            return None
         data = f.read_bytes() if f.is_file() else b""
-    except OSError:
+    except (OSError, ValueError):
         return None
     return data if 0 < len(data) <= MAX_IMAGE_BYTES else None
 
@@ -203,9 +215,29 @@ ACTING = {"click", "dblclick", "fill", "press", "type", "selectOption", "check",
           "setInputFiles", "hover", "goto"}
 
 
+def _trace_in_run(run_dir: Path, trace: str | None) -> Path | None:
+    if not trace:
+        return None
+    run_dir = Path(run_dir)
+    path = Path(trace)
+    from .finalization import folder_is_linked
+    if folder_is_linked(run_dir) or path.is_absolute() or ".." in path.parts:
+        return None
+    cursor = run_dir
+    for part in path.parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            return None
+    return run_dir / trace
+
+
 def before_picture(trace: Path) -> bytes | None:
     """From a test's Playwright recording (trace.zip): the screen just before its LAST action (the click / typing that
     the failure followed)."""
+    trace = Path(trace)
+    from .finalization import folder_is_linked
+    if trace.is_symlink() or folder_is_linked(trace.parent):
+        return None
     try:
         z = zipfile.ZipFile(trace)
     except (OSError, zipfile.BadZipFile):
@@ -249,10 +281,15 @@ def review_results(state: dict) -> int:
     if not vision_enabled() or not state.get("run_dir"):
         return 0
     from .agents.failure_analysis import _rule_classify
+    from .finalization import folder_is_linked
     run_dir = Path(state["run_dir"])
     cache_file = run_dir / "vision_failures.json"
+    if folder_is_linked(run_dir) or cache_file.is_symlink():
+        return 0
+    cache_linked = False
     try:
-        cache = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
+        cache = {} if cache_linked or not cache_file.is_file() else json.loads(
+            cache_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         cache = {}
     pages = {p["url"]: p for p in state.get("app_map", [])}
@@ -282,7 +319,8 @@ def review_results(state: dict) -> int:
     def one(item) -> bool:
         r, case, url = item
         after = _read(run_dir, r.get("screenshot"))
-        before = before_picture(run_dir / r["trace"]) if r.get("trace") else None
+        trace_path = _trace_in_run(run_dir, r.get("trace"))
+        before = before_picture(trace_path) if trace_path is not None else None
         caption = "Picture 1: just before the step that failed (from the test's recording). "
         if before is None:  # (no recording: how the page looked while exploring)
             before = _read(run_dir, (pages.get(url) or {}).get("screenshot"))
@@ -312,8 +350,9 @@ def review_results(state: dict) -> int:
         verdicts = [r["vision"]["verdict"] for r, _c, _u in todo if r.get("vision")]
         print(f"  [vision] the AI looked at {done} failed test(s): " + ", ".join(
             f"{verdicts.count(v)} {v.replace('_', ' ')}" for v in ("website_bug", "test_mistake", "cannot_tell")))
-        try:
-            cache_file.write_text(json.dumps(cache, indent=1), encoding="utf-8")
-        except OSError:
-            pass
+        if not cache_linked:
+            try:
+                cache_file.write_text(json.dumps(cache, indent=1), encoding="utf-8")
+            except OSError:
+                pass
     return done

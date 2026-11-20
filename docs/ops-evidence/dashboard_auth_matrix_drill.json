@@ -1,0 +1,95 @@
+{
+  "gate_i_complete": false,
+  "drill": "dashboard_auth_mode_matrix",
+  "ran_at": "2026-11-18T19:30:44Z",
+  "modes_covered": [
+    "bearer",
+    "none",
+    "oidc",
+    "principal",
+    "webhook"
+  ],
+  "cases": [
+    {
+      "mode": "none",
+      "case": "open",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "bearer",
+      "case": "reject_bad",
+      "ok": false,
+      "expected_ok": false,
+      "pass": true
+    },
+    {
+      "mode": "bearer",
+      "case": "accept_good",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "webhook",
+      "case": "x_qa_token",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "webhook",
+      "case": "bearer",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "webhook",
+      "case": "reject",
+      "ok": false,
+      "expected_ok": false,
+      "pass": true
+    },
+    {
+      "mode": "principal",
+      "case": "operator",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "principal",
+      "case": "viewer_deny",
+      "ok": false,
+      "expected_ok": false,
+      "pass": true
+    },
+    {
+      "mode": "principal",
+      "case": "unknown",
+      "ok": false,
+      "expected_ok": false,
+      "pass": true
+    },
+    {
+      "mode": "oidc",
+      "case": "valid_claims",
+      "ok": true,
+      "expected_ok": true,
+      "pass": true
+    },
+    {
+      "mode": "oidc",
+      "case": "reject_garbage",
+      "ok": false,
+      "expected_ok": false,
+      "pass": true
+    }
+  ],
+  "passed": 11,
+  "failed": 0,
+  "ok": true,
+  "reason": "Dashboard auth modes none/bearer/webhook/principal/oidc exercised offline; live hosted IdP SSO still open"
+}

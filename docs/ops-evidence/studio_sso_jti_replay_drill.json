@@ -1,0 +1,13 @@
+{
+  "gate_i_complete": false,
+  "drill": "studio_sso_jti_replay",
+  "ran_at": "2026-11-19T06:25:07Z",
+  "kind": "jti_replay_local",
+  "first_ok": true,
+  "replay_rejected": true,
+  "missing_jti_rejected": true,
+  "replay_reason": "jti replay rejected",
+  "live_hosted_sso": false,
+  "ok": true,
+  "reason": "Studio SSO jti replay rejection ok (first accepted, repeat and missing jti rejected); live hosted IdP Studio SSO still open"
+}

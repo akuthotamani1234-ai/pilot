@@ -1,0 +1,88 @@
+{
+  "gate_d_complete": false,
+  "drill": "android_device_ci_readiness_pack",
+  "ran_at": "2026-11-19T05:50:32Z",
+  "kind": "readiness_score_only",
+  "score": 15,
+  "score_of": 15,
+  "checks": [
+    {
+      "artifact": "android_appium_product_matrix_drill.json",
+      "label": "Appium product matrix",
+      "ready": true
+    },
+    {
+      "artifact": "android_emulator_smoke_api24_drill.json",
+      "label": "Dedicated API24 smoke",
+      "ready": true
+    },
+    {
+      "artifact": "multi_api_android_matrix_drill.json",
+      "label": "Multi-API Android matrix",
+      "ready": true
+    },
+    {
+      "artifact": "device_artifact_manifest_drill.json",
+      "label": "Device artifact manifest",
+      "ready": true
+    },
+    {
+      "artifact": "multi_device_ci_contract.json",
+      "label": "Multi-device CI contract",
+      "ready": true
+    },
+    {
+      "artifact": "workflow_dispatch_contract_drill.json",
+      "label": "workflow_dispatch contracts",
+      "ready": true
+    },
+    {
+      "artifact": "ci_artifact_upload_rehearsal_drill.json",
+      "label": "CI upload rehearsal",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_artifact_gate_pack_drill.json",
+      "label": "Hosted CI artifact gate pack",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_workflow_runner_audit_drill.json",
+      "label": "Hosted workflow runner audit",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_artifact_retention_contract_drill.json",
+      "label": "Artifact retention contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_permissions_contract_drill.json",
+      "label": "CI permissions contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_timeout_budget_drill.json",
+      "label": "CI timeout budget contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_concurrency_contract_drill.json",
+      "label": "CI concurrency contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_runner_os_matrix_contract_drill.json",
+      "label": "Runner OS matrix contract",
+      "ready": true
+    },
+    {
+      "artifact": "hosted_ci_cache_key_contract_drill.json",
+      "label": "CI cache-key contract",
+      "ready": true
+    }
+  ],
+  "live_hosted_runners": false,
+  "ok": true,
+  "reason": "Android device CI readiness 15/15; broad hosted multi-device Appium runners still open"
+}

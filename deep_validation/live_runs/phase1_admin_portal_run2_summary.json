@@ -1,0 +1,60 @@
+{
+  "run": "phase1_admin_portal_run2",
+  "site": "admin",
+  "mode": "first",
+  "ran_at": "2026-11-18T15:05:00Z",
+  "clean_summary": "pages 8/8 \u00b7 features detected 24/25 \u00b7 tested 24/25 \u00b7 verified 24/25 \u00b7 correct 25/25 \u00b7 false alarms 1 \u00b7 frames found 2/2, tested 2",
+  "buggy_summary": "pages 8/8 \u00b7 features detected 24/25 \u00b7 tested 24/25 \u00b7 verified 18/25 \u00b7 correct 8/8 \u00b7 false alarms 4 \u00b7 bugs caught 7/7 (false passes: 0) \u00b7 frames found 2/2, tested 2 \u00b7 questions 1",
+  "clean": {
+    "run": "127.0.0.1_39027_20261118_145727",
+    "pages_known": 8,
+    "pages_found": 8,
+    "pages_missing": [],
+    "features_correct": 25,
+    "features_known": 25,
+    "incorrect_rows": []
+  },
+  "buggy": {
+    "run": "127.0.0.1_35743_20261118_150024",
+    "bugs": {
+      "planted": 7,
+      "caught": [
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "B7"
+      ],
+      "false_pass": [],
+      "not_tested": []
+    },
+    "false_alarms": [
+      {
+        "tc_id": "TC-3F06C8E6",
+        "title": "'Select Wen Okafor' changes its value (Users)",
+        "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+      },
+      {
+        "tc_id": "TC-3820FA1C",
+        "title": "'Select Tomas Smith' changes its value (Users)",
+        "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+      },
+      {
+        "tc_id": "TC-A27FD0DD",
+        "title": "'Select Sara Patel' changes its value (Users)",
+        "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+      },
+      {
+        "tc_id": "TC-3B5DD177",
+        "title": "'Select Ravi Novak' changes its value (Users)",
+        "why": "E   AssertionError: The recorded path must reveal one target | E   Expected value: '1' | E   Actual value: 0"
+      }
+    ],
+    "features_correct_judged": 8,
+    "features_judged": 8
+  },
+  "gate_j_complete": false,
+  "reason": "AdminPortal after open-shadow textbox cases; Gate J still not globally complete"
+}

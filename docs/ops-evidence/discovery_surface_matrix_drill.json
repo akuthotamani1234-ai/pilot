@@ -1,0 +1,115 @@
+{
+  "gate_a_complete": false,
+  "drill": "discovery_surface_matrix",
+  "ran_at": "2026-11-19T00:03:50Z",
+  "signal_keys": [
+    "pages_walked",
+    "frames",
+    "shadow",
+    "dialogs",
+    "downloads",
+    "lazy",
+    "metadata",
+    "viewports",
+    "canvas",
+    "file_upload",
+    "web_component"
+  ],
+  "fixtures": [
+    {
+      "fixture": "admin_portal",
+      "signals": {
+        "frames": true,
+        "shadow": true,
+        "dialogs": true,
+        "downloads": true,
+        "lazy": false,
+        "metadata": true,
+        "viewports": true,
+        "canvas": false,
+        "file_upload": true,
+        "web_component": true,
+        "pages_walked": true
+      },
+      "hit": 9,
+      "of": 11,
+      "ok": true
+    },
+    {
+      "fixture": "demo_store",
+      "signals": {
+        "frames": true,
+        "shadow": true,
+        "dialogs": false,
+        "downloads": false,
+        "lazy": true,
+        "metadata": true,
+        "viewports": true,
+        "canvas": true,
+        "file_upload": false,
+        "web_component": true,
+        "pages_walked": true
+      },
+      "hit": 8,
+      "of": 11,
+      "ok": true
+    },
+    {
+      "fixture": "classic_shop",
+      "signals": {
+        "frames": true,
+        "shadow": true,
+        "dialogs": false,
+        "downloads": false,
+        "lazy": true,
+        "metadata": true,
+        "viewports": true,
+        "canvas": false,
+        "file_upload": true,
+        "web_component": true,
+        "pages_walked": true
+      },
+      "hit": 8,
+      "of": 11,
+      "ok": true
+    },
+    {
+      "fixture": "travel_site",
+      "signals": {
+        "frames": true,
+        "shadow": true,
+        "dialogs": false,
+        "downloads": false,
+        "lazy": true,
+        "metadata": true,
+        "viewports": true,
+        "canvas": false,
+        "file_upload": true,
+        "web_component": true,
+        "pages_walked": true
+      },
+      "hit": 8,
+      "of": 11,
+      "ok": true
+    }
+  ],
+  "union": {
+    "pages_walked": true,
+    "frames": true,
+    "shadow": true,
+    "dialogs": true,
+    "downloads": true,
+    "lazy": true,
+    "metadata": true,
+    "viewports": true,
+    "canvas": true,
+    "file_upload": true,
+    "web_component": true
+  },
+  "union_hit": 11,
+  "union_of": 11,
+  "passed": 4,
+  "total": 4,
+  "ok": true,
+  "reason": "Discovery surface matrix fixtures=4/4 union=11/11; full Gate A live completeness still open"
+}

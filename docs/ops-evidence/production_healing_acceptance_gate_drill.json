@@ -1,0 +1,98 @@
+{
+  "gate_e_complete": false,
+  "drill": "production_healing_acceptance_gate",
+  "ran_at": "2026-11-19T05:42:46Z",
+  "kind": "acceptance_gate_local_only",
+  "score": 12,
+  "score_of": 12,
+  "criteria": [
+    {
+      "id": "contract",
+      "artifact": "production_healing_contract_drill.json",
+      "label": "Healing suite contract present",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "sla",
+      "artifact": "production_healing_third_party_sla_drill.json",
+      "label": "Third-party SLA recorded",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "taxonomy",
+      "artifact": "production_healing_taxonomy_drill.json",
+      "label": "Failure taxonomy classified",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "flaky_policy",
+      "artifact": "production_healing_flaky_policy_drill.json",
+      "label": "Flaky/auth/infra no-auto-apply",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "replay",
+      "artifact": "production_healing_replay_pack_drill.json",
+      "label": "Before/after replay pack",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "suite_pack",
+      "artifact": "production_healing_suite_pack_drill.json",
+      "label": "Local suite pack green",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "multi_app",
+      "artifact": "multi_app_healing_suite_drill.json",
+      "label": "Multi-app fixture suite",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "regression",
+      "artifact": "healing_regression_drill.json",
+      "label": "Locator-only regression",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "seed_catalog",
+      "artifact": "production_healing_seed_catalog_drill.json",
+      "label": "Seed catalog ready",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "fixture_coverage",
+      "artifact": "production_healing_fixture_coverage_drill.json",
+      "label": "Fixture coverage map",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "rollback_policy",
+      "artifact": "production_healing_rollback_policy_drill.json",
+      "label": "Rollback policy",
+      "ready": true,
+      "accepted": false
+    },
+    {
+      "id": "human_loop",
+      "artifact": "production_healing_human_loop_contract_drill.json",
+      "label": "Human-loop contract",
+      "ready": true,
+      "accepted": false
+    }
+  ],
+  "production_suite_executed": false,
+  "accepted": false,
+  "ok": true,
+  "reason": "Production healing acceptance gate local 12/12; production / third-party suite still open (not accepted)"
+}

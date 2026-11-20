@@ -1,0 +1,31 @@
+{
+  "gate_f_complete": false,
+  "drill": "multi_browser_ci_contract",
+  "ran_at": "2026-11-19T00:21:44Z",
+  "ok": true,
+  "kind": "contract_only",
+  "reason": "Offline CI contract for multi-browser portfolio artifacts; broad hosted multi-browser runner matrix still open",
+  "required_runner": {
+    "os": "ubuntu-latest",
+    "browsers": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "playwright_install": "--with-deps chromium firefox webkit",
+    "python": "3.13"
+  },
+  "artifact_paths": [
+    "docs/ops-evidence/multi_browser_portfolio_suite_drill.json",
+    "docs/ops-evidence/compatibility_portfolio_drill.json",
+    "docs/ops-evidence/a11y_portfolio_drill.json",
+    "docs/ops-evidence/locale_portfolio_drill.json",
+    "docs/ops-evidence/security_portfolio_drill.json",
+    "docs/ops-evidence/perf_portfolio_drill.json",
+    "docs/ops-evidence/visual_portfolio_drill.json"
+  ],
+  "drill_api": "POST /api/ops/drills/multi-browser-portfolio-suite",
+  "workflow": ".github/workflows/multi-browser-portfolios.yml",
+  "workflow_exists": true,
+  "note": "Default PR CI remains Windows quick tests; workflow_dispatch multi-browser job uploads suite evidence; broad hosted matrix still open"
+}

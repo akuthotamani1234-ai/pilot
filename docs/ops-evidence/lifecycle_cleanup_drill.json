@@ -1,0 +1,26 @@
+{
+  "gate_c_complete": false,
+  "drill": "offline_lifecycle_cleanup",
+  "ran_at": "2026-11-18T15:52:50Z",
+  "prepared_tags": [
+    "qa-run_1795017170-w1-account",
+    "qa-run_1795017170-w1-cart",
+    "qa-run_1795017170-w1-order"
+  ],
+  "ingested_tags": [
+    "order:99"
+  ],
+  "confirmed": 4,
+  "failed": 0,
+  "complete": true,
+  "local_only": false,
+  "sample_proofs": [
+    "synthetic_unused:qa-run_1795017170-w1-account",
+    "synthetic_unused:qa-run_1795017170-w1-cart",
+    "synthetic_unused:qa-run_1795017170-w1-order",
+    "created.jsonl:deleted:order:99"
+  ],
+  "ok": true,
+  "state_run_id": "run_1795017170",
+  "reason": "Offline created.jsonl cleanup confirmation exercised; live AdminPortal / broader portal cleanup paths still open"
+}
