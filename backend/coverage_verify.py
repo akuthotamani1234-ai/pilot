@@ -99,8 +99,12 @@ def verify_truth_pages(*, discovered: list[str], truth_pages: list[dict],
             unknown.append(path)  # optional/hard-to-reach: report unknown, not silent pass
         else:
             missed.append(path)
+    # An empty truth manifest cannot prove discovery completeness. It is an
+    # unmeasured run, not a 100%-coverage run.
+    if not truth_pages:
+        unknown.append("truth_manifest_missing")
     return {
-        "complete": not missed and not unknown,
+        "complete": bool(truth_pages) and not missed and not unknown,
         "covered": covered,
         "missed": missed,
         "blocked": blocked_rows,
