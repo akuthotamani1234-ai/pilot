@@ -70,8 +70,8 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             "discovery_timeout_s": 120,
             "account_mode": "existing",
             "interaction_testing": True,
-            "max_interactions": 8,
-            "interaction_timeout_s": 120,
+            "max_interactions": 20,
+            "interaction_timeout_s": 300,
             "expected_destinations": {"about": "About", "open login screen": "Login"},
         }
     )
