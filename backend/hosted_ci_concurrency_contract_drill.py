@@ -31,18 +31,28 @@ def _audit(path: Path) -> dict:
         "present": (not linked) and path.is_file(),
         "workflow_dispatch": "workflow_dispatch:" in text,
         "manual_only": "pull_request:" not in text and "push:" not in text,
+        "automatic_final_trigger": "branches: [final]" in text,
         "single_job": text.count("runs-on:") == 1,
     }
+    automatic = checks["automatic_final_trigger"]
+    concurrency_group = "concurrency:" in text
+    cancel_in_progress = "cancel-in-progress:" in text
     return {
         "path": _label(path),
         "checks": checks,
-        "concurrency_group_declared": "concurrency:" in text,
-        "cancel_in_progress_declared": "cancel-in-progress:" in text,
-        "ok": all(checks.values()),
+        "concurrency_group_declared": concurrency_group,
+        "cancel_in_progress_declared": cancel_in_progress,
+        "ok": (
+            checks["present"]
+            and checks["workflow_dispatch"]
+            and checks["single_job"]
+            and (checks["manual_only"] or automatic)
+            and (not automatic or (concurrency_group and cancel_in_progress))
+        ),
         "live_hosted_runners": False,
         "note": (
             "Manual workflow_dispatch jobs may omit concurrency groups; "
-            "contract records presence/absence without requiring them yet"
+            "automatic final-branch jobs require cancellation guards"
         ),
     }
 
@@ -78,7 +88,7 @@ def run_hosted_ci_concurrency_contract_drill(*, ops_dir: Path | None = None) -> 
         "live_hosted_runners": False,
         "ok": bool(android.get("ok")) and bool(browsers.get("ok")),
         "reason": (
-            "Hosted CI concurrency contract recorded (manual dispatch jobs); "
+            "Hosted CI concurrency contract recorded (manual and final-branch jobs); "
             "broad hosted multi-device/browser runners still open"
             if android.get("ok") and browsers.get("ok") else
             "Hosted CI concurrency contract incomplete; hosted runners still open"
