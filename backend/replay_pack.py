@@ -82,6 +82,6 @@ def run_saved(run_dir: Path) -> dict:
     results = out.get("results") or {}
     if not results:
         return {"ran": False, "reason": out.get("note") or "test runner returned no results", "results": {}}
-    if not any(row.get("outcome") not in (None, "not run") for row in results.values() if isinstance(row, dict)):
+    if not any(row.get("outcome") in ("passed", "failed", "error") for row in results.values() if isinstance(row, dict)):
         return {"ran": False, "reason": "no selected test actually executed", "results": results}
     return {"ran": True, "reason": "", "results": results}
