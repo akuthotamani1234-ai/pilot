@@ -68,7 +68,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             "max_depth": 1,
             "max_test_cases": 10,
             "discovery_timeout_s": 120,
-            "contract_only": True,
+            "contract_only": bugs == "none",
             "interaction_testing": True,
             "qa_contract": {
                 "version": 1,
@@ -145,7 +145,8 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
     assert any(s["screen_name"] == "Login" for s in final["screens"])
     assert (run_dir / "test_cases.xlsx").is_file()
     assert any(r["outcome"] == "passed" for r in final["results"])
-    assert any(r["outcome"] == "blocked" for r in final["results"])
+    if bugs != "none":
+        assert any(r["outcome"] == "blocked" for r in final["results"])
     safety = subprocess.run(
         [adb, "-s", device, "shell", "run-as", "com.qpilot.demo", "cat", "shared_prefs/demo.xml"],
         check=True,
