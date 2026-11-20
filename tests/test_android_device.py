@@ -69,6 +69,8 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
             "max_test_cases": 10,
             "discovery_timeout_s": 120,
             "interaction_testing": True,
+            "max_interactions": 8,
+            "interaction_timeout_s": 120,
             "qa_contract": {
                 "version": 1,
                 "test_environment": True,
