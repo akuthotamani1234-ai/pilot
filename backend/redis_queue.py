@@ -17,6 +17,7 @@ from .redis_queue_scripts import (
     RECOVER_LEASE,
     SET_TERMINAL,
 )
+from .swarm_protocol import has_execution_evidence
 from .swarm_queue import SCHEMA_VERSION, TRANSIENT
 
 try:
@@ -257,6 +258,8 @@ class RedisDurableQueue:
             return False, "missing task"
         if row["status"] == "succeeded":
             return True, "already succeeded"
+        if not has_execution_evidence(result):
+            return False, "success requires structured execution evidence"
         now = _now()
         ok = self._held_update(task_id, worker_id, {
             "status": "succeeded",
@@ -264,6 +267,29 @@ class RedisDurableQueue:
             "lease_owner": "",
             "lease_until": "",
             "error_class": "",
+            "updated_at": str(now),
+        })
+        if not ok:
+            return False, "worker does not own this lease"
+        return True, ""
+
+    def block(self, task_id: str, worker_id: str, *, reason: str = "",
+              error_class: str = "blocked") -> tuple[bool, str]:
+        """Finish a leased task as blocked without inventing a target failure."""
+        row = self._load(task_id)
+        if not row:
+            return False, "missing task"
+        now = _now()
+        result = {
+            "status": "blocked", "error_class": error_class, "detail": reason,
+            "attempt": int(row["attempt"]),
+        }
+        ok = self._held_update(task_id, worker_id, {
+            "status": "blocked",
+            "result_json": json.dumps(result),
+            "error_class": error_class,
+            "lease_owner": "",
+            "lease_until": "",
             "updated_at": str(now),
         })
         if not ok:

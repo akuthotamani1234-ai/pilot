@@ -5,6 +5,10 @@ from backend.swarm_queue import DurableQueue
 from backend.swarm_supervisor import drain, enqueue_plan, plan_run
 
 
+def _evidence(name: str = "worker-observation.json"):
+    return [{"kind": "browser_observation", "artifact": name}]
+
+
 def test_supervisor_drains_safe_pages_and_skips_checkout(tmp_path):
     urls = [
         "https://shop.example/",
@@ -22,7 +26,7 @@ def test_supervisor_drains_safe_pages_and_skips_checkout(tmp_path):
     def work(task):
         url = task["payload"]["url"]
         seen.append(url)
-        return {"evidence": [f"opened {url}"]}
+        return {"evidence": _evidence()}
 
     summary = drain(q, run_id="run-a", worker_id="w1", work=work)
     assert summary["processed"] >= 1
@@ -73,7 +77,7 @@ def test_a_retried_task_resumes_from_the_checkpoint(tmp_path):
                 "detail": "browser closed",
                 "checkpoint": {"step": 2, "url": "https://shop.example/product/1"},
             }
-        return {"ok": True, "resumed": task["checkpoint"]["step"]}
+        return {"ok": True, "resumed": task["checkpoint"]["step"], "evidence": _evidence("resume.json")}
 
     summary = drain(q, run_id="run-r", worker_id="w1", work=work)
     row = summary["tasks"][0]
@@ -102,7 +106,7 @@ def test_a_retry_does_not_resume_on_checkout(tmp_path):
                 "detail": "landed on checkout",
                 "checkpoint": {"step": 1, "url": "https://shop.example/checkout"},
             }
-        return {"ok": True}
+        return {"ok": True, "evidence": _evidence("retry.json")}
 
     summary = drain(q, run_id="run-pay", worker_id="w1", work=work)
     assert seen == [None, None]
@@ -133,7 +137,7 @@ def test_a_retry_does_not_keep_a_checkout_landing(tmp_path):
                     "final_url": "https://shop.example/index.php?rt=checkout/confirm",
                 },
             }
-        return {"ok": True}
+        return {"ok": True, "evidence": _evidence("landing.json")}
 
     summary = drain(q, run_id="run-land", worker_id="w1", work=work)
     assert seen == [None, None]
@@ -154,7 +158,7 @@ def test_drain_stops_when_the_lease_expires_during_work(tmp_path):
             (time.time() - 1, task["task_id"]),
         )
         q._db.commit()
-        return {"evidence": ["too late"]}
+        return {"evidence": _evidence("late.json")}
 
     summary = drain(q, run_id="run-c", worker_id="w1", work=work)
     assert summary["processed"] == 0
@@ -174,13 +178,13 @@ def test_supervisor_records_worker_crash_as_retry_then_success(tmp_path):
 
     def work(task):
         if task["role"] == "leader":
-            return {"evidence": ["planned"]}
+            return {"evidence": _evidence("plan.json")}
         attempts["n"] += 1
         if attempts["n"] == 1:
             err = RuntimeError("browser died")
             err.error_class = "worker_crash"
             raise err
-        return {"evidence": ["recovered"]}
+        return {"evidence": _evidence("recovered.json")}
 
     drain(q, run_id="run-b", worker_id="w1", work=work)
     # First drain left worker in retry_wait; claim again.

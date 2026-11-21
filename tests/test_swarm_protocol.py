@@ -14,19 +14,20 @@ def test_completed_work_needs_evidence_and_payment_cannot_complete():
     done = new_task(role="worker", url="https://shop.example/product/1", status="completed")
     ok, reason = accept_result(done)
     assert not ok and "evidence" in reason
-    done["evidence"] = ["cart shows the saree"]
+    done["evidence"] = [{"kind": "browser_observation", "artifact": "swarm_work.json"}]
     ok, reason = accept_result(done)
     assert ok and reason == ""
     pay = new_task(role="worker", url="https://shop.example/checkout", status="completed",
                    reason="checkout, payment and placing an order are never tested",
-                   evidence=["saw the button"])
+                   evidence=[{"kind": "browser_observation", "artifact": "swarm_work.json"}])
     ok, reason = accept_result(pay)
     assert not ok and "cannot be completed" in reason
 
 
 def test_a_sensitive_task_waits_for_a_person():
     task = new_task(role="worker", url="https://shop.example/account/delete", status="completed",
-                    approval_required=True, evidence=["delete button"])
+                    approval_required=True,
+                    evidence=[{"kind": "browser_observation", "artifact": "swarm_work.json"}])
     ok, reason = accept_result(task)
     assert not ok and "person" in reason
     task["approved"] = True

@@ -30,8 +30,8 @@ def test_a_redis_queue_drill_does_not_follow_a_link(tmp_path, monkeypatch):
         return {
             "processed": 1,
             "tasks": [
-                {"status": "done", "role": "coverage"},
-                {"status": "done", "role": "oracle"},
+                {"status": "succeeded", "role": "coverage"},
+                {"status": "succeeded", "role": "oracle"},
             ],
         }
 

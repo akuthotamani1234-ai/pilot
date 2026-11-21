@@ -1,4 +1,6 @@
 """Gate B: durable supervisor evidence is recorded for crawled URLs."""
+import json
+
 from backend.swarm_evidence import mirror_listing, record_swarm
 from backend.swarm_protocol import tasks_for_listing
 
@@ -19,6 +21,70 @@ def test_record_swarm_plans_and_drains(tmp_path):
         assert (tmp_path / "swarm_queue.sqlite").is_file()
     # checkout must not be scheduled as a worker URL
     assert all("/checkout" not in (t.get("url") or "") for t in out["tasks"] if t.get("role") == "worker")
+    # Planning a worker is not the same as opening a browser page. Without
+    # swarm_work.json the task remains explicitly unverified.
+    workers = [t for t in out["tasks"] if t.get("role") == "worker"]
+    assert workers and all(t["status"] == "blocked" for t in workers)
+    assert all(t.get("error_class") == "evidence_missing" for t in workers)
+
+
+def test_record_swarm_accepts_only_matching_browser_and_oracle_artifacts(tmp_path):
+    url = "https://shop.example/product/1"
+    (tmp_path / "swarm_work.json").write_text(json.dumps([{
+        "url": url,
+        "status": 200,
+        "title": "Fixture product",
+        "summary": "2 links, 1 button",
+    }]), encoding="utf-8")
+    (tmp_path / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "fixture-product-title",
+        "url": url,
+        "expected_source": "fixture",
+        "expected": "Fixture product title is visible",
+    }]), encoding="utf-8")
+
+    out = record_swarm(tmp_path, [url], run_id="run-observed", worker_count=1)
+    worker = next(task for task in out["tasks"] if task["role"] == "worker")
+    oracle = next(task for task in out["tasks"] if task["role"] == "oracle")
+    assert worker["status"] == "succeeded"
+    assert worker["result"]["evidence"][0]["artifact"] == "swarm_work.json"
+    assert oracle["status"] == "succeeded"
+    assert oracle["result"]["evidence"][0]["artifact"] == "test_cases.json"
+    assert "durable-ack" not in json.dumps(out)
+
+
+def test_record_swarm_accepts_a_real_contract_oracle(tmp_path):
+    url = "https://shop.example/quote"
+    (tmp_path / "swarm_work.json").write_text(json.dumps([{
+        "url": url, "status": 200, "summary": "Quote total displayed",
+    }]), encoding="utf-8")
+    (tmp_path / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "quote-total",
+        "kind": "contract",
+        "generation_source": "contract",
+        "url": url,
+        "expected": "Displayed total equals quantity times price",
+    }]), encoding="utf-8")
+
+    out = record_swarm(tmp_path, [url], run_id="run-contract", worker_count=1)
+    oracle = next(task for task in out["tasks"] if task["role"] == "oracle")
+    assert oracle["status"] == "succeeded"
+    assert oracle["result"]["assertion"]["oracle_source"] == "contract"
+
+
+def test_another_spa_route_cannot_supply_the_observation_or_oracle(tmp_path):
+    seen = "https://shop.example/#/catalog"
+    planned = "https://shop.example/#/profile"
+    (tmp_path / "swarm_work.json").write_text(json.dumps([{"url": seen, "status": 200}]), encoding="utf-8")
+    (tmp_path / "test_cases.json").write_text(json.dumps([{
+        "url": seen, "expected_source": "fixture", "expected": "Catalog opens",
+    }]), encoding="utf-8")
+    tasks = record_swarm(tmp_path, [planned])["tasks"]
+    assert {task["role"]: task["error_class"] for task in tasks if task["status"] == "blocked"} == {
+        "worker": "evidence_missing", "oracle": "oracle_missing",
+    }
+    comparison = next(task["result"]["coverage"] for task in tasks if task["role"] == "coverage")
+    assert comparison["missed"] == [planned] and not comparison["complete"]
 
 
 def test_listing_dual_write_and_drain(tmp_path):

@@ -34,6 +34,26 @@ The password above belongs to the local sample app. Use the serial reported by A
 
 ## Evidence and local readiness
 
+The Studio website button in `frontend/chat.js` posts to `/api/runs`. The server validates the request and starts `main.py`, which runs the graph. During discovery, each SiteSwarm browser returns its requested URL, HTTP status and DOM counts. Discovery saves those observations in `swarm_work.json`. The durable supervisor then reconciles the planned pages with that file. A successful observation proves the worker read a page. The functional assertions and their outcomes are in `results.json` and the HTML report.
+
+Inspect `swarm_evidence.json` for the original task IDs, artifact references, and blocked tasks. The report can attach a later approved assertion under `swarm.report_oracle` in `qx_applied.json`. The discovery-time queue history stays available. The coverage comparison measures the supplied list of pages. Independent full-site coverage needs a separate inventory.
+
+For the local SQLite mode, leave `REDIS_URL` and `QPILOT_REDIS_URL` unset. When configured, Redis must be reachable. The local demonstration checks each successful worker page against the observation file and records those URLs in its evidence summary.
+
+### Execution truth verification on November 21, 2026
+
+The command `python -m tests.local_demo` produced `runs/local-demo/20261121_143918_099027/evidence.json`. Both full runs overlapped quote execution and discovery. The clean quote passed, the seeded quote failed as expected, and the targeted run executed one passing quote assertion. Each full run matched five worker URLs to browser observations.
+
+The command `python -m tests.local_studio_demo` produced `runs/local-demo/studio_20261121_144118_749184/evidence.json` and `workers.png`. Studio displayed two worker cursors during execution and the run produced an HTML report with the seeded defect.
+
+The affected pytest suite recorded 64 passed, five setup failures creating Windows symbolic links (error 1314), and seven Redis skips. To reproduce the suite from PowerShell:
+
+```powershell
+python -m pytest -q tests/test_swarm.py tests/test_swarm_protocol.py tests/test_swarm_queue.py tests/test_swarm_supervisor.py tests/test_swarm_worker_verdict.py tests/test_swarm_evidence.py tests/test_swarm_redis_default.py tests/test_apply_run.py tests/test_concurrent_contract.py tests/test_redis_queue_link.py tests/test_redis_queue.py -ra
+```
+
+Milestone 1 acceptance remains open. The local SQLite run verifies reconciliation after discovery. Browser work coordinated directly by a durable lease and the full regression suite still require verification.
+
 A local demonstration is ready only after all of the following commands have produced their expected evidence on the present machine:
 
 - `tests.local_demo` records a clean pass, detects the seeded quote defect and completes the targeted run in `evidence.json`.

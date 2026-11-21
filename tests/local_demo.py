@@ -38,10 +38,27 @@ def run_scenario(work, mode, model):
     overlap = json.loads(overlap_file.read_text(encoding="utf-8")) if overlap_file.exists() else {}
     report = run / "report.html"
     ai = json.loads((run / "cost.json").read_text(encoding="utf-8"))
+    verified_pages = []
+    swarm_ok = mode == "targeted"
+    if mode != "targeted":
+        swarm = json.loads((run / "swarm_evidence.json").read_text(encoding="utf-8"))
+        pages = json.loads((run / "swarm_work.json").read_text(encoding="utf-8"))
+        observed = {(p["url"], p["status"]) for p in pages}
+        workers = [t for t in swarm["tasks"] if t["role"] == "worker" and t["status"] == "succeeded"]
+        for worker in workers:
+            refs = worker["result"]["evidence"]
+            if any(ref.get("artifact") == "swarm_work.json" and ref.get("url") == worker["url"]
+                   and (ref["url"], ref.get("http_status")) in observed for ref in refs):
+                verified_pages.append(worker["url"])
+        applied = json.loads((run / "qx_applied.json").read_text(encoding="utf-8"))["swarm"]
+        swarm_ok = (bool(workers) and len(verified_pages) == len(workers)
+                    and applied["tasks"] == swarm["tasks"] and applied["run_id"] == run.name
+                    and applied.get("report_oracle", {}).get("assertion", {}).get("oracle_source") == "contract")
     return {"mode": mode, "report": str(report), "quote_outcomes": [row["outcome"] for row in rows],
             "overlap": overlap, "ai_calls": ai.get("calls"), "failed_ai_calls": ai.get("failed_calls"),
             "provider": ai.get("provider"),
-            "passed": bool(correct and report.is_file()
+            "verified_worker_pages": verified_pages,
+            "passed": bool(correct and report.is_file() and swarm_ok
                            and (len(results) == 1 if mode == "targeted"
                                 else "contract_quote_total" in overlap.get("overlapped_cases", []))
                            and (not model or (ai.get("calls", 0) > ai.get("failed_calls", 0)

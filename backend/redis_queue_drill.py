@@ -54,7 +54,11 @@ def durable_queue_drill(*, url: str | None = None, ops_dir: Path | None = None) 
         enqueue_plan(queue, run_id, planned)
 
         def work(task):
-            return {"ok": True, "role": task.get("role"), "url": (task.get("payload") or {}).get("url")}
+            checkpoint = {"operation": "queue_round_trip", "attempt": task["attempt"]}
+            saved = queue.checkpoint(task["task_id"], "redis-drill", checkpoint)
+            if not saved or queue.get(task["task_id"])["checkpoint"] != checkpoint:
+                return {"ok": False, "reason": "checkpoint readback failed"}
+            return {"ok": True, "evidence": [{"kind": "redis_checkpoint", "artifact": task["task_id"]}]}
 
         summary = drain(queue, run_id=run_id, worker_id="redis-drill", work=work)
         again = drain(queue, run_id=run_id, worker_id="redis-drill", work=work)
@@ -63,7 +67,7 @@ def durable_queue_drill(*, url: str | None = None, ops_dir: Path | None = None) 
         roles = sorted({t.get("role") for t in tasks})
         ok = (
             int(summary.get("processed") or 0) + int(again.get("processed") or 0) >= 1
-            and "failed" not in statuses
+            and statuses == ["succeeded"]
             and "coverage" in roles
             and "oracle" in roles
         )

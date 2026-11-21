@@ -144,6 +144,7 @@ def test_workers_open_their_products_at_the_same_time_and_leave_checkout_closed(
 
     def open_page(url):
         opened.append(url)
+        return {"url": url, "status": 200}
 
     rows = perform(
         [
@@ -666,6 +667,7 @@ def test_the_whole_website_is_split_across_workers():
 
         def open_page(url):
             mine.append(url)
+            return {"url": url, "status": 200}
 
         def close():
             walked.append(list(mine))
@@ -719,12 +721,14 @@ def test_workers_stay_for_the_whole_run_then_close():
     assert set(opened) == {row["url"] for row in rows}
     assert swarm.submit(["https://shop.example/later"]) == []
     assert any(status == "finished" for _worker, status, _url in notes)
+    assert {url for _, status, url in notes if status == "stopped"} == set(opened)
+    assert not any(status == "read" for _, status, _ in notes)
 
 
 def test_a_worker_reads_the_page_and_saves_what_it_found():
     def session():
         def open_page(url):
-            return {"url": url, "title": "Home", "summary": "4 links, 2 buttons, 1 form"}
+            return {"url": url, "status": 200, "title": "Home", "summary": "4 links, 2 buttons, 1 form"}
 
         return open_page, lambda: None
 

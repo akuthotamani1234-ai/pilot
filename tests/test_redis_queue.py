@@ -25,7 +25,9 @@ def test_redis_durable_queue_plan_drain(monkeypatch):
         enqueue_plan(queue, run_id, planned)
 
         def work(task):
-            return {"ok": True, "role": task.get("role")}
+            return {"ok": True, "role": task.get("role"), "evidence": [
+                {"kind": "test_observation", "artifact": "redis-plan.json"},
+            ]}
 
         summary = drain(queue, run_id=run_id, worker_id="t1", work=work)
         drain(queue, run_id=run_id, worker_id="t1", work=work)
@@ -150,7 +152,9 @@ def test_redis_stale_claim_and_cancel_cannot_overwrite_status():
         )
         claimed = queue.claim(worker_id="w1", run_id="run-status")
         assert claimed and claimed["status"] == "leased"
-        done, _ = queue.complete(claimed["task_id"], "w1", {"evidence": ["ok"]})
+        done, _ = queue.complete(
+            claimed["task_id"], "w1", {"evidence": [{"kind": "test_observation", "artifact": "ok.json"}]},
+        )
         assert done is True
 
         def leased(task_id):
@@ -215,14 +219,18 @@ def test_redis_expired_lease_cannot_complete():
             "lease_until",
             str(time.time() - 5),
         )
-        ok, reason = queue.complete(claimed["task_id"], "w1", {"evidence": ["late"]})
+        ok, reason = queue.complete(
+            claimed["task_id"], "w1", {"evidence": [{"kind": "test_observation", "artifact": "late.json"}]},
+        )
         assert ok is False and reason == "worker does not own this lease"
         assert queue.heartbeat(claimed["task_id"], "w1") is False
         assert queue.get(claimed["task_id"])["status"] == "leased"
         assert claimed["task_id"] in queue.recover_expired()
         again = queue.claim(worker_id="w2", run_id="run-lease")
         assert again and again["lease_owner"] == "w2"
-        done, _ = queue.complete(again["task_id"], "w2", {"evidence": ["ok"]})
+        done, _ = queue.complete(
+            again["task_id"], "w2", {"evidence": [{"kind": "test_observation", "artifact": "ok.json"}]},
+        )
         assert done is True
         assert queue.get(again["task_id"])["status"] == "succeeded"
     finally:

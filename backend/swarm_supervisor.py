@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .queue_backend import open_durable_queue
 from .swarm import is_payment_url, partition_site
-from .swarm_protocol import new_task, validate_task
+from .swarm_protocol import has_execution_evidence, new_task, validate_task
 from .swarm_queue import DurableQueue
 
 _PAYMENT_REFUSAL = "checkout, payment and placing an order are never tested"
@@ -19,8 +19,14 @@ def plan_run(run_id: str, urls: list[str], *, worker_count: int = 2, limit: int 
     """Create leader + worker + specialist (coverage/oracle) envelopes for safe URLs."""
     assignments = partition_site(urls, worker_count, limit=limit)
     home = urls[0] if urls else ""
-    leader = new_task(role="leader", url=home, scope="site",
-                      status="completed", evidence=[f"planned {len(assignments)} worker page(s)"])
+    leader = new_task(
+        role="leader", url=home, scope="site", status="completed",
+        evidence=[{
+            "kind": "supervisor_plan",
+            "artifact": "swarm_plan.json",
+            "planned_workers": len(assignments),
+        }],
+    )
     tasks = [leader]
     for row in assignments:
         url = row["url"]
@@ -116,40 +122,32 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
                 break
             processed += 1
             continue
-        if payload.get("status") == "completed" and task["role"] == "leader":
-            ok, _reason = queue.complete(
-                task["task_id"], worker_id,
-                {"evidence": task["payload"].get("evidence") or []},
-            )
-        else:
-            try:
+        try:
+            if payload.get("approval_required") and payload.get("approved") is not True:
+                result = {"status": "blocked", "error_class": "approval_required"}
+            else:
                 result = work(task)
-                _keep_checkpoint(queue, task, worker_id, result)
-                if isinstance(result, dict) and result.get("error_class"):
-                    ok, _reason = queue.fail(
-                        task["task_id"], worker_id,
-                        error_class=str(result["error_class"]),
-                        detail=str(result.get("detail") or ""),
-                    )
-                elif isinstance(result, dict) and result.get("ok") is False:
-                    # A negative worker verdict is not a successful queue ack.
-                    ok, _reason = queue.fail(
-                        task["task_id"], worker_id,
-                        error_class="worker_rejected",
-                        detail=str(result.get("detail") or result.get("reason") or "worker returned ok=False"),
-                    )
-                else:
-                    ok, _reason = queue.complete(
-                        task["task_id"], worker_id,
-                        result if isinstance(result, dict) else {"ok": True},
-                    )
-            except Exception as exc:
-                _keep_checkpoint(queue, task, worker_id, exc)
-                error_class = getattr(exc, "error_class", "worker_crash")
-                ok, _reason = queue.fail(
-                    task["task_id"], worker_id,
-                    error_class=str(error_class), detail=str(exc),
+            _keep_checkpoint(queue, task, worker_id, result)
+            if isinstance(result, dict) and result.get("status") == "blocked":
+                ok, _reason = queue.block(
+                    task["task_id"], worker_id, error_class=str(result.get("error_class") or "blocked"),
+                    reason=str(result.get("detail") or result.get("reason") or "blocked"),
                 )
+            elif isinstance(result, dict) and result.get("error_class"):
+                ok, _reason = queue.fail(task["task_id"], worker_id, error_class=str(result["error_class"]),
+                                         detail=str(result.get("detail") or ""))
+            elif isinstance(result, dict) and result.get("ok") is False:
+                ok, _reason = queue.fail(task["task_id"], worker_id, error_class="worker_rejected",
+                                         detail=str(result.get("detail") or result.get("reason") or "worker rejected"))
+            elif not has_execution_evidence(result):
+                ok, _reason = queue.fail(task["task_id"], worker_id, error_class="evidence_missing",
+                                         detail="worker returned no structured execution evidence")
+            else:
+                ok, _reason = queue.complete(task["task_id"], worker_id, result)
+        except Exception as exc:
+            _keep_checkpoint(queue, task, worker_id, exc)
+            ok, _reason = queue.fail(task["task_id"], worker_id,
+                                     error_class=str(getattr(exc, "error_class", "worker_crash")), detail=str(exc))
         if not ok:
             lease_lost.append(task["task_id"])
             break
@@ -171,11 +169,7 @@ def queue_backend_name(queue) -> str:
 
 
 def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
-    """Prefer Redis when REDIS_URL is set; else per-run SQLite.
-
-    Product-wide Redis default when configured. Falls back to SQLite if Redis is
-    unready. Gate B still needs review before complete.
-    """
+    """Open the configured Redis queue, or per-run SQLite in local mode."""
     import os
 
     path = Path(run_dir)
@@ -185,7 +179,9 @@ def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
         raise RuntimeError("The swarm queue is a link.")
     path.mkdir(parents=True, exist_ok=True)
     redis_uri = (os.getenv("REDIS_URL") or os.getenv("QPILOT_REDIS_URL") or "").strip()
-    if redis_uri.startswith(("redis://", "rediss://")):
+    if redis_uri:
+        if not redis_uri.startswith(("redis://", "rediss://")):
+            raise RuntimeError("Configured Redis URL has an unsupported scheme.")
         try:
             from .redis_queue import RedisDurableQueue
 
@@ -200,7 +196,7 @@ def open_queue(run_dir: str | Path, **kwargs) -> DurableQueue:
             queue.backend = "redis"  # type: ignore[attr-defined]
             return queue
         except Exception:
-            pass  # fall through to SQLite
+            raise RuntimeError("Configured Redis queue is unavailable.") from None
     opened = open_durable_queue(f"sqlite:{path / 'swarm_queue.sqlite'}", **kwargs)
     if not opened.get("ready") or opened.get("queue") is None:
         raise RuntimeError(opened.get("reason") or "durable queue is not ready")

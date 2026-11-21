@@ -197,6 +197,12 @@ def landed_on_payment(found) -> bool:
     return is_payment_url(str(found.get("final_url") or ""))
 
 
+def observed_page(found, url: str) -> bool:
+    """A navigation observation belongs to the requested URL and has an HTTP response."""
+    return (isinstance(found, dict) and found.get("url") == url
+            and type(found.get("status")) is int and 100 <= found["status"] <= 599)
+
+
 def _payment_block(url: str, final: str) -> dict:
     return {
         "url": url,
@@ -286,9 +292,10 @@ def perform(assignments: list[dict], open_page, *, on_status=None, session=None)
                         on_status(worker, "blocked", final)
                     done.append({**row, "status": "blocked", "work": found})
                     continue
+                status = "opened" if observed_page(found, url) else "stopped"
                 if on_status:
-                    on_status(worker, "opened", url)
-                done.append({**row, "status": "opened"})
+                    on_status(worker, status, url)
+                done.append({**row, "status": status, "work": found})
             if on_status:
                 on_status(worker, "finished", "")
         finally:
@@ -412,6 +419,10 @@ class SiteSwarm:
                                 row["status"] = "blocked"
                                 row["work"] = found
                                 break
+                    continue
+                if not observed_page(found, url):
+                    if self._on_status:
+                        self._on_status(worker, "stopped", url)
                     continue
                 summary = ""
                 if isinstance(found, dict):

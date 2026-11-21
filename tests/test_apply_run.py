@@ -102,6 +102,37 @@ def test_a_finished_run_applies_every_rule_and_keeps_its_verdict(tmp_path):
     assert applied["incremental"]["reopen"] == ["https://shop.example/saree"]
 
 
+def test_apply_run_refreshes_a_blocked_oracle_after_contract_design(tmp_path):
+    url = "https://shop.example/quote"
+    (tmp_path / "swarm_work.json").write_text(json.dumps([{
+        "url": url, "status": 200, "summary": "Quote total displayed",
+    }]), encoding="utf-8")
+    (tmp_path / "test_cases.json").write_text(json.dumps([{
+        "tc_id": "quote-total",
+        "kind": "contract",
+        "generation_source": "contract",
+        "url": url,
+        "expected": "Displayed total equals quantity times price",
+    }]), encoding="utf-8")
+    (tmp_path / "swarm_evidence.json").write_text(json.dumps({
+        "ran": True,
+        "run_id": "run-oracle",
+        "tasks": [{"role": "oracle", "url": url, "status": "blocked", "error_class": "oracle_missing"}],
+    }), encoding="utf-8")
+
+    applied = apply_run({
+        "run_dir": str(tmp_path), "run_id": "run-oracle", "environment": "test", "verdict": "Ready",
+        "crawl": {}, "app_map": [{"url": url, "status": 200, "depth": 0}], "failures": [], "results": [],
+        "test_cases": [], "healing_log": [], "changes": {},
+    }, root=tmp_path)
+
+    oracle = next(task for task in applied["swarm"]["tasks"] if task["role"] == "oracle")
+    assert applied["swarm"]["run_id"] == "run-oracle"
+    assert oracle["status"] == "blocked"
+    assert applied["swarm"]["report_oracle"]["assertion"]["requirement_id"] == "quote-total"
+    assert not (tmp_path / "swarm_queue.sqlite").exists()
+
+
 def test_apply_run_indexes_tenant_when_env_set(tmp_path, monkeypatch):
     import backend.tenancy_store as ts
 

@@ -32,7 +32,7 @@ from .run_rules import lifecycle_for
 from .schema_diff import diff_specs
 from .sessions import RoleBook
 from .surface_coverage import summarize_surfaces
-from .swarm_evidence import record_swarm
+from .swarm_evidence import approved_oracle, record_swarm
 from .visual_capture import capture_visual
 
 _CART_WORDS = ("cart", "add to cart", "add-to-cart")
@@ -377,6 +377,24 @@ def apply_run(state: dict, *, root: Path | None = None) -> dict:
     lifecycle = lifecycle_for(state, finish=True)
     healing = summarize_healing(list(state.get("healing_log") or []))
     swarm = _read_json(run_dir / "swarm_evidence.json")
+    oracle_waiting = (
+        isinstance(swarm, dict)
+        and any(
+            task.get("role") == "oracle"
+            and task.get("status") == "blocked"
+            and task.get("error_class") == "oracle_missing"
+            for task in (swarm.get("tasks") or [])
+            if isinstance(task, dict)
+        )
+    )
+    if oracle_waiting:
+        # Preserve the original queue, task IDs and discovery-time outcomes.
+        for task in swarm["tasks"]:
+            if task.get("role") == "oracle" and task.get("error_class") == "oracle_missing":
+                assertion = approved_oracle(run_dir, task.get("url") or "")
+                if assertion:
+                    swarm = {**swarm, "report_oracle": {"artifact": "test_cases.json", "assertion": assertion}}
+                    break
     if not isinstance(swarm, dict) or not swarm.get("ran"):
         swarm = record_swarm(
             run_dir,

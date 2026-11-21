@@ -10,6 +10,31 @@ STATUSES = frozenset({"completed", "partial", "failed", "blocked", "cancelled", 
 ROLES = frozenset({"leader", "worker", "coverage", "oracle"})
 
 
+def has_execution_evidence(result: dict | None) -> bool:
+    """Return whether a successful queue acknowledgement names real evidence.
+
+    Queue results used to accept any truthy payload, including a synthetic
+    ``durable-ack:<url>`` string.  A terminal success now needs at least one
+    structured artifact reference.  The queue deliberately validates only the
+    envelope here; the worker is responsible for creating and validating the
+    referenced artifact before it asks to complete the task.
+    """
+    if (not isinstance(result, dict) or result.get("ok", True) is not True
+            or result.get("error_class") or result.get("status") in ("blocked", "failed", "cancelled")):
+        return False
+    evidence = result.get("evidence")
+    if not isinstance(evidence, list):
+        return False
+    for row in evidence:
+        if not isinstance(row, dict):
+            continue
+        artifact = row.get("artifact")
+        kind = row.get("kind")
+        if isinstance(artifact, str) and artifact.strip() and isinstance(kind, str) and kind.strip():
+            return True
+    return False
+
+
 def new_task(*, role: str, url: str, parent_task_id: str = "", scope: str = "listing",
              action_budget: int = 15, time_budget_s: int = 120, approval_required: bool = False,
              status: str = "partial", evidence: list | None = None, worker: int = 0,
@@ -59,8 +84,8 @@ def accept_result(task: dict) -> tuple[bool, str]:
     if problems:
         return False, "; ".join(problems)
     status = task["status"]
-    if status == "completed" and not task.get("evidence"):
-        return False, "a completed task needs evidence"
+    if status == "completed" and not has_execution_evidence({"evidence": task.get("evidence")}):
+        return False, "a completed task needs structured execution evidence"
     if task.get("approval_required") and status == "completed" and not task.get("approved"):
         return False, "this task needs a person before it can complete"
     if status == "completed" and task.get("reason", "").startswith("checkout"):
@@ -91,8 +116,14 @@ def tasks_for_listing(parent_url: str, chosen: list[str], skipped: list[tuple[st
     """Leader task, one worker task per chosen product, and blocked tasks for the rest."""
     from .swarm import assign_workers, is_payment_url
 
-    leader = new_task(role="leader", url=parent_url, scope="listing", status="completed",
-                      evidence=[f"chose {len(chosen)} product(s)"])
+    leader = new_task(
+        role="leader", url=parent_url, scope="listing", status="completed",
+        evidence=[{
+            "kind": "listing_plan",
+            "artifact": "swarm_listing_mirror.json",
+            "chosen": len(chosen),
+        }],
+    )
     parent = leader["task_id"]
     tasks = [leader]
     lease = Lease()

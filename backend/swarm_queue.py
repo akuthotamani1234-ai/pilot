@@ -14,6 +14,8 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
+from .swarm_protocol import has_execution_evidence
+
 SCHEMA_VERSION = 1
 TASK_STATES = frozenset({
     "pending", "leased", "succeeded", "failed", "retry_wait", "blocked", "cancelled",
@@ -211,18 +213,47 @@ class DurableQueue:
         return cur.rowcount == 1
 
     def complete(self, task_id: str, worker_id: str, result: dict) -> tuple[bool, str]:
-        """Ack success once. An expired lease cannot ack."""
+        """Ack success once, only when the worker supplied real evidence."""
         row = self._db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
         if not row:
             return False, "missing task"
         if row["status"] == "succeeded":
             return True, "already succeeded"
+        if not has_execution_evidence(result):
+            return False, "success requires structured execution evidence"
         now = _now()
         cur = self._db.execute(
             """UPDATE tasks SET status='succeeded', result_json=?, lease_owner=NULL, lease_until=NULL,
                    error_class=NULL, updated_at=?
                WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
             (json.dumps(result), now, task_id, worker_id, now),
+        )
+        self._db.commit()
+        if cur.rowcount != 1:
+            return False, "worker does not own this lease"
+        return True, ""
+
+    def block(self, task_id: str, worker_id: str, *, reason: str = "",
+              error_class: str = "blocked") -> tuple[bool, str]:
+        """Record that a leased task could not be verified or executed.
+
+        Unlike ``fail``, this is not an assertion that the target failed.  It
+        preserves the distinction between an observed failure and missing
+        evidence, unavailable access, or an unmet dependency.
+        """
+        row = self._db.execute("SELECT * FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+        if not row:
+            return False, "missing task"
+        now = _now()
+        if not lease_is_current(row, worker_id, now):
+            return False, "worker does not own this lease"
+        result = {"status": "blocked", "error_class": error_class, "detail": reason,
+                  "attempt": int(row["attempt"])}
+        cur = self._db.execute(
+            """UPDATE tasks SET status='blocked', result_json=?, error_class=?, lease_owner=NULL, lease_until=NULL,
+                   updated_at=?
+               WHERE task_id=? AND lease_owner=? AND status='leased' AND lease_until >= ?""",
+            (json.dumps(result), error_class, now, task_id, worker_id, now),
         )
         self._db.commit()
         if cur.rowcount != 1:

@@ -48,9 +48,10 @@ def test_lease_heartbeat_and_exclusive_claim(tmp_path):
     assert q.claim(worker_id="w2") is None  # only one pending task, already leased
     assert q.heartbeat(claimed["task_id"], "w1") is True
     assert q.heartbeat(claimed["task_id"], "w2") is False
-    ok, _ = q.complete(claimed["task_id"], "w1", {"evidence": ["ok"]})
+    evidence = {"evidence": [{"kind": "test_observation", "artifact": "queue-test.json"}]}
+    ok, _ = q.complete(claimed["task_id"], "w1", evidence)
     assert ok
-    again, reason = q.complete(claimed["task_id"], "w1", {"evidence": ["ok"]})
+    again, reason = q.complete(claimed["task_id"], "w1", evidence)
     assert again and reason == "already succeeded"
     q.close()
 
@@ -92,7 +93,9 @@ def test_expired_lease_cannot_ack(tmp_path):
         (time.time() - 1, claimed["task_id"]),
     )
     q._db.commit()
-    ok, reason = q.complete(claimed["task_id"], "w1", {"evidence": ["late"]})
+    ok, reason = q.complete(
+        claimed["task_id"], "w1", {"evidence": [{"kind": "test_observation", "artifact": "late.json"}]},
+    )
     assert ok is False and reason == "worker does not own this lease"
     assert q.heartbeat(claimed["task_id"], "w1") is False
     assert q.checkpoint(claimed["task_id"], "w1", {"step": 1}) is False
