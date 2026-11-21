@@ -189,6 +189,25 @@ class DurableQueue:
             return self.claim(worker_id=worker_id, run_id=run_id)
         return self.get(row["task_id"])
 
+    def claim_task(self, task_id: str, *, worker_id: str) -> dict | None:
+        """Lease this exact browser task before opening its page."""
+        self.recover_expired()
+        now = _now()
+        row = self._db.execute(
+            "SELECT * FROM tasks WHERE task_id=? AND status IN ('pending','retry_wait') "
+            "AND (lease_until IS NULL OR lease_until < ?)",
+            (task_id, now),
+        ).fetchone()
+        if not row:
+            return None
+        cur = self._db.execute(
+            "UPDATE tasks SET status='leased', attempt=attempt+1, lease_owner=?, "
+            "lease_until=?, updated_at=? WHERE task_id=? AND status IN ('pending','retry_wait')",
+            (worker_id, now + self.lease_seconds, now, task_id),
+        )
+        self._db.commit()
+        return self.get(task_id) if cur.rowcount == 1 else None
+
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
         """Extend the lease. Returns False if this worker no longer owns it."""
         now = _now()

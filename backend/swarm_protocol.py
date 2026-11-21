@@ -7,7 +7,7 @@ from uuid import uuid4
 
 SCHEMA_VERSION = 1
 STATUSES = frozenset({"completed", "partial", "failed", "blocked", "cancelled", "needs_review"})
-ROLES = frozenset({"leader", "worker", "coverage", "oracle"})
+ROLES = frozenset({"leader", "worker", "browser", "coverage", "oracle"})
 
 
 def has_execution_evidence(result: dict | None) -> bool:

@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from .redis_queue_scripts import (
+    CLAIM_TASK,
     ENQUEUE_ONCE,
     HOLD_LEASE,
     POP_CLAIM,
@@ -238,6 +239,16 @@ class RedisDurableQueue:
             if got == "0":
                 continue
             return self._load(got)
+
+    def claim_task(self, task_id: str, *, worker_id: str) -> dict | None:
+        """Lease this exact browser task before opening its page."""
+        self.recover_expired()
+        now = _now()
+        ok = self._lua("claim_task", CLAIM_TASK)(
+            keys=[self._task_key(task_id)],
+            args=[str(now), worker_id, str(now + self.lease_seconds)],
+        )
+        return self._load(task_id) if int(ok) == 1 else None
 
     def heartbeat(self, task_id: str, worker_id: str) -> bool:
         now = _now()

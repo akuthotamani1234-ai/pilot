@@ -74,6 +74,24 @@ redis.call('HSET', ARGV[1] .. task_id,
 return task_id
 """
 
+# Lease one known task. Browser workers use this to prove that the durable
+# claim exists before Playwright is asked to open a page.
+CLAIM_TASK = """
+local status = redis.call('HGET', KEYS[1], 'status')
+if status ~= 'pending' and status ~= 'retry_wait' then
+  return 0
+end
+local until_s = redis.call('HGET', KEYS[1], 'lease_until')
+local now = tonumber(ARGV[1])
+if until_s and until_s ~= '' and tonumber(until_s) >= now then
+  return 0
+end
+local current = tonumber(redis.call('HGET', KEYS[1], 'attempt')) or 0
+redis.call('HSET', KEYS[1], 'status', 'leased', 'attempt', tostring(current + 1),
+  'lease_owner', ARGV[2], 'lease_until', ARGV[3], 'updated_at', ARGV[1])
+return 1
+"""
+
 SET_TERMINAL = """
 local status = redis.call('HGET', KEYS[1], 'status')
 local allowed = false

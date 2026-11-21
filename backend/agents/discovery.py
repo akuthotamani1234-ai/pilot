@@ -2018,17 +2018,30 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
     swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
     swarm_workers: set[int] = set()  # workers that received a page
     site_swarm = None  # opened while the crawl runs, closed when the crawl ends
+    swarm_queue = None
 
     def _close_swarm() -> None:
+        nonlocal swarm_queue
         if site_swarm is None:
             return
         rows = site_swarm.finish()
-        work = [row["work"] for row in rows if isinstance(row.get("work"), dict)]
-        if not work:
-            return
+        work = []
+        for row in rows:
+            if not isinstance(row.get("work"), dict):
+                continue
+            observation = dict(row["work"])
+            for key in ("task_id", "worker", "durable_status"):
+                if row.get(key) is not None:
+                    observation[key] = row[key]
+            work.append(observation)
         from ..finalization import write_text_unless_linked
-        if write_text_unless_linked(run_dir, "swarm_work.json", json.dumps(work, indent=2)):
+        if work and write_text_unless_linked(run_dir, "swarm_work.json", json.dumps(work, indent=2)):
             print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
+        if swarm_queue is not None:
+            try:
+                swarm_queue.close()
+            finally:
+                swarm_queue = None
     n_sample = sample_limit(settings.swarm_sample, settings.pattern_samples)
     patterns: dict = {}  # address pattern -> how many pages of it are queued
     searched: set = set()  # search forms whose results page is queued (one search each)
@@ -2236,7 +2249,18 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
 
                 return open_page, close
 
-            site_swarm = SiteSwarm(workers, limit, _session, _tell)
+            try:
+                from ..swarm_supervisor import open_queue
+                swarm_queue = open_queue(run_dir)
+            except Exception as exc:
+                print(f"  [discovery] durable browser queue unavailable: {str(exc)[:180]}", flush=True)
+                swarm_queue = None
+            site_swarm = SiteSwarm(
+                workers, limit, _session, _tell,
+                durable_queue=swarm_queue,
+                run_id=run_dir.name,
+                evidence_dir=run_dir,
+            )
 
         _share_site([start_url, *[address for address, _how in extra_found]])
 

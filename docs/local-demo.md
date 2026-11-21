@@ -54,6 +54,10 @@ python -m pytest -q tests/test_swarm.py tests/test_swarm_protocol.py tests/test_
 
 Milestone 1 acceptance remains open. The local SQLite run verifies reconciliation after discovery. Browser work coordinated directly by a durable lease and the full regression suite still require verification.
 
+### Milestone 2 browser-task wiring
+
+The discovery SiteSwarm now persists one browser task per safe URL, claims that exact task before creating its Playwright worker session, and writes `browser_observation_<task_id>.json` before acknowledging success. SQLite and Redis queues expose the same exact-task claim operation. Policy-blocked navigation and missing observation artifacts remain blocked or failed with an explicit queue result. The focused contract `tests/test_swarm_browser_queue.py` passed locally, and `tests/test_swarm.py -k "not redirect_into_checkout"` passed 19 tests. A live full discovery run using this path remains NOT VERIFIED on this Windows account until the browser and queue acceptance environment is available.
+
 A local demonstration is ready only after all of the following commands have produced their expected evidence on the present machine:
 
 - `tests.local_demo` records a clean pass, detects the seeded quote defect and completes the targeted run in `evidence.json`.

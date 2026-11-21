@@ -190,6 +190,12 @@ def record_swarm(run_dir: str | Path, urls: list[str], *, run_id: str = "",
                 return {"status": "blocked", "error_class": "plan_missing"}
             if role == "worker":
                 return _worker_result(str(url), observations)
+            if role == "browser":
+                return {
+                    "status": "blocked",
+                    "error_class": "browser_worker_unavailable",
+                    "detail": "the live browser worker did not finish this task during discovery",
+                }
             if role == "coverage":
                 from .coverage_verify import verify_listing
                 if not observations:
