@@ -169,6 +169,8 @@ mcp_presence = MCPPresence()
 
 def key_provider(key: str) -> str | None:
     """The cloud provider an API key belongs to, from its well-known prefix (None when it cannot be told)."""
+    if key.startswith("hf_"):
+        return "huggingface"
     if key.startswith("sk-ant-"):
         return "anthropic"
     if key.startswith("AIza"):
@@ -284,7 +286,7 @@ class RunRequest(BaseModel):
     execution_mode: Literal["watch", "fast"] | None = None
     action_delay_ms: int = Field(default=1000, ge=0, le=3000)
     fresh: bool = False
-    llm_provider: str | None = None  # ollama | gemini | openai | anthropic | none   (None = use .env)
+    llm_provider: str | None = None  # ollama | gemini | openai | anthropic | huggingface | none   (None = use .env)
     llm_model: str | None = None
     api_key: str | None = None       # only passed to this run's process, never written to disk
     auth_mode: Literal["auto", "public", "existing", "signup", "configured"] = "auto"
@@ -338,6 +340,11 @@ PROVIDERS = [  # shown in the UI, in this order; Ollama first = the secure defau
     {"id": "anthropic", "name": "Anthropic Claude", "badge": "Paid",
      "info": "Cloud AI, billed per token. Page data is sent to Anthropic.",
      "key_env": "ANTHROPIC_API_KEY", "models": ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"]},
+    {"id": "huggingface", "name": "Hugging Face", "badge": "Open models",
+     "info": "Open models through Hugging Face Inference Providers (token from huggingface.co/settings/tokens). "
+             "Page data is sent to Hugging Face and the provider that runs the model.",
+     "key_env": "HF_TOKEN", "models": ["meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen2.5-72B-Instruct",
+                                        "Qwen/Qwen2.5-VL-72B-Instruct", "deepseek-ai/DeepSeek-V3"]},
     {"id": "none", "name": "No AI (rules)", "badge": "Free · Offline",
      "info": "Built-in rule-based test design and script templates. No AI at all.",
      "key_env": None, "models": []},
@@ -4054,6 +4061,34 @@ def run_events(
         return read_events(_run_dir(job["run"]), after, limit)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/runs/{job_id}/live/{worker}")
+def run_live_frame(
+    job_id: int, worker: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """One worker's latest real screen (live/<worker>.jpg), for the swarm view. Never cached."""
+    from backend.finalization import folder_is_linked
+    from backend.live_frames import LIVE_DIR, worker_file
+    if not re.fullmatch(r"[a-z0-9-]{1,40}", worker or ""):
+        raise HTTPException(400, "Invalid worker")
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    if not job.get("run"):
+        raise HTTPException(404, "No live screen yet")
+    folder = _run_dir(job["run"]) / LIVE_DIR
+    path = folder / worker_file(worker)
+    if folder_is_linked(folder) or path.is_symlink() or not path.is_file():
+        raise HTTPException(404, "No live screen yet")
+    return FileResponse(path, media_type="image/jpeg",
+                        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/runs/{job_id}/review")

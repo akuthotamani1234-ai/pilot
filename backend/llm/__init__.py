@@ -3,7 +3,7 @@
 One small wrapper so the rest of the backend doesn't care which LLM you use.
 The instructions sent to the AI live next to it in  backend/llm/prompts/*.txt
 
-Supported providers: openai, gemini, anthropic, ollama.
+Supported providers: openai, gemini, anthropic, huggingface, ollama.
 Set LLM_PROVIDER=none to run without AI (rule-based fallback is used instead).
 """
 import json
@@ -46,6 +46,7 @@ _PROVIDER_KEYS = {
     "openai": ("openai_api_key", "OPENAI_API_KEY", "OpenAI"),
     "anthropic": ("anthropic_api_key", "ANTHROPIC_API_KEY", "Anthropic"),
     "gemini": ("gemini_api_key", "GEMINI_API_KEY", "Gemini"),
+    "huggingface": ("huggingface_api_key", "HF_TOKEN", "Hugging Face"),
 }
 
 
@@ -109,7 +110,7 @@ def llm_enabled() -> bool:
         guard_provider(settings.llm_provider, settings.ollama_url)
     except PrivacyError:
         return False
-    return settings.llm_provider in {"openai", "gemini", "anthropic", "ollama"}
+    return settings.llm_provider in {"openai", "gemini", "anthropic", "huggingface", "ollama"}
 
 
 # local Ollama models that can look at pictures (a text-only model like qwen2.5 can't)
@@ -120,6 +121,8 @@ def vision_enabled() -> bool:
     """Can the AI look at screenshots? VISION=auto: yes for the cloud AIs, for Ollama only with a vision model."""
     if not llm_enabled() or settings.vision == "off":
         return False
+    if settings.llm_provider == "huggingface":  # only Hugging Face models that read images (…-VL-…, vision)
+        return settings.vision == "on" or bool(re.search(r"-vl-|vision|-vl$|llama-4", settings.llm_model or "", re.I))
     if settings.vision == "on" or settings.llm_provider != "ollama":
         return True
     return bool(OLLAMA_VISION.search(settings.llm_model or ""))
@@ -244,6 +247,24 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
             u = d.get("usage") or {}
             return d["choices"][0]["message"]["content"], u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
 
+        if p == "huggingface":  # OpenAI-compatible chat API of Hugging Face Inference Providers
+            user = prompt if not images else [{"type": "text", "text": prompt}] + [
+                {"type": "image_url", "image_url": {"url": f"data:{_mime(i)};base64,{_b64(i)}"}} for i in images]
+            body = {"model": model, "temperature": temperature, "messages": [
+                {"role": "system", "content": system or "You are a helpful assistant."},
+                {"role": "user", "content": user},
+            ]}
+            r = requests.post(
+                "https://router.huggingface.co/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.huggingface_api_key}"},
+                json=body,
+                timeout=request_timeout,
+            )
+            _raise_with_reason(r)
+            d = r.json()
+            u = d.get("usage") or {}
+            return d["choices"][0]["message"]["content"], u.get("prompt_tokens", 0), u.get("completion_tokens", 0)
+
         if p == "anthropic":
             r = requests.post(
                 "https://api.anthropic.com/v1/messages",
@@ -318,7 +339,7 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
         ) from e
 
     raise LLMError(
-        f"Unknown LLM_PROVIDER '{p}'. Supported providers for AI calls: openai, gemini, anthropic, ollama."
+        f"Unknown LLM_PROVIDER '{p}'. Supported providers for AI calls: openai, gemini, anthropic, huggingface, ollama."
     )
 
 

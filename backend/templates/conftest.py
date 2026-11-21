@@ -527,6 +527,35 @@ def _event(text, status, **details):
         print(f"[qa-note] Live event could not be saved: {type(exc).__name__}")
 
 
+LIVE_DIR = RUN_DIR / "live"
+LIVE_FRAMES = os.environ.get("QA_LIVE_FRAMES", "true").lower() != "false"
+_LIVE = {"t": 0.0, "n": 0}
+_LIVE_NAME = re.sub(r"[^a-z0-9-]", "", os.environ.get("PYTEST_XDIST_WORKER", "main").lower()) or "main"
+
+
+def _live_frame(page, force=False):
+    """The dashboard's live screen: this worker's visible page as a small JPEG, taken right before the action
+    (so the cursor drawn at the event's point sits on the element acted on). Only the newest one is kept."""
+    if not LIVE_FRAMES or page is None:
+        return None
+    now = time.time()
+    if not force and now - _LIVE["t"] < 0.35:
+        return None
+    _LIVE["t"] = now
+    try:
+        if page.is_closed() or _output_is_linked(LIVE_DIR):
+            return None
+        LIVE_DIR.mkdir(exist_ok=True)
+        data = page.screenshot(type="jpeg", quality=50, timeout=2000, animations="disabled", caret="initial")
+        tmp = LIVE_DIR / f".{_LIVE_NAME}.{uuid.uuid4().hex[:8]}.tmp"
+        tmp.write_bytes(data)
+        os.replace(tmp, LIVE_DIR / f"{_LIVE_NAME}.jpg")
+    except Exception:
+        return None
+    _LIVE["n"] += 1
+    return _LIVE["n"]
+
+
 def _pace(page):
     if ACTION_DELAY_MS:
         page.wait_for_timeout(ACTION_DELAY_MS)
@@ -558,7 +587,9 @@ def _stepped(method, verb):
         what = (f"{verb} '{_shown_value(self, args[0])[:40]}' into '{name}'" if verb == "Type" and args else
                 f"Press {args[0]} in '{name}'" if verb == "Press" and args else
                 f"Choose '{str(args[0])[:40]}' in '{name}'" if verb == "Choose" and args else f"{verb} '{name}'")
-        _event(what, "running", selector=_redact(str(getattr(self, "_selector", "")))[:300], point=target["point"])
+        frame = _live_frame(self.page, force=bool(target["point"])) if target["point"] else None
+        _event(what, "running", selector=_redact(str(getattr(self, "_selector", "")))[:300], point=target["point"],
+               frame=frame)
         try:
             _pace(self.page)
             out = method(self, *args, **kwargs)
@@ -584,6 +615,7 @@ def _goto_stepped(method):
             raise
         if not str(url).startswith("about:"):
             _step(f"Open {shown}", True)
+            _live_frame(self)
         return out
     return wrapper
 

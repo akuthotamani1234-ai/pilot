@@ -30,8 +30,10 @@ PRICES = {
         "haiku": (1.00, 5.00), "sonnet": (3.00, 15.00), "opus": (5.00, 25.00), "": (3.00, 15.00),
     },
     "ollama": {"": (0.0, 0.0)},
+    "huggingface": {"": (0.0, 0.0)},
 }
 FREE_TIER = {"gemini": "Gemini has a free tier: if your API key is on it, the real charge is $0.",
+             "huggingface": "Hugging Face bills by the provider that runs the model: not estimated here - see your Hugging Face billing page (or set LLM_PRICE_INPUT_PER_M / LLM_PRICE_OUTPUT_PER_M).",
              "ollama": "Ollama runs locally on your machine: no AI cost, and no data leaves your computer."}
 
 GLOBAL = "(whole run)"

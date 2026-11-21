@@ -62,14 +62,27 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .live-swarm {margin:15px 0 13px;padding:14px;border:1px solid #cfe0f6;border-radius:12px;background:linear-gradient(145deg,#f8fbff,#edf5ff)}
 .live-swarm-head {display:flex;align-items:center;justify-content:space-between;gap:10px}.live-swarm-head h3 {margin:2px 0 0;color:#18385b;font-size:16px}
 .live-swarm-note {margin:7px 0 12px;color:#5e7390;font-size:12px;line-height:1.5}
-.live-swarm-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
-.swarm-worker {min-width:0;overflow:hidden;border:1px solid #cbdced;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(21,72,124,.05)}
-.swarm-worker-head {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-bottom:1px solid #e2ecf7;font-size:12px}.swarm-worker-head span {padding:1px 6px;border-radius:99px;background:#edf2f8;color:#59708a;font-size:10px;text-transform:capitalize}
-.swarm-browser {position:relative;min-height:92px;padding:9px;background:linear-gradient(135deg,#f7fbff,#fff);overflow:hidden}.swarm-address {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#496582;font:10px var(--mono)}
-.swarm-action {position:absolute;right:9px;bottom:8px;left:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#274866;font-size:11px;font-weight:600}
-.swarm-cursor {position:absolute;left:var(--cursor-x);top:var(--cursor-y);z-index:1;color:#1765d1;font-size:25px;line-height:1;filter:drop-shadow(0 2px 1px rgba(24,55,88,.22));transform:rotate(-30deg);transition:left .45s ease,top .45s ease}
-.swarm-worker.is-active {border-color:#64a3eb;box-shadow:0 0 0 2px rgba(45,129,223,.14)}.swarm-worker.is-active .swarm-cursor {animation:swarm-pointer .8s ease-in-out infinite alternate}.swarm-running .swarm-worker-head span,.swarm-started .swarm-worker-head span {background:#e8f2ff;color:#155dbf}.swarm-passed .swarm-worker-head span,.swarm-completed .swarm-worker-head span {background:#e8f6ee;color:#176347}.swarm-failed .swarm-worker-head span,.swarm-error .swarm-worker-head span {background:#ffedf0;color:#ad273b}
-@keyframes swarm-pointer {from {transform:rotate(-30deg) scale(1)} to {transform:rotate(-20deg) scale(1.12)}}
+.live-swarm-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.swarm-worker {--agent:#1765d1;min-width:0;overflow:hidden;border:1px solid #cbdced;border-radius:9px;background:#fff;box-shadow:0 1px 2px rgba(21,72,124,.05)}
+.swarm-c0 {--agent:#1765d1}.swarm-c1 {--agent:#c2410c}.swarm-c2 {--agent:#0f8a5f}.swarm-c3 {--agent:#9333ea}.swarm-c4 {--agent:#b4235a}.swarm-c5 {--agent:#0e7490}
+.swarm-worker-head {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border-bottom:1px solid #e2ecf7;font-size:12px}
+.swarm-worker-head b {display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.swarm-role {font-style:normal;font-weight:500;color:#59708a}
+.swarm-dot {width:9px;height:9px;flex:none;border-radius:50%;background:var(--agent)}
+.swarm-state {padding:1px 6px;border-radius:99px;background:#edf2f8;color:#59708a;font-size:10px;text-transform:capitalize}
+.swarm-browser {padding:8px;background:#f7fafd;display:flex;flex-direction:column;gap:5px;min-width:0}
+.swarm-stage {position:relative;align-self:center;max-width:100%;min-height:90px;min-width:120px;line-height:0;border-radius:6px;overflow:hidden;background:#eef3f9;border:1px solid #dde7f2}
+.swarm-screen {display:block;max-width:100%;max-height:260px;width:auto;height:auto}
+.swarm-address {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#496582;font:10px var(--mono)}
+.swarm-action {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#274866;font-size:11px;font-weight:600}
+.swarm-cursor {position:absolute;left:var(--cursor-x);top:var(--cursor-y);z-index:2;line-height:1;transition:left .4s ease,top .4s ease;pointer-events:none}
+.swarm-cursor svg {display:block;fill:var(--agent);stroke:#fff;stroke-width:1.4;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35))}
+.swarm-tag {position:absolute;left:14px;top:16px;padding:2px 6px;border-radius:4px;background:var(--agent);color:#fff;font:600 10px/1.3 var(--sans,system-ui);white-space:nowrap}
+.swarm-cursor.flip-x .swarm-tag {left:auto;right:6px}.swarm-cursor.flip-y .swarm-tag {top:auto;bottom:6px}
+.swarm-ring {position:absolute;left:var(--cursor-x);top:var(--cursor-y);z-index:1;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid var(--agent);border-radius:50%;opacity:.8;transition:left .4s ease,top .4s ease;pointer-events:none}
+.swarm-worker.is-active {border-color:var(--agent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent) 18%,transparent)}.swarm-worker.is-active .swarm-ring {animation:swarm-pointer .9s ease-in-out infinite alternate}
+.swarm-running .swarm-state {background:#e8f2ff;color:#155dbf}.swarm-passed .swarm-state,.swarm-completed .swarm-state {background:#e8f6ee;color:#176347}.swarm-failed .swarm-state,.swarm-error .swarm-state,.swarm-blocked .swarm-state {background:#ffedf0;color:#ad273b}
+@keyframes swarm-pointer {from {transform:scale(.85);opacity:.9} to {transform:scale(1.25);opacity:.35}}
+@media (prefers-reduced-motion: reduce) {.swarm-cursor,.swarm-ring {transition:none}.swarm-worker.is-active .swarm-ring {animation:none}}
 .live-toolbar {display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#5c708b}
 .live-toolbar button {padding:4px 9px;min-height:32px}
 .live-timeline {list-style:none;margin:10px 0 0;padding:0;overflow:auto;max-height:230px;scrollbar-width:thin;overscroll-behavior:contain}

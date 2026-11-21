@@ -19,7 +19,7 @@
       '<section id="liveSwarm" class="live-swarm" hidden aria-labelledby="liveSwarmTitle">' +
       '<div class="live-swarm-head"><div><span class="eyebrow">SWARM VIEW</span><h3 id="liveSwarmTitle">Parallel workers</h3></div>' +
       '<span id="liveSwarmCount" class="status-chip">0 workers</span></div>' +
-      '<p class="live-swarm-note">Each cursor marks the most recent visible action target recorded by that browser worker.</p>' +
+      '<p class="live-swarm-note">Each screen is that browser\'s latest real screenshot. Its cursor sits where that browser last acted, taken at the same moment.</p>' +
       '<div id="liveSwarmGrid" class="live-swarm-grid" aria-live="polite"></div></section>' +
       '<div class="live-toolbar"><button id="liveFollow" type="button" class="secondary" aria-pressed="true">Following latest</button>' +
       '<span id="liveCount">0 recorded events</span></div>' +
@@ -59,7 +59,20 @@
   }
   function workerName(key) {
     const match = /^gw(\d+)$/i.exec(key);
-    return match ? `Worker ${Number(match[1]) + 1}` : `Worker ${key}`;
+    const explorer = /^explorer-(\d+)$/i.exec(key);
+    return match ? `Agent ${Number(match[1]) + 1}` : explorer ? `Explorer ${explorer[1]}` : `Worker ${key}`;
+  }
+  // The role of the task a worker is doing right now, from the kind of test it runs (or the event's own role).
+  function roleOf(event) {
+    if (!event) return "";
+    if (event.role) return event.role;
+    const file = String(event.nodeid || "").split("::")[0], name = String(event.test || "");
+    if (/invalid|negative|wrong|unusual|boundary|empty|too_long/i.test(name)) return "Negative";
+    if (/test_all_links/.test(file)) return "Explorer";
+    if (/test_(checks|mobile|site|a11y|visual|perf|security|locale)/.test(file)) return "Quality";
+    if (/test_(api|schema)/.test(file)) return "API";
+    if (/test_(journeys|learned|forms|features|my_tests|ai_)/.test(file)) return "Functional";
+    return "Tester";
   }
   function workerSlots(events) {
     const names = [...new Set(events.map((event) => workerKey(event.worker)).filter(Boolean))];
@@ -83,25 +96,62 @@
             event.point.every((n) => Number.isFinite(n) && n >= 0 && n <= 100)) positions.set(key, event);
       }
     });
-    const slots = workerSlots(rows);
+    // One phase at a time: the explorers while discovering, the test agents once tests run.
+    let slots = workerSlots(rows);
+    const testing = slots.filter((key) => /^gw\d+$/i.test(key));
+    slots = (testing.length ? testing : slots).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
     const stage = node.querySelector("#liveSwarm");
     if (slots.length < 2) { stage.hidden = true; return; }
     stage.hidden = false;
-    node.querySelector("#liveSwarmCount").textContent = `${slots.length} workers`;
-    node.querySelector("#liveSwarmGrid").innerHTML = slots.map((key) => {
+    node.querySelector("#liveSwarmTitle").textContent = testing.length ? "Test agents working at once" :
+      "Explorers discovering at once";
+    node.querySelector("#liveSwarmCount").textContent = `${slots.length} live browsers`;
+    const grid = node.querySelector("#liveSwarmGrid");
+    [...grid.children].forEach((card) => { if (!slots.includes(card.dataset.key)) card.remove(); });
+    slots.forEach((key, index) => {
+      let card = grid.querySelector(`[data-key="${CSS.escape(key)}"]`);
+      if (!card) {
+        card = document.createElement("article");
+        card.dataset.key = key;
+        card.innerHTML = `<div class="swarm-worker-head"><b><i class="swarm-dot"></i><span class="swarm-name"></span>` +
+          `<em class="swarm-role"></em></b><span class="swarm-state"></span></div>` +
+          `<div class="swarm-browser"><div class="swarm-stage"><img class="swarm-screen" alt="" hidden>` +
+          `<span class="swarm-ring" hidden></span>` +
+          `<span class="swarm-cursor" hidden aria-hidden="true"><svg viewBox="0 0 16 20" width="18" height="22">` +
+          `<path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" /></svg><span class="swarm-tag"></span></span></div>` +
+          `<span class="swarm-address"></span><span class="swarm-action"></span></div>`;
+        grid.append(card);
+      }
       const event = latest.get(key);
       const state = String(event?.status || "waiting").toLowerCase();
       const active = event && /running|started|pending/.test(state);
-      const action = event?.text || "Waiting for an assigned test";
-      const page = event?.url || event?.case_title || event?.test || "No action recorded yet";
+      const role = roleOf(event);
+      card.className = `swarm-worker swarm-c${index % 6} swarm-${state.replace(/[^a-z]/g, "")}${active ? " is-active" : ""}`;
+      card.querySelector(".swarm-name").textContent = workerName(key);
+      card.querySelector(".swarm-role").textContent = role ? ` · ${role}` : "";
+      card.querySelector(".swarm-state").textContent = state;
+      card.querySelector(".swarm-address").textContent = event?.url || event?.case_title || "No action recorded yet";
+      card.querySelector(".swarm-action").textContent = event?.text || "Waiting for an assigned task";
+      // The newest real screenshot this worker saved; reloaded only when the worker recorded a new frame.
+      const framed = [...rows].reverse().find((e) => workerKey(e.worker) === key && e.frame != null) || event;
+      const version = framed ? `${framed.id}` : "";
+      const img = card.querySelector(".swarm-screen");
+      if (current && version && img.dataset.version !== version) {
+        img.dataset.version = version;
+        const next = new Image();
+        next.onload = () => { img.src = next.src; img.hidden = false; card.classList.add("has-screen"); };
+        next.src = `/api/runs/${encodeURIComponent(current)}/live/${encodeURIComponent(key)}?v=${encodeURIComponent(version)}`;
+      }
       const point = positions.get(key)?.point;
-      const cursor = point ? `<span class="swarm-cursor" style="--cursor-x:${point[0]}%;--cursor-y:${point[1]}%" aria-hidden="true">➤</span>` : "";
-      return `<article class="swarm-worker swarm-${esc(state)}${active ? " is-active" : ""}">` +
-        `<div class="swarm-worker-head"><b>${esc(workerName(key))}</b><span>${esc(state)}</span></div>` +
-        `<div class="swarm-browser"><span class="swarm-address">${esc(page)}</span>` +
-        cursor +
-        `<span class="swarm-action">${esc(action)}</span></div></article>`;
-    }).join("");
+      const pointer = card.querySelector(".swarm-cursor"), ring = card.querySelector(".swarm-ring");
+      card.querySelector(".swarm-tag").textContent = `${workerName(key)}${role ? " · " + role : ""}`;
+      pointer.hidden = ring.hidden = !point;
+      pointer.classList.toggle("flip-x", Boolean(point && point[0] > 62));
+      pointer.classList.toggle("flip-y", Boolean(point && point[1] > 82));
+      if (point) {
+        for (const el of [pointer, ring]) { el.style.setProperty("--cursor-x", `${point[0]}%`); el.style.setProperty("--cursor-y", `${point[1]}%`); }
+      }
+    });
   }
   async function poll(job, token) {
     if (busy) { pending = job; return; }

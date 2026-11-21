@@ -827,6 +827,57 @@ def _settle(tab, ms: int = 5000) -> None:
         pass  # some sites never go fully idle
 
 
+def _wait_rendered(tab, idle_ms: int = 5000, stable_ms: int = 4000) -> None:
+    """Wait until a page has drawn its content: the network goes quiet, then the number of elements stops
+    changing (a single-page app such as OrangeHRM draws its menus and tables after the document loads)."""
+    _settle(tab, idle_ms)
+    last, same, waited = -1, 0, 0
+    while waited < stable_ms and same < 2:
+        try:
+            count = tab.evaluate("() => document.querySelectorAll('body *').length")
+        except Exception:
+            return
+        same = same + 1 if count == last and count > 0 else 0
+        last = count
+        tab.wait_for_timeout(300)
+        waited += 300
+
+
+HOVER_TARGETS_JS = r"""(limit) => {
+  const sel = 'a[href], button, [role=button], [role=tab], [role=menuitem], input:not([type=hidden]), select, textarea';
+  const out = [], seen = new Set();
+  for (const e of document.querySelectorAll(sel)) {
+    const r = e.getBoundingClientRect(), s = getComputedStyle(e);
+    if (!r.width || !r.height || s.visibility === 'hidden' || s.display === 'none' || +s.opacity === 0) continue;
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+    const key = Math.round(x / 8) + ':' + Math.round(y / 8);  // (a control inside another sits on its spot)
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const icon = (e.querySelector('i[class], svg[class], span[class*=icon]') || e).getAttribute('class') || '';
+    const iconName = (icon.match(/\b(?:bi|fa|icon|oxd-icon)-([a-z0-9-]{3,})/i) || [])[1] || '';
+    const path = e.tagName === 'A' ? (e.getAttribute('href') || '').split(/[?#]/)[0].split('/').filter(Boolean).pop() || '' : '';
+    const label = e.labels && e.labels[0] ? e.labels[0].innerText : '';
+    const text = (e.getAttribute('aria-label') || e.innerText || label || e.placeholder || e.name || e.title ||
+      (iconName ? iconName.replace(/-/g, ' ') + ' icon' : '') || (path ? 'link to ' + path : '')).trim();
+    const name = text.replace(/\s+/g, ' ').slice(0, 50) || e.tagName.toLowerCase();
+    out.push({name, xy: [Math.round(x), Math.round(y)],
+              point: [Math.round(x * 100 / innerWidth), Math.round(y * 100 / innerHeight)]});
+  }
+  if (out.length <= limit) return out;
+  const step = out.length / limit;  // spread over the page instead of only the first menu
+  return Array.from({length: limit}, (_, i) => out[Math.floor(i * step)]);
+}"""
+
+
+def _hover_targets(tab, limit: int = 6) -> list[dict]:
+    """Up to `limit` visible controls on screen, spread over the page, with their centre (pixels and %)."""
+    try:
+        return tab.evaluate(HOVER_TARGETS_JS, limit) or []
+    except Exception:
+        return []
+
+
 # ------------------------------------------------------------------ test account: given, saved, or created
 # The pages behind a login need an account. Given in the chat / .env -> used. Otherwise - ONLY when you allowed it
 # for this run (AUTO_REGISTER / the tick in the web UI) - the tester signs up ONCE on the website's own sign-up page
@@ -2017,6 +2068,9 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
     swarm_tasks: list = []  # QX-A01 handoffs for those choices
     swarm_checks: list = []  # QX-A03 judgments, separate from the crawler's own claim
     swarm_workers: set[int] = set()  # workers that received a page
+    import threading as _threading
+    helper_lock = _threading.Lock()
+    helper_ids = {"n": 0}
     site_swarm = None  # opened while the crawl runs, closed when the crawl ends
     swarm_queue = None
 
@@ -2211,22 +2265,48 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
 
             def _session():
                 from playwright.sync_api import sync_playwright
+
+                from ..live_frames import EventLog, write_frame
                 playwright = sync_playwright().start()
                 worker_browser = playwright.chromium.launch(headless=settings.headless)
                 session = WorkerBrowser(worker_browser, saved_login)
+                with helper_lock:
+                    helper_ids["n"] += 1
+                    agent = f"explorer-{helper_ids['n']}"
+                log = EventLog(run_dir, agent, role="Explorer")
 
                 def open_page(address: str) -> dict:
                     page = session.page()
+                    shown = urlparse(address).path or "/"
                     try:
+                        log.emit(f"Open {shown}", "running", url=address)
                         response, blocked = open_guarded(page, address)
                         if blocked:
+                            log.emit(f"Open {shown} - not opened (checkout or payment)", "blocked", url=address)
                             return blocked
+                        _wait_rendered(page)  # (a single-page app draws its content after the document loads)
+                        frame = write_frame(page, run_dir, agent, force=True)
+                        log.emit(f"Opened {shown}", "completed", url=page.url, frame=frame)
                         data = page.evaluate(EXTRACT_JS) or {}
+                        # Point at the controls this page shows (mouse moves only - nothing is clicked), so the
+                        # live view shows where this explorer is looking, on its real screen.
+                        for target in _hover_targets(page):
+                            try:
+                                x, y = target["xy"]
+                                page.mouse.move(x, y, steps=4)
+                            except Exception:
+                                break
+                            frame = write_frame(page, run_dir, agent)
+                            log.emit(f"Inspect '{target['name']}'", "completed", url=page.url,
+                                     point=target["point"], frame=frame)
                         links = len(data.get("links") or [])
                         buttons = len(data.get("buttons") or [])
                         forms = len(data.get("forms") or [])
                         inputs = len(data.get("inputs") or [])
                         title = (page.title() or "").strip()[:120]
+                        summary = f"{links} links, {buttons} buttons, {forms} forms"
+                        log.emit(f"Read {shown}: {summary}", "completed", url=page.url,
+                                 found={"links": links, "buttons": buttons, "forms": forms, "inputs": inputs})
                         return {
                             "url": address,
                             "title": title,
@@ -2235,8 +2315,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                             "buttons": buttons,
                             "forms": forms,
                             "inputs": inputs,
-                            "summary": f"{links} links, {buttons} buttons, {forms} forms",
+                            "summary": summary,
                         }
+                    except Exception as exc:
+                        log.emit(f"Open {shown} - stopped: {str(exc).splitlines()[0][:160]}", "failed", url=address)
+                        raise
                     finally:
                         page.close()
 

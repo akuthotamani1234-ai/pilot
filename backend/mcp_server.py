@@ -17,7 +17,7 @@ Offset = Annotated[int, Field(ge=0)]
 PageSize = Annotated[int, Field(ge=1, le=100)]
 Pages = Annotated[int, Field(ge=0, le=500)]  # 0 = full same-site crawl within HARD_PAGE_CAP
 Depth = Annotated[int, Field(ge=0, le=30)]
-Provider = Literal["ollama", "none", "gemini", "openai", "anthropic"]
+Provider = Literal["ollama", "none", "gemini", "openai", "anthropic", "huggingface"]
 THOROUGH_INTERACTIONS = 80
 
 

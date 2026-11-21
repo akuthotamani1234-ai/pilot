@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 ROOT = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT / ".private" / "privacy.json"
-CLOUD_PROVIDERS = {"openai", "gemini", "anthropic"}
+CLOUD_PROVIDERS = {"openai", "gemini", "anthropic", "huggingface"}
 LOCAL_PROVIDERS = {"ollama", "none"}
 
 

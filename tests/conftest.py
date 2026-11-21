@@ -8,4 +8,6 @@ os.environ.update({
     "EXCLUDE_PATHS": "", "LOGIN_URL": "", "LOGIN_USER_SELECTOR": "", "LOGIN_PASSWORD_SELECTOR": "",
     "LOGIN_SUBMIT_SELECTOR": "", "LOGIN_SUCCESS_TEXT": "", "LOGIN_SUCCESS_URL": "", "QA_REQUIREMENTS": "",
     "CRAWL_SCOPE": "auto", "MAX_HEAL_ROUNDS": "2", "VISION": "auto", "VISION_MAX_FAILURES": "60",
+    # live screens are for watching a run; they change worker timing that crawl tests count on (test_live_swarm.py)
+    "QA_LIVE_FRAMES": "false",
 })

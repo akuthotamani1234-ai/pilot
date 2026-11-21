@@ -24,13 +24,15 @@ _load_dotenv()
 
 @dataclass
 class Settings:
-    # LLM: "openai", "gemini", "anthropic", "ollama" or "none" (rule-based, no AI)
+    # LLM: "openai", "gemini", "anthropic", "huggingface", "ollama" or "none" (rule-based, no AI)
     # Default is Ollama: the model runs on your own machine, so no page data is sent to a cloud AI.
     llm_provider: str = os.getenv("LLM_PROVIDER", "ollama").lower()
     llm_model: str = os.getenv("LLM_MODEL", "")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # Hugging Face Inference Providers (router.huggingface.co): an access token with "Make calls to Inference Providers"
+    huggingface_api_key: str = os.getenv("HF_TOKEN", "") or os.getenv("HUGGINGFACE_API_KEY", "")
     ollama_url: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
     # how much text Ollama reads per request (its own default, ~4k tokens, silently cuts long page summaries)
     ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
@@ -227,6 +229,7 @@ DEFAULT_MODELS = {
     "openai": "gpt-4o-mini",
     "gemini": "gemini-flash-latest",
     "anthropic": "claude-sonnet-5-5",
+    "huggingface": "meta-llama/Llama-3.3-70B-Instruct",
     "ollama": "llama3.1",
 }
 
@@ -236,6 +239,10 @@ CLOUD_MODEL_PREFIX = {"gemini": ("gemini",), "openai": ("gpt", "o1", "o3", "o4",
 def _model_fits(provider: str, model: str) -> bool:
     """False when the model clearly belongs to another provider (e.g. LLM_MODEL=gemini-... but provider=ollama)."""
     m = model.lower()
+    if provider == "huggingface":  # Hugging Face models are named owner/model
+        return "/" in m
+    if "/" in m and provider != "ollama":
+        return False
     if provider in CLOUD_MODEL_PREFIX:
         return m.startswith(CLOUD_MODEL_PREFIX[provider])
     return not any(m.startswith(p) for ps in CLOUD_MODEL_PREFIX.values() for p in ps)
