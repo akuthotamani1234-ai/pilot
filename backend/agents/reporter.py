@@ -831,6 +831,36 @@ def created_records(run_dir: Path) -> dict:
     return out
 
 
+def _api_inventory(run_dir: Path) -> dict:
+    from ..finalization import read_json
+    data = read_json(run_dir / "api_inventory.json", {})
+    return data if isinstance(data, dict) else {}
+
+
+def _api_counts(run_dir: Path) -> dict:
+    data = _api_inventory(run_dir)
+    return {k: data.get(k, 0) for k in ("endpoints", "calls", "with_errors")}
+
+
+def _api_html(run_dir: Path) -> str:
+    """The website's own API calls seen while exploring (metadata only)."""
+    data = _api_inventory(run_dir)
+    rows = data.get("endpoints_list") or []
+    if not rows:
+        return ('<section class="box"><h2>API calls observed</h2><p>No API calls (XHR / fetch) to the website were '
+                'observed while exploring.</p></section>')
+    body = "".join(
+        f"<tr><td>{_e(r.get('method'))}</td><td><code>{_e(r.get('path'))}</code></td>"
+        f"<td>{_e(', '.join(f'{k}×{v}' for k, v in sorted((r.get('statuses') or {}).items())))}</td>"
+        f"<td>{_e(r.get('content_type'))}</td><td>{_e(r.get('calls'))}</td>"
+        f"<td>{_e(', '.join(r.get('pages') or []))}</td></tr>" for r in rows[:300])
+    return (f'<section class="box"><h2>API calls observed</h2><p><b>{len(rows)}</b> endpoint pattern(s), '
+            f'<b>{_e(data.get("calls"))}</b> call(s), <b>{_e(data.get("with_errors"))}</b> with error responses. '
+            'Method, path pattern and status only: no headers, cookies or bodies are stored.</p>'
+            '<table><tr><th>Method</th><th>Path</th><th>Statuses</th><th>Type</th><th>Calls</th><th>Seen on</th></tr>'
+            f'{body}</table></section>')
+
+
 def reporter_agent(state: QAState) -> QAState:
     if state.get("discovery_only"):
         from ..discovery_report import discovery_report
@@ -1417,7 +1447,7 @@ function copyCode(b) {{
     from ..page_inventory import save_inventory
     save_inventory(run_dir, app_map, reg)
     component_link = '<section class="box"><h2>Page component inventory</h2><p><a href="components.html">Browse components by page and observed state</a> | <a href="components.json">Download inventory JSON</a></p><p>Discovery and functional verification are separate. Hidden, opaque and limited areas are identified.</p></section>'
-    doc = doc.replace("</body>", component_link + "</body>")
+    doc = doc.replace("</body>", component_link + _api_html(run_dir) + "</body>")
     report = run_dir / "report.html"
     _write_run_text(run_dir, "report.html", doc)
     login = state.get("login") or {}
@@ -1425,6 +1455,7 @@ function copyCode(b) {{
     _write_run_text(run_dir, "summary.json", json.dumps({
         "exploration": (state.get("crawl") or {}).get("exploration"),
         "url": state["url"], "verdict": verdict, "reasons": reasons, "gates": gates, "pages": len(app_map),
+        "api": _api_counts(run_dir),
         "authenticated": bool(login.get("logged_in")), "authenticated_pages": authenticated_pages,
         "login_note": login.get("note", ""), "login_outcome": login.get("outcome", "not_required"),
         "login_evidence": login.get("evidence", []), "coverage": cov3,

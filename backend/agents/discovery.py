@@ -1985,6 +1985,8 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
     base_host = urlparse(start_url).hostname
     start_scheme = urlparse(start_url).scheme + ":"
     scope = Scope(start_url, settings.allowed_hosts)  # approved hosts; private / metadata addresses are blocked
+    from ..api_inventory import ApiInventory
+    api_calls = ApiInventory({base_host, *scope.extra})  # the website's own API calls (metadata only)
     mode, section = _mode(start_url)
     start_auth = _auth_link(start_url)  # the link you gave is a login / sign-up page: the whole app behind it
     max_pages = settings.max_pages or settings.hard_page_cap
@@ -2179,6 +2181,13 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 if not re.search(r"ERR_BLOCKED_BY_CLIENT|ERR_ABORTED|NS_BINDING_ABORTED", r.failure or "") else None)
             tab.on("response", lambda r: current["failed"].append(
                 {"url": r.url[:200], "error": f"HTTP {r.status}"}) if r.status >= 400 else None)
+
+            def on_api(r):
+                try:
+                    api_calls.observe(r, tab.url)
+                except Exception:
+                    pass
+            tab.on("response", on_api)
             # HTML pages the page itself loads (a script that opens a page, a redirect chain): more pages to visit -
             # not an iframe's own document (its controls belong to the page that shows it)
             def on_doc(r):
@@ -3312,6 +3321,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
           f"{len(graph['transitions'])} transition(s)", flush=True)
     write_text_unless_linked(run_dir, "login.json", json.dumps(login, indent=2))
     write_text_unless_linked(run_dir, "crawl.json", json.dumps(crawl, indent=2))
+    api_summary = api_calls.summary()
+    write_text_unless_linked(run_dir, "api_inventory.json", json.dumps(api_summary, indent=2))
+    print(f"  [discovery] API calls observed: {api_summary['endpoints']} endpoint pattern(s), "
+          f"{api_summary['calls']} call(s), {api_summary['with_errors']} with error responses "
+          "(api_inventory.json)", flush=True)
     from .. import registry  # every page + feature with a stable id: discovered and inspected (nothing tested yet)
     from ..discovery_graph import write_graph
     reg = registry.build(app_map, crawl)
