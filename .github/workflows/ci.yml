@@ -26,6 +26,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  swarm-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Run SQLite and filesystem checks
+        run: >-
+          python -m pytest -q --junitxml=swarm-local.xml
+          tests/test_swarm.py tests/test_swarm_protocol.py tests/test_swarm_queue.py
+          tests/test_swarm_supervisor.py tests/test_swarm_worker_verdict.py tests/test_swarm_evidence.py
+          tests/test_apply_run.py tests/test_concurrent_contract.py tests/test_redis_queue_link.py
+      - name: Run Redis checks
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-tools
+          redis-cli ping
+          python -m pytest -q --junitxml=swarm-redis.xml tests/test_swarm_redis_default.py tests/test_redis_queue.py
+      - name: Require executed results in both suites
+        shell: python
+        run: |
+          import xml.etree.ElementTree as ET
+          for path in ("swarm-local.xml", "swarm-redis.xml"):
+              cases = ET.parse(path).findall(".//testcase")
+              if not cases or any(case.find("skipped") is not None for case in cases):
+                  raise SystemExit(f"Missing or skipped acceptance checks in {path}")
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: swarm-acceptance
+          path: swarm-*.xml
+
   check:
     # Windows: the sandbox (Job Object) and the account store (DPAPI) are Windows-only
     runs-on: windows-latest
