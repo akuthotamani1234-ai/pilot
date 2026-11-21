@@ -4,6 +4,41 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[c]);
   let current = null, cursor = "", busy = false, generation = 0, rows = [], seen = new Set(), pending = null, showAll = false, declaredWorkers = 0;
+  let agents = [], agentsBusy = false;
+  function activeWorkers(prefix) {
+    const now = Date.now() / 1000, last = new Map();
+    rows.forEach((e) => { const k = workerKey(e.worker); if (k && k.startsWith(prefix)) last.set(k, e); });
+    return [...last.values()].filter((e) => now - (e.timestamp || 0) < 20 && !/finished/.test(e.status || "")).length;
+  }
+  function renderAgents(node) {
+    const box = node.querySelector("#liveAgents");
+    if (!agents.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const byStage = new Map(agents.map((a) => [a.stage, a]));
+    const counts = agents.reduce((c, a) => (c[a.status] = (c[a.status] || 0) + 1, c), {});
+    node.querySelector("#liveAgentsCount").textContent = `${agents.length} agents · ${counts.running || 0} running · ${counts.completed || 0} done`;
+    node.querySelector("#liveAgentsGrid").innerHTML = agents.map((a) => {
+      const secs = a.started ? Math.max(0, Math.round((a.finished || Date.now() / 1000) - a.started)) : null;
+      const waits = (a.depends_on || []).map((d) => (byStage.get(d) || {}).name || d).join(", ");
+      let live = "";
+      if (a.status === "running" && a.stage === "discovery") { const n = activeWorkers("explorer-"); if (n) live = `${n} explorer browser(s) active`; }
+      if (a.status === "running" && a.stage === "execution") { const n = activeWorkers("gw"); if (n) live = `${n} test browser(s) active`; }
+      return `<li class="agent-card agent-${esc(a.status)}"><div class="agent-head"><b>${esc(a.name)}</b>` +
+        `<span class="agent-state">${esc(a.status)}</span></div>` +
+        `<small>${esc(a.job || "")}</small>` +
+        (live ? `<small class="agent-live">${esc(live)}</small>` : "") +
+        (a.detail ? `<small class="agent-detail">${esc(a.detail)}</small>` : "") +
+        `<small class="muted">${secs != null ? esc(secs + " s") : ""}${waits ? (secs != null ? " · " : "") + "after " + esc(waits) : ""}</small></li>`;
+    }).join("");
+  }
+  async function pollAgents(job, token) {
+    if (agentsBusy) return;
+    agentsBusy = true;
+    try {
+      const r = await fetch(`/api/runs/${job.id}/agents`);
+      if (r.ok && token === generation) { agents = (await r.json()).agents || []; renderAgents(panel()); }
+    } catch (_) { /* the events feed reports connection problems */ } finally { agentsBusy = false; }
+  }
   function panel() {
     let node = document.getElementById("qpilotLive");
     if (node) return node;
@@ -16,6 +51,11 @@
       '<h2>See every action</h2></div><span id="livePhase" class="status-chip">Preparing</span></div>' +
       '<p id="liveCurrent" role="status" aria-live="polite">Preparing the test environment…</p><p id="liveExpected" class="live-explanation"></p>' +
       '<p id="liveMode" class="live-explanation"></p>' +
+      '<section id="liveAgents" class="live-agents" hidden aria-labelledby="liveAgentsTitle">' +
+      '<div class="live-swarm-head"><div><span class="eyebrow">AGENTS</span><h3 id="liveAgentsTitle">Every agent of this run</h3></div>' +
+      '<span id="liveAgentsCount" class="status-chip">0 agents</span></div>' +
+      '<p class="live-swarm-note">Registered when the run starts. States come from the run itself: waiting, running, completed, failed or skipped.</p>' +
+      '<ol id="liveAgentsGrid" class="live-agents-grid"></ol></section>' +
       '<section id="liveSwarm" class="live-swarm" hidden aria-labelledby="liveSwarmTitle">' +
       '<div class="live-swarm-head"><div><span class="eyebrow">SWARM VIEW</span><h3 id="liveSwarmTitle">Parallel workers</h3></div>' +
       '<span id="liveSwarmCount" class="status-chip">0 workers</span></div>' +
@@ -52,6 +92,7 @@
     if (last) node.querySelector("#liveCurrent").textContent = `${last.text} — ${last.status}`;
     node.querySelector("#liveExpected").textContent = last?.expected ? `Expected: ${last.expected}` : "";
     renderSwarm(node);
+    renderAgents(node);
   }
   function workerKey(value) {
     const name = String(value || "").trim();
@@ -183,7 +224,7 @@
   window.QpilotLive = {
     update(job) {
       if (current !== job.id) {
-        current = job.id; cursor = ""; rows = []; seen = new Set(); showAll = false; declaredWorkers = 0; generation++;
+        current = job.id; cursor = ""; rows = []; seen = new Set(); showAll = false; declaredWorkers = 0; agents = []; generation++;
         document.getElementById("qpilotLive")?.remove();
       }
       for (const line of (job.lines || [])) {
@@ -196,7 +237,7 @@
         "Watch: one visible Chrome window, one action at a time. Fast: isolated hidden workers.";
       node.querySelector("#livePhase").textContent = job.status === "running" ?
         (job.current || "Preparing").replaceAll("_", " ") : `Process ${job.status}`;
-      if (job.id) poll(job, generation);
+      if (job.id) { poll(job, generation); pollAgents(job, generation); }
     },
     reset() { current = null; pending = null; generation++; document.getElementById("qpilotLive")?.remove(); }
   };

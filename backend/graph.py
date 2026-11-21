@@ -81,23 +81,37 @@ def after_report(state: QAState) -> str:
 CURRENT = {"stage": ""}  # the agent running right now (main.py names it when a run crashes or is stopped)
 
 
-def _traced(name, agent):
+def _traced(name, agent, stages=()):
     """Remember the running agent, and print '::stage::<name>::start/done' around it when QA_EVENTS=1 (the web UI
-    reads these)."""
+    reads these). Every agent of the run is registered in runs/<run>/agents.json with its real state."""
     events = os.environ.get("QA_EVENTS") == "1"
 
     def run(state: QAState) -> QAState:
         CURRENT["stage"] = name
         if events:
             print(f"::stage::{name}::start", flush=True)
+        from . import agent_registry
         from .scheduling import record_phase
-        started, status = time.monotonic(), "interrupted"
+        run_dir = state.get("run_dir")
+        if run_dir:
+            try:
+                if not agent_registry.snapshot(run_dir).get("agents"):
+                    agent_registry.register(run_dir, list(stages) or [name])
+                agent_registry.update(run_dir, name, "running")
+            except OSError:
+                pass
+        started, status, out = time.monotonic(), "interrupted", None
         try:
             out = agent(state)
             status = "completed"
         finally:
-            if state.get("run_dir"):
-                record_phase(Path(state["run_dir"]), name, started, status)
+            if run_dir:
+                record_phase(Path(run_dir), name, started, status)
+                try:
+                    agent_registry.update(run_dir, name, "completed" if status == "completed" else "failed",
+                                          agent_registry.detail_for(name, out) if out is not None else "stopped")
+                except OSError:
+                    pass
         if events:
             print(f"::stage::{name}::done", flush=True)
         return out
@@ -117,14 +131,15 @@ def build_graph(checkpointer=None, target_type="web", discovery_only=False):
     g = StateGraph(QAState)
     if discovery_only:
         from .discovery_report import discovery_report
+        order = ("setup", "discovery", "report")
         for name, agent in (("setup", setup_agent), ("discovery", discovery_agent), ("report", discovery_report)):
-            g.add_node(name, _traced(name, agent))
+            g.add_node(name, _traced(name, agent, order))
         g.add_edge(START, "setup")
         g.add_conditional_edges("setup", after_setup, ["discovery", "report"])
         g.add_edge("discovery", "report")
         g.add_edge("report", END)
         return g.compile(checkpointer=checkpointer)
-    for name, agent in [
+    nodes = [
         ("setup", setup_agent),
         ("discovery", discover_with_contract if os.getenv("QPILOT_CONCURRENT_CONTRACT") == "1" else discovery_agent),
         ("change_detection", change_detection_agent),
@@ -138,8 +153,10 @@ def build_graph(checkpointer=None, target_type="web", discovery_only=False):
         ("report", reporter_agent),
         ("save_baseline", save_baseline_agent),
         ("integrations", integrations_agent),
-    ]:
-        g.add_node(name, _traced(name, agent))
+    ]
+    order = tuple(n for n, _a in nodes)
+    for name, agent in nodes:
+        g.add_node(name, _traced(name, agent, order))
 
     g.add_edge(START, "setup")
     g.add_conditional_edges("setup", after_setup, ["discovery", "test_design", "report"])

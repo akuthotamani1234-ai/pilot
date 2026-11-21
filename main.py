@@ -229,6 +229,12 @@ def run_pipeline(state: dict | None, run_dir: Path, run_id: str, resume: bool = 
                 traceback.print_exc()
         runctl.finished()  # (no timer may interrupt the report from here on)
         stage = graph_mod.CURRENT["stage"]
+        if done:  # (a stopped run keeps its waiting agents: --resume may still run them)
+            from backend import agent_registry
+            try:
+                agent_registry.finish(run_dir)
+            except OSError:
+                pass
         if cut and saver is not None:
             point = _resume_point(graph, config, stage)
             if point:

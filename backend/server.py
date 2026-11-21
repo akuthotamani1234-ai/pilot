@@ -4063,6 +4063,30 @@ def run_events(
         raise HTTPException(400, str(exc)) from exc
 
 
+@app.get("/api/runs/{job_id}/agents")
+def run_agents(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Every agent of the run with its real state (runs/<run>/agents.json)."""
+    from backend.agent_registry import snapshot
+    from backend.finalization import folder_is_linked
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    if not job.get("run"):
+        return {"agents": []}
+    folder = _run_dir(job["run"])
+    if folder_is_linked(folder) or (folder / "agents.json").is_symlink():
+        return {"agents": []}
+    return snapshot(folder)
+
+
 @app.get("/api/runs/{job_id}/live/{worker}")
 def run_live_frame(
     job_id: int, worker: str,
