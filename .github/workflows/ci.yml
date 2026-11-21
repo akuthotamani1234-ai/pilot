@@ -44,6 +44,8 @@ jobs:
           python-version: "3.13"
           cache: pip
       - run: python -m pip install -r requirements-dev.txt
+      - name: Install Chromium for the browser acceptance test
+        run: python -m playwright install --with-deps chromium
       - name: Run SQLite and filesystem checks
         run: >-
           python -m pytest -q --junitxml=swarm-local.xml
