@@ -604,7 +604,7 @@ class Explorer:
             self.settle(page, 4000)
             after = snapshot(page, item_sel)
             if _same_page(page.url, url):
-                capture_after_action(page, entry, t)
+                self._capture_after(page, entry, t)
             try:
                 pics_after = page.evaluate(PICTURES_JS) if pics is not None else None
             except Exception:
@@ -633,12 +633,20 @@ class Explorer:
                     except Exception:
                         pass
 
+    def _capture_after(self, page, entry: dict, t: dict) -> None:
+        capture_after_action(page, entry, t)
+
     def _revealed(self, page, entry: dict, opener: dict) -> list[dict]:
         """Controls that became visible after the action: added to the page, with the control that reveals them."""
         try:
             data = page.evaluate(self.extract_js)
         except Exception:
             return []
+        return self.apply_revealed(entry, data, opener)
+
+    @staticmethod
+    def apply_revealed(entry: dict, data: dict, opener: dict) -> list[dict]:
+        """Add what an action revealed (data = the page read after it) to the page entry; returns the new controls."""
         known = {x.get("selector") for x in entry.get("buttons", []) + entry.get("inputs", []) + entry.get("hovers", [])}
         new = []
         for group in ("buttons", "inputs", "hovers"):
@@ -731,6 +739,8 @@ class Explorer:
         queue = self._targets(entry)
         queue += self._seen_targets(entry, queue)
         tried = entry.setdefault("seen_tried", [])
+        out = {"behaviour": behaviour, "tried": tried, "new_urls": new_urls, "changed": changed, "host": host}
+        pool = getattr(self, "pool", None)
         while queue:
             # Discover routes and root controls before spending the budget on revealed widgets,
             # global chrome, or repeated table-row toggles (KIND_CAP / explore_repeated already bound samples).
@@ -750,23 +760,41 @@ class Explorer:
             risk, why = self._eligible(t, url)
             why = why or t.get("capped", "")
             if why:
-                self.decided[key] = {"why": why}
-                bucket = "blocked" if why.startswith(("protected", "test-account")) else "skipped"
-                self.counts[bucket] += 1
-                getattr(self, bucket).append({"control": t["name"], "page": url, "why": why})
+                self._skip(t, url, why)
                 continue
             left = seen_left if t.get("seen") else budget
             # Soft run reserve: stop starting heavy interactions so analysis/report can still finish.
             if left <= 0 or time.time() > self.deadline or runctl.should_stop_heavy_work():
-                self.counts["not_tried_limit"] += 1
-                self.skipped.append({"control": t["name"], "page": url, "why":
-                                     f"limit: MAX_INTERACTIONS_PER_PAGE={settings.max_interactions_per_page}"
-                                     if left <= 0 else "the run was stopped" if runctl.stopping()
-                                     else "run time reserve (ANALYSIS_RESERVE_S / REPORT_RESERVE_S)"
-                                     if runctl.should_stop_heavy_work() and time.time() <= self.deadline
-                                     else "limit: CRAWL_TIME_LIMIT_MIN"})
-                if t.get("seen"):
-                    tried.append({"name": t["name"], "status": "not tried", "why": self.skipped[-1]["why"]})
+                self._not_tried(t, url, left, tried)
+                continue
+            if pool is not None and self._independent(t):
+                # Independent controls (no opener to replay, not named by the AI's picture) are tried at the same
+                # time in the pool's own browsers - each from a fresh page, like here. Results are applied below in
+                # the original order, so what is learned does not depend on which browser finished first.
+                batch = [(t, risk)]
+                budget -= 1
+                self.counts["attempted"] += 1
+                # every control ready now goes at once: a learner takes the next one as soon as it is free
+                while queue and budget > 0 and self._independent(queue[0]):
+                    nxt = queue.pop(0)
+                    nkey = (nxt["name"], nxt["selector"])
+                    if nkey in self.decided or any(b[0]["name"] == nxt["name"] and b[0]["selector"] == nxt["selector"]
+                                                   for b in batch):
+                        continue
+                    nrisk, nwhy = self._eligible(nxt, url)
+                    nwhy = nwhy or nxt.get("capped", "")
+                    if nwhy:
+                        self._skip(nxt, url, nwhy)
+                        continue
+                    budget -= 1
+                    self.counts["attempted"] += 1
+                    batch.append((nxt, nrisk))
+                self._parallel_replays = 0
+                results = self._try_parallel(url, entry, batch, max(0, budget))
+                budget -= self._parallel_replays  # (menus the learners opened first count, as they do here)
+                for (bt, brisk), ev in zip(batch, results):
+                    self.decided[(bt["name"], bt["selector"])] = ev
+                    self._record(bt, brisk, ev, url, queue, out)
                 continue
             if t.get("seen"):
                 seen_left -= 1
@@ -779,68 +807,131 @@ class Explorer:
             ev = self._try(page, url, entry, t, opener, risk, guard=self._seen_guard if t.get("seen") else None)
             budget -= self._last_replay_count
             self.decided[key] = ev
-            if ev.get("blocked"):  # (what the control really is decided: never clicked)
-                self.counts["blocked"] += 1
-                self.blocked.append({"control": t["name"], "page": url, "why": ev["blocked"]})
-                tried.append({"name": t["name"], "status": "blocked", "why": ev["blocked"]})
-                continue
-            if ev.get("error"):
-                self.counts["failed"] += 1
-                if t.get("seen"):  # (named by the AI's picture, but not found by its words: listed, no test)
-                    tried.append({"name": t["name"], "status": "not found", "why": ev["error"]})
-                    continue
-                behaviour.append({"control": t["name"], "selector": t["selector"], "action": t["action"],
-                                  "risk": risk, "effect": "error", "error": ev["error"],
-                                  "revealed_by": t.get("revealed_by")})
-                continue
-            from .swarm import is_payment_url
-            if is_payment_url(str(ev.get("to") or "")):
-                why = blocked_reason("pay")
-                self.counts["blocked"] += 1
-                self.blocked.append({"control": t["name"], "page": url, "why": why})
-                if t.get("seen"):
-                    tried.append({"name": t["name"], "status": "blocked", "why": why})
-                continue
-            if t.get("seen"):
-                tried.append({"name": t["name"], "status": "learned", "why": ev["effect"]})
-            self.counts["no_effect" if ev["effect"] == "nothing" else "learned"] += 1
-            for revealed in ev.pop("revealed", []):  # learn the revealed controls too (their opener first)
-                self.decided[("__opener__", t["selector"])] = t
-                if revealed["group"] == "inputs" and not (
-                        (revealed.get("tag") == "select" and len(revealed.get("options") or []) >= 2)
-                        or (revealed.get("type") or "") == "checkbox"):
-                    continue  # a box to type in: clicking it shows nothing - the form tests fill it
-                queue.insert(0, {"name": (revealed.get("accname") or revealed.get("label") or revealed.get("text")
-                                          or "control").split("\n")[0].strip()[:60],
-                                 "text": revealed.get("text") or "", "selector": revealed["selector"],
-                                 "action": "hover" if revealed["group"] == "hovers" else "select" if revealed.get("tag") == "select" and revealed.get("options")
-                                 else "tick" if (revealed.get("type") or "") == "checkbox" else "click",
-                                 "value": (revealed.get("options") or [{}])[-1].get("value"),
-                                 "kind": revealed.get("kind") or "", "revealed_by": t["selector"],
-                                 "href": revealed.get("href") or "", "form_action": revealed.get("form_action") or "",
-                                 "onclick": revealed.get("onclick") or "",
-                                 "submit": (revealed.get("type") or "").lower() == "submit" and revealed.get("in_form")})
-            # Full exploration must queue product links revealed by pagination and filters.
-            # The explicit sampled mode retains its bounded list behavior.
-            found = ([ev["to"]] if ev["effect"] == "navigates" else
-                     ev["new_links"] if ev["effect"] != "list" or settings.explore_repeated_controls else [])
-            for h in found:
-                if h and urlparse(h).hostname == host and h not in new_urls:
-                    new_urls.append(h)
-            if risk == "test_account":
-                changed += [h for h in ev["changed_links"] if urlparse(h).hostname == host and h not in changed]
-            new_state = ev["state"] not in self.states
-            self.states.add(ev["state"])
-            behaviour.append({"control": t["name"], "selector": t["selector"], "action": t["action"], "risk": risk,
-                              "value": t.get("value"), "kind": t.get("kind") or "", "effect": ev["effect"],
-                              "message": ev["message"],
-                              "tone": ev["tone"], "to": ev["to"], "values": ev["values"],
-                              "list_changed": ev["list_changed"], "new_state": new_state,
-                              "revealed": [c.split("|")[1] for c in ev["new_controls"] if c.split("|")[1]][:8],
-                              "revealed_by": t.get("revealed_by"), "added": ev["added"][:4]})
+            self._record(t, risk, ev, url, queue, out)
         return new_urls, changed
 
-    # ---------------------------------------------------------------- forms, filled like a person fills them
+    def _independent(self, t: dict) -> bool:
+        """A control that can be tried on its own fresh page (a learner replays the menu that reveals it, like the
+        crawl does); not an AI-seen guess (those have their own small budget and a guard)."""
+        return not t.get("seen")
+
+    def _skip(self, t: dict, url: str, why: str) -> None:
+        self.decided[(t["name"], t["selector"])] = {"why": why}
+        bucket = "blocked" if why.startswith(("protected", "test-account")) else "skipped"
+        self.counts[bucket] += 1
+        getattr(self, bucket).append({"control": t["name"], "page": url, "why": why})
+
+    def _not_tried(self, t: dict, url: str, left: int, tried: list) -> None:
+        self.counts["not_tried_limit"] += 1
+        self.skipped.append({"control": t["name"], "page": url, "why":
+                             f"limit: MAX_INTERACTIONS_PER_PAGE={settings.max_interactions_per_page}"
+                             if left <= 0 else "the run was stopped" if runctl.stopping()
+                             else "run time reserve (ANALYSIS_RESERVE_S / REPORT_RESERVE_S)"
+                             if runctl.should_stop_heavy_work() and time.time() <= self.deadline
+                             else "limit: CRAWL_TIME_LIMIT_MIN"})
+        if t.get("seen"):
+            tried.append({"name": t["name"], "status": "not tried", "why": self.skipped[-1]["why"]})
+
+    def _record(self, t: dict, risk: str, ev: dict, url: str, queue: list, out: dict) -> None:
+        """What one tried control did: written to the page entry; revealed controls queued; new addresses kept."""
+        behaviour, tried, new_urls, changed, host = (out["behaviour"], out["tried"], out["new_urls"], out["changed"],
+                                                     out["host"])
+        if ev.get("blocked"):  # (what the control really is decided: never clicked)
+            self.counts["blocked"] += 1
+            self.blocked.append({"control": t["name"], "page": url, "why": ev["blocked"]})
+            tried.append({"name": t["name"], "status": "blocked", "why": ev["blocked"]})
+            return
+        if ev.get("error"):
+            self.counts["failed"] += 1
+            if t.get("seen"):  # (named by the AI's picture, but not found by its words: listed, no test)
+                tried.append({"name": t["name"], "status": "not found", "why": ev["error"]})
+                return
+            behaviour.append({"control": t["name"], "selector": t["selector"], "action": t["action"],
+                              "risk": risk, "effect": "error", "error": ev["error"],
+                              "revealed_by": t.get("revealed_by")})
+            return
+        from .swarm import is_payment_url
+        if is_payment_url(str(ev.get("to") or "")):
+            why = blocked_reason("pay")
+            self.counts["blocked"] += 1
+            self.blocked.append({"control": t["name"], "page": url, "why": why})
+            if t.get("seen"):
+                tried.append({"name": t["name"], "status": "blocked", "why": why})
+            return
+        if t.get("seen"):
+            tried.append({"name": t["name"], "status": "learned", "why": ev["effect"]})
+        self.counts["no_effect" if ev["effect"] == "nothing" else "learned"] += 1
+        for revealed in ev.pop("revealed", []):  # learn the revealed controls too (their opener first)
+            self.decided[("__opener__", t["selector"])] = t
+            if revealed["group"] == "inputs" and not (
+                    (revealed.get("tag") == "select" and len(revealed.get("options") or []) >= 2)
+                    or (revealed.get("type") or "") == "checkbox"):
+                continue  # a box to type in: clicking it shows nothing - the form tests fill it
+            queue.insert(0, {"name": (revealed.get("accname") or revealed.get("label") or revealed.get("text")
+                                      or "control").split("\n")[0].strip()[:60],
+                             "text": revealed.get("text") or "", "selector": revealed["selector"],
+                             "action": "hover" if revealed["group"] == "hovers" else "select" if revealed.get("tag") == "select" and revealed.get("options")
+                             else "tick" if (revealed.get("type") or "") == "checkbox" else "click",
+                             "value": (revealed.get("options") or [{}])[-1].get("value"),
+                             "kind": revealed.get("kind") or "", "revealed_by": t["selector"],
+                             "href": revealed.get("href") or "", "form_action": revealed.get("form_action") or "",
+                             "onclick": revealed.get("onclick") or "",
+                             "submit": (revealed.get("type") or "").lower() == "submit" and revealed.get("in_form")})
+        # Full exploration must queue product links revealed by pagination and filters.
+        # The explicit sampled mode retains its bounded list behavior.
+        found = ([ev["to"]] if ev["effect"] == "navigates" else
+                 ev["new_links"] if ev["effect"] != "list" or settings.explore_repeated_controls else [])
+        for h in found:
+            if h and urlparse(h).hostname == host and h not in new_urls:
+                new_urls.append(h)
+        if risk == "test_account":
+            changed += [h for h in ev["changed_links"] if urlparse(h).hostname == host and h not in changed]
+        new_state = ev["state"] not in self.states
+        self.states.add(ev["state"])
+        behaviour.append({"control": t["name"], "selector": t["selector"], "action": t["action"], "risk": risk,
+                          "value": t.get("value"), "kind": t.get("kind") or "", "effect": ev["effect"],
+                          "message": ev["message"],
+                          "tone": ev["tone"], "to": ev["to"], "values": ev["values"],
+                          "list_changed": ev["list_changed"], "new_state": new_state,
+                          "revealed": [c.split("|")[1] for c in ev["new_controls"] if c.split("|")[1]][:8],
+                          "revealed_by": t.get("revealed_by"), "added": ev["added"][:4]})
+
+    # ---------------------------------------------------------------- the same controls, several browsers at once
+    def fork(self, worker: dict | None = None, replay_allowance: int = 0) -> "_IsolatedExplorer":
+        return _IsolatedExplorer(self, worker or {}, replay_allowance)
+
+    def _try_parallel(self, url: str, entry: dict, batch: list[tuple[dict, str]], allowance: int = 0) -> list[dict]:
+        """Try independent controls at once in the pool's browsers. Each try works on its own copy of the page entry;
+        what it revealed and the components it saw are applied to the real entry here, in batch order."""
+        import copy
+        jobs = []
+        for t, risk in batch:
+            snapshot_entry = copy.deepcopy(entry)
+
+            def job(page, worker, t=t, risk=risk, snapshot_entry=snapshot_entry):
+                return self.fork(worker, allowance).try_isolated(page, url, snapshot_entry, t, risk)
+            jobs.append(job)
+        results = []
+        for (t, _risk), res in zip(batch, self.pool.run(jobs)):
+            if isinstance(res, BaseException) or not isinstance(res, dict):
+                results.append({"error": f"parallel try failed: {str(res).strip().splitlines()[0][:140]}"})
+                continue
+            ev = res
+            replays = int(ev.pop("_replays", 0) or 0)
+            self._parallel_replays = getattr(self, "_parallel_replays", 0) + replays
+            self.counts["opener_replays"] += replays
+            after = ev.pop("_after_snapshot", None)
+            if after is not None:
+                from .page_inventory import merge_snapshots
+                merge_snapshots(entry, [after], phase="after interaction", revealed_by=t.get("selector"))
+            data = ev.pop("_revealed_data", None)
+            if data is not None:
+                ev["revealed"] = self.apply_revealed(entry, data, t)[:12]
+            self.counts["parallel_tries"] += 1
+            results.append(ev)
+        return results
+
+        # ---------------------------------------------------------------- forms, filled like a person fills them
     def fill_forms(self, page, url: str, entry: dict) -> list[str]:
         """Every form of the page is filled like a person fills it: a valid value in each box, in order (names carry
         the run's tag), then each other choice of its radio buttons is tried. What appears, disappears or turns on /
@@ -1112,3 +1203,60 @@ class Explorer:
                 "forms_filled": c["forms_filled"], "opener_replays": c["opener_replays"],
                 "not_tried_limit": c["not_tried_limit"], "limit_per_page": settings.max_interactions_per_page,
                 "states": len(self.states), "blocked_list": self.blocked[:40], "skipped_list": self.skipped[:60]}
+
+
+class _IsolatedExplorer(Explorer):
+    """One parallel try in a pool browser: it shares the crawl's settings and polite speed, but nothing it learns is
+    written to the shared explorer; the page read after the action travels back with the result instead."""
+
+    def __init__(self, parent: Explorer, worker: dict, replay_allowance: int = 0):
+        super().__init__(parent.extract_js, parent.settle, parent.deadline, before_goto=worker.get("before_goto")
+                         or parent.before_goto, tag_base=parent.tag_base)
+        # the menus that reveal controls, as the crawl learned them: a learner opens them first, like the crawl does
+        self.decided = {k: v for k, v in parent.decided.items() if k[0] == "__opener__"}
+        self._replay_allowance = max(0, int(replay_allowance))
+        self.worker = worker
+        self._after = None
+        self._revealed_data = None
+
+    def _capture_after(self, page, entry: dict, t: dict) -> None:
+        from .page_inventory import DOM_COMPONENTS_JS
+        try:
+            self._after = page.evaluate(DOM_COMPONENTS_JS)
+        except Exception as error:
+            self._after = {"error": f"{type(error).__name__}: {str(error).splitlines()[0][:150]}"}
+
+    def _revealed(self, page, entry: dict, opener: dict) -> list[dict]:
+        try:
+            self._revealed_data = page.evaluate(self.extract_js)
+        except Exception:
+            self._revealed_data = None
+            return []
+        return [{"group": "_pending"}]  # (applied to the real entry by the crawl, in order)
+
+    def _act(self, page, t: dict) -> None:
+        announce = self.worker.get("announce")
+        if announce:
+            try:
+                announce(page, t)
+            except Exception:
+                pass
+        super()._act(page, t)
+
+    def try_isolated(self, page, url: str, entry: dict, t: dict, risk: str) -> dict:
+        self._last_replay_count = 0
+        opener = self.decided.get(("__opener__", t.get("revealed_by")))
+        ev = self._try(page, url, entry, t, opener, risk)
+        ev.pop("revealed", None)
+        ev["_replays"] = self._last_replay_count
+        if self._after is not None:
+            ev["_after_snapshot"] = self._after
+        if self._revealed_data is not None:
+            ev["_revealed_data"] = self._revealed_data
+        done = self.worker.get("done")
+        if done:
+            try:
+                done(page, t, ev)
+            except Exception:
+                pass
+        return ev

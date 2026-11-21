@@ -79,6 +79,8 @@ class Settings:
     js_coverage: str = os.getenv("JS_COVERAGE", "auto").lower()
     max_interactions_per_page: int = int(os.getenv("MAX_INTERACTIONS_PER_PAGE", "15"))  # clicks to find hidden pages
     explore_repeated_controls: bool = os.getenv("EXPLORE_REPEATED_CONTROLS", "false").lower() == "true"
+    # extra browsers that try independent controls of a page at the same time (0 = the crawl tries them one by one)
+    explore_workers: int = int(os.getenv("EXPLORE_WORKERS", "6"))
     pattern_samples: int = int(os.getenv("PATTERN_SAMPLES", "0"))  # 0 = visit every route; >0 samples each pattern
     # Large shops: open this many products from one search or listing, and leave the rest.
     # 0 keeps the older "visit every product link" behavior. The studio sets 3 unless Thorough is on.

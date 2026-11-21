@@ -101,7 +101,8 @@
   function workerName(key) {
     const match = /^gw(\d+)$/i.exec(key);
     const explorer = /^explorer-(\d+)$/i.exec(key);
-    return match ? `Agent ${Number(match[1]) + 1}` : explorer ? `Explorer ${explorer[1]}` : `Worker ${key}`;
+    const learner = /^learner-(\d+)$/i.exec(key);
+    return match ? `Agent ${Number(match[1]) + 1}` : explorer ? `Explorer ${explorer[1]}` : learner ? `Learner ${learner[1]}` : `Worker ${key}`;
   }
   // The role of the task a worker is doing right now, from the kind of test it runs (or the event's own role).
   function roleOf(event) {

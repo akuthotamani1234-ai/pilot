@@ -10,4 +10,6 @@ os.environ.update({
     "CRAWL_SCOPE": "auto", "MAX_HEAL_ROUNDS": "2", "VISION": "auto", "VISION_MAX_FAILURES": "60",
     # live screens are for watching a run; they change worker timing that crawl tests count on (test_live_swarm.py)
     "QA_LIVE_FRAMES": "false",
+    # crawl tests count requests in a fixed order; the parallel control learners have their own tests
+    "EXPLORE_WORKERS": "0",
 })

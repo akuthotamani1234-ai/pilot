@@ -10,6 +10,7 @@ The result is the "application map" that the other agents use.
 import hashlib
 import json
 import re
+import threading
 import time
 from collections import Counter, deque
 from contextlib import contextmanager
@@ -2110,6 +2111,84 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
     found_by: dict = {}  # address -> how it was found: link / sitemap / network / history / search / button
     pace = _Pace(settings.max_requests_per_sec, active=not scope.local)
     explorer.before_goto = pace.wait
+    pace_lock = threading.Lock()
+
+    def paced() -> None:  # (the learner browsers share the crawl's polite speed)
+        with pace_lock:
+            pace.wait()
+
+    pools: dict = {}  # login state -> ControlPool of learner browsers (EXPLORE_WORKERS)
+
+    def _learner_info(index: int) -> dict:
+        from ..live_frames import EventLog, write_frame
+        name = f"learner-{index}"
+        log = EventLog(run_dir, name, role="Explorer")
+
+        def announce(tab, t):
+            point = frame = None
+            try:
+                box = tab.locator(t["selector"]).first.bounding_box(timeout=1500)
+                view = tab.viewport_size or {"width": 1366, "height": 900}
+                if box and box["width"] and box["height"]:
+                    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+                    if 0 <= x <= view["width"] and 0 <= y <= view["height"]:
+                        point = [round(x * 100 / view["width"]), round(y * 100 / view["height"])]
+            except Exception:
+                pass
+            frame = write_frame(tab, run_dir, name, force=True)
+            verb = {"hover": "Point at", "select": "Choose in", "tick": "Tick"}.get(t.get("action"), "Click")
+            log.emit(f"{verb} '{t['name']}'", "running", url=tab.url, point=point, frame=frame)
+
+        def done(tab, t, ev):
+            what = ("blocked: " + str(ev["blocked"])) if ev.get("blocked") else (
+                "error: " + str(ev["error"])) if ev.get("error") else (ev.get("effect") or "done")
+            log.emit(f"'{t['name']}': {what}"[:300], "failed" if ev.get("error") else "completed", url=tab.url)
+        return {"before_goto": paced, "announce": announce, "done": done}
+
+    def pool_for(authed: bool):
+        """The learner browsers for this login state (None = try controls one by one in the crawl's browser)."""
+        if settings.explore_workers <= 0:
+            return None
+        state = saved_login["state"] if authed else None
+        key = (bool(authed), id(state))
+        held = pools.get(bool(authed))
+        if held and held[0] == key[1]:
+            return held[1] if held[1].capacity else None
+        if held:
+            held[1].close()
+        from ..control_pool import ControlPool
+
+        def on_page(tab, index):
+            tab.on("response", lambda r: api_calls.observe(r, tab.url))
+        made = ControlPool(settings.explore_workers, lambda b: context_for(b, state), on_page=on_page,
+                           worker_info=_learner_info, headless=True)
+        pools[bool(authed)] = (key[1], made)
+        for err in made.errors:
+            print(f"  [discovery] {err}", flush=True)
+        if made.capacity:
+            print(f"  [discovery] {made.capacity} learner browser(s) try independent controls at the same time"
+                  + (" (logged in)" if authed else ""), flush=True)
+        return made if made.capacity else None
+
+    def _close_pools() -> None:
+        for _key, held in list(pools.items()):
+            try:
+                held[1].close()
+            except Exception:
+                pass
+            for err in held[1].errors:
+                print(f"  [discovery] learner: {err}", flush=True)
+        pools.clear()
+
+    def explore_page(tab, address, entry):
+        explorer.pool = pool_for(bool(auth))  # (auth: the login state of the page being explored)
+        t0 = time.monotonic()
+        try:
+            return explorer.explore(tab, address, entry)
+        finally:
+            explorer.pool = None
+            timings = entry.setdefault("timings_s", {})
+            timings["learn_controls"] = round(timings.get("learn_controls", 0) + time.monotonic() - t0, 1)
     # page DESIGNS: (folder, design) -> pages of it visited; a folder whose pages share one design is ONE page type -
     # more of its pages are smoke-checked, not fully tested again (/products/red-leather-bag, /products/blue-scarf ...)
     designs: dict = {}
@@ -2121,13 +2200,18 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
         browser = pw.chromium.launch(headless=settings.headless, slow_mo=watched_slow_mo_ms(),
                                      args=fit_window_args())  # (visible: the whole window on the screen)
 
-        def new_context(state=None):
-            c = browser.new_context(viewport={"width": 1366, "height": 900}, ignore_https_errors=True,
-                                    accept_downloads=False, storage_state=state)  # no uncontrolled downloads
+        def context_for(b, state=None):
+            """A browser context with the crawl's safety guard and start scripts (also used by the learner browsers,
+            each in its own thread)."""
+            c = b.new_context(viewport={"width": 1366, "height": 900}, ignore_https_errors=True,
+                              accept_downloads=False, storage_state=state)  # no uncontrolled downloads
             guard_context(c, scope, blocked)
             c.add_init_script(DIALOG_INIT_JS)  # what the website says in the browser's alert boxes is written down
             c.add_init_script(HISTORY_INIT_JS)  # (addresses a single-page app moves to without a link)
             return c
+
+        def new_context(state=None):
+            return context_for(browser, state)
 
         contexts = {False: new_context()}
         # Non-MCP HTTP scrape seeder + sitemap: more same-host URLs before Playwright observe (no pay/checkout seeds).
@@ -2381,6 +2465,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
+            page_t0 = time.monotonic()  # (per-page timings: entry["timings_s"])
             if on_visit_start is not None:
                 on_visit_start()
                 on_visit_start = None
@@ -3089,7 +3174,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     print(f"  [discovery] {_normalize(acted)} is a checkout or payment page - seen, not clicked",
                           flush=True)
                     current["console"], current["failed"] = [], []
-                    explorer.explore(page, acted, entry)
+                    explore_page(page, acted, entry)
                 elif inside and not entry.get("error"):
                     current["console"], current["failed"] = [], []
                     if slug in looks:  # (what the AI saw on this page: the explorer tries it too - waited for 15 s
@@ -3097,10 +3182,12 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                             looks[slug].result(timeout=15)
                         except Exception:
                             pass
-                    new, changed = explorer.explore(page, url, entry)
+                    new, changed = explore_page(page, url, entry)
+                    forms_t0 = time.monotonic()
                     for nxt in explorer.fill_forms(page, url, entry):  # (filled like a person; sent only on staging)
                         if enqueue(nxt, how="form"):
                             print(f"  [discovery] a form that was sent leads to another page: {_normalize(nxt)}")
+                    entry.setdefault("timings_s", {})["fill_forms"] = round(time.monotonic() - forms_t0, 1)
                     for done in entry.get("form_fills", []):
                         shown = [x for k in ("appeared", "turned_on", "turned_off") for x in done.get(k) or []]
                         shown += [x for c in done.get("choices") or [] for x in c.get("appeared", []) + c.get(
@@ -3121,11 +3208,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
             if mode == "page" and inside and not entry.get("error") and not click_actions_allowed(acted):
                 entry["actions_skipped"] = "checkout, payment and placing an order are never clicked"
                 current["console"], current["failed"] = [], []
-                explorer.explore(page, acted, entry)
+                explore_page(page, acted, entry)
             elif mode == "page" and inside and not entry.get("error"):
                 # a specific page: what its controls do is learned too (the pages they lead to are listed, not opened)
                 current["console"], current["failed"] = [], []
-                new, _changed = explorer.explore(page, url, entry)
+                new, _changed = explore_page(page, url, entry)
                 for nxt in new:
                     if _normalize(nxt) != url:
                         skipped.setdefault(_normalize(nxt), "only this page was asked for (an action on it leads there)")
@@ -3185,6 +3272,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 print(f"  [discovery] login: the sign-up page was found now ({url}) - creating the test account and "
                       "logging in from the login page again", flush=True)
             learned = [b for b in entry.get("behaviour", []) if b.get("effect") not in ("error", None)]
+            entry.setdefault("timings_s", {})["total"] = round(time.monotonic() - page_t0, 1)
             print(f"  [discovery] page {len(app_map)}: {entry.get('status')}  {url}"
                   + ("  (logged in)" if auth else "")
                   + (f"  - learned what {len(learned)} control(s) do" if learned else ""))
@@ -3225,6 +3313,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 write_text_unless_linked(run_dir, "roles.json", json.dumps(role_map, indent=2))
         if site_swarm is not None:
             _close_swarm()
+        _close_pools()
         browser.close()
 
     if site_swarm is not None:
