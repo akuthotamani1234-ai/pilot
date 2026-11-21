@@ -84,6 +84,8 @@ class Settings:
     # 0 keeps the older "visit every product link" behavior. The studio sets 3 unless Thorough is on.
     swarm_sample: int = int(os.getenv("SWARM_SAMPLE", "0"))
     max_test_cases: int = int(os.getenv("MAX_TEST_CASES", "300"))  # test cases per run (most important first)
+    # a Playwright trace (every step with snapshots) for each failing test, from the first run on; false = only on retries
+    trace_failures: bool = os.getenv("TRACE_FAILURES", "true").lower() != "false"
     test_retries: int = int(os.getenv("TEST_RETRIES", "0"))        # optional re-runs of failed tests (0 = once only)
     llm_budget_usd: float = float(os.getenv("LLM_BUDGET_USD", "2"))  # AI cost limit per run; then built-in rules
     headless: bool = os.getenv("HEADLESS", "true").lower() != "false"

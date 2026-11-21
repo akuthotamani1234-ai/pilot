@@ -275,8 +275,8 @@ def _suite_tree_is_linked(test_dir: Path) -> bool:
 def _run_pytest(state: QAState, test_dir: Path, results_file: Path, shot_dir: Path,
                 select: list[str] | None = None, traces: bool = False, headless: bool | None = None) -> dict:
     """Run pytest in the sandbox. Returns {"timed_out", "stopped", "returncode", "sandbox"}.
-    traces=True records a Playwright trace of every failing test (used for the retry of failed tests only:
-    recording traces for every test makes a long run much slower). headless=True: hidden browsers, also while
+    traces=True records a Playwright trace and keeps it for every failing test (first run: TRACE_FAILURES, default
+    on; retries and healing reruns always). headless=True: hidden browsers, also while
     you watch the other tests in Chrome."""
     sandbox = "own process, clean environment, network + file guard, per-test time limit"
     junit = results_file.with_name(results_file.stem + "_junit.xml")
@@ -767,7 +767,7 @@ def execution_agent(state: QAState) -> QAState:
     if state.get("resuming") and settings.writes_ok:
         raise RuntimeError("Resume with writes requires reconciliation of interrupted run-owned records. "
                            "Resume read-only or review created.jsonl and start a fresh authorized write run.")
-    info = _run_pytest(state, test_dir, results_file, shot_dir, select=select)
+    info = _run_pytest(state, test_dir, results_file, shot_dir, select=select, traces=settings.trace_failures)
     by_id = dict(prior)
     for result in _read(results_file):
         if result.get("nodeid"):
