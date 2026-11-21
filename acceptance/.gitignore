@@ -1,0 +1,4 @@
+# Dashboard screenshots taken every 15-30 s during acceptance runs: hundreds of MB, kept locally only.
+# The chosen ones are copied to */key-screens/.
+*.png
+!*/key-screens/*.png
