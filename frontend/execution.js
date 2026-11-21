@@ -162,8 +162,8 @@
           `<span class="swarm-cursor" hidden aria-hidden="true"><svg viewBox="0 0 16 20" width="18" height="22">` +
           `<path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" /></svg><span class="swarm-tag"></span></span></div>` +
           `<span class="swarm-address"></span><span class="swarm-action"></span></div>`;
-        grid.append(card);
       }
+      if (grid.children[index] !== card) grid.insertBefore(card, grid.children[index] || null);  // (sorted order)
       const event = latest.get(key);
       const state = String(event?.status || "waiting").toLowerCase();
       const active = event && /running|started|pending/.test(state);
