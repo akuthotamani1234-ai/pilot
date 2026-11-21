@@ -8,8 +8,10 @@ Enterprise Redis/Postgres can replace the SQLite store later behind the same API
 """
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -77,6 +79,9 @@ class DurableQueue:
             raise ValueError("The swarm queue is a link.")
         self.lease_seconds = int(lease_seconds)
         self.max_attempts = int(max_attempts)
+        # One connection is shared by the browser-worker threads of a run: every public method holds this lock,
+        # so two threads never use the connection at once (that raised sqlite3.InterfaceError and killed a worker).
+        self._lock = threading.RLock()
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
@@ -385,3 +390,16 @@ class DurableQueue:
             "error_class": row["error_class"],
             "updated_at": row["updated_at"],
         }
+
+
+def _serialized(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
+for _name, _member in list(vars(DurableQueue).items()):
+    if not _name.startswith("_") and callable(_member):
+        setattr(DurableQueue, _name, _serialized(_member))

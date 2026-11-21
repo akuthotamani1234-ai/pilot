@@ -365,6 +365,7 @@ class SiteSwarm:
         self._lock = threading.Lock()
         self._queues = {n: queue.Queue() for n in range(1, self.worker_count + 1)}
         self.rows: list[dict] = []
+        self.errors: list[dict] = []  # worker errors (a worker records them and goes on with its next page)
         self._closed = False
         self._threads = [
             threading.Thread(target=self._run, args=(n,), name=f"swarm-{n}", daemon=True)
@@ -411,9 +412,9 @@ class SiteSwarm:
             return list(plan)
 
     def _run(self, worker: int) -> None:
-        open_page = close = None
+        session = {"open": None, "close": None}
         if self._durable_queue is None:
-            open_page, close = self._session()
+            session["open"], session["close"] = self._session()
         try:
             while True:
                 url = self._queues[worker].get()
@@ -423,139 +424,164 @@ class SiteSwarm:
                     return
                 if self._on_status:
                     self._on_status(worker, "opening", url)
-                row = None
-                with self._lock:
-                    for candidate in self.rows:
-                        if candidate.get("worker") == worker and candidate.get("url") == url:
-                            row = candidate
-                            break
-                durable = None
-                durable_worker = f"browser-{self._run_id or 'run'}-{worker}"
-                if self._durable_queue is not None:
-                    if not row or not row.get("task_id"):
-                        if self._on_status:
-                            self._on_status(worker, "stopped", url)
-                        continue
-                    durable = self._durable_queue.claim_task(
-                        row["task_id"], worker_id=durable_worker,
-                    )
-                    if not durable:
-                        with self._lock:
-                            row["status"] = "stopped"
-                            row["durable_status"] = "not_claimed"
-                        if self._on_status:
-                            self._on_status(worker, "stopped", url)
-                        continue
-                    with self._lock:
-                        row["durable_status"] = "leased"
-                if open_page is None or close is None:
-                    try:
-                        open_page, close = self._session()
-                    except Exception as exc:
-                        if durable is not None:
-                            self._durable_queue.fail(
-                                durable["task_id"], durable_worker,
-                                error_class="worker_crash", detail=str(exc)[:500],
-                            )
-                            with self._lock:
-                                row["durable_status"] = "failed"
-                        if self._on_status:
-                            self._on_status(worker, "stopped", url)
-                        continue
                 try:
-                    found = open_page(url)
-                except Exception as exc:
-                    if durable is not None:
-                        self._durable_queue.fail(
-                            durable["task_id"], durable_worker,
-                            error_class="worker_crash", detail=str(exc)[:500],
-                        )
-                        with self._lock:
-                            row["durable_status"] = "failed"
-                    if self._on_status:
-                        self._on_status(worker, "stopped", url)
-                    continue
-                if landed_on_payment(found):
-                    final = str(found.get("final_url") or url)
-                    if self._on_status:
-                        self._on_status(worker, "blocked", final)
-                    with self._lock:
-                        for candidate in self.rows:
-                            if (candidate.get("worker") == worker
-                                    and candidate.get("url") == url and "work" not in candidate):
-                                candidate["status"] = "blocked"
-                                candidate["work"] = found
-                                if durable is not None:
-                                    candidate["durable_status"] = "blocked"
-                                break
-                    if durable is not None:
-                        self._durable_queue.block(
-                            durable["task_id"], durable_worker,
-                            error_class="policy_blocked",
-                            reason="checkout or payment navigation was blocked",
-                        )
-                    continue
-                if not observed_page(found, url):
-                    if durable is not None:
-                        self._durable_queue.fail(
-                            durable["task_id"], durable_worker,
-                            error_class="evidence_missing",
-                            detail="browser returned no HTTP observation",
-                        )
-                        with self._lock:
-                            row["durable_status"] = "failed"
-                    if self._on_status:
-                        self._on_status(worker, "stopped", url)
-                    continue
-                summary = ""
-                if isinstance(found, dict):
-                    summary = str(found.get("summary") or "")
-                    with self._lock:
-                        for candidate in self.rows:
-                            if (candidate.get("worker") == worker
-                                    and candidate.get("url") == url and "work" not in candidate):
-                                candidate["work"] = found
-                                break
-                if durable is not None:
-                    from .finalization import write_text_unless_linked
-                    artifact = f"browser_observation_{durable['task_id']}.json"
-                    written = bool(
-                        self._evidence_dir
-                        and write_text_unless_linked(
-                            self._evidence_dir, artifact,
-                            json.dumps({
-                                "task_id": durable["task_id"],
-                                "worker_id": durable_worker,
-                                "url": url,
-                                "observation": found,
-                            }, indent=2),
-                        )
-                    )
-                    result = {
-                        "ok": written,
-                        "url": url,
-                        "role": "browser",
-                        "evidence": ([{
-                            "kind": "browser_observation",
-                            "artifact": artifact,
-                            "task_id": durable["task_id"],
-                        }] if written else []),
-                    }
-                    ok, _reason = self._durable_queue.complete(
-                        durable["task_id"], durable_worker, result,
-                    ) if written else self._durable_queue.fail(
-                        durable["task_id"], durable_worker,
-                        error_class="evidence_missing",
-                        detail="browser observation artifact could not be written",
-                    )
-                    with self._lock:
-                        row["durable_status"] = "succeeded" if ok and written else "failed"
-                if self._on_status:
-                    detail = f"{url} | {summary}" if summary else url
-                    self._on_status(worker, "read", detail)
+                    self._one(worker, url, session)
+                except Exception as exc:  # a worker never dies silently: record it, release its task, go on
+                    self._worker_error(worker, url, exc)
         finally:
-            if close is not None:
-                close()
+            if session["close"] is not None:
+                session["close"]()
+
+    def _worker_error(self, worker: int, url: str, exc: Exception) -> None:
+        detail = f"{type(exc).__name__}: {str(exc)[:300]}"
+        durable_worker = f"browser-{self._run_id or 'run'}-{worker}"
+        with self._lock:
+            self.errors.append({"worker": worker, "url": url, "error": detail})
+            row = next((c for c in self.rows if c.get("worker") == worker and c.get("url") == url), None)
+            leased = bool(row and row.get("durable_status") == "leased" and row.get("task_id"))
+            if row is not None:
+                row["status"] = "stopped"
+                row["durable_status"] = "failed" if leased else row.get("durable_status", "not_claimed")
+        if leased and self._durable_queue is not None:
+            try:
+                self._durable_queue.fail(row["task_id"], durable_worker, error_class="worker_crash", detail=detail)
+            except Exception:
+                pass
+        if self._on_status:
+            self._on_status(worker, "stopped", f"{url} | worker error: {detail}")
+
+    def _one(self, worker: int, url: str, session: dict) -> None:
+        """One page for one worker: claim its durable task, open it, record the observation."""
+        row = None
+        with self._lock:
+            for candidate in self.rows:
+                if candidate.get("worker") == worker and candidate.get("url") == url:
+                    row = candidate
+                    break
+        durable = None
+        durable_worker = f"browser-{self._run_id or 'run'}-{worker}"
+        if self._durable_queue is not None:
+            if not row or not row.get("task_id"):
+                if self._on_status:
+                    self._on_status(worker, "stopped", url)
+                return
+            durable = self._durable_queue.claim_task(
+                row["task_id"], worker_id=durable_worker,
+            )
+            if not durable:
+                with self._lock:
+                    row["status"] = "stopped"
+                    row["durable_status"] = "not_claimed"
+                if self._on_status:
+                    self._on_status(worker, "stopped", url)
+                return
+            with self._lock:
+                row["durable_status"] = "leased"
+        if session["open"] is None or session["close"] is None:
+            try:
+                session["open"], session["close"] = self._session()
+            except Exception as exc:
+                if durable is not None:
+                    self._durable_queue.fail(
+                        durable["task_id"], durable_worker,
+                        error_class="worker_crash", detail=str(exc)[:500],
+                    )
+                    with self._lock:
+                        row["durable_status"] = "failed"
+                if self._on_status:
+                    self._on_status(worker, "stopped", url)
+                return
+        try:
+            found = session["open"](url)
+        except Exception as exc:
+            if durable is not None:
+                self._durable_queue.fail(
+                    durable["task_id"], durable_worker,
+                    error_class="worker_crash", detail=str(exc)[:500],
+                )
+                with self._lock:
+                    row["durable_status"] = "failed"
+            if self._on_status:
+                self._on_status(worker, "stopped", url)
+            return
+        if landed_on_payment(found):
+            final = str(found.get("final_url") or url)
+            if self._on_status:
+                self._on_status(worker, "blocked", final)
+            with self._lock:
+                for candidate in self.rows:
+                    if (candidate.get("worker") == worker
+                            and candidate.get("url") == url and "work" not in candidate):
+                        candidate["status"] = "blocked"
+                        candidate["work"] = found
+                        if durable is not None:
+                            candidate["durable_status"] = "blocked"
+                        break
+            if durable is not None:
+                self._durable_queue.block(
+                    durable["task_id"], durable_worker,
+                    error_class="policy_blocked",
+                    reason="checkout or payment navigation was blocked",
+                )
+            return
+        if not observed_page(found, url):
+            if durable is not None:
+                self._durable_queue.fail(
+                    durable["task_id"], durable_worker,
+                    error_class="evidence_missing",
+                    detail="browser returned no HTTP observation",
+                )
+                with self._lock:
+                    row["durable_status"] = "failed"
+            if self._on_status:
+                self._on_status(worker, "stopped", url)
+            return
+        summary = ""
+        if isinstance(found, dict):
+            summary = str(found.get("summary") or "")
+            with self._lock:
+                for candidate in self.rows:
+                    if (candidate.get("worker") == worker
+                            and candidate.get("url") == url and "work" not in candidate):
+                        candidate["work"] = found
+                        break
+        if durable is not None:
+            from .finalization import write_text_unless_linked
+            artifact = f"browser_observation_{durable['task_id']}.json"
+            written = bool(
+                self._evidence_dir
+                and write_text_unless_linked(
+                    self._evidence_dir, artifact,
+                    json.dumps({
+                        "task_id": durable["task_id"],
+                        "worker_id": durable_worker,
+                        "url": url,
+                        "observation": found,
+                    }, indent=2),
+                )
+            )
+            result = {
+                "ok": written,
+                "url": url,
+                "role": "browser",
+                "evidence": ([{
+                    "kind": "browser_observation",
+                    "artifact": artifact,
+                    "task_id": durable["task_id"],
+                }] if written else []),
+            }
+            ok, _reason = self._durable_queue.complete(
+                durable["task_id"], durable_worker, result,
+            ) if written else self._durable_queue.fail(
+                durable["task_id"], durable_worker,
+                error_class="evidence_missing",
+                detail="browser observation artifact could not be written",
+            )
+            with self._lock:
+                row["durable_status"] = "succeeded" if ok and written else "failed"
+        if self._on_status:
+            detail = f"{url} | {summary}" if summary else url
+            self._on_status(worker, "read", detail)
 
     def finish(self) -> list[dict]:
         """Tell every worker to close, then wait until they have."""

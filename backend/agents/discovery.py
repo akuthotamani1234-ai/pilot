@@ -2091,6 +2091,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
         from ..finalization import write_text_unless_linked
         if work and write_text_unless_linked(run_dir, "swarm_work.json", json.dumps(work, indent=2)):
             print(f"  [discovery] swarm read {len(work)} page(s) and saved what it found", flush=True)
+        errors = list(getattr(site_swarm, "errors", []) or [])
+        if errors:  # a worker that hit an error is reported, never silently lost
+            write_text_unless_linked(run_dir, "swarm_errors.json", json.dumps(errors, indent=2))
+            print(f"  [discovery] swarm: {len(errors)} worker error(s) - those pages were not read by a worker "
+                  "(see swarm_errors.json)", flush=True)
         if swarm_queue is not None:
             try:
                 swarm_queue.close()
