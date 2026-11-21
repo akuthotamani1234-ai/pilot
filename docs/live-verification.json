@@ -47,35 +47,35 @@
     {
       "id": "explorers-no-crash",
       "label": "All 4 explorer browsers run with no worker crash (was 3 of 4)",
-      "commit": "3dc5fe5",
+      "commit": "02bae6d",
       "run": "opensource-demo.orangehrmlive.com_20261121_220850",
       "evidence": "events.discovery-*.explorer-1..4; 0 'Exception in thread'"
     },
     {
       "id": "parallel-discovery",
       "label": "6 learner browsers learn controls at once: discovery 851 s -> 434 s, same 25 pages / 12 modules",
-      "commit": "3dc5fe5",
+      "commit": "02bae6d",
       "run": "opensource-demo.orangehrmlive.com_20261121_220850",
       "evidence": "phase_timings.jsonl; events.discovery-*.learner-1..6 (6 together)"
     },
     {
       "id": "traces",
       "label": "One Playwright trace per failed test by default (68 of 68)",
-      "commit": "3dc5fe5",
+      "commit": "02bae6d",
       "run": "opensource-demo.orangehrmlive.com_20261121_220850",
       "evidence": "traces/*.zip vs results.gw*.jsonl"
     },
     {
       "id": "api-inventory",
       "label": "API calls inventoried: 83 endpoint patterns, 1,217 calls (metadata only)",
-      "commit": "3dc5fe5",
+      "commit": "02bae6d",
       "run": "opensource-demo.orangehrmlive.com_20261121_220850",
       "evidence": "api_inventory.json"
     },
     {
       "id": "agent-states",
       "label": "Every agent registered at start; real states recorded (all completed or skipped)",
-      "commit": "3dc5fe5",
+      "commit": "02bae6d",
       "run": "opensource-demo.orangehrmlive.com_20261121_220850",
       "evidence": "agents.json"
     },
