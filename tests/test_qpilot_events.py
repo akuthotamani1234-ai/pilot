@@ -11,11 +11,13 @@ def test_actions_between_polls_and_late_workers_are_retained(tmp_path):
     first.write_text("".join(json.dumps({"id": str(i), "timestamp": i, "text": "action"}) + "\n" for i in range(220)), encoding="utf-8")
     batch = read_events(tmp_path)
     assert len(batch["events"]) == 150
+    assert batch["events"][0]["worker"] == "gw0"
     rest = read_events(tmp_path, batch["cursor"])
     assert len(rest["events"]) == 70
     (tmp_path / "events.second.gw1.jsonl").write_text(json.dumps({"id": "late", "timestamp": 1}) + "\n", encoding="utf-8")
     late = read_events(tmp_path, rest["cursor"])
     assert [e["id"] for e in late["events"]] == ["late"]
+    assert late["events"][0]["worker"] == "gw1"
     assert len(read_events(tmp_path, limit=500)["events"]) == 221  # page refresh/replay
 
 

@@ -485,8 +485,10 @@ STEP_NAME_JS = """e => {
   const adjacent = e.previousElementSibling?.tagName === 'LABEL' ? e.previousElementSibling.innerText : '';
   const t = (adjacent || l?.innerText || e.innerText || e.getAttribute('aria-label') || e.getAttribute('placeholder')
   || e.getAttribute('title') || e.getAttribute('name') || '').trim().split('\\n')[0];
-  if (t) return t.slice(0, 50);
-  return e.tagName.toLowerCase(); }"""
+  const r = e.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const point = window === window.top && r.width && r.height && x >= 0 && y >= 0 &&
+    x <= innerWidth && y <= innerHeight ? [Math.round(x * 100 / innerWidth), Math.round(y * 100 / innerHeight)] : null;
+  return {name: t ? t.slice(0, 50) : e.tagName.toLowerCase(), point}; }"""
 
 
 def _step(text: str, ok=None) -> None:
@@ -530,11 +532,16 @@ def _pace(page):
         page.wait_for_timeout(ACTION_DELAY_MS)
 
 
-def _named(loc) -> str:
+def _action_target(loc):
     try:
         return loc.first.evaluate(STEP_NAME_JS, timeout=1000)
     except Exception:
-        return re.sub(r"^.*?(text=|has-text\()", "", str(getattr(loc, "_selector", "")))[:50] or "an element"
+        name = re.sub(r"^.*?(text=|has-text\()", "", str(getattr(loc, "_selector", "")))[:50] or "an element"
+        return {"name": name, "point": None}
+
+
+def _named(loc) -> str:
+    return _action_target(loc)["name"]
 
 
 ACTION_WORDS = {"click": "Click", "dblclick": "Double-click", "tap": "Tap", "check": "Tick", "uncheck": "Untick",
@@ -546,11 +553,12 @@ def _stepped(method, verb):
     def wrapper(self, *args, **kwargs):
         if _CURRENT["item"] is None:
             return method(self, *args, **kwargs)
-        name = _named(self)
+        target = _action_target(self)
+        name = target["name"]
         what = (f"{verb} '{_shown_value(self, args[0])[:40]}' into '{name}'" if verb == "Type" and args else
                 f"Press {args[0]} in '{name}'" if verb == "Press" and args else
                 f"Choose '{str(args[0])[:40]}' in '{name}'" if verb == "Choose" and args else f"{verb} '{name}'")
-        _event(what, "running", selector=_redact(str(getattr(self, "_selector", "")))[:300])
+        _event(what, "running", selector=_redact(str(getattr(self, "_selector", "")))[:300], point=target["point"])
         try:
             _pace(self.page)
             out = method(self, *args, **kwargs)

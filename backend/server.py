@@ -34,10 +34,10 @@ from backend.config import _load_dotenv  # noqa: E402  (.env keys -> os.environ,
 from backend.safety import UrlError, check_target, is_private_host, redact  # noqa: E402
 
 _load_dotenv(ROOT / ".env")
-RUNS = ROOT / "runs"
+RUNS = ROOT / (os.getenv("RUNS_DIR") or "runs")
 STATIC = ROOT / "frontend"   # the web page files (served at /static/...)
 AUDIT = ROOT / "logs" / "audit.jsonl"  # who started / stopped / deleted what, and when (never secrets)
-RUNS.mkdir(exist_ok=True)
+RUNS.mkdir(parents=True, exist_ok=True)
 STAGE_RE = re.compile(r"^::stage::(\w+)::(start|done)$")
 NOTE_RE = re.compile(r"^::note::(.+)$")
 PAGE_RE = re.compile(r"^::page::(\{.*\})$")  # one inspected page (live page cards in the chat)

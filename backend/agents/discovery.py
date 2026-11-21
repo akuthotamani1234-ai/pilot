@@ -1904,7 +1904,7 @@ def _browser_session(app_map: list):
               f"({str(e).splitlines()[0][:100]}) - keeping the {len(app_map)} page(s) found so far", flush=True)
 
 
-def discovery_agent(state: QAState) -> QAState:
+def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -> QAState:
     start_url = _normalize(state["url"])
     run_dir = Path(state["run_dir"])
     shots = run_dir / "screenshots"
@@ -2260,6 +2260,9 @@ def discovery_agent(state: QAState) -> QAState:
                       flush=True)
                 break
             url, depth, inside, auth = queue.popleft()
+            if on_visit_start is not None:
+                on_visit_start()
+                on_visit_start = None
             if (url, auth) in resumed_visits and (url, auth) not in reread:
                 continue
             if not inside and not_app >= MAX_NOT_APP:
@@ -3041,6 +3044,8 @@ def discovery_agent(state: QAState) -> QAState:
                 save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))
                 break
             app_map.append(entry)
+            if on_inventory is not None:
+                on_inventory(entry)
             if remember_locale(locale_seen, entry):
                 write_locale(run_dir, locale_seen)
             save_crawl_progress(run_dir, app_map, waiting_rows(queue, priorities))

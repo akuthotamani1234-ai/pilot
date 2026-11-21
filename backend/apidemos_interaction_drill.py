@@ -129,14 +129,12 @@ def run_apidemos_interaction_drill(
                 tapped = False
         steps.append({
             "step": "tap_clickable",
-            "ok": tapped or len(clickables) >= 0,
+            "ok": tapped,
             "clickables": len(clickables),
             "tapped": tapped,
             "hierarchy_len": len(driver.page_source or ""),
         })
-        ok = bool(install.get("installed")) and all(
-            s.get("ok") for s in steps if s.get("step") != "open_section"
-        ) and steps[0].get("ok")
+        ok = bool(install.get("installed")) and all(step["ok"] for step in steps)
         evidence = {
             "gate_d_complete": False,
             "drill": "apidemos_interaction",

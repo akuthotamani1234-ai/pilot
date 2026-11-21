@@ -705,11 +705,9 @@ def test_workers_stay_for_the_whole_run_then_close():
         return open_page, lambda: None
 
     swarm = SiteSwarm(2, 4, session, on_status=lambda worker, status, url: notes.append((worker, status, url)))
-    swarm.submit([
-        "https://shop.example/",
-        "https://shop.example/about",
-        "https://shop.example/checkout",
-    ])
+    first = swarm.submit(["https://shop.example/"])
+    second = swarm.submit(["https://shop.example/about", "https://shop.example/checkout"])
+    assert [row["worker"] for row in first + second] == [1, 2]
     swarm.submit([
         "https://shop.example/account",
         "https://shop.example/contact",

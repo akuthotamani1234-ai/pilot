@@ -26,6 +26,7 @@ from .agents.script_generator import script_generator_agent
 from .agents.self_healing import self_healing_agent
 from .agents.setup_agent import setup_agent
 from .agents.test_design import test_design_agent
+from .concurrent_contract import discover_with_contract
 from .config import settings
 from .integrations import integrations_agent
 from .page_status import page_testable
@@ -47,7 +48,8 @@ def after_discovery(state: QAState) -> str:
 
 
 def after_scripts(state: QAState) -> str:
-    return "execution" if state.get("scripts") or state.get("contract_only") else "failure_analysis"
+    has_cases = state.get("scripts") or state.get("contract_only") or state.get("discovery_contract")
+    return "execution" if has_cases else "failure_analysis"
 
 
 def after_test_design(state: QAState) -> str:
@@ -124,7 +126,7 @@ def build_graph(checkpointer=None, target_type="web", discovery_only=False):
         return g.compile(checkpointer=checkpointer)
     for name, agent in [
         ("setup", setup_agent),
-        ("discovery", discovery_agent),
+        ("discovery", discover_with_contract if os.getenv("QPILOT_CONCURRENT_CONTRACT") == "1" else discovery_agent),
         ("change_detection", change_detection_agent),
         ("visual_check", visual_check_agent),
         ("test_design", test_design_agent),

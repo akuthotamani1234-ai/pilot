@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from backend.accuracy import measure, summary_line
@@ -50,6 +51,30 @@ SITE_ENV = {
 
 def _visited(store) -> list:
     return list(store.visited) + [f"POST {p['path']}" for p in getattr(store, "posts", [])]
+
+
+def _run_metrics(measurement: dict, run: Path, wall_seconds: float) -> None:
+    """Attach reproducible wall time and the run's recorded AI cost to benchmark results."""
+    measurement["execution_seconds"] = round(wall_seconds, 2)
+    cost_path = run / "cost.json"
+    if not cost_path.is_file():
+        measurement["cost"] = {"available": False, "reason": "run cost report was not written"}
+        return
+    try:
+        cost = json.loads(cost_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        measurement["cost"] = {"available": False, "reason": "run cost report could not be read"}
+        return
+    measurement["cost"] = {
+        "available": True,
+        "provider": cost.get("provider", ""),
+        "model": cost.get("model", ""),
+        "cost_usd": cost.get("cost_usd", 0),
+        "calls": cost.get("calls", 0),
+        "tokens_in": cost.get("tokens_in", 0),
+        "tokens_out": cost.get("tokens_out", 0),
+        "run_seconds": cost.get("run_seconds"),
+    }
 
 
 def truth(name: str = "demo") -> dict:
@@ -92,8 +117,11 @@ def benchmark(work: Path, extra_env: dict | None = None, site: str = "demo", mod
             break
         store = shop(bugs=bugs).start()
         try:
+            started = time.perf_counter()
             run, _ = run_agent(store, work / ("buggy" if bugs else "clean"), env, account)
+            elapsed = time.perf_counter() - started
             out["buggy" if bugs else "clean"] = measure(run, truth(site), bugs, _visited(store))
+            _run_metrics(out["buggy" if bugs else "clean"], run, elapsed)
             out["buggy" if bugs else "clean"]["run_dir"] = str(run)
         finally:
             store.stop()
@@ -101,8 +129,10 @@ def benchmark(work: Path, extra_env: dict | None = None, site: str = "demo", mod
         store = shop(bugs=True).start()
         try:
             base = work / "clean"
+            started = time.perf_counter()
             run, _ = run_agent(store, base, dict(env, REUSE_TESTS="true"), account)
             out["regression"] = measure(run, truth(site), True, _visited(store))
+            _run_metrics(out["regression"], run, time.perf_counter() - started)
             out["regression"]["run_dir"] = str(run)
         finally:
             store.stop()

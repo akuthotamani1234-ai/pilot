@@ -30,6 +30,8 @@ The first start installs everything (a few minutes), then opens http://127.0.0.1
 and press **Start testing**. No git? Download the repository as a ZIP from GitHub, unzip it and double-click `ui.bat`.
 
 ## Contents
+For the team demonstration, follow [Local demonstration and verification](docs/local-demo.md).
+
 1. [Requirements](#1-requirements)
 2. [Install](#2-install)
 3. [Configure](#3-configure)
@@ -118,6 +120,9 @@ The web UI also lets you pick the AI for each run. A key pasted there is used fo
 Other settings you may want:
 - Qpilot's UI defaults to **Watch**: one visible Chrome window and a 1,000 ms delay per user action. Uncheck Watch
   for **Fast** execution with isolated headless workers. The live timeline retains actions missed between refreshes.
+- When two or more Fast workers are assigned, **Live execution** shows a parallel-worker panel: one browser card and
+  cursor indicator per worker, with that worker's latest recorded action and target. It visualizes real worker events;
+  it is not a pixel-for-pixel recording of the hidden browser windows.
 - `FINALIZATION_RESERVE_S` (default 120) reserves time inside `RUN_TIME_LIMIT_MIN` for deterministic findings and reports.
 - `DISCOVERY_BUDGET_FRACTION` (default 0.4) caps discovery's share of the overall budget; `CRAWL_TIME_LIMIT_MIN` remains
   an additional cap. Discovery-only runs retain their selected discovery budget.

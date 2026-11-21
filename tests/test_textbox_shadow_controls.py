@@ -31,3 +31,29 @@ def test_shadow_nickname_gets_textbox_case():
     lines = "\n".join(_textbox_test("textbox_nickname", textbox[0]["title"], textbox[0]))
     assert "QA Shadow" in lines
     assert "#nickname" in lines
+
+
+def test_textbox_sample_respects_maxlength():
+    page = {
+        "url": "http://127.0.0.1/account",
+        "title": "Account",
+        "slug": "account",
+        "auth": True,
+        "buttons": [],
+        "links": [],
+        "forms": [],
+        "inputs": [{
+            "id": "ad-pin",
+            "name": "pin",
+            "label": "PIN code",
+            "type": "text",
+            "tag": "input",
+            "selector": "#ad-pin",
+            "maxlength": 6,
+            "disabled": False,
+            "data_first": True,
+        }],
+    }
+    case = next(c for c in control_cases(page) if c.get("kind") == "textbox")
+    assert case["value"] == "QA Tes"
+    assert len(case["value"]) <= page["inputs"][0]["maxlength"]

@@ -143,7 +143,7 @@ def _write_contract_text(run_dir, name: str, text: str) -> bool:
     return write_text_unless_linked(folder, name, text)
 
 
-def run_contracts(run_dir, url, contract_value, headless=True, completed=None, slow_mo_ms=0):
+def run_contracts(run_dir, url, contract_value, headless=True, completed=None, slow_mo_ms=0, on_first_page=None):
     if _contract_paths_linked(run_dir):
         return {"test_cases": [], "results": []}
     from playwright.sync_api import sync_playwright
@@ -213,7 +213,14 @@ def run_contracts(run_dir, url, contract_value, headless=True, completed=None, s
                         _response, blocked = open_guarded(page, url, timeout=20000)
                         if blocked:
                             raise ValueError("checkout, payment and placing an order are never tested")
-                        runtime.execute(case["contract_id"])
+                        if on_first_page is not None:
+                            on_first_page()
+                            on_first_page = None
+                        record["assertions_started_ns"] = time.time_ns()
+                        try:
+                            runtime.execute(case["contract_id"])
+                        finally:
+                            record["assertions_finished_ns"] = time.time_ns()
                     except Exception as error:
                         record.update(
                             outcome="failed" if isinstance(error, AssertionError) else "error",

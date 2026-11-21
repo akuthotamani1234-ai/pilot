@@ -664,16 +664,24 @@ def _collect_nodeids(test_dir: Path) -> list[str]:
     return ids
 
 
+def _merge_contract_rows(previous, current):
+    """Replace only matching contract entries when combining checkpointed and fresh work."""
+    ids = {row["contract_id"] for row in current if row.get("contract_id")}
+    return [row for row in previous if row.get("contract_id") not in ids] + current
+
+
 def execution_agent(state: QAState) -> QAState:
     if state.get("target_type") == "mobile":
         from ..android_pipeline import _execute_mobile
         return _execute_mobile(state)
-    if state.get("contract_only"):
+    early = state.get("discovery_contract")
+    if state.get("contract_only") or (early and not state.get("scripts")):
         from ..qa_web import execute_pipeline_contracts
 
-        output = execute_pipeline_contracts(state)
-        results = (list(state.get("results") or []) if state.get("resuming") else []) + output["results"]
-        cases = output["test_cases"]
+        output = early or execute_pipeline_contracts(state)
+        prior_results = state.get("results") or [] if state.get("resuming") else []
+        results = _merge_contract_rows(prior_results, output["results"])
+        cases = _merge_contract_rows(state.get("test_cases") or [], output["test_cases"]) if early else output["test_cases"]
         for case in cases:
             result = next((r for r in results if r.get("contract_id") == case.get("contract_id")), None)
             if result:
@@ -727,7 +735,7 @@ def execution_agent(state: QAState) -> QAState:
         if collected and not pending:
             print(f"  [execution] resume: all {len(prior)} collected test(s) already have results - skipping suite",
                   flush=True)
-            results = list(prior.values())
+            results = _merge_contract_rows(list(prior.values()), early["results"]) if early else list(prior.values())
             info = {"timed_out": False, "stopped": False, "returncode": 0, "sandbox": "resume-kept",
                     "resume_kept": len(prior)}
             _write_run_json(run_dir, "results.json", results)
@@ -737,7 +745,8 @@ def execution_agent(state: QAState) -> QAState:
             note = (f"Execution resume: kept {len(prior)} completed result(s); no pending tests — "
                     "did not re-run or duplicate run-owned writes.")
             print("  [execution] " + note)
-            return {"results": results, "test_cases": state.get("test_cases", []),
+            cases = state.get("test_cases", [])
+            return {"results": results, "test_cases": _merge_contract_rows(cases, early["test_cases"]) if early else cases,
                     "log": state.get("log", []) + [note]}
         if pending:
             select = pending
@@ -780,10 +789,10 @@ def execution_agent(state: QAState) -> QAState:
     _clean_up_again(state, run_dir, test_dir, shot_dir)
 
     from ..qa_web import execute_pipeline_contracts
-    contract_output = execute_pipeline_contracts(state)
+    contract_output = early or execute_pipeline_contracts(state)
     if contract_output["results"]:
-        results.extend(contract_output["results"])
-        state = {**state, "test_cases": state.get("test_cases", []) + contract_output["test_cases"]}
+        results = _merge_contract_rows(results, contract_output["results"])
+        state = {**state, "test_cases": _merge_contract_rows(state.get("test_cases", []), contract_output["test_cases"])}
     _relative(results, run_dir)
     # the website stopped answering during the tests (conftest: those tests are NOT RUN, never 'failed')
     down = [r for r in results if (r.get("error") or "").startswith("Not run: the website did not answer")]

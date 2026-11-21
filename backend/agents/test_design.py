@@ -320,6 +320,9 @@ def control_cases(p: dict) -> list[dict]:
             continue
         name = _box_name(i)
         sample = "QA Shadow" if i.get("shadow_path") else "QA Tester"
+        max_length = int(i.get("maxlength") or 0)
+        if max_length and len(sample) > max_length:
+            sample = sample[:max_length]
         out.append({"id": key("textbox", name), "kind": "textbox", "type": "positive", "priority": "medium",
                     "title": f"'{name}' accepts typed text", "test_data": sample,
                     "steps": [f"Open {page}", f"Type '{sample}' into '{name}'"],

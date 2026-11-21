@@ -41,6 +41,10 @@ def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
                         for key in ("id", "timestamp", "elapsed", "worker", "status", "phase"):
                             if key in value:
                                 public[key] = value[key]
+                        # Older workers omit the field in their event payload. The file is already
+                        # partitioned by worker, so recover the identity from its generated name.
+                        if not public.get("worker"):
+                            public["worker"] = path.stem.rsplit(".", 1)[-1]
                         events.append(public)
         except OSError:
             continue

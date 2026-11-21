@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 
 class ContractFixture:
-    def __init__(self, database, broken=False):
+    def __init__(self, database, broken=False, *, demo_links=False):
         self.database, self.broken, self.requests = database, broken, []
         with sqlite3.connect(database) as connection:
             connection.execute("CREATE TABLE quotes (id INTEGER PRIMARY KEY, total INTEGER)")
@@ -41,6 +41,17 @@ class ContractFixture:
                     self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
                     self.end_headers()
                     return
+                elif demo_links and path == "/catalog":
+                    body = (b'<title>Catalog</title><h1>Catalog</h1><a href="/mug">Demo mug</a>'
+                            b'<a href="/delivery">Delivery options</a>')
+                    content_type = "text/html; charset=utf-8"
+                elif demo_links and path == "/mug":
+                    body = b'<title>Demo mug</title><h1>Demo mug</h1><p>Unit price $10</p><a href="/hybrid">Quote</a>'
+                    content_type = "text/html; charset=utf-8"
+                elif demo_links and path == "/delivery":
+                    body = (b'<title>Delivery</title><h1>Delivery</h1><label>Delivery method '
+                            b'<select><option>Pickup</option><option>Local delivery</option></select></label>')
+                    content_type = "text/html; charset=utf-8"
                 elif path == "/hybrid":
                     body = (
                         '<!doctype html><title>Hybrid quote</title><h1 id="heading">Embedded quote</h1>'
@@ -65,6 +76,8 @@ document.getElementById('validation').addEventListener('submit',e=>{e.preventDef
                         .encode()
                     )
                     content_type = "text/html; charset=utf-8"
+                if demo_links and path == "/":
+                    body += b'<nav><a href="/hybrid">Quote details</a><a href="/catalog">Catalog</a></nav>'
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))

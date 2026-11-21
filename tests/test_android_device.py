@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +33,30 @@ def _tap_visible_text(device, adb, label):
                    check=True, capture_output=True)
 
 
+def _start_fixture(device, adb, bugs):
+    """Start the local fixture and wait for its Home screen before direct ADB actions."""
+    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"],
+                   check=True, capture_output=True)
+    subprocess.run(
+        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity",
+         "--es", "blowai_bugs", bugs],
+        check=True, capture_output=True,
+    )
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        dumped = subprocess.run([adb, "-s", device, "shell", "uiautomator", "dump", "/sdcard/qpilot-launch.xml"],
+                                check=False, capture_output=True)
+        if dumped.returncode:
+            time.sleep(0.5)
+            continue
+        hierarchy = subprocess.run([adb, "-s", device, "shell", "cat", "/sdcard/qpilot-launch.xml"],
+                                   check=True, capture_output=True, text=True).stdout
+        if 'package="com.qpilot.demo"' in hierarchy and 'content-desc="Form validation"' in hierarchy:
+            return
+        time.sleep(0.5)
+    raise AssertionError("The controlled Android fixture did not render its Home screen within 20 seconds")
+
+
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.skipif(
@@ -47,12 +72,7 @@ def test_real_android_fixture_pipeline(tmp_path, monkeypatch, bugs, expected):
     assert environment["ok"], environment["errors"]
     android.require_device(device, environment["devices"])
     adb = environment["adb"]
-    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"], check=True, capture_output=True)
-    subprocess.run(
-        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity", "--es", "blowai_bugs", bugs],
-        check=True,
-        capture_output=True,
-    )
+    _start_fixture(device, adb, bugs)
     run_id = "android_device_" + datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + bugs
     run_dir = Path(os.environ.get("BLOWAI_ANDROID_ARTIFACTS", str(tmp_path))) / run_id
     private = run_dir / ".private"
@@ -166,12 +186,7 @@ def test_real_android_value_contract(tmp_path, monkeypatch, bugs, expected):
     environment = android.android_environment()
     assert environment["ok"], environment["errors"]
     adb = environment["adb"]
-    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"], check=True, capture_output=True)
-    subprocess.run(
-        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity", "--es", "blowai_bugs", bugs],
-        check=True,
-        capture_output=True,
-    )
+    _start_fixture(device, adb, bugs)
     run_id = "android_values_" + datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + bugs
     run_dir = Path(os.environ.get("BLOWAI_ANDROID_ARTIFACTS", str(tmp_path))) / run_id
     private = run_dir / ".private"
@@ -217,13 +232,7 @@ def test_real_android_empty_name_validation_behavior(bugs, expected_message):
     android.require_device(device, environment["devices"])
     adb = environment["adb"
     ]
-    subprocess.run([adb, "-s", device, "shell", "am", "force-stop", "com.qpilot.demo"],
-                   check=True, capture_output=True)
-    subprocess.run(
-        [adb, "-s", device, "shell", "am", "start", "-n", "com.qpilot.demo/.MainActivity",
-         "--es", "blowai_bugs", bugs],
-        check=True, capture_output=True,
-    )
+    _start_fixture(device, adb, bugs)
     _tap_visible_text(device, adb, "Form validation")
     _tap_visible_text(device, adb, "Submit")
     subprocess.run([adb, "-s", device, "shell", "uiautomator", "dump", "/sdcard/qpilot-validation.xml"],

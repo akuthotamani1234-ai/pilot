@@ -6,6 +6,7 @@ class QAState(TypedDict, total=False):
     # ---- Input
     discovery_only: bool
     contract_only: bool
+    discovery_contract: dict[str, Any]
     source: str            # what the user gave: a URL, a GitHub link, or a local folder
     url: str               # the website URL that will be tested
     run_id: str

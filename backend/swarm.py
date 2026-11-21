@@ -379,6 +379,7 @@ class SiteSwarm:
                 return []
             plan = partition_site(fresh, self.worker_count, room)
             for row in plan:
+                row["worker"] = len(self.rows) % self.worker_count + 1
                 self._seen.add(row["url"])
                 self.rows.append(row)
                 self._queues[row["worker"]].put(row["url"])
