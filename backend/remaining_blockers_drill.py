@@ -197,7 +197,8 @@ def _linked_drill() -> dict:
     }
 
 
-def run_remaining_blockers_drill(*, ops_dir: Path | None = None) -> dict:
+def run_remaining_blockers_drill(*, ops_dir: Path | None = None, write: bool = True) -> dict:
+    """write=False: compute only (the Studio sidebar reads it on every page load; it must not rewrite tracked files)."""
     from .finalization import folder_is_linked, write_text_unless_linked
 
     out_name = "remaining_blockers.json"
@@ -235,6 +236,8 @@ def run_remaining_blockers_drill(*, ops_dir: Path | None = None) -> dict:
             "broad CI runners, independent sign-off); gates A–J stay Partial"
         ),
     }
+    if not write:
+        return evidence
     if folder_is_linked(dest) or folder_is_linked(dest / out_name):
         return _linked_drill()
     dest.mkdir(parents=True, exist_ok=True)

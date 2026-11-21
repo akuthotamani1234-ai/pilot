@@ -75,7 +75,7 @@
       : row.status === "active" ? "active"
       : row.status === "partial" ? "partial" : "open";
     const badge = row.status === "strong" ? "strong"
-      : row.status === "done" ? "done"
+      : row.status === "done" ? "landed"
       : row.status === "active" ? "now"
       : row.status === "partial" ? "partial" : "next";
     return "<li class=\"" + cls + "\">" +
@@ -163,13 +163,18 @@
       const openWork = upcoming.filter((u) => u.status === "active" || u.status === "open").length;
       const meta =
         "<div class=\"bp-meta\">" +
+          "<small><b>Live-verified</b> " + esc(String(counts.live_verified || 0)) + " check(s)" +
+            ((bp.live && bp.live.updated) ? " · " + esc(bp.live.updated) : "") + "</small>" +
+          ((bp.live && (bp.live.checks || []).length) ? "<ul class=\"bp-live\">" + bp.live.checks.map((c) =>
+            "<li title=\"" + esc((c.run || "") + (c.evidence ? " — " + c.evidence : "")) + "\">" + esc(c.label) + "</li>").join("") + "</ul>" : "") +
+          "<small class=\"muted\">Below: self-reported code progress (" + esc(bp.status_meaning || "landed = code merged, not live proof") + ")</small>" +
           "<small><b>Phases</b> " + esc(String(counts.phases_done || 0)) +
-          " / " + esc(String(counts.phases_total || 0)) + " landed</small>" +
+          " / " + esc(String(counts.phases_total || 0)) + " code landed</small>" +
           "<small><b>Gates</b> " + esc(String(counts.gates_strong_or_done || 0)) +
           " strong · " + esc(String(counts.gates_partial || 0)) +
           " partial · " + esc(String(counts.gates_open || 0)) + " open / " +
           esc(String(counts.gates_total || 10)) + "</small>" +
-          "<small><b>Work</b> " + esc(String(doneWork)) + " done · " +
+          "<small><b>Work</b> " + esc(String(doneWork)) + " landed · " +
           esc(String(openWork)) + " remaining</small>" +
           "<small><b>Blockers</b> " + esc(String((counts.blockers_open != null)
             ? counts.blockers_open : openWork)) + " hard-open</small>" +

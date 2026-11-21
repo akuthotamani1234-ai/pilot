@@ -12,6 +12,23 @@ from __future__ import annotations
 # "partial" / "open" = foundations or not established.
 
 
+def live_verification() -> dict:
+    """Checks proven by real runs (docs/live-verification.json). Missing or unreadable: none, never invented."""
+    import json
+    from pathlib import Path
+
+    from .finalization import folder_is_linked
+    path = Path(__file__).resolve().parent.parent / "docs" / "live-verification.json"
+    try:
+        if folder_is_linked(path) or not path.is_file():
+            return {"updated": "", "checks": []}
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"updated": "", "checks": []}
+    checks = [c for c in data.get("checks") or [] if isinstance(c, dict) and c.get("label") and c.get("run")]
+    return {"updated": str(data.get("updated") or ""), "checks": checks}
+
+
 def progress() -> dict:
     """Snapshot for the Studio sidebar. Always incomplete until gates A–J close."""
     phases = [
@@ -822,9 +839,14 @@ def progress() -> dict:
         "now": now,
         "next": next_items,
     }
+    live = live_verification()
     return {
         "complete": False,
         "rule": "Gates A–J stay Partial/open until controlled live evidence + independent review",
+        # Phase/work statuses are self-reported when code and offline checks land. Only `live` lists checks a real
+        # run has proven (docs/live-verification.json, with run IDs).
+        "status_meaning": "landed = code and offline checks merged; not proof that it works on a live target",
+        "live": live,
         "active": active,
         "phases": phases,
         "gates": gates,
@@ -842,6 +864,7 @@ def progress() -> dict:
             "landed": len(landed),
             "now": len(now),
             "next": len(next_items),
+            "live_verified": len(live.get("checks") or []),
         },
     }
 
@@ -852,7 +875,7 @@ def _blocker_rows_with_scores(rows: list[dict]) -> list[dict]:
     try:
         from .remaining_blockers_drill import run_remaining_blockers_drill
 
-        evidence = run_remaining_blockers_drill()
+        evidence = run_remaining_blockers_drill(write=False)
         for row in evidence.get("blockers") or []:
             inventory[row.get("id")] = row
     except Exception:

@@ -1,0 +1,18 @@
+{
+  "about": "Checks proven by a real run against a live or locally controlled target, with the run that proves them. The Studio sidebar shows only these as 'live-verified'; everything else there is self-reported code progress.",
+  "updated": "2026-11-21",
+  "checks": [
+    {"id": "web-login", "label": "Real browser logs in and is confirmed (OrangeHRM demo)", "commit": "d1417d4",
+     "run": "opensource-demo.orangehrmlive.com_20261121_193321", "evidence": "login.json: password box gone, /dashboard/index, still logged in after reload"},
+    {"id": "web-modules", "label": "Authenticated modules explored (12 on OrangeHRM)", "commit": "d1417d4",
+     "run": "opensource-demo.orangehrmlive.com_20261121_193321", "evidence": "app_map.json: 24 of 25 pages behind login"},
+    {"id": "web-assertions", "label": "Generated tests executed with assertions (294 tests, 1,066 assertions)", "commit": "d1417d4",
+     "run": "opensource-demo.orangehrmlive.com_20261121_193321", "evidence": "results.gw0-3.jsonl"},
+    {"id": "web-concurrency", "label": "4 test workers overlap in time (91 of 96 five-second windows)", "commit": "d1417d4",
+     "run": "opensource-demo.orangehrmlive.com_20261121_193321", "evidence": "events.*.gw0-3.jsonl timestamps"},
+    {"id": "fixture-accuracy", "label": "Seeded-defect fixture: pages 19/19, bugs caught 6/6, 0 false alarms", "commit": "d1417d4",
+     "run": "127.0.0.1_8766_20261121_195648", "evidence": "python -m backend.accuracy --truth tests/demo_store_truth.json"},
+    {"id": "android-apk", "label": "Own APK on Android emulator API 30 and 35 (CI)", "commit": "d1417d4",
+     "run": "GitHub Actions 44938461966", "evidence": "6 passed per API level"}
+  ]
+}
