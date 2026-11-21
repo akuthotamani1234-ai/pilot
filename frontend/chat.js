@@ -1095,7 +1095,12 @@
       '<label>Authenticator setup key (optional)<input id="aiTotp" type="password" autocomplete="off"></label></div>' +
       '<label class="tick" id="aiSignupField" hidden><input type="checkbox" id="aiSignup"><span>I permit creating a test account on this website. ' +
       'Registration must be available; CAPTCHA, verification and approval requirements are reported. A created account is stored encrypted locally for reuse.</span></label>' +
-      '<p class="note" id="aiAccountNote">Only publicly accessible pages will be explored. Choose an account method to include protected pages.</p></section>';
+      '<p class="note" id="aiAccountNote">Only publicly accessible pages will be explored. Choose an account method to include protected pages.</p>' +
+      (c.login ? '<div class="note warn" id="aiLoginFirst" role="alert"><b>This website starts with a login page.</b> With ' +
+        '"Public pages only", Qpilot cannot sign in, so it will only see the login page and other public pages. ' +
+        'Choose an account method above to test the application behind the login.' +
+        '<label class="tick"><input type="checkbox" id="aiPublicOk"><span>Test only the public pages anyway</span></label></div>' : '') +
+      '</section>';
   }
 
   function wireAiPicker(saved) {
@@ -1151,6 +1156,7 @@
       : mode === "signup" ? "Qpilot looks for registration, creates a permitted test account when supported, then signs in. Missing signup or verification blocks are explained."
       : mode === "configured" ? "The local configured test account is used without exposing its password in this interface."
       : "Public pages only. Stored accounts and account creation will not be used.";
+    if ($("aiLoginFirst")) $("aiLoginFirst").hidden = mode !== "public";
     updateSetupSummary();
   }
 
@@ -1292,6 +1298,8 @@
       problems.push("Confirm permission to create a test account, or choose another account method.");
     if (p && p.key_env && !p.has_key && !$("aiKey").value.trim()) problems.push(`Paste your ${p.name} API key, or choose Ollama / No AI.`);
     if (!$("aiAuth").checked) problems.push("Please confirm that you own this website or have permission to test it.");
+    if (accountMode === "public" && $("aiLoginFirst") && !($("aiPublicOk") && $("aiPublicOk").checked))
+      problems.push("This website starts with a login page: choose an account method, or tick 'Test only the public pages anyway'.");
     if (accountMode === "existing" && !!val("aiUser") !== !!$("aiPass").value) problems.push("Give both the test account's user name and its password (or neither).");
     if (val("advEnv") === "production" && !$("advProd").checked) problems.push("Tick the production confirmation, or choose Test / Staging.");
     if (!!val("advUserSel") !== !!val("advPassSel")) problems.push("Login boxes: give the user name box AND the password box (or neither).");

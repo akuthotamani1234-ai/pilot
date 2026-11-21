@@ -146,3 +146,5 @@ body[data-workflow=mcp] #mcpSharedSettings #m-ai{display:block!important;margin:
 .mcp-shared-settings h3{margin:0 0 8px}.mcp-shared-settings .mobile-advanced{margin-top:14px}
 .mcp-shared-settings .fields{min-width:0}.mcp-shared-settings :is(input,select,textarea){max-width:100%}
 @media(max-width:640px){.mcp-shared-settings{padding:12px}.mcp-shared-settings .fields{grid-template-columns:minmax(0,1fr)}}
+.note.warn {background:var(--amber-soft);color:var(--amber);border:1px solid currentColor}
+.note.warn .tick {margin-top:8px;color:inherit}
