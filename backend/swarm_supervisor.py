@@ -128,8 +128,15 @@ def drain(queue: DurableQueue, *, run_id: str, worker_id: str, work) -> dict:
                 if isinstance(result, dict) and result.get("error_class"):
                     ok, _reason = queue.fail(
                         task["task_id"], worker_id,
-                        error_class=result["error_class"],
+                        error_class=str(result["error_class"]),
                         detail=str(result.get("detail") or ""),
+                    )
+                elif isinstance(result, dict) and result.get("ok") is False:
+                    # A negative worker verdict is not a successful queue ack.
+                    ok, _reason = queue.fail(
+                        task["task_id"], worker_id,
+                        error_class="worker_rejected",
+                        detail=str(result.get("detail") or result.get("reason") or "worker returned ok=False"),
                     )
                 else:
                     ok, _reason = queue.complete(
