@@ -276,7 +276,11 @@ EXTRACT_JS = r"""
   };
   // No id / name / test id (very common): find it by placeholder, title, class or visible text instead,
   // so every button and box can still be tested. Repeated ones (30 x "ADD TO CART") use the first.
-  const STATE_CLASS = /^(active|disabled|selected|show|open|hover|focus|focused|hidden|visible|ng-.*|is-.*)$/i;
+  const STATE_CLASS = new RegExp('^(active|disabled|selected|show|open|hover|focus|focused|hidden|visible|ng-.*|is-.*)$'
+    + '|(--|__)(active|focus|focused|hover|open|opened|selected|disabled|error|invalid|valid|checked|filled|dirty|'
+    + 'touched|empty)$', 'i');
+  // (OrangeHRM: <input class="oxd-input oxd-input--active"> becomes "oxd-input--focus" when clicked - an address
+  // made of that class points to ANOTHER box after the first click)
   const fallbackFor = el => {
     const tag = el.tagName.toLowerCase();
     for (const a of ['placeholder', 'title', 'alt']) {
@@ -310,6 +314,23 @@ EXTRACT_JS = r"""
   // control's text (or value), else its position; ">> visible=true" skips hidden copies (e.g. a phone-only menu).
   // The SAME control repeated (30 x "ADD TO CART", one per product) keeps one address (the tests use the first).
   const firstLine = x => (x.innerText || x.value || x.getAttribute('aria-label') || '').trim().split('\n')[0].slice(0, 40);
+  // a box found by the label of its field group: stays right when boxes are added, moved or change their classes
+  const labelSel = el => {
+    if (el.getRootNode() !== document) return null;  // (XPath does not look into shadow roots)
+    const g = groupLabel(el);
+    if (!g || !g.text || g.text.length > 60 || /["\n]/.test(labelText(g.label))) return null;
+    let up = 0;
+    for (let n = g.label; n && n !== g.group; n = n.parentElement) up++;
+    const tagName = el.tagName.toLowerCase();
+    const same = [...g.group.querySelectorAll(tagName)];
+    let x = `//label[normalize-space(.)="${labelText(g.label)}"]/ancestor::*[${up}]//${tagName}`;
+    if (same.length > 1) x = `(${x})[${same.indexOf(el) + 1}]`;
+    try {
+      const r = document.evaluate(x, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      if (r.snapshotLength === 1 && r.snapshotItem(0) === el) return 'xpath=' + x;
+    } catch (e) { /* (an unusual label text): the position below */ }
+    return null;
+  };
   const sel = el => {
     const c = selectorFor(el) || fallbackFor(el);
     if (!c || c.includes(':has-text')) return c;
@@ -319,11 +340,15 @@ EXTRACT_JS = r"""
     const inShadow = shadowSel(el, c);
     if (inShadow) return inShadow;
     const t = firstLine(el);
-    if (all.every(x => firstLine(x) === t)) return all.filter(visible).length > 1 ? c : `${c} >> visible=true`;
+    // (boxes you type into all have an empty text: equal text does NOT make them the same control repeated)
+    const typed = /^(input|select|textarea)$/i.test(el.tagName) && !/^(radio|checkbox|submit|button|reset)$/i.test(el.type || '');
+    if (!typed && all.every(x => firstLine(x) === t)) return all.filter(visible).length > 1 ? c : `${c} >> visible=true`;
     if (/^(input|select|textarea)$/i.test(el.tagName)) {  // radios / checkboxes sharing a name: use their value
       // (not a box you type in: what is written in it changes - a date box holds today's date - so its position)
       const v = /^(radio|checkbox|submit|button|reset)$/i.test(el.type || '') ? el.getAttribute('value') : '';
       if (v && !idish(v) && all.filter(x => x.getAttribute('value') === v).length === 1) return `${c}[value="${q(v)}"]`;
+      const anchored = labelSel(el);
+      if (anchored) return anchored;
     } else if (t && stable(t)
                && all.filter(x => firstLine(x).toLowerCase().includes(stable(t).toLowerCase())).length === 1) {
       return `${c}:has-text("${q(stable(t))}")`;  // (':has-text' finds a part of the text, any case)
@@ -374,6 +399,22 @@ EXTRACT_JS = r"""
     }
     return '';
   };
+  // the field group a box belongs to: the nearest wrapper that holds exactly ONE label (Vue / React form kits put
+  // <label>Employee Id</label> in a wrapper beside the box, not linked with for=). null = no such group.
+  const labelText = l => (l.textContent || '').replace(/\s+/g, ' ').trim();
+  const groupLabel = el => {
+    let n = el;
+    for (let k = 0; k < 4 && n.parentElement && n.parentElement !== document.body; k++) {
+      n = n.parentElement;
+      const labs = [...n.querySelectorAll('label')].filter(l => !l.contains(el) && labelText(l));
+      if (!labs.length) continue;
+      if (labs.length > 1) return null;  // (several fields' labels: the wrapper of a whole form, not of this box)
+      const fields = [...n.querySelectorAll('input, textarea, select')]
+        .filter(i => !['hidden', 'submit', 'button', 'reset'].includes(i.type));
+      return { text: labelText(labs[0]).replace(/\s*\*$/, ''), label: labs[0], group: n, fields };
+    }
+    return null;
+  };
   const labelFor = el => {
     const root = el.getRootNode().querySelector ? el.getRootNode() : document;  // (a label inside the same shadow root)
     if (el.id) {
@@ -386,8 +427,13 @@ EXTRACT_JS = r"""
       if (l && l.innerText.trim()) return l.innerText.trim();
     }
     const p = el.closest('label'); if (p) return p.innerText.trim();
-    return el.getAttribute('placeholder') || el.getAttribute('aria-label') || el.getAttribute('title') || prevText(el)
-      || nearText(el);
+    if (el.getAttribute('aria-label')) return el.getAttribute('aria-label');
+    // the group's label beats a placeholder ('Employee Name', not 'Type for hints...'); a group of several boxes
+    // under one label ('Employee Full Name': First / Middle / Last) names each box by both
+    const g = /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && !/^(checkbox|radio)$/i.test(el.type || '') ? groupLabel(el) : null;
+    if (g && g.text && g.text.length < 60)
+      return g.fields.length > 1 && el.getAttribute('placeholder') ? `${g.text} - ${el.getAttribute('placeholder')}` : g.text;
+    return el.getAttribute('placeholder') || el.getAttribute('title') || prevText(el) || nearText(el);
   };
   // the name a screen reader announces ("+" with aria-label "Increase quantity" -> "Increase quantity") and the role
   const accName = el => ((el.getAttribute('aria-label') || '').trim()
@@ -413,7 +459,9 @@ EXTRACT_JS = r"""
   const OPENS_BY_NAME = /\b(gallery|lightbox|zoom|enlarge|preview|full ?screen|play( video)?|watch( video)?|view (photos?|images?|video))\b/i;
   const suggests = el => !el.readOnly && !!(el.getAttribute('aria-autocomplete') || el.getAttribute('list')
     || /autosuggest|autocomplete|typeahead|suggest/i.test(`${el.id} ${el.className}`)
-    || /type to|start typing/i.test(el.getAttribute('placeholder') || ''));
+    || /type to|type for|start typing|hints?\b/i.test(el.getAttribute('placeholder') || '')
+    // (the box itself has no class: its wrapper says it - OrangeHRM <div class="oxd-autocomplete-text-input">)
+    || !!(el.parentElement && el.parentElement.closest('[class*=autocomplete i], [class*=typeahead i], [role=combobox]')));
 
   // links; a link to a part of a page (#projects) also says which section, and - on this page - whether it exists
   const TAB_LIST = '[role=tablist], .nav-tabs, .nav-pills';
@@ -626,8 +674,12 @@ EXTRACT_JS = r"""
   // data tables: their columns and rows, and the search box / rows-per-page choice that belong to THEM (in the same
   // container, never the site's header search)
   const numericOptions = s => [...s.options].map(o => (o.value || o.text || '').trim()).filter(v => /^\d+$/.test(v));
-  const tables = [...document.querySelectorAll('table')]
-    .filter(t => visible(t) && t.querySelectorAll('tbody tr').length >= 2).slice(0, 5).map(t => {
+  // (a table can be built of <div>s with ARIA roles - OrangeHRM's employee list: role=table / row / cell)
+  const ROWS = 'tbody tr, [role=rowgroup] [role=row]:has([role=cell], [role=gridcell])';
+  const tableRows = t => [...t.querySelectorAll(ROWS)].filter(r => r.closest('table, [role=table], [role=grid]') === t);
+  const tables = [...document.querySelectorAll('table, [role=table], [role=grid]')]
+    .filter(t => visible(t) && !(t.tagName !== 'TABLE' && t.closest('table')) && tableRows(t).length >= 1
+            && (t.tagName !== 'TABLE' || tableRows(t).length >= 2)).slice(0, 5).map(t => {
       let box = t.parentElement;
       for (let k = 0; k < 4 && box && box.parentElement && box !== document.body
            && !box.querySelector('input[type=search], input[placeholder], select'); k++) box = box.parentElement;
@@ -635,9 +687,19 @@ EXTRACT_JS = r"""
       const search = [...box.querySelectorAll('input')].find(i => visible(i) && !inFrame(i) && (i.type === 'search'
         || /search|filter|find/i.test(`${i.placeholder} ${i.id} ${i.name} ${i.getAttribute('aria-label') || ''}`)));
       const size = [...box.querySelectorAll('select')].find(s => visible(s) && !inFrame(s) && numericOptions(s).length >= 2);
-      return { selector: sel(t) || 'table',
-               columns: [...t.querySelectorAll('thead th, tr:first-child > th')].map(th => (th.innerText || '').trim()).slice(0, 12),
-               rows: t.querySelectorAll('tbody tr').length, search: search ? sel(search) : null,
+      const native = t.tagName === 'TABLE';
+      const cellsOf = r => [...r.querySelectorAll(native ? 'td, th' : '[role=cell], [role=gridcell]')]
+        .map(c => (c.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 60));
+      return { selector: sel(t) || 'table', role: native ? '' : (t.getAttribute('role') || ''),
+               columns: [...t.querySelectorAll('thead th, tr:first-child > th, [role=columnheader]')]
+                 .map(th => (th.innerText || '').trim()).slice(0, 12),
+               rows: tableRows(t).length,
+               // how a test finds the rows and cells of THIS table (observed here: AI code may use them)
+               row_selector: native ? 'tbody tr' : '[role=rowgroup] [role=row]:has([role=cell])',
+               cell_selector: native ? 'td' : '[role=cell]',
+               // the first rows as the website shows them: real values a search test can look for
+               sample_rows: tableRows(t).slice(0, 3).map(cellsOf),
+               search: search ? sel(search) : null,
                page_size: size ? sel(size) : null, sizes: size ? numericOptions(size).slice(0, 6) : [] };
     });
 

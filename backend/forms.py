@@ -213,6 +213,7 @@ def data_forms(pages: list[dict]) -> list[dict]:
                               "required": bool(x.get("required")),
                               "label": (x.get("label") or x.get("accname") or "")[:80],
                               "role": x.get("role") or "",
+                              "suggests": bool(x.get("suggests")),
                               "valid": valid_value(x, "{tag}") if kind else "",
                               "tagged": kind in ("names", "text", "email")})
             required_boxes = [b for b in boxes if b["required"]]
@@ -647,6 +648,74 @@ def _reresolve_field(page, scope, box):
     return _unique_field(page, scope, box)
 
 
+SUGGESTION_OPTIONS = ('[role=listbox] [role=option], [role=option], .oxd-autocomplete-option, '
+                      'ul[class*=autocomplete i] li, [class*=suggestion i] li, li[class*=suggestion i]')
+NO_OPTION = re.compile(r'^\s*$|searching|loading|no (records|results|match|options)|not found|-- ?select ?--', re.I)
+PLACEHOLDER_CHOICE = re.compile(r'^\s*(-+\s*)?(select|please select|choose|--)(\s*(one|an option|\.\.\.|…))?(\s*-+)?\s*$', re.I)
+
+
+def _first_option(page):
+    """The first real entry of a list the website just opened (not 'Searching...', '-- Select --')."""
+    for o in page.locator(SUGGESTION_OPTIONS).all():
+        try:
+            if o.is_visible() and not NO_OPTION.search(o.inner_text() or ''):
+                return o
+        except Exception:
+            continue
+    return None
+
+
+def _pick_suggestion(page, el, b):
+    """A 'type, then pick' box (OrangeHRM's Employee Name): typed text alone is refused as 'Invalid'. Type a few
+    letters like a person, wait for the website's own suggestions and pick the first one - an existing record,
+    never an invented name. '' = no suggestion appeared (the caller types the planned value instead)."""
+    for letters in ('a', 'e', 'an'):
+        el.fill('')
+        el.press_sequentially(letters, delay=80)
+        for _ in range(8):  # (suggestions come from the server: up to ~2.5 s)
+            page.wait_for_timeout(300)
+            option = _first_option(page)
+            if option is not None:
+                text = (option.inner_text() or '').strip().split('\n')[0]
+                option.click()
+                page.wait_for_timeout(400)
+                _step_ok(f"picked '{text[:40]}' from the suggestions of '{b.get('name')}'")
+                return text
+    return ''
+
+
+def _pick_custom_choices(page, scope):
+    """Custom dropdowns (a <div> that opens a list - OrangeHRM's '-- Select --') still on their placeholder: open
+    each and pick its first real option, like a person. A native <select> is handled with its box."""
+    picked = []
+    triggers = scope.locator('[role=combobox]:not(input), [aria-haspopup=listbox]:not(input), '
+                             '.oxd-select-text, [class*=select-text i]')
+    for n in range(min(triggers.count(), 12)):
+        t = triggers.nth(n)
+        try:
+            if not t.is_visible() or not PLACEHOLDER_CHOICE.match((t.inner_text() or '').strip()):
+                continue
+            t.click()
+            option = None
+            for _ in range(6):
+                page.wait_for_timeout(250)
+                option = _first_option(page)
+                if option is not None:
+                    break
+            if option is None:
+                page.keyboard.press('Escape')
+                continue
+            text = (option.inner_text() or '').strip().split('\n')[0]
+            option.click()
+            page.wait_for_timeout(300)
+            picked.append(text)
+        except Exception as e:
+            _step_ok(f"a custom dropdown could not be set: {str(e)[:80]}")
+    if picked:
+        _step_ok("picked " + ", ".join(f"'{x[:30]}'" for x in picked) + " in the form's dropdowns")
+    return picked
+
+
 def _fill_form(page, F, tag, bad=None):
     """A valid value in every box scoped to the form - except `bad`: (selector, value).
 
@@ -719,6 +788,11 @@ def _fill_form(page, F, tag, bad=None):
             if not b['kind']:
                 _step_ok(f"skipped optional '{b['name']}': no typed value kind")
             continue
+        if b.get('suggests'):  # (type, then pick one of the website's own suggestions)
+            if _pick_suggestion(page, el, b):
+                if b.get('required'):
+                    filled_required.add(b['selector'])
+                continue
         value = b['valid']
         if b['kind'] == 'email':
             value = f"{tag}@example.com"
@@ -731,6 +805,7 @@ def _fill_form(page, F, tag, bad=None):
         expect(el, "The input must retain its intended test value").to_have_value(value)
         if b.get('required'):
             filled_required.add(b['selector'])
+    _pick_custom_choices(page, scope)
     missing = [r for r in intended if (r.get('selector') if isinstance(r, dict) else r) not in filled_required
                and (r.get('selector') if isinstance(r, dict) else r) not in {(bad or [None])[0]}]
     # Radios/checkboxes/selects already counted; typed required boxes must have been filled.

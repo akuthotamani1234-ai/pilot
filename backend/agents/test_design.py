@@ -319,7 +319,10 @@ def control_cases(p: dict) -> list[dict]:
         if i.get("readonly"):
             continue
         name = _box_name(i)
-        sample = "QA Shadow" if i.get("shadow_path") else "QA Tester"
+        # a value that fits the box (an ID box gets a code, a street box an address, a date box the date in the
+        # order its placeholder shows) - like a tester who reads the label first
+        from ..testdata import valid_value
+        sample = "QA Shadow" if i.get("shadow_path") else (valid_value(i) or "QA Tester")
         max_length = int(i.get("maxlength") or 0)
         if max_length and len(sample) > max_length:
             sample = sample[:max_length]

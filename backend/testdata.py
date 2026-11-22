@@ -14,7 +14,7 @@ import re
 from datetime import date, timedelta
 
 KINDS = ("email", "password", "card_number", "card_expiry", "cvv", "phone", "zip", "url", "names", "age", "quantity",
-         "amount", "number", "search", "date", "city", "text")
+         "amount", "number", "search", "date", "city", "identifier", "username", "address", "text")
 
 AUTOCOMPLETE = {"email": "email", "username": "text", "current-password": "password", "new-password": "password",
                 "cc-number": "card_number", "cc-exp": "card_expiry", "cc-exp-month": "number", "cc-exp-year": "number",
@@ -38,8 +38,15 @@ WORDS = [  # (the first that matches the box's label / placeholder / name / id)
     ("date", r"\bdate\b|\bdob\b|birth|depart|return|check-?in|check-?out|arrival"),
     ("city", r"\bcity\b|town|airport|origin|destination|\bfrom\b|\bto\b|location|station"),
     ("search", r"search|keyword|\bfind\b|\bquery\b"),
+    # (an ID / licence / passport box takes a code, not a person's name: 'QA Tester' in 'Driver's License Number')
+    ("username", r"user ?name|login (id|name)|\buser id\b"),
+    ("identifier", r"\bid\b|identifier|licen[cs]e|passport|\bssn\b|\bnic\b|\btax (id|no|number)\b|"
+                   r"registration (no|number)|employee (no|number)|reference (no|number)"),
+    ("address", r"street|address|\baddr\b|\bline ?[12]\b"),
     ("names", r"\bname\b|first ?name|last ?name|surname|full ?name|nick ?name"),
 ]
+# a placeholder that shows a date format ('yyyy-dd-mm', 'dd/mm/yyyy'): the box takes a date in THAT order
+DATE_FORMAT = re.compile(r"^\s*(yyyy|yy|dd|mm)([/\-. ])(yyyy|yy|dd|mm)\2(yyyy|yy|dd|mm)\s*$", re.I)
 CARD_PLACEHOLDER = re.compile(r"^\s*\d{4}([ -]?\d{4}){3}\s*$")
 EXPIRY_PLACEHOLDER = re.compile(r"^\s*mm\s*/\s*yy(yy)?\s*$", re.I)
 
@@ -61,6 +68,8 @@ def field_kind(box: dict) -> str:
     if t in TYPES:
         return TYPES[t]
     ph = box.get("placeholder") or ""
+    if DATE_FORMAT.match(ph):  # (before the words: 'License Expiry Date' with 'yyyy-dd-mm' is a date, not a card)
+        return "date"
     if CARD_PLACEHOLDER.match(ph):
         return "card_number"
     if EXPIRY_PLACEHOLDER.match(ph):
@@ -107,6 +116,10 @@ def _date_value(box: dict) -> str:
         return "10:00"
     # Prefer an explicit format / placeholder hint when present (dd/mm/yyyy vs ISO).
     fmt = (box.get("format") or box.get("placeholder") or "").lower()
+    m = DATE_FORMAT.match(fmt)
+    if m and {m.group(1), m.group(3), m.group(4)} >= {"dd", "mm"}:  # (any order the box shows: yyyy-dd-mm too)
+        code = {"yyyy": "%Y", "yy": "%y", "dd": "%d", "mm": "%m"}
+        return day.strftime(m.group(2).join(code[m.group(i)] for i in (1, 3, 4)))
     if re.search(r"dd[/\-.]mm[/\-.]yyyy", fmt):
         return day.strftime("%d/%m/%Y")
     if re.search(r"mm[/\-.]dd[/\-.]yyyy", fmt):
@@ -146,6 +159,9 @@ BASE = {
     "number": [_v("5", "accept", "a number"), _v("abc", "reject", "letters instead of a number")],
     "date": [_v("2030-06-15", "accept", "a date in the future")],
     "city": [_v("London", "accept", "a place")],
+    "identifier": [_v("QA12345", "accept", "an ID-like code (letters and digits)")],
+    "username": [_v("qa.tester01", "accept", "a user name")],
+    "address": [_v("12 Test Street", "accept", "a street address")],
     "search": [_v("test", "accept", "a search word")],
     "text": [_v("QA test text", "accept", "ordinary text")],
 }

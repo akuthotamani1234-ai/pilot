@@ -52,8 +52,10 @@ def _observed_text(pages: list[dict], requirements: str = "") -> str:
         for name in (page.get("itemNames") or page.get("productNames") or [])[:40]:
             bits.append(str(name))
         for row in (page.get("tables") or []):
-            for cell in (row.get("sample") or row.get("headers") or [])[:40]:
+            for cell in (row.get("sample") or row.get("headers") or row.get("columns") or [])[:40]:
                 bits.append(str(cell))
+            for sample in (row.get("sample_rows") or [])[:5]:  # (values the table really showed)
+                bits.extend(str(cell) for cell in sample[:12])
     return " ".join(bits).casefold()
 
 
@@ -74,10 +76,12 @@ def _observed_selectors(pages: list[dict]) -> set[str]:
                         if isinstance(fsel, str) and fsel.strip():
                             out.add(fsel.strip())
         for t in page.get("tables") or []:
-            for key in ("selector", "search", "page_size"):
+            for key in ("selector", "search", "page_size", "row_selector", "cell_selector"):
                 sel = t.get(key)
                 if isinstance(sel, str) and sel.strip():
                     out.add(sel.strip())
+            if t.get("selector") and t.get("row_selector"):  # (the rows of THIS table)
+                out.add(f"{t['selector'].strip()} {t['row_selector'].strip()}")
     return out
 
 

@@ -2350,7 +2350,14 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
                         "permissions": {"account_creation": settings.auto_register,
                                         "test_account_available": bool(settings.test_username and settings.test_password)},
                         "buttons": lean(p.get("buttons", [])[:30]),
-                        "inputs": lean(p.get("inputs", [])[:20]), "forms": lean(p.get("forms", [])[:5]),
+                        # the page's own boxes first: a sidebar search box or a table's row checkboxes are not
+                        # the form a test is about (OrangeHRM: the AI typed a name into the menu's 'Search')
+                        "inputs": lean(sorted((i for i in p.get("inputs", []) if not i.get("in_table")),
+                                              key=lambda i: bool(i.get("chrome")))[:20]),
+                        "forms": lean(p.get("forms", [])[:5]),
+                        "tables": [{k: t.get(k) for k in ("selector", "columns", "rows", "row_selector",
+                                                          "cell_selector", "sample_rows") if t.get(k)}
+                                   for t in (p.get("tables") or [])[:3]],
                         "links": [{"text": l["text"], "href": l["href"], "selector": l.get("selector")} for l in p.get("links", [])
                                   if not l.get("external")][:20],
                         "items_listed": (p.get("itemNames") or [])[:8], "observed": _observed(p),
@@ -2394,9 +2401,19 @@ def _llm_flows_in_batches(flows: list[dict], pages: dict[str, dict]) -> tuple[st
         try:
             codes.append(_llm_flows(part, pages))
         except LLMError as e:
-            lost += [f["id"] for f in part]
             why = str(e)
             print(f"  [script-gen] the AI could not write journeys {i + 1}-{i + len(part)}: {why[:160]}")
+            if len(part) == 1:
+                lost.append(part[0]["id"])
+                continue
+            # one bad journey must not take the other four with it: each one again, on its own
+            print(f"  [script-gen] trying journeys {i + 1}-{i + len(part)} one at a time")
+            for f in part:
+                try:
+                    codes.append(_llm_flows([f], pages))
+                except LLMError as e1:
+                    lost.append(f["id"])
+                    why = str(e1)
     if not codes:
         return "", lost, why
     code = _merge_flows(codes) if len(codes) > 1 else codes[0]
