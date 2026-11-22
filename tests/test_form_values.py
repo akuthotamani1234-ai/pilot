@@ -212,3 +212,15 @@ def test_a_guessed_number_of_search_results_is_refused():
     every = head + (f'    rows = page.locator("div.oxd-table {ROWS}")\n'
                     "    expect(rows.filter(has_not_text='0295')).to_have_count(0)\n")
     assert grounding_problem(every, [page]) is None
+
+
+def test_name_parts_phones_and_states_get_their_own_values():
+    from backend.testdata import field_kind, name_part, real_value
+    parts = {p: real_value("names", "qa-7", part=p) for p in ("first", "middle", "last")}
+    assert all(re.fullmatch(r"[A-Z][a-z]+", v) for v in parts.values())  # (one word each, not 'Meera Larsen' x 3)
+    assert real_value("names", "qa-7") == f"{parts['first']} {parts['last']}"  # (the same person)
+    assert name_part({"label": "Employee Full Name - Last Name"}) == "last"
+    for label in ("Home", "Work", "Mobile"):  # (OrangeHRM's 'Telephone' boxes)
+        assert field_kind({"label": label}) == "phone", label
+    assert field_kind({"label": "Work Email"}) == "email"
+    assert field_kind({"label": "State/Province"}) == "state" and real_value("state", "qa-7")

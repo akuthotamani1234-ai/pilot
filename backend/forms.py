@@ -30,7 +30,7 @@ from .actions import DELETE, action_risk, writes_allowed
 from .form_targets import FORM_TARGET_HELPER
 from .navigation import OPEN_PATH_HELPER, opener_path
 from .swarm import stored_control_opens_payment
-from .testdata import REAL_KINDS, field_kind, observed_values, real_value, valid_value, values
+from .testdata import REAL_KINDS, field_kind, name_part, observed_values, real_value, valid_value, values
 
 SEARCHY = re.compile(r"\b(q|query|search|keywords?|s)\b", re.I)
 QTY = re.compile(r"\bqty\b|quantit", re.I)
@@ -218,6 +218,7 @@ def data_forms(pages: list[dict]) -> list[dict]:
                               # a realistic value made when the test runs: new every run, in the website's format
                               "valid": "{real}" if real else valid_value(x, "{tag}") if kind else "",
                               **({"observed": observed_values(pages, x)} if real and kind == "identifier" else {}),
+                              **({"part": name_part(x)} if real and kind == "names" and name_part(x) else {}),
                               "tagged": kind in ("names", "text", "email")})
             required_boxes = [b for b in boxes if b["required"]]
             out.append({"page": p, "form": f, "boxes": boxes, "name": _form_name(p, f),
@@ -798,7 +799,8 @@ def _fill_form(page, F, tag, bad=None):
                 continue
         value = b['valid']
         if value == '{real}':  # (a realistic value, new every run; a run that saves keeps the tag in names)
-            value = _real_value(b['kind'], tag, b.get('observed'), keep=F.get('mode') != 'guard')
+            seed = tag if b['kind'] == 'names' else f"{tag}-{b['name']}"  # (Home and Work: two numbers)
+            value = _real_value(b['kind'], seed, b.get('observed'), keep=F.get('mode') != 'guard', part=b.get('part', ''))
         elif b['kind'] == 'email':
             value = f"{tag}@example.com"
         elif b['kind'] == 'phone' and not value:

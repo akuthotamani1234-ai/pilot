@@ -14,7 +14,7 @@ import re
 from datetime import date, timedelta
 
 KINDS = ("email", "password", "card_number", "card_expiry", "cvv", "phone", "zip", "url", "names", "age", "quantity",
-         "amount", "number", "search", "date", "city", "identifier", "username", "address", "text")
+         "amount", "number", "search", "date", "city", "state", "identifier", "username", "address", "text")
 
 AUTOCOMPLETE = {"email": "email", "username": "text", "current-password": "password", "new-password": "password",
                 "cc-number": "card_number", "cc-exp": "card_expiry", "cc-exp-month": "number", "cc-exp-year": "number",
@@ -29,13 +29,14 @@ WORDS = [  # (the first that matches the box's label / placeholder / name / id)
     ("card_number", r"card ?(no|num|number)|cc-?num|credit ?card|debit ?card|\bpan\b"),
     ("email", r"e-?mail"),
     ("password", r"pass(word|code)|\bpwd\b"),
-    ("phone", r"phone|mobile|\btel\b|contact (no|number)|whats ?app"),
+    ("phone", r"phone|mobile|\btel\b|contact (no|number)|whats ?app|^\s*(home|work)\s*$"),  # (under 'Telephone')
     ("zip", r"\bzip\b|postal|post ?code|\bpin ?code\b"),
     ("url", r"website|\burl\b|homepage|link"),
     ("age", r"\bage\b|years old"),
     ("quantity", r"\bqty\b|quantity|how many|\bcount\b|number of"),
     ("amount", r"amount|price|\btotal\b|\bsum\b|budget|salary|\bfee\b|payment"),
     ("date", r"\bdate\b|\bdob\b|birth|depart|return|check-?in|check-?out|arrival"),
+    ("state", r"\bstate\b|province|\bcounty\b|\bregion\b"),
     ("city", r"\bcity\b|town|airport|origin|destination|\bfrom\b|\bto\b|location|station"),
     ("search", r"search|keyword|\bfind\b|\bquery\b"),
     # (an ID / licence / passport box takes a code, not a person's name: 'QA Tester' in 'Driver's License Number')
@@ -159,6 +160,7 @@ BASE = {
     "number": [_v("5", "accept", "a number"), _v("abc", "reject", "letters instead of a number")],
     "date": [_v("2030-06-15", "accept", "a date in the future")],
     "city": [_v("London", "accept", "a place")],
+    "state": [_v("California", "accept", "a state / province")],
     "identifier": [_v("QA12345", "accept", "an ID-like code (letters and digits)")],
     "username": [_v("qa.tester01", "accept", "a user name")],
     "address": [_v("12 Test Street", "accept", "a street address")],
@@ -248,7 +250,16 @@ def valid_value(box: dict, tag: str = "") -> str:
 
 # ---------------------------------------------------------------- realistic, unique values (per run, per website)
 
-def real_value(kind, tag, observed=None, keep=False):
+def name_part(box: dict) -> str:
+    """Which part of a name a box takes: 'first', 'middle', 'last' or '' (the whole name)."""
+    hint = " ".join(str(box.get(k) or "") for k in ("label", "placeholder", "name", "id")).lower()
+    for part, rx in (("first", r"first|given|fore"), ("middle", r"middle"), ("last", r"last|sur|family")):
+        if re.search(rx, hint):
+            return part
+    return ""
+
+
+def real_value(kind, tag, observed=None, keep=False, part=""):
     """A value a real person could type - different every run (from the run's tag) and fitting what the WEBSITE
     shows: an ID box whose column holds '0295', '0312' gets another 4-digit number that is not one of them.
     keep=True (a run that really saves records): a name keeps the tag as its last name, so the record can be found
@@ -267,8 +278,16 @@ def real_value(kind, tag, observed=None, keep=False):
     pick = lambda pool, k=0: pool[(seed >> (8 * k)) % len(pool)]  # noqa: E731
     f, l_ = pick(first, 1), pick(last, 2)
     seen = {str(v).strip() for v in (observed or []) if str(v).strip()}
-    if kind == "names":
+    if kind == "names":  # (a box for one part of the name gets only that part: First / Middle / Last Name)
+        if part == "first":
+            return f
+        if part == "middle":
+            return pick(first, 5)
+        if part == "last":
+            return str(tag) if keep else l_
         return f"{f} {tag}" if keep else f"{f} {l_}"
+    if kind == "state":
+        return pick(["California", "Ontario", "Victoria", "Bavaria", "Karnataka", "Texas", "Queensland"], 6)
     if kind == "email":
         return f"{f.lower()}.{l_.lower()}{seed % 10000:04d}@example.com"
     if kind == "username":
@@ -298,7 +317,7 @@ def real_value(kind, tag, observed=None, keep=False):
     return ""
 
 
-REAL_KINDS = ("names", "email", "username", "address", "city", "phone", "identifier")
+REAL_KINDS = ("names", "email", "username", "address", "city", "state", "phone", "identifier")
 
 
 def observed_values(pages: list[dict], box: dict) -> list[str]:
