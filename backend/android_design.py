@@ -355,8 +355,10 @@ def design_cases(state: dict) -> dict:
     blocked = [eid for eid in blocked if eid not in exercised]
     # Navigation, configured behavior and user-like flows are kept first when the case limit applies.
     if cases:
-        cases.sort(
-            key=lambda case: 0
+        cases.sort(  # (your own tests first of all: the case limit never pushes them out)
+            key=lambda case: -1
+            if case.get("generation_source") == "owner"
+            else 0
             if case.get("kind") == "contract"
             else 0
             if case["id"] == "android_launch_screen"

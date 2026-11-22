@@ -1573,7 +1573,7 @@ class Session:
                            "requirement": "Observed navigation on a test build (regression)"})
 
     # -------- AI journeys
-    def ai_journeys(self, ask, requirements: str = ""):
+    def ai_journeys(self, ask, requirements: str = "", owner: bool = False):
         """Ask the AI for end-to-end journeys over the observed controls; keep only the ones that pass a replay."""
         import json
         from typing import Literal
@@ -1649,8 +1649,13 @@ class Session:
                     raise ValueError("None of the journeys matched the requested structure")
                 return {"journeys": kept[:4]}
 
+        owner_tests = [line.strip() for line in (requirements or "").splitlines() if line.strip()][:4] if owner else []
         prompt = (
-            "You are a senior mobile QA engineer testing a TEST BUILD of an Android app"
+            ("THE OWNER'S OWN TESTS come first: write exactly one journey for EACH line of `owner_tests`, in that "
+             "order, that does what the line says and ends with assertions of what it expects. When a line cannot be "
+             "done with the controls below, leave it out (it is reported as not automated). Title = the owner's line.\n"
+             if owner_tests else "")
+            + "You are a senior mobile QA engineer testing a TEST BUILD of an Android app"
             + (" (a test website in Android Chrome)" if self.web else "") + ". Propose at most 4 end-to-end user "
             "journeys a real tester would run (for example: add an item, open the cart, check the item is listed). "
             "Use ONLY the S/E references below; each journey starts on its `start` screen. Actions: tap, fill (value = a "
@@ -1661,14 +1666,22 @@ class Session:
             'Return JSON only, exactly this shape: {"journeys": [{"title": "...", "start": "S1", "steps": '
             '[{"action": "tap", "element": "E1"}, {"action": "assert_visible", "element": "E2"}]}]}\n'
         )
-        prompt += json.dumps({"screens": inventory, "observations": observed, "requirements": requirements[:3000]})
+        prompt += json.dumps({"screens": inventory, "observations": observed, "requirements": requirements[:3000],
+                              **({"owner_tests": owner_tests} if owner_tests else {})})
         result = ask(prompt, JourneyBatch)
         journeys = result.journeys if isinstance(result, JourneyBatch) else JourneyBatch.model_validate(result).journeys
+        label_ = "Your test: " if owner_tests else "AI journey: "
         for journey in journeys[:4]:
-            self.attempt("AI journey: " + journey.title, self._journey, journey, screen_alias, element_alias,
+            self.attempt(label_ + journey.title, self._journey, journey, screen_alias, element_alias, bool(owner_tests),
                          area="journey", where=screen_alias[journey.start]["screen_name"])
+        if owner_tests:  # (a line the AI could not turn into a journey is said, never silently dropped)
+            done = " ".join(j.title.casefold() for j in journeys)
+            for line in owner_tests:
+                if line.casefold()[:40] not in done:
+                    self.tried.append({"check": "Your test: " + line, "outcome": "not automated",
+                                       "detail": "no journey matched this line with the observed controls"})
 
-    def _journey(self, journey, screen_alias, element_alias):
+    def _journey(self, journey, screen_alias, element_alias, yours: bool = False):
         screen = screen_alias[journey.start]
         steps, ids = self.nav(screen), []
         user_ref, password_ref = self.account or (TEST_USERNAME, TEST_PASSWORD)
@@ -1719,11 +1732,15 @@ class Session:
         if not any(s["action"].startswith("assert_") for s in steps):
             return
         authentication = any(s.get("secret_ref") == password_ref for s in steps)
-        flow = self.build("journey", "Journey: " + journey.title, steps, authentication=authentication)
+        flow = self.build("journey", ("Your test: " if yours else "Journey: ") + journey.title, steps,
+                          authentication=authentication)
         self.keep(flow, {"category": "journey", "screen_id": screen["id"], "screen": screen["screen_name"],
-                         "element_ids": ids, "source": "ai",
-                         "expected": "The AI-drafted journey's result, confirmed by a replay on this build.",
-                         "requirement": "AI-drafted user journey, verified by replay (regression)"})
+                         "element_ids": ids, "source": "owner" if yours else "ai",
+                         "expected": ("What your test expects, checked by its assertions and confirmed by a replay."
+                                      if yours else "The AI-drafted journey's result, confirmed by a replay on this build."),
+                         "requirement": ("Your own test (plain English), automated by the AI" if yours
+                                         else "AI-drafted user journey, verified by replay (regression)")},
+                  universal=yours)  # (your test that fails twice is a finding, not dropped)
 
     # -------- everything, in order
     def plan(self):
@@ -1731,6 +1748,7 @@ class Session:
         because a login reveals new screens while the plan runs."""
         login_found = False
         planned = set()
+        sampled: dict[tuple, int] = {}
         for screen in self.screens:
             form = find_form(screen, self.native)
             if form:
@@ -1748,12 +1766,26 @@ class Session:
                 # sort is recorded as a new state): tapped once, not once per state - My Demo App's product
                 # image and five rating stars were tapped 14 times each while the run never moved on
                 same = ((screen.get("screen_name") or "").strip().casefold(), family(element))
+                # one control repeated on every item of a list (each product card has its own image and five
+                # rating stars, addressed through the card's name): a tester checks it on ONE item, not all of them
+                ident = element.get("resource_id") or element.get("accessibility_id") or ""
+                repeated = (same[0], element.get("class_name"), ident) if ident else None
                 if key in planned or (same[0] and same in planned):
+                    continue
+                if repeated and repeated in planned:
+                    sampled[repeated] = sampled.get(repeated, 0) + 1
                     continue
                 planned.add(key)
                 planned.add(same)
+                if repeated:
+                    planned.add(repeated)
                 yield {"area": "control", "name": f"Tap '{name(element)}' on {screen['screen_name']}",
                        "where": screen["screen_name"], "run": self.tap_check, "args": (screen, element)}
+        for (screen_name, _cls, ident), more in sampled.items():
+            self.tried.append({"check": f"'{ident.rsplit('/', 1)[-1]}' on {screen_name or 'a screen'}",
+                               "outcome": "sampled",
+                               "detail": f"the same control on {more} more item(s) of the list was not tapped again: "
+                                         "it was checked on the first item"})
         yield {"area": "phone", "name": "Rotation, background and Back checks", "where": self.screens[0]["screen_name"],
                "run": self.device_checks, "args": ()}
 
@@ -1778,8 +1810,19 @@ class Session:
             self.record_protected_controls(screen)
         from .android_accounts import prepare_account
         prepare_account(self)
+        # YOUR tests first, before every generic check: a run that runs out of time must not skip them
+        if ask and requirements.strip() and not _stop_requested(self.device.stop_path):
+            try:
+                self.ai_journeys(ask, requirements, owner=True)
+            except Budget as reason:
+                return str(reason)
+            except Exception as error:  # an AI failure never fails the run: it is reported
+                from .android_runtime import device_unavailable
+                if device_unavailable(error):
+                    raise
+                self.tried.append({"check": "Your tests", "outcome": "AI not used", "detail": redact(str(error))[:200]})
         stopped = self.execute(self.plan())
-        return self.journeys(ask, requirements, stopped)
+        return self.journeys(ask, "", stopped)
 
     def journeys(self, ask, requirements: str, stopped: str) -> str:
         if ask and not _stop_requested(self.device.stop_path) and not stopped.startswith("User-like testing time"):

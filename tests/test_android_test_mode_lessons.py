@@ -376,3 +376,77 @@ def test_a_control_on_several_states_of_one_screen_is_tapped_once(monkeypatch):
     taps = [item["name"] for item in session.plan() if item["area"] == "control"]
     assert taps.count("Tap 'start1IV' on Products") == 1 and taps.count("Tap 'start2IV' on Products") == 1, taps
     assert "Tap 'start1IV' on My Cart" in taps  # (another screen: tapped there too)
+
+
+def test_a_control_repeated_on_every_list_item_is_checked_on_one_item(monkeypatch):
+    """My Demo App (2026-11-22, run android_20261122_210437): every product card has its own image and five rating
+    stars, addressed through the card's name - 8 cards x 6 controls used the whole 15-minute budget."""
+    from backend import android_interact as ai
+    cards = ["Sauce Labs Backpack", "Sauce Labs Backpack (green)", "Sauce Labs Bike Light"]
+
+    def star(card, n):
+        rid = f"com.saucelabs.mydemoapp.android:id/start{n}IV"
+        return {"class_name": "android.widget.ImageView", "resource_id": rid, "text": "",
+                "locators": [{"strategy": "xpath", "value": f"//*[@text='{card}']/..//*[@resource-id='{rid}']"}]}
+    products = {"id": "screen_297bad751475", "screen_name": "Products",
+                "elements": [star(c, n) for c in cards for n in (1, 2)]}
+    session = ai.Session.__new__(ai.Session)
+    session.screens, session.native, session.tried = [products], True, []
+    monkeypatch.setattr(ai.Session, "has_account", property(lambda self: False))
+    monkeypatch.setattr(ai, "find_form", lambda screen, native: None)
+    monkeypatch.setattr(ai, "reversible_candidates", lambda screen, native=True: screen["elements"])
+    taps = [item for item in session.plan() if item["area"] == "control"]
+    assert len(taps) == 2, [t["name"] for t in taps]  # (star 1 and star 2, on the first card only)
+    notes = [t for t in session.tried if t["outcome"] == "sampled"]
+    assert len(notes) == 2 and all("2 more item(s)" in n["detail"] for n in notes)  # (said in the report)
+
+
+def test_your_own_tests_run_first_and_are_not_lost_to_the_time_limit(monkeypatch, tmp_path):
+    """My Demo App (2026-11-22): the owner's two tests were only background notes for the AI journeys, which run
+    after every generic check - the 15-minute budget ended first, so they never became test cases."""
+    from backend import android_interact as ai
+    order = []
+    session = ai.Session.__new__(ai.Session)
+    session.screens, session.native, session.tried, session.reserve = [], True, [], 0
+    session.device = type("D", (), {"stop_path": tmp_path / "stop"})()
+    monkeypatch.setattr(ai, "prepare_account", lambda s: None, raising=False)
+    import backend.android_accounts as acc
+    monkeypatch.setattr(acc, "prepare_account", lambda s: None)
+    monkeypatch.setattr(ai.Session, "ai_journeys",
+                        lambda self, ask, req="", owner=False: order.append(("owner" if owner else "ai", req)))
+    monkeypatch.setattr(ai.Session, "plan", lambda self: iter(()))
+
+    def out_of_time(self, plan):
+        order.append(("generic checks", ""))
+        return "User-like testing time limit reached"
+    monkeypatch.setattr(ai.Session, "execute", out_of_time)
+    mine = "Open a product, add it to the cart - the cart shows it\nLog in with the demo user - the catalog is shown"
+    stopped = session.run(ask=lambda *a: None, requirements=mine)
+    assert order[0] == ("owner", mine) and order[1] == ("generic checks", "")  # (yours before everything else)
+    assert stopped.startswith("User-like testing time")
+
+
+def test_your_tests_are_first_in_the_case_list_and_never_cut_by_its_limit():
+    from backend.android_interact import auto_cases
+    flows = [{"flow": {"id": f"f{n}", "title": t}, "meta": {"source": s, "category": "journey"}}
+             for n, (t, s) in enumerate([("Tap 'About'", "interaction"), ("Your test: cart", "owner")])]
+    cases = auto_cases(flows)
+    rank = lambda c: -1 if c.get("generation_source") == "owner" else 1  # noqa: E731  (android_design's order)
+    assert sorted(cases, key=rank)[0]["title"] == "Your test: cart"
+    assert next(c for c in cases if c["title"] == "Your test: cart")["generation_source"] == "owner"
+
+
+def test_your_line_becomes_your_test_case_and_an_impossible_line_is_said(tmp_path):
+    session, _ = _session(FakeApp("shop"), tmp_path)
+    seen = {}
+
+    def ask(prompt, shape):
+        seen["prompt"] = prompt
+        return TypeAdapter(shape).validate_python({"journeys": [JOURNEY]})
+    mine = "Add an item and see the badge\nPay with a gift card - the order is confirmed"
+    session.ai_journeys(ask, mine, owner=True)
+    assert "THE OWNER'S OWN TESTS" in seen["prompt"] and "Pay with a gift card" in seen["prompt"]
+    kept = [f for f in session.flows if f["meta"].get("source") == "owner"]
+    assert kept and kept[0]["flow"]["title"].startswith("Your test: Add an item")
+    assert any(t["check"] == "Your test: Pay with a gift card - the order is confirmed"
+               and t["outcome"] == "not automated" for t in session.tried)
