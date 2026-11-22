@@ -244,3 +244,75 @@ def valid_value(box: dict, tag: str = "") -> str:
         return _date_value(box)
     accept = next((v["value"] for v in values(box) if v["expect"] == "accept"), "")
     return accept
+
+
+# ---------------------------------------------------------------- realistic, unique values (per run, per website)
+
+def real_value(kind, tag, observed=None, keep=False):
+    """A value a real person could type - different every run (from the run's tag) and fitting what the WEBSITE
+    shows: an ID box whose column holds '0295', '0312' gets another 4-digit number that is not one of them.
+    keep=True (a run that really saves records): a name keeps the tag as its last name, so the record can be found
+    and cleaned up. Self-contained: the generated tests carry a copy of this function."""
+    import re as _re
+    first = ["Aarav", "Maya", "Liam", "Priya", "Noah", "Sofia", "Ethan", "Ananya", "Lucas", "Zara", "Omar", "Elena",
+             "Ravi", "Chloe", "Mateo", "Aisha", "Daniel", "Meera", "Hugo", "Leila", "Arjun", "Nina", "Kenji", "Isla"]
+    last = ["Sharma", "Patel", "Garcia", "Nguyen", "Okafor", "Fischer", "Rossi", "Kim", "Silva", "Haddad", "Novak",
+            "Reddy", "Moreau", "Tanaka", "Kowalski", "Mensah", "Larsen", "Iyer", "Costa", "Murphy"]
+    streets = ["Maple Avenue", "Station Road", "Park Lane", "Hill Street", "Lake View Road", "Church Street",
+               "Mill Lane", "Oak Drive", "River Road", "Market Street"]
+    cities = ["Springfield", "Riverton", "Lakewood", "Fairview", "Greenville", "Bridgeport", "Ashford", "Milton"]
+    seed = 0xcbf29ce484222325  # (FNV-1a of the tag: the same tag -> the same values, another tag -> others)
+    for ch in str(tag).encode():
+        seed = ((seed ^ ch) * 0x100000001b3) % (1 << 64)
+    pick = lambda pool, k=0: pool[(seed >> (8 * k)) % len(pool)]  # noqa: E731
+    f, l_ = pick(first, 1), pick(last, 2)
+    seen = {str(v).strip() for v in (observed or []) if str(v).strip()}
+    if kind == "names":
+        return f"{f} {tag}" if keep else f"{f} {l_}"
+    if kind == "email":
+        return f"{f.lower()}.{l_.lower()}{seed % 10000:04d}@example.com"
+    if kind == "username":
+        return f"{f.lower()}.{l_.lower()}{seed % 1000:03d}"
+    if kind == "address":
+        return f"{seed % 899 + 100} {pick(streets, 3)}"
+    if kind == "city":
+        return pick(cities, 4)
+    if kind == "phone":
+        return f"+1 555 {seed % 1000:03d} {(seed >> 10) % 10000:04d}"
+    if kind == "identifier":
+        # the website's own format: the longest common shape of the values it shows (0295 -> 4 digits;
+        # EMP-0042 -> 'EMP-' + 4 digits); a number none of them has
+        shapes = [_re.fullmatch(r"([A-Za-z]*[-_/]?)(\d+)", v) for v in seen]
+        shapes = [m for m in shapes if m]
+        prefix, width = "QA", 5
+        if shapes and len(shapes) == len(seen):
+            prefixes = {m.group(1) for m in shapes}
+            if len(prefixes) == 1:
+                prefix, width = prefixes.pop(), max(len(m.group(2)) for m in shapes)
+        for n in range(50):
+            number = (seed + n * 7919) % (10 ** width)
+            value = f"{prefix}{number:0{width}d}"
+            if value not in seen and number:
+                return value
+        return f"{prefix}{seed % (10 ** width):0{width}d}"
+    return ""
+
+
+REAL_KINDS = ("names", "email", "username", "address", "city", "phone", "identifier")
+
+
+def observed_values(pages: list[dict], box: dict) -> list[str]:
+    """What the website shows for this box's field elsewhere: the cells of a table column named like the box's
+    label ('Employee Id' -> column 'Id'). Used to make a NEW value in the same format, never one that exists."""
+    label = re.sub(r"[^a-z0-9 ]", " ", str(box.get("label") or box.get("accname") or "").lower()).split()
+    if not label:
+        return []
+    out: list[str] = []
+    for p in pages:
+        for t in p.get("tables") or []:
+            cols = [re.sub(r"[^a-z0-9 ]", " ", str(c).lower()).split() for c in t.get("columns") or []]
+            for i, col in enumerate(cols):
+                # the column's words are all in the label ('Id' in 'Employee Id'), and it is a short header
+                if col and len(col) <= 3 and all(w in label for w in col):
+                    out += [str(r[i]) for r in t.get("sample_rows") or [] if i < len(r) and str(r[i]).strip()]
+    return list(dict.fromkeys(out))[:20]

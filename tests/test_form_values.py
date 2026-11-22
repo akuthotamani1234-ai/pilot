@@ -143,7 +143,7 @@ def _helpers() -> dict:
     from backend.forms import FORM_HELPERS
     steps: list[str] = []
     ns = {"re": re, "expect": expect, "pytest": pytest, "_step_ok": steps.append, "_steps": steps}
-    exec(compile(FORM_HELPERS, "form_helpers", "exec"), ns)  # noqa: S102 (the generated tests' own helpers)
+    exec(compile(FORM_HELPERS, "form_helpers", "exec"), ns)  # (the generated tests' own helpers)
     return ns
 
 
@@ -160,3 +160,22 @@ def test_a_custom_dropdown_gets_its_first_real_option(page):
     ns = _helpers()
     assert ns["_pick_custom_choices"](page, page.locator("form")) == ["Full-Time Permanent"]
     expect(page.locator(".oxd-select-text")).to_have_text("Full-Time Permanent")
+
+
+def test_values_are_realistic_new_every_run_and_in_the_websites_format(page):
+    from backend.testdata import observed_values, real_value
+    a, b = real_value("names", "qa-111-01"), real_value("names", "qa-222-01")
+    assert re.fullmatch(r"[A-Z][a-z]+ [A-Z][a-z]+", a) and a != b  # (a person's name, another one next run)
+    assert real_value("names", "qa-111-01") == a  # (the same run: the same value - it can be checked again)
+    assert real_value("names", "qa-111-01", keep=True).endswith("qa-111-01")  # (a saved record keeps its tag)
+    assert re.fullmatch(r"[a-z]+\.[a-z]+\d{4}@example\.com", real_value("email", "qa-111-01"))
+    # an ID in the website's own format, never one it already shows
+    data = page.evaluate(EXTRACT_JS)
+    seen = observed_values([data], {"label": "Employee Id"})
+    assert seen == ["0295", "0312"]
+    for tag in ("qa-1", "qa-2", "qa-3"):
+        value = real_value("identifier", tag, seen)
+        assert re.fullmatch(r"\d{4}", value) and value not in seen, value
+    assert re.fullmatch(r"EMP-\d{4}", real_value("identifier", "qa-1", ["EMP-0042", "EMP-0007"]))
+    assert observed_values([data], {"label": "Employee Name"}) == ["Linda Anderson", "Peter Mac"]
+    assert observed_values([data], {"label": "Comment"}) == []

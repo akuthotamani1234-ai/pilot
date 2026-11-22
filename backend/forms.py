@@ -30,7 +30,7 @@ from .actions import DELETE, action_risk, writes_allowed
 from .form_targets import FORM_TARGET_HELPER
 from .navigation import OPEN_PATH_HELPER, opener_path
 from .swarm import stored_control_opens_payment
-from .testdata import field_kind, valid_value, values
+from .testdata import REAL_KINDS, field_kind, observed_values, real_value, valid_value, values
 
 SEARCHY = re.compile(r"\b(q|query|search|keywords?|s)\b", re.I)
 QTY = re.compile(r"\bqty\b|quantit", re.I)
@@ -207,6 +207,7 @@ def data_forms(pages: list[dict]) -> list[dict]:
             boxes = []
             for x in fields:
                 kind = field_kind(x)
+                real = kind in REAL_KINDS and not x.get("suggests")  # (a pick list takes the website's own entry)
                 boxes.append({"selector": x["selector"], "name": _name(x), "kind": kind,
                               "local_selector": x.get("local_selector"),
                               "type": (x.get("type") or "").lower(), "tag": x.get("tag") or "",
@@ -214,7 +215,9 @@ def data_forms(pages: list[dict]) -> list[dict]:
                               "label": (x.get("label") or x.get("accname") or "")[:80],
                               "role": x.get("role") or "",
                               "suggests": bool(x.get("suggests")),
-                              "valid": valid_value(x, "{tag}") if kind else "",
+                              # a realistic value made when the test runs: new every run, in the website's format
+                              "valid": "{real}" if real else valid_value(x, "{tag}") if kind else "",
+                              **({"observed": observed_values(pages, x)} if real and kind == "identifier" else {}),
                               "tagged": kind in ("names", "text", "email")})
             required_boxes = [b for b in boxes if b["required"]]
             out.append({"page": p, "form": f, "boxes": boxes, "name": _form_name(p, f),
@@ -794,13 +797,16 @@ def _fill_form(page, F, tag, bad=None):
                     filled_required.add(b['selector'])
                 continue
         value = b['valid']
-        if b['kind'] == 'email':
+        if value == '{real}':  # (a realistic value, new every run; a run that saves keeps the tag in names)
+            value = _real_value(b['kind'], tag, b.get('observed'), keep=F.get('mode') != 'guard')
+        elif b['kind'] == 'email':
             value = f"{tag}@example.com"
         elif b['kind'] == 'phone' and not value:
             value = '+1 555 010 0199'
         elif b['tagged']:
             value = value.replace('{tag}', tag)
         el.fill(value)
+        _step_ok(f"typed {value!r} into '{b['name']}'")
         el = _reresolve_field(page, scope, b)
         expect(el, "The input must retain its intended test value").to_have_value(value)
         if b.get('required'):
@@ -1031,7 +1037,7 @@ def _check_crud(page, C, tag, track_created):
         assert _find_row(page, C, tag) is None, f"The record ({tag}) is still listed after '{C['delete_text']}'"
         track_created('record', tag, C['list_url'], 'deleted')
         _step_ok("deleted - it is gone from the list")
-''')
+''') + "\n\n" + inspect.getsource(real_value).replace("def real_value(", "def _real_value(", 1)
 
 # Real helpers (observe / offline tests) mirror the generated FORM_HELPERS above.
 # Manual string (not getsource of form_target_problem) so generated scripts never contain a banned .__init__.

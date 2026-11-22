@@ -13,6 +13,7 @@ With an LLM: the model adds journeys of its own (AI flows).
 """
 import json
 import re
+import time
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -321,8 +322,11 @@ def control_cases(p: dict) -> list[dict]:
         name = _box_name(i)
         # a value that fits the box (an ID box gets a code, a street box an address, a date box the date in the
         # order its placeholder shows) - like a tester who reads the label first
-        from ..testdata import valid_value
-        sample = "QA Shadow" if i.get("shadow_path") else (valid_value(i) or "QA Tester")
+        from ..testdata import REAL_KINDS, field_kind, observed_values, real_value, valid_value
+        kind = field_kind(i)
+        real = real_value(kind, f"{time.strftime('%Y%m%d%H%M')}-{p.get('slug')}-{name}", observed_values([p], i)) \
+            if kind in REAL_KINDS else ""
+        sample = "QA Shadow" if i.get("shadow_path") else (real or valid_value(i) or "QA Tester")
         max_length = int(i.get("maxlength") or 0)
         if max_length and len(sample) > max_length:
             sample = sample[:max_length]
