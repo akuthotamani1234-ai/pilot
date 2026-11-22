@@ -799,7 +799,7 @@ def _fill_form(page, F, tag, bad=None):
                 continue
         value = b['valid']
         if value == '{real}':  # (a realistic value, new every run; a run that saves keeps the tag in names)
-            seed = tag if b['kind'] == 'names' else f"{tag}-{b['name']}"  # (Home and Work: two numbers)
+            seed = tag if b['kind'] in ('names', 'email') else f"{tag}-{b['name']}"  # (Home and Work: two numbers)
             value = _real_value(b['kind'], seed, b.get('observed'), keep=F.get('mode') != 'guard', part=b.get('part', ''))
         elif b['kind'] == 'email':
             value = f"{tag}@example.com"

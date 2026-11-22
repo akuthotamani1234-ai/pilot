@@ -288,7 +288,9 @@ def real_value(kind, tag, observed=None, keep=False, part=""):
         return f"{f} {tag}" if keep else f"{f} {l_}"
     if kind == "state":
         return pick(["California", "Ontario", "Victoria", "Bavaria", "Karnataka", "Texas", "Queensland"], 6)
-    if kind == "email":
+    if kind == "email":  # (a run that saves records keeps the tag: the record can be found and cleaned up)
+        if keep:
+            return (_re.sub(r"[^a-z0-9.-]", "", str(tag).lower()) or "qa") + "@example.com"
         return f"{f.lower()}.{l_.lower()}{seed % 10000:04d}@example.com"
     if kind == "username":
         return f"{f.lower()}.{l_.lower()}{seed % 1000:03d}"

@@ -1,5 +1,6 @@
 """Modal input groups and generated opener chains must work without an AI call."""
 
+import re
 import time
 
 import pytest
@@ -123,7 +124,8 @@ def test_generated_form_replays_modal_and_checks_actual_values(page, monkeypatch
     page.route("**/message", intercept)
     outcome, _ = namespace["_try_form"](page, valid["spec"], "qa-fixture", guarded)
     assert outcome == "sent" and len(guarded) == 1
-    assert page.locator("#email").input_value() == "qa-fixture@example.com"
+    # (nothing is saved here: a realistic e-mail, new every run; a run that saves keeps the tag in it)
+    assert re.fullmatch(r"[a-z]+\.[a-z]+\d{4}@example\.com", page.locator("#email").input_value())
     assert page.locator("#name").input_value() and page.locator("#message").input_value()
     invalid, _ = namespace["_try_form"](page, valid["spec"], "qa-fixture", guarded, bad=("#email", "bad"))
     assert invalid == "refused"
