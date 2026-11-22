@@ -27,18 +27,50 @@
       prepared = '';
     }
   }
+  async function configureWeb(target) {
+    const url = new URL(target); if (!['http:','https:'].includes(url.protocol) || url.username || url.password) throw new Error('Enter a complete website URL without credentials.');
+    if (webMove) { restore(webMove); webMove = null; }
+    const node = await window.QpilotChat.configureMcpWeb(target);
+    if (!active || platform !== 'web') return false;
+    webMove = move(node,$('mcpWebFields')); configuredFor = target;
+    return true;
+  }
   $('mcpConfigureWeb').onclick = async event => {
     const target = $('mcpTarget').value.trim();
     const button = event.currentTarget; button.disabled = true; invalidate();
     try {
-      const url = new URL(target); if (!['http:','https:'].includes(url.protocol) || url.username || url.password) throw new Error('Enter a complete website URL without credentials.');
-      if (webMove) { restore(webMove); webMove = null; }
-      const node = await window.QpilotChat.configureMcpWeb(target);
-      if (!active || platform !== 'web') return;
-      webMove = move(node,$('mcpWebFields')); configuredFor = target;
-      $('mcpPanelMessage').textContent = 'Review account, AI, exploration and workflow settings below, then prepare the request.';
-    } catch(error) { $('mcpPanelMessage').textContent = error.message; }
+      if (await configureWeb(target))
+        $('mcpPanelMessage').textContent = 'Review account, AI model, exploration and workflow settings below, then press Run it here (or prepare a request for an external assistant).';
+    } catch(error) { $('mcpPanelMessage').textContent = error.message.includes('URL') ? 'Enter a complete website URL without credentials.' : error.message; }
     finally { button.disabled = false; }
+  };
+  // "Run it here": the same request, run by Qpilot itself with the AI model chosen in the settings - no Cursor /
+  // Claude, no copy and paste. The first press opens the settings (AI model, account) when they are not shown yet.
+  const runHere = document.createElement('button');
+  runHere.type = 'button'; runHere.className = 'primary'; runHere.id = 'mcpRunHere'; runHere.textContent = 'Run it here with Qpilot AI';
+  $('copyMcpRequest').before(runHere);
+  $('copyMcpRequest').className = 'secondary';
+  $('copyMcpRequest').nextElementSibling.textContent = 'Run it here uses the AI model chosen below. Or prepare a request to paste into an external MCP assistant.';
+  runHere.onclick = async () => {
+    const target = $('mcpTarget').value.trim(), task = $('mcpTask').value.trim();
+    if (platform !== 'web') { $('mcpPanelMessage').textContent = 'Run it here is for websites. For Android, prepare the assistant request.'; return; }
+    if (!target || !task) { $('mcpPanelMessage').textContent = 'Enter the website and describe what you want to check.'; return; }
+    runHere.disabled = true;
+    try {
+      if (!webMove || configuredFor !== target) {
+        invalidate();
+        if (await configureWeb(target)) {
+          $('mcpPanelMessage').textContent = 'Choose the AI model and account below, then press Run it here again.';
+          const ai = document.querySelector('#mcpWebFields [data-provider], #mcpWebFields .provider, #mcpWebFields select');
+          if (ai && ai.scrollIntoView) ai.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+        return;
+      }
+      $('mcpPanelMessage').textContent = 'Starting…';
+      await window.QpilotChat.runHere(task);
+      $('mcpPanelMessage').textContent = 'Started in Qpilot with your request as its own test - follow it below.';
+    } catch(error) { $('mcpPanelMessage').textContent = error.message; }
+    finally { runHere.disabled = false; }
   };
   $('mcpAndroidTestBuild').addEventListener('change', () => {
     $('androidTestBuild').checked = $('mcpAndroidTestBuild').checked;
@@ -58,6 +90,7 @@
       if ((!enabled || engine !== 'web') && webMove) { restore(webMove); webMove = null; configuredFor = ''; }
       $('mcpConfigureWeb').hidden = engine !== 'web';
       slot.querySelectorAll('input,select,textarea,button').forEach(node => { node.disabled = !!busy; });
+      runHere.disabled = !!busy; runHere.hidden = engine !== 'web';
       // Preserve the shared full-coverage checkbox's count-field behavior.
       $('androidTestBuild').dispatchEvent(new Event('change'));
     },

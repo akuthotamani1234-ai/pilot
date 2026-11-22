@@ -1368,10 +1368,13 @@
     return body;
   }
 
-  async function startRun() {
-    if (!await standardReady()) return;
+  async function startRun(options = {}) {
+    // options.here: started from the assistant panel ("Run it here") - the same settings and checks, no MCP client
+    if (options.here) {
+      if (!workflow.loaded && !await workflow.ready) return false;
+    } else if (!await standardReady()) return false;
     const body = webRequest();
-    if (!body) return;
+    if (!body) return false;
     const p = (providers || []).find((x) => x.id === chosen);
     savePrefs({ providerChoiceVersion: 2, provider: chosen, model: body.llm_model || "", pages: body.max_pages,
                 crawlPrefsVersion: CRAWL_PREFS_VERSION, watch: body.show_browser,
@@ -1387,7 +1390,7 @@
       $("aiStart").disabled = false;
       $("aiNote").hidden = false;
       $("aiNote").textContent = data.detail || "Could not start the test.";
-      return;
+      return false;
     }
     rememberAuthorized(pendingSource);
     $("aiPass").value = ""; $("aiKey").value = "";  // (not kept in the page once the run has them)
@@ -1396,6 +1399,7 @@
     say(`<p>Starting now with <b>${esc(aiName)}</b>. Here's my plan; you can follow it in the <b>to-do list</b> on the right,
       every step gets a ✓ when it's done.${body.show_browser ? " A <b>Chrome window</b> will open so you can watch the website being tested." : ""}</p>`);
     beginJob(data, body.show_browser);
+    return true;
   }
 
   function beginJob(data, watching) {
@@ -2545,6 +2549,23 @@
 
   window.QpilotChat = {
     updateAndroidFields, androidRequest, webRequest,
+    // "Run it here": the request typed in the assistant panel becomes this run's own test (one per line), started
+    // with the AI model chosen in the settings - no external assistant needed
+    async runHere(task) {
+      if (timer) throw new Error("Wait for the running test.");
+      const box = $("myTests");
+      if (!box) throw new Error("Choose Configure website test first.");
+      box.value = String(task || "").trim();
+      const details = box.closest("details");
+      if (details) details.open = true;
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+      const started = await startRun({ here: true });
+      if (!started) {
+        const note = $("aiNote");
+        throw new Error((note && !note.hidden && note.textContent.trim()) || "Review the highlighted settings below.");
+      }
+      return true;
+    },
     async configureMcpWeb(source) {
       if (timer) throw new Error("Wait for the running test.");
       pendingSource = source; lastCheck = {};
