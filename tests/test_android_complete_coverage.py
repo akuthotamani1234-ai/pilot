@@ -135,3 +135,53 @@ def test_zero_page_limit_does_not_silently_turn_into_a_one_page_limit(limit, rec
     assert len(session.pages) == (2 if recorded else 1)
     if not recorded:
         assert "limit of 1 pages" in session.tried[-1]["reason"]
+
+
+def _card_star(card, n):
+    rid = f"com.saucelabs.mydemoapp.android:id/start{n}IV"
+    return {"id": f"{card}:{n}", "type": "button", "class_name": "android.widget.ImageView", "text": "",
+            "resource_id": rid, "accessibility_id": "", "content_desc": f"Rate {n}",
+            "visible": True, "enabled": True, "clickable": True, "locator_unique": True,
+            "locators": [{"strategy": "xpath", "value": f"//*[@text='{card}']/..//*[@resource-id='{rid}']"}]}
+
+
+def test_a_native_app_checks_a_list_items_control_once_not_on_every_card(monkeypatch):
+    """My Demo App (android_20261122_230438_5d89f1): the fix was only in Session; AppSession (every native app) still
+    tapped the image and five stars on all 8 product cards. The same control on another card is sampled now."""
+    from backend import android_app
+    cards = ["Sauce Labs Backpack", "Sauce Labs Backpack (green)", "Sauce Labs Bike Light"]
+    products = {"id": "screen_297bad751475", "package_name": "com.saucelabs.mydemoapp.android",
+                "screen_name": "Products", "elements": [_card_star(c, n) for c in cards for n in (1, 2)]}
+    monkeypatch.setattr(android_app, "reversible_candidates", lambda state, native=True: state["elements"])
+    session = AppSession(SimpleNamespace(config={"app_mode": "installed"}, screens=[products]))
+    assert [e["id"] for e in session.controls(products)] == ["Sauce Labs Backpack:1", "Sauce Labs Backpack:2"]
+    session.sampled_notes()
+    notes = [t for t in session.tried if t["outcome"] == "sampled"]
+    assert len(notes) == 2 and all("2 more item(s)" in n["detail"] for n in notes)
+
+
+def test_a_native_app_runs_your_tests_before_the_generic_checks(monkeypatch, tmp_path):
+    """The same run: AppSession.run went straight to the generic checks and handed your tests to the AI journeys at
+    the end, which never ran once the time limit was reached."""
+    import backend.android_accounts as accounts
+    first = {"id": "first", "package_name": "com.example", "screen_name": "Products", "elements": []}
+    session = AppSession(SimpleNamespace(config={"app_mode": "installed"}, screens=[first],
+                                         stop_path=tmp_path / "stop"))
+    order = []
+    monkeypatch.setattr(accounts, "prepare_account", lambda s: None)
+    monkeypatch.setattr(session, "ai_journeys", lambda ask, req="", owner=False: order.append("yours" if owner else "ai"))
+    monkeypatch.setattr(session, "execute", lambda plan: order.append("generic") or "User-like testing time limit reached")
+    session.run(ask=lambda *a: None, requirements="Add a product to the cart - the cart shows it")
+    assert order == ["yours", "generic"]  # (yours first; the generic AI journeys are skipped once time is up)
+
+
+def test_without_an_ai_your_android_tests_are_listed_as_not_automated(monkeypatch, tmp_path):
+    import backend.android_accounts as accounts
+    first = {"id": "first", "package_name": "com.example", "screen_name": "Products", "elements": []}
+    session = AppSession(SimpleNamespace(config={"app_mode": "installed"}, screens=[first],
+                                         stop_path=tmp_path / "stop"))
+    monkeypatch.setattr(accounts, "prepare_account", lambda s: None)
+    monkeypatch.setattr(session, "execute", lambda plan: "")
+    session.run(ask=None, requirements="Log in with the demo user - the catalog is shown")
+    assert any(t["check"] == "Your test: Log in with the demo user - the catalog is shown"
+               and t["outcome"] == "not automated" for t in session.tried)

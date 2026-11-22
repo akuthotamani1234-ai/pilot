@@ -416,6 +416,8 @@ class AppSession(Session):
             if key in self.done:
                 continue
             self.done.add(key)
+            if self.sample_repeated(state, element):
+                continue  # (the same image / rating star on the next product card: checked on the first one)
             out.append(element)
         return out
 
@@ -518,6 +520,7 @@ class AppSession(Session):
     def plan(self):
         yield from self.menu_items()
         yield from self.feature_items()
+        self.sampled_notes()
         yield {"area": "phone", "name": "Rotation, background and Back checks", "where": self.screens[0]["screen_name"],
                "run": self.device_checks, "args": ()}
 
@@ -528,5 +531,8 @@ class AppSession(Session):
             self.record_protected_controls(screen)
         from .android_accounts import prepare_account
         prepare_account(self)
+        stopped = self.yours_first(ask, requirements)  # (the same as Session.run: your tests before anything else)
+        if stopped:
+            return stopped
         stopped = self.execute(self.plan())
-        return self.journeys(ask, requirements, stopped)
+        return self.journeys(ask, "", stopped)

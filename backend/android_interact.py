@@ -1748,7 +1748,6 @@ class Session:
         because a login reveals new screens while the plan runs."""
         login_found = False
         planned = set()
-        sampled: dict[tuple, int] = {}
         for screen in self.screens:
             form = find_form(screen, self.native)
             if form:
@@ -1766,26 +1765,15 @@ class Session:
                 # sort is recorded as a new state): tapped once, not once per state - My Demo App's product
                 # image and five rating stars were tapped 14 times each while the run never moved on
                 same = ((screen.get("screen_name") or "").strip().casefold(), family(element))
-                # one control repeated on every item of a list (each product card has its own image and five
-                # rating stars, addressed through the card's name): a tester checks it on ONE item, not all of them
-                ident = element.get("resource_id") or element.get("accessibility_id") or ""
-                repeated = (same[0], element.get("class_name"), ident) if ident else None
                 if key in planned or (same[0] and same in planned):
                     continue
-                if repeated and repeated in planned:
-                    sampled[repeated] = sampled.get(repeated, 0) + 1
+                if self.sample_repeated(screen, element):
                     continue
                 planned.add(key)
                 planned.add(same)
-                if repeated:
-                    planned.add(repeated)
                 yield {"area": "control", "name": f"Tap '{name(element)}' on {screen['screen_name']}",
                        "where": screen["screen_name"], "run": self.tap_check, "args": (screen, element)}
-        for (screen_name, _cls, ident), more in sampled.items():
-            self.tried.append({"check": f"'{ident.rsplit('/', 1)[-1]}' on {screen_name or 'a screen'}",
-                               "outcome": "sampled",
-                               "detail": f"the same control on {more} more item(s) of the list was not tapped again: "
-                                         "it was checked on the first item"})
+        self.sampled_notes()
         yield {"area": "phone", "name": "Rotation, background and Back checks", "where": self.screens[0]["screen_name"],
                "run": self.device_checks, "args": ()}
 
@@ -1810,19 +1798,55 @@ class Session:
             self.record_protected_controls(screen)
         from .android_accounts import prepare_account
         prepare_account(self)
-        # YOUR tests first, before every generic check: a run that runs out of time must not skip them
-        if ask and requirements.strip() and not _stop_requested(self.device.stop_path):
-            try:
-                self.ai_journeys(ask, requirements, owner=True)
-            except Budget as reason:
-                return str(reason)
-            except Exception as error:  # an AI failure never fails the run: it is reported
-                from .android_runtime import device_unavailable
-                if device_unavailable(error):
-                    raise
-                self.tried.append({"check": "Your tests", "outcome": "AI not used", "detail": redact(str(error))[:200]})
+        stopped = self.yours_first(ask, requirements)
+        if stopped:
+            return stopped
         stopped = self.execute(self.plan())
         return self.journeys(ask, "", stopped)
+
+    def yours_first(self, ask, requirements: str) -> str:
+        """YOUR tests first, before every generic check (Session and AppSession both call this): a run that runs out
+        of time must not skip them. Returns why it stopped ('' = go on)."""
+        if not (ask and (requirements or "").strip()) or _stop_requested(self.device.stop_path):
+            if (requirements or "").strip() and not ask:
+                for line in [x.strip() for x in requirements.splitlines() if x.strip()][:4]:
+                    self.tried.append({"check": "Your test: " + line, "outcome": "not automated",
+                                       "detail": "your own tests need an AI to turn them into steps"})
+            return ""
+        try:
+            self.ai_journeys(ask, requirements, owner=True)
+        except Budget as reason:
+            return str(reason)
+        except Exception as error:  # an AI failure never fails the run: it is reported
+            from .android_runtime import device_unavailable
+            if device_unavailable(error):
+                raise
+            self.tried.append({"check": "Your tests", "outcome": "AI not used", "detail": redact(str(error))[:200]})
+        return ""
+
+    def sample_repeated(self, screen: dict, element: dict) -> bool:
+        """True = this control is the same one already checked on another item of the same list (each product card
+        has its own image and rating stars, addressed through the card's name): a tester checks it on ONE item.
+        Counted, and said in the report once (see sampled_notes)."""
+        ident = element.get("resource_id") or element.get("accessibility_id") or ""
+        where = (screen.get("screen_name") or "").strip().casefold()
+        if not ident or not where:
+            return False
+        key = (where, element.get("class_name"), ident)
+        counts = self.__dict__.setdefault("_sampled", {})
+        if key in counts:
+            counts[key] += 1
+            return True
+        counts[key] = 0
+        return False
+
+    def sampled_notes(self):
+        for (where, _cls, ident), more in (self.__dict__.get("_sampled") or {}).items():
+            if more:
+                self.tried.append({"check": f"'{ident.rsplit('/', 1)[-1]}' on {where or 'a screen'}",
+                                   "outcome": "sampled",
+                                   "detail": f"the same control on {more} more item(s) of the list was not tapped "
+                                             "again: it was checked on the first item"})
 
     def journeys(self, ask, requirements: str, stopped: str) -> str:
         if ask and not _stop_requested(self.device.stop_path) and not stopped.startswith("User-like testing time"):
