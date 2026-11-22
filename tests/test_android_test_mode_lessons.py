@@ -358,3 +358,21 @@ def test_the_web_conftest_starts_each_test_mode_flow_as_a_first_time_visitor():
     web_branch = source[source.index('CONFIG.get("app_mode") == "web" and case.get("reset_app_data")'):]
     assert web_branch.index("reset_site_data(driver, CONFIG)") < web_branch.index('driver.get(CONFIG["start_url"])')
     assert json.dumps  # (keeps the json import used by helpers above)
+
+
+def test_a_control_on_several_states_of_one_screen_is_tapped_once(monkeypatch):
+    """My Demo App (2026-11-22): the Products list was recorded as 14 states; its product image and 5 rating stars
+    were planned once per state - 84 taps of the same 6 controls, and the run never reached the other screens."""
+    from backend import android_interact as ai
+    star = lambda n: {"class_name": "android.widget.ImageView", "resource_id": f"start{n}IV",  # noqa: E731
+                      "locators": [{"strategy": "id", "value": f"start{n}IV"}], "text": "", "clickable": True}
+    products = [{"id": f"products-{n}", "screen_name": "Products", "elements": [star(1), star(2)]} for n in range(14)]
+    cart = {"id": "cart", "screen_name": "My Cart", "elements": [star(1)]}
+    session = ai.Session.__new__(ai.Session)
+    session.screens, session.native, session.tried = [*products, cart], True, []
+    monkeypatch.setattr(ai.Session, "has_account", property(lambda self: False))
+    monkeypatch.setattr(ai, "find_form", lambda screen, native: None)
+    monkeypatch.setattr(ai, "reversible_candidates", lambda screen, native=True: screen["elements"])
+    taps = [item["name"] for item in session.plan() if item["area"] == "control"]
+    assert taps.count("Tap 'start1IV' on Products") == 1 and taps.count("Tap 'start2IV' on Products") == 1, taps
+    assert "Tap 'start1IV' on My Cart" in taps  # (another screen: tapped there too)

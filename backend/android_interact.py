@@ -1744,9 +1744,14 @@ class Session:
         for screen in self.screens:
             for element in reversible_candidates(screen, self.native):
                 key = (screen["id"], family(element))
-                if key in planned:
+                # the same control on another state of the same screen (the Products list after a scroll or a
+                # sort is recorded as a new state): tapped once, not once per state - My Demo App's product
+                # image and five rating stars were tapped 14 times each while the run never moved on
+                same = ((screen.get("screen_name") or "").strip().casefold(), family(element))
+                if key in planned or (same[0] and same in planned):
                     continue
                 planned.add(key)
+                planned.add(same)
                 yield {"area": "control", "name": f"Tap '{name(element)}' on {screen['screen_name']}",
                        "where": screen["screen_name"], "run": self.tap_check, "args": (screen, element)}
         yield {"area": "phone", "name": "Rotation, background and Back checks", "where": self.screens[0]["screen_name"],
