@@ -161,3 +161,5 @@ body[data-workflow=mcp] #mcpSharedSettings #m-ai{display:block!important;margin:
 .agent-completed {border-left-color:#1d8a56}.agent-completed .agent-state {background:#e8f6ee;color:#176347}
 .agent-failed {border-left-color:#c2344a}.agent-failed .agent-state {background:#ffedf0;color:#ad273b}
 .agent-live {color:#155dbf!important;font-weight:600}.agent-detail {font-weight:600;color:#274866!important}
+.live-request {margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+.live-request li {display:flex;flex-direction:column;gap:2px}.live-request small {color:#4b6178;overflow-wrap:anywhere}

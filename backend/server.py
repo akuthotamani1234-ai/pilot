@@ -322,6 +322,7 @@ class RunRequest(BaseModel):
     exclude_paths: str | None = None  # comma-separated
     requirements: str | None = None   # business workflows / expected results / roles, in plain words
     my_tests: str | None = None       # your own tests in plain English, one per line (None = keep the saved ones)
+    objective_focus: bool = False     # with your own tests: explore only the pages they name (and what those lead to)
     qa_contract: dict | None = None  # explicit expected behavior; secret references only
     contract_only: bool = False      # run only the approved contract flows; no built-in site suite
     review: bool = False              # review the test cases before the scripts are written (untick, add tests)
@@ -3572,6 +3573,7 @@ def _launch_run(req: RunRequest, caller: str | None):
         env["RECORD_VIDEO"] = "true" if req.record_video else "false"  # (the tick in the chat decides)
         if req.my_tests is not None:  # (the chat's box: what is in it becomes this website's own tests - main.py)
             env["QA_MY_TESTS_SET"], env["QA_MY_TESTS"] = "1", req.my_tests[:12000]
+        env["QA_OBJECTIVE_FOCUS"] = "1" if req.objective_focus else "0"
         if req.review:
             env["REVIEW"] = "on"
         if req.page_timeout_s:
@@ -4085,6 +4087,30 @@ def run_agents(
     if folder_is_linked(folder) or (folder / "agents.json").is_symlink():
         return {"agents": []}
     return snapshot(folder)
+
+
+@app.get("/api/runs/{job_id}/objective")
+def run_objective(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Your instructions for this run, the pages they matched, the plan made from them and their results."""
+    from backend.finalization import folder_is_linked
+    from backend.objective import read
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    if not job.get("run"):
+        return {}
+    folder = _run_dir(job["run"])
+    if folder_is_linked(folder) or (folder / "objective.json").is_symlink():
+        return {}
+    return read(folder)
 
 
 @app.get("/api/runs/{job_id}/live/{worker}")

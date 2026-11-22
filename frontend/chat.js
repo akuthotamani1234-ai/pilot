@@ -1018,6 +1018,11 @@
         <summary>📝 Your own tests in plain English ${mine.length ? `<span class="muted small">(${mine.length} saved for this website)</span>` : '<span class="muted small">(optional)</span>'}</summary>
         <label class="wide">One test per line - the AI turns each one into steps and checks, every time this website is tested
           <textarea id="myTests" rows="3" spellcheck="false" placeholder="e.g. Search for 'Blue Top', add it to the cart - the cart shows it with its price">${esc(mine.join("\n"))}</textarea></label>
+        <label class="tick"><input type="checkbox" id="myFocus">
+          <span><b>Test only what my instructions name</b>: explore just the pages they point to (and the pages those
+          lead to) instead of the whole website first.</span></label>
+        <label class="tick"><input type="checkbox" id="myNoAiOk">
+          <span>If "Rules only" is chosen: start anyway - my instructions are then listed as not automated.</span></label>
         <label class="tick"><input type="checkbox" id="myReview">
           <span><b>Let me review the test cases</b> before the scripts are written: untick the ones you don't want, add more
           tests. The run waits for you (up to 15 minutes), then goes on.</span></label>
@@ -1303,6 +1308,8 @@
       problems.push("Confirm permission to create a test account, or choose another account method.");
     if (p && p.key_env && !p.has_key && !$("aiKey").value.trim()) problems.push(`Paste your ${p.name} API key, or choose Ollama / No AI.`);
     if (!$("aiAuth").checked) problems.push("Please confirm that you own this website or have permission to test it.");
+    if (p && p.id === "none" && $("myTests") && $("myTests").value.trim() && !($("myNoAiOk") && $("myNoAiOk").checked))
+      problems.push("Your own tests need an AI to become test steps: choose an AI engine, or tick 'start anyway' under your tests.");
     if (accountMode === "public" && $("aiLoginFirst") && !($("aiPublicOk") && $("aiPublicOk").checked))
       problems.push("This website starts with a login page: choose an account method, or tick 'Test only the public pages anyway'.");
     if (accountMode === "existing" && !!val("aiUser") !== !!$("aiPass").value) problems.push("Give both the test account's user name and its password (or neither).");
@@ -1342,7 +1349,8 @@
                    login_user_selector: val("advUserSel"), login_password_selector: val("advPassSel"),
                    login_submit_selector: val("advSubmitSel"), allowed_hosts: val("advHosts"),
                    exclude_paths: val("advExclude"), requirements: val("advReq"), record_video: $("advVideo").checked,
-                   my_tests: $("myTests") ? $("myTests").value : null, review: !!($("myReview") && $("myReview").checked) };
+                   my_tests: $("myTests") ? $("myTests").value : null, review: !!($("myReview") && $("myReview").checked),
+                   objective_focus: !!($("myFocus") && $("myFocus").checked) };
     if ($("webContract") && $("webContract").value.trim()) {
       try { body.qa_contract = JSON.parse($("webContract").value); }
       catch (_) { $("aiNote").hidden = false; $("aiNote").textContent = "The QA contract must be valid JSON."; return; }

@@ -22,8 +22,15 @@ For each test:
   website", "<what is missing>"] and expected "Not possible: <what is missing>".
 - NEVER complete a purchase, payment, booking confirmation, deletion or logout - stop before that button (you may check
   that it is shown), even when the owner's test says to do it.
+- "preconditions": what must be true before step 1 (e.g. "logged in", "on the Employee List page").
+- "assertions": each check the test makes, as "<what is checked> -> <expected result>" (e.g. "every result row's Name
+  -> contains the typed name"). Only checks that the owner asked for or the evidence supports.
+- "unknowns": what cannot be checked reliably from the owner's words and the evidence (say why), instead of guessing.
+- "needs_clarification": "" normally. When the test is so vague that you would have to guess WHAT to test (e.g. "test
+  the employee section"), put ONE short question to the owner here and still return your best bounded steps.
 - "pages": the "page" values (from WEBSITE) it visits, in order. "guest": true only when it must start NOT logged in.
 
 Return ONLY a JSON array of exactly {n} items, in the owner's order. Each item:
 {{"title": "...", "priority": "high|medium|low", "pages": ["..."], "guest": false,
-  "test_data": "values typed", "steps": ["...", "..."], "expected": "..."}}
+  "test_data": "values typed", "preconditions": ["..."], "steps": ["...", "..."], "expected": "...",
+  "assertions": ["... -> ..."], "unknowns": ["..."], "needs_clarification": ""}}

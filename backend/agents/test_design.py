@@ -1455,8 +1455,18 @@ def _mentions(p: dict, rx: str) -> bool:
                for x in p.get("links", []) + p.get("buttons", []))
 
 
+def _has_search_form(p: dict) -> bool:
+    """A search done with a 'Search' / 'Find' button and the boxes beside it (OrangeHRM's Employee List: the boxes
+    say 'Type for hints...', the button says Search) - a search box by another name."""
+    has_button = any(re.fullmatch(r"\s*(search|find|filter|go)\s*", b.get("text") or "", re.I) and b.get("selector")
+                     and not b.get("disabled") for b in p.get("buttons", []))
+    has_box = any(i.get("selector") and (i.get("type") or "text").lower() in ("text", "search", "")
+                  for i in p.get("inputs", []))
+    return has_button and has_box
+
+
 AI_NEEDS = [  # (words in the case, the thing it needs, does a page have it? (page, its feature kinds))
-    (r"\bsearch", "a search box", lambda p, k: "search" in k),
+    (r"\bsearch", "a search box", lambda p, k: "search" in k or _has_search_form(p)),
     (r"\bcart\b|\bbasket\b", "a cart", lambda p, k: "add_to_cart" in k or bool(_cart_control(p))),
     (r"\bfilter", "filters", lambda p, k: "filter" in k),
     (r"\bsort", "sorting", lambda p, k: "sort" in k),
@@ -1506,6 +1516,25 @@ class AICase(BaseModel):
     pages: list[str] = Field(default_factory=list)
     guest: bool = False
     test_data: str = ""
+    # the plan behind the case (your own tests): what must be true first, what is checked, what is not known
+    preconditions: list[str] = Field(default_factory=list, max_length=10)
+    assertions: list[str] = Field(default_factory=list, max_length=15)
+    unknowns: list[str] = Field(default_factory=list, max_length=10)
+    needs_clarification: str = Field(default="", max_length=400)
+
+    @field_validator("preconditions", "assertions", "unknowns", mode="before")
+    @classmethod
+    def _as_list(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v] if v.strip() else []
+        return [str(x) for x in v]
+
+    @field_validator("needs_clarification", mode="before")
+    @classmethod
+    def _as_text(cls, v):
+        return "" if v in (None, False) else str(v)
 
     @field_validator("test_data", mode="before")
     @classmethod
@@ -1604,7 +1633,7 @@ def ai_flows(pages: list[dict]) -> list[dict]:
 MY_TEST = "Your own test (plain English)"
 
 
-def my_test_cases(pages: list[dict], tests: list[dict], start: int) -> list[dict]:
+def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None) -> list[dict]:
     """Your own tests in plain English (backend/my_tests.py) -> one test case each, written by the AI from what
     exploring found and scripted like its journeys (ai_flow_<start>...). A test the website can't do, or a run without
     an AI, stays in the list as not automated with the reason - never dropped."""
@@ -1613,15 +1642,35 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int) -> list[dict
     by_slug = {p["slug"]: p for p in pages}
     observed = _site_summary(pages).casefold()
 
+    from .. import objective as objective_mod
+
+    def plan_note(t: dict, status: str, **plan) -> None:
+        if run_dir:
+            try:
+                objective_mod.update_instruction(run_dir, t["id"], status=status, **({"plan": plan} if plan else {}))
+            except OSError:
+                pass
+
     def kept(t: dict, why: str) -> dict:
+        plan_note(t, why)
         return {"id": f"my_test_{t['id']}", "kind": "mine", "size": "large", "type": "functional", "priority": "high",
-                "title": t["text"][:150], "steps": [t["text"]], "expected": "-", "page": pages[0]["slug"],
+                "title": _short_title(t["text"]), "instruction": t["text"], "steps": [t["text"]], "expected": "-",
+                "page": pages[0]["slug"],
                 "url": pages[0]["url"], "pages": [pages[0]["slug"]], "requirement": MY_TEST, "my_test": t["id"],
                 "feature": "Your own tests", "element": "as written by you", "files": [], "tests": [],
                 "skip_reason": why}
+    # a request to delete, pay or otherwise change data is never carried out from an instruction
+    risky = [t for t in tests if objective_mod.destructive(t["text"])]
+    refused = {t["id"]: kept(t, f"Blocked: '{objective_mod.destructive(t['text'])}' changes or destroys data - Qpilot "
+                                "does not do that from an instruction (only on a staging copy with explicit permission)")
+               for t in risky}
+    tests = [t for t in tests if t["id"] not in refused]
     if not llm_enabled():
-        return [kept(t, "Not automated: your own tests need an AI to turn them into steps - choose an AI in the chat")
-                for t in tests]
+        return list(refused.values()) + [
+            kept(t, "Not automated: your own tests need an AI to turn them into steps - choose an AI in the chat")
+            for t in tests]
+    if not tests:
+        return list(refused.values())
     try:
         answer = ask_structured(load_prompt("my_tests").format(
             n=len(tests), site=_site_summary(pages), tests="\n".join(f"{n}. {t['text']}" for n, t in
@@ -1629,14 +1678,18 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int) -> list[dict
             list[AICase], system=SYSTEM, agent="test_design", page="my tests")
     except (LLMError, json.JSONDecodeError, ValueError) as e:
         print(f"  [test-design] your own tests: the AI failed ({str(e)[:120]}) - they stay as not automated")
-        return [kept(t, f"Not automated: the AI could not turn it into steps this time ({str(e)[:80]})") for t in tests]
+        return list(refused.values()) + [
+            kept(t, f"Not automated: the AI could not turn it into steps this time ({str(e)[:80]})") for t in tests]
     from ..features import page_features
     kinds = [{f["kind"] for f in page_features(p)} for p in pages]
-    out = []
+    out = list(refused.values())
     for i, t in enumerate(tests):
         c = answer[i].model_dump() if i < len(answer) else None
         if c is None:
             out.append(kept(t, "Not automated: the AI gave no steps for it"))
+            continue
+        if (c.get("needs_clarification") or "").strip():
+            out.append(kept(t, f"Needs clarification: {c['needs_clarification'].strip()[:300]}"))
             continue
         if str(c.get("expected") or "").lower().startswith("not possible") or str(c["steps"][0]).lower().startswith(
                 "not possible"):
@@ -1658,15 +1711,25 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int) -> list[dict
             "id": f"ai_flow_{n}", "kind": "flow", "size": "large", "ai": True, "my_test": t["id"],
             "type": "exploratory" if expected.casefold().startswith("exploratory:") else "end-to-end",
             "priority": c.get("priority") if c.get("priority") in ("high", "medium", "low") else "high",
-            "title": t["text"][:150], "test_data": str(c.get("test_data") or ""),
+            "title": _short_title(t["text"]), "instruction": t["text"], "test_data": str(c.get("test_data") or ""),
+            "preconditions": c.get("preconditions") or [], "assertions": c.get("assertions") or [],
+            "unknowns": c.get("unknowns") or [],
             "steps": [str(s) for s in c["steps"]], "expected": expected,
             "page": ", ".join(used), "url": by_slug[used[0]]["url"], "pages": used, "requirement": MY_TEST,
             "feature": "Your own tests", "element": "as written by you",
             "guest": bool(c.get("guest")) or not any(by_slug[s].get("auth") for s in used),
             "files": ["test_flows_ai.py"], "tests": [f"test_ai_flow_{n}"]})
         humanize([out[-1]], by_slug[used[0]])
-        out[-1]["title"] = t["text"][:150]  # (your words stay the title)
+        out[-1]["title"] = _short_title(t["text"])  # (your words stay the title; the full text is "instruction")
+        plan_note(t, "automated", navigation=[by_slug[s]["url"] for s in used], preconditions=c.get("preconditions") or [],
+                  steps=out[-1]["steps"], test_data=out[-1]["test_data"], expected=expected,
+                  assertions=c.get("assertions") or [], unknowns=c.get("unknowns") or [], test=f"test_ai_flow_{n}")
     return out
+
+
+def _short_title(text: str) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= 150 else text[:149].rstrip() + "…"
 
 
 # ---------------------------------------------------------------- structured test cases (every case has every field)
@@ -2194,7 +2257,10 @@ def test_design_agent(state: QAState) -> QAState:
             print(f"  [test-design] AI failed: {e} — using built-in rules")
             mode = "built-in rules (the AI failed)"
     from ..my_tests import load as load_my_tests  # your own tests in plain English (kept per website)
-    mine = my_test_cases(opened_pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1)
+    mine = my_test_cases(opened_pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1,
+                         run_dir=state.get("run_dir"))
+    if settings.requirements.strip() and not llm_enabled():
+        print("  [test-design] your requirements text was not used: it needs an AI (this run uses the built-in rules)")
     small = small_checks(pages, data) if pages else []
     blocked = blocked_cases(pages)
     # data forms: valid / wrong values (nothing is sent unless staging) + staging's create -> edit -> delete

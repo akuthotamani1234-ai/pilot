@@ -831,6 +831,36 @@ def created_records(run_dir: Path) -> dict:
     return out
 
 
+def _request_html(run_dir: Path, items: list[dict]) -> str:
+    """Your request: each plain-English instruction, how it was understood and what really happened to it."""
+    if not items:
+        return ""
+    tone = {"passed": "#176347", "failed": "#ad273b"}
+    rows = []
+    for i in items:
+        plan = i.get("plan") or {}
+        parts = []
+        for label, key in (("Pages", "navigation"), ("Preconditions", "preconditions"), ("Steps", "steps"),
+                           ("Test data", "test_data"), ("Checks", "assertions"), ("Expected", "expected"),
+                           ("Unknown", "unknowns")):
+            v = plan.get(key)
+            if v:
+                v = v if isinstance(v, list) else [v]
+                parts.append(f"<b>{label}:</b> " + "<br>".join(_e(x) for x in v[:20]))
+        targets = ", ".join(_e(t) for t in (i.get("targets") or [])[:6]) or "no page matched the words"
+        evidence = "<br>".join(f"<code>{_e(x)}</code>" for x in i.get("evidence") or []) or "-"
+        rows.append(
+            f"<tr><td>{_e(i['instruction'])}</td><td>{targets}</td><td>{'<br>'.join(parts) or '-'}</td>"
+            f"<td>{_e(i['status'])}</td>"
+            f"<td style='color:{tone.get(i['outcome'], 'inherit')}'><b>{_e(i['outcome'])}</b>"
+            f"{'<br>' + str(i['assertions_checked']) + ' check(s)' if i.get('assertions_checked') else ''}"
+            f"{'<br><small>' + _e(i['error'][:200]) + '</small>' if i.get('error') else ''}</td><td>{evidence}</td></tr>")
+    return ('<section class="box"><h2>Your request</h2><p>Each instruction you gave, the pages it pointed to, the plan '
+            'made from it and what really ran. An instruction whose test did not run says why - it is never counted '
+            'as passed.</p><table><tr><th>Your instruction</th><th>Matching pages</th><th>Plan</th><th>Status</th>'
+            f'<th>Outcome</th><th>Evidence</th></tr>{"".join(rows)}</table></section>')
+
+
 def _api_inventory(run_dir: Path) -> dict:
     from ..finalization import read_json
     data = read_json(run_dir / "api_inventory.json", {})
@@ -1447,7 +1477,9 @@ function copyCode(b) {{
     from ..page_inventory import save_inventory
     save_inventory(run_dir, app_map, reg)
     component_link = '<section class="box"><h2>Page component inventory</h2><p><a href="components.html">Browse components by page and observed state</a> | <a href="components.json">Download inventory JSON</a></p><p>Discovery and functional verification are separate. Hidden, opaque and limited areas are identified.</p></section>'
-    doc = doc.replace("</body>", component_link + _api_html(run_dir) + "</body>")
+    from .. import objective as objective_mod
+    request_items = objective_mod.outcomes(run_dir, cases, results)
+    doc = doc.replace("</body>", _request_html(run_dir, request_items) + component_link + _api_html(run_dir) + "</body>")
     report = run_dir / "report.html"
     _write_run_text(run_dir, "report.html", doc)
     login = state.get("login") or {}
@@ -1456,6 +1488,13 @@ function copyCode(b) {{
         "exploration": (state.get("crawl") or {}).get("exploration"),
         "url": state["url"], "verdict": verdict, "reasons": reasons, "gates": gates, "pages": len(app_map),
         "api": _api_counts(run_dir),
+        "objective": {"instructions": len(request_items),
+                      "executed": sum(1 for i in request_items if i["status"] == "executed"),
+                      "passed": sum(1 for i in request_items if i["outcome"] == "passed"),
+                      "failed": sum(1 for i in request_items if i["outcome"] == "failed"),
+                      "not_run": sum(1 for i in request_items if i["outcome"] == "not run"),
+                      "items": [{k: i[k] for k in ("id", "instruction", "status", "outcome", "tests")}
+                                for i in request_items]} if request_items else None,
         "authenticated": bool(login.get("logged_in")), "authenticated_pages": authenticated_pages,
         "login_note": login.get("note", ""), "login_outcome": login.get("outcome", "not_required"),
         "login_evidence": login.get("evidence", []), "coverage": cov3,

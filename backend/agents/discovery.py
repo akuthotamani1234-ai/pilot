@@ -1988,6 +1988,15 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
     scope = Scope(start_url, settings.allowed_hosts)  # approved hosts; private / metadata addresses are blocked
     from ..api_inventory import ApiInventory
     api_calls = ApiInventory({base_host, *scope.extra})  # the website's own API calls (metadata only)
+    # your instructions (plain-English tests / requirements): pages they name are explored first (focus: only them)
+    from .. import objective as objective_mod
+    from ..llm import llm_enabled
+    objective = objective_mod.start(run_dir, state.get("site_key") or "", settings.requirements, ai=llm_enabled())
+    objective_first: list[str] = []
+    if objective:
+        print(f"  [discovery] your instructions name: {', '.join(objective.words[:8])} - matching pages are explored "
+              "first" + (" (focus: only those and the pages they lead to)" if settings.objective_focus else ""),
+              flush=True)
     mode, section = _mode(start_url)
     start_auth = _auth_link(start_url)  # the link you gave is a login / sign-up page: the whole app behind it
     max_pages = settings.max_pages or settings.hard_page_cap
@@ -3018,7 +3027,9 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 widen = mode == "site" or start_auth or bool(login.get("required"))
                 from_folder = _in_scope(entry.get("final_url") or url, section)
 
-                def enqueue(href: str, chrome: bool = False, how: str = "link") -> bool:
+                here_hit = bool(objective) and objective.score(url, entry.get("title") or "") > 0
+
+                def enqueue(href: str, chrome: bool = False, how: str = "link", text: str = "") -> bool:
                     """Queue a same-site address once; of many pages with one address pattern (/product/{id},
                     ?page=N, calendars) or one design (a folder of pages that look alike) only a sample. True =
                     queued. `how` = how it was found (link / sitemap / network / history / search / button)."""
@@ -3084,6 +3095,18 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     known = (key and patterns.get(key, 0) > 1) or (folder and any(f == folder for f, _s in designs))
                     # a section of the site's own menu (found near the start): before every deeper page
                     menu = chrome and depth <= 2 and how == "link" and not known
+                    hit = bool(objective) and objective.score(nxt, text) > 0
+                    if objective and settings.objective_focus and not hit and not here_hit and depth > 0:
+                        skipped.setdefault(nxt, "outside the focus of your instructions")
+                        seen.discard((nxt, auth))
+                        return False
+                    if hit:  # (a page your instructions name: explored before the rest, inside the page budget)
+                        queue.appendleft(item)
+                        if nxt not in objective_first:
+                            objective_first.append(nxt)
+                            print(f"  [discovery] your instructions: {_normalize(nxt)} is explored first", flush=True)
+                        _share_site([nxt])
+                        return True
                     if not place_link(queue, item, known=known, menu=menu, priorities=priorities):
                         skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
                         seen.discard((nxt, auth))
@@ -3129,7 +3152,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 for href in picked:
                     enqueue(href)
                 for link in entry.get("links", []):
-                    enqueue(link["href"], bool(link.get("chrome")))
+                    enqueue(link["href"], bool(link.get("chrome")), text=str(link.get("text") or ""))
                 # more ways to find pages: the sitemap (once, from the start page), the HTML pages this page loaded
                 # by itself, and the addresses a single-page app moved to (history API)
                 while extra_found:
@@ -3410,6 +3433,8 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
           f"{len(graph['transitions'])} transition(s)", flush=True)
     write_text_unless_linked(run_dir, "login.json", json.dumps(login, indent=2))
     write_text_unless_linked(run_dir, "crawl.json", json.dumps(crawl, indent=2))
+    if objective:
+        objective_mod.record_targets(run_dir, objective, app_map)
     api_summary = api_calls.summary()
     write_text_unless_linked(run_dir, "api_inventory.json", json.dumps(api_summary, indent=2))
     print(f"  [discovery] API calls observed: {api_summary['endpoints']} endpoint pattern(s), "

@@ -81,6 +81,8 @@ class Settings:
     explore_repeated_controls: bool = os.getenv("EXPLORE_REPEATED_CONTROLS", "false").lower() == "true"
     # extra browsers that try independent controls of a page at the same time (0 = the crawl tries them one by one)
     explore_workers: int = int(os.getenv("EXPLORE_WORKERS", "6"))
+    # with your instructions: explore only the pages they name and the pages those lead to (1), or those first (0)
+    objective_focus: bool = os.getenv("QA_OBJECTIVE_FOCUS", "0") == "1"
     pattern_samples: int = int(os.getenv("PATTERN_SAMPLES", "0"))  # 0 = visit every route; >0 samples each pattern
     # Large shops: open this many products from one search or listing, and leave the rest.
     # 0 keeps the older "visit every product link" behavior. The studio sets 3 unless Thorough is on.
