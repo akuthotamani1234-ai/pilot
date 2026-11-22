@@ -71,8 +71,14 @@ ADDITIONAL EVIDENCE REQUIREMENTS:
   header (a sidebar 'Search'), never the form of the test. A box with "suggests": true is "type, then pick": type 1-3
   letters, wait for its [role=option] list and click an option - typed text alone is refused there.
 - Search results / lists: "tables" gives each table's selector, its row_selector, cell_selector, columns and
-  sample_rows (values the website really showed). Rows are `page.locator("<selector> <row_selector>")`. To search,
-  type a value copied from sample_rows (a name or an id cell) - never a placeholder text like "employee name" - and
-  check that EVERY shown row contains it; never assume how many rows there are.
+  sample_rows (each row as {{column: value}}, values the website really showed). Rows are
+  `page.locator("<selector> <row_selector>")` - copy both parts exactly. To search by a field, type the value from
+  the column of THAT field (search by 'Employee Id' -> the "Id" value; by name -> the "First (& Middle) Name" value) -
+  never a placeholder text like "employee name". Then check that EVERY shown row contains it, with checks that wait
+  for the new results (the old list stays on screen for a moment after Search):
+  `rows = page.locator(...); expect(rows.filter(has_text=v).first).to_be_visible();
+   expect(rows.filter(has_not_text=v)).to_have_count(0)`.
+  Never loop over rows.all() right after a search, and never assume how many rows there are (to_have_count with a
+  number other than 0).
 - Respect permissions: do not create/register accounts when account_creation is false, and do not invent valid
   login credentials when test_account_available is false.

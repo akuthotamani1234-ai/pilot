@@ -2338,6 +2338,34 @@ def site_script(pages: list[dict]) -> str:
     ])
 
 
+def _full_rows(code: str, pages: list[dict]) -> str:
+    """The AI often drops the 'data rows only' part of a table's row address ('[role=row]' instead of
+    '[role=row]:has([role=cell])'): then its loop over the rows also checks the header row and fails. Its row
+    addresses get that part back."""
+    for p in pages:
+        for t in p.get("tables") or []:
+            sel, row = (t.get("selector") or "").strip(), (t.get("row_selector") or "").strip()
+            bare = re.sub(r":has\([^()]*(\([^()]*\))?[^()]*\)", "", row).strip()
+            if sel and row and bare != row:
+                for quote in ('"', "'"):
+                    code = code.replace(f"{quote}{sel} {bare}{quote}", f"{quote}{sel} {row}{quote}")
+    return code
+
+
+def _table_for_ai(t: dict) -> dict:
+    """A table as the AI needs it: its rows as {column: value} (a bare list let it type the Id as the name), without
+    values that look like markup (shared demos hold other visitors' '<img onerror=...>' test records)."""
+    cols = [str(c or "").strip() for c in t.get("columns") or []]
+    rows = []
+    for r in t.get("sample_rows") or []:
+        row = {c: str(v) for c, v in zip(cols, r) if c and str(v).strip() and not re.search(r"[<>{}]", str(v))}
+        if row:
+            rows.append(row)
+    return {k: v for k, v in {"selector": t.get("selector"), "columns": [c for c in cols if c], "rows": t.get("rows"),
+                              "row_selector": t.get("row_selector"), "cell_selector": t.get("cell_selector"),
+                              "sample_rows": rows}.items() if v}
+
+
 def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     """The AI writes test_flows_ai.py for its large test cases (validated; one self-repair attempt)."""
     used = [pages[s] for s in dict.fromkeys(s for f in flows for s in f["pages"]) if s in pages]
@@ -2355,9 +2383,7 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
                         "inputs": lean(sorted((i for i in p.get("inputs", []) if not i.get("in_table")),
                                               key=lambda i: bool(i.get("chrome")))[:20]),
                         "forms": lean(p.get("forms", [])[:5]),
-                        "tables": [{k: t.get(k) for k in ("selector", "columns", "rows", "row_selector",
-                                                          "cell_selector", "sample_rows") if t.get(k)}
-                                   for t in (p.get("tables") or [])[:3]],
+                        "tables": [_table_for_ai(t) for t in (p.get("tables") or [])[:3]],
                         "links": [{"text": l["text"], "href": l["href"], "selector": l.get("selector")} for l in p.get("links", [])
                                   if not l.get("external")][:20],
                         "items_listed": (p.get("itemNames") or [])[:8], "observed": _observed(p),
@@ -2382,7 +2408,7 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
         err = problem(code)
     if err:
         raise LLMError(f"the AI's test code failed the checks: {err}")
-    code = _with_said(_steady(code))
+    code = _with_said(_steady(_full_rows(code, used)))
     err = problem(code)
     if err:
         raise LLMError(f"the AI's test code failed the checks: {err}")

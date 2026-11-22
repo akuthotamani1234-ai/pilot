@@ -179,3 +179,36 @@ def test_values_are_realistic_new_every_run_and_in_the_websites_format(page):
     assert re.fullmatch(r"EMP-\d{4}", real_value("identifier", "qa-1", ["EMP-0042", "EMP-0007"]))
     assert observed_values([data], {"label": "Employee Name"}) == ["Linda Anderson", "Peter Mac"]
     assert observed_values([data], {"label": "Comment"}) == []
+
+
+# ---- the AI's search test (live OrangeHRM, 2026-11-22): rejected twice, then run on the site and PASSED
+
+ROWS = "[role=rowgroup] [role=row]:has([role=cell])"
+TABLE = {"selector": "div.oxd-table", "row_selector": ROWS, "cell_selector": "[role=cell]",
+         "columns": ["", "Id", "First (& Middle) Name", "Last Name"],
+         "sample_rows": [["", "dfgsjsjdh", "123445 34", "444444"], ["", "0382", "<img src=x onerror=alert(1)>", "Sec"]]}
+
+
+def test_the_ai_gets_rows_by_column_and_without_markup():
+    from backend.agents.script_generator import _table_for_ai
+    t = _table_for_ai(TABLE)
+    # (a bare list let the AI type the Id 'dfgsjsjdh' as the name)
+    assert t["sample_rows"][0] == {"Id": "dfgsjsjdh", "First (& Middle) Name": "123445 34", "Last Name": "444444"}
+    assert all("<" not in v for row in t["sample_rows"] for v in row.values())
+
+
+def test_a_table_row_address_gets_its_data_rows_only_part_back():
+    from backend.agents.script_generator import _full_rows
+    code = 'rows = page.locator("div.oxd-table [role=rowgroup] [role=row]")'
+    assert _full_rows(code, [{"tables": [TABLE]}]) == f'rows = page.locator("div.oxd-table {ROWS}")'
+
+
+def test_a_guessed_number_of_search_results_is_refused():
+    from backend.ai_grounding import grounding_problem
+    head = "from playwright.sync_api import expect\n\n\ndef test_x(page):\n"
+    page = {"url": "https://h/", "tables": [TABLE]}
+    guessed = head + f'    expect(page.locator("div.oxd-table {ROWS}")).to_have_count(1)\n'
+    assert "how many rows" in (grounding_problem(guessed, [page]) or "")
+    every = head + (f'    rows = page.locator("div.oxd-table {ROWS}")\n'
+                    "    expect(rows.filter(has_not_text='0295')).to_have_count(0)\n")
+    assert grounding_problem(every, [page]) is None

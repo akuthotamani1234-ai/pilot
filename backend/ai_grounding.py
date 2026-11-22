@@ -81,7 +81,13 @@ def _observed_selectors(pages: list[dict]) -> set[str]:
                 if isinstance(sel, str) and sel.strip():
                     out.add(sel.strip())
             if t.get("selector") and t.get("row_selector"):  # (the rows of THIS table)
-                out.add(f"{t['selector'].strip()} {t['row_selector'].strip()}")
+                row = t["row_selector"].strip()
+                bare = re.sub(r":has\([^()]*(\([^()]*\))?[^()]*\)", "", row).strip()  # (the AI may drop the filter)
+                for r in {row, bare}:
+                    out.add(f"{t['selector'].strip()} {r}")
+                    out.add(r)
+                    if t.get("cell_selector"):
+                        out.add(f"{t['selector'].strip()} {r} {t['cell_selector'].strip()}")
     return out
 
 
@@ -120,9 +126,21 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
     if people:
         return people
 
+    row_selectors = {sel for sel in observed_sels if "[role=row]" in sel or sel.endswith(("tbody tr", " tr"))}
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
+        # expect(<a table's rows>).to_have_count(3): how many rows a search shows is not known in advance
+        if node.func.attr == "to_have_count" and node.args and isinstance(node.args[0], ast.Constant) \
+                and isinstance(node.args[0].value, int) and node.args[0].value > 0:
+            target = node.func.value
+            if isinstance(target, ast.Call) and target.args:
+                inner = target.args[0]
+                if isinstance(inner, ast.Call) and inner.args and isinstance(inner.args[0], ast.Constant) \
+                        and str(inner.args[0].value).strip() in row_selectors:
+                    return ("Do not assume how many rows a search or list shows (to_have_count with a number). "
+                            "Check that EVERY shown row contains the searched value (loop over rows.all()), or "
+                            "that at least one row is shown - unsupported assertion, not a product defect")
         if node.func.attr == "locator" and node.args and isinstance(node.args[0], ast.Constant):
             selector = node.args[0].value
             if not isinstance(selector, str):
