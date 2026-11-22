@@ -450,3 +450,68 @@ def test_your_line_becomes_your_test_case_and_an_impossible_line_is_said(tmp_pat
     assert kept and kept[0]["flow"]["title"].startswith("Your test: Add an item")
     assert any(t["check"] == "Your test: Pay with a gift card - the order is confirmed"
                and t["outcome"] == "not automated" for t in session.tried)
+
+
+def test_a_placeholder_journey_for_your_line_is_not_a_pass():
+    """Shoe Store / CartNShop (2026-11-23): 'add a product to the cart', 'sign up', 'close and reopen the app' became
+    'tap the logo, check the screen is there' - and passed. Such a journey is 'not automated' now."""
+    from types import SimpleNamespace as NS
+
+    from backend.android_interact import hollow_journey
+    login = {"screen_name": "LOGIN"}
+    logo = {"text": "CartNShop", "clickable": True, "class_name": "android.widget.ImageView"}
+    title = {"text": "CartNShop", "clickable": False}
+    alias = {"E1": (login, logo), "E2": (login, title)}
+    hollow = NS(title="Open a product, add it to the cart - the cart shows it with its price and the total",
+                steps=[NS(action="tap", element="E1", value=None), NS(action="assert_visible", element="E2", value=None)])
+    assert "not reached" in hollow_journey(hollow, alias, login)
+    look_only = NS(title="Sign up with a new account", steps=[NS(action="assert_visible", element="E2", value=None)])
+    assert "only look" in hollow_journey(look_only, alias, login)
+    shop = {"screen_name": "Products"}
+    add = {"text": "Add To Cart", "clickable": True}
+    cart = {"text": "Cart (1)", "clickable": False}
+    real = NS(title="Open a product, add it to the cart - the cart shows it",
+              steps=[NS(action="tap", element="E3", value=None), NS(action="assert_text", element="E4", value="1")])
+    assert hollow_journey(real, {"E3": (shop, add), "E4": (shop, cart)}, shop) == ""
+
+
+def test_the_terms_box_is_ticked_only_when_you_allowed_one_test_account():
+    """CartNShop (2026-11-23): sign-up needs 'I Agree To The Terms & Condition'; without it no account was made and the
+    run never got past the login screen, although creating one test account was allowed."""
+    from types import SimpleNamespace as NS
+
+    from backend.android_forms import prepare_choices
+    box = {"id": "agree", "text": "I Agree To The Terms & Condition ", "checkable": True, "checked": False,
+           "locators": [{"strategy": "resource_id", "value": "com.mycompany.cartnshop:id/cb_terms"}]}
+    form = lambda: {"kind": "signup", "required_checkboxes": [box], "radios": [], "dropdowns": []}  # noqa: E731
+    allowed = form()
+    prepare_choices(NS(account_mode="create"), {}, allowed)
+    assert not allowed.get("choice_error")
+    assert [s["action"] for s in allowed["choice_steps"]] == ["tap", "assert_checked"]
+    other = form()
+    prepare_choices(NS(account_mode="existing"), {}, other)  # (no account creation allowed: never ticked)
+    assert "explicitly approved" in other["choice_error"]
+
+
+def test_a_label_with_a_trailing_space_is_still_found():
+    from backend.qa_runtime import _text_selector
+    sel = _text_selector("I Agree To The Terms & Condition ")
+    assert sel.startswith("new UiSelector().textMatches(") and "Condition\\\\E\\\\s*$" in sel
+
+
+@pytest.mark.parametrize("words", ["Add Product", "Sold Products", "Admin Panel", "Seller dashboard", "Delete product"])
+def test_admin_and_seller_tools_are_never_pressed(words):
+    from backend.qa_contracts import never_in_test_mode
+    assert "admin and seller tools" in never_in_test_mode(words)
+
+
+@pytest.mark.parametrize("words", ["Add To Cart", "Remove", "Products", "My Orders"])
+def test_shopping_controls_stay_allowed(words):
+    from backend.qa_contracts import never_in_test_mode
+    assert never_in_test_mode(words) == ""
+
+
+@pytest.mark.parametrize("words", ["Tap to add product to cart", "Add product to wishlist", "Add a product to the bag"])
+def test_adding_a_product_to_the_cart_is_not_a_seller_action(words):
+    from backend.qa_contracts import never_in_test_mode
+    assert never_in_test_mode(words) == ""

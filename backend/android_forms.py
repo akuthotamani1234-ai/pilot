@@ -102,6 +102,22 @@ def prepare_choices(session, screen: dict, form: dict) -> None:
     from .android_runtime import device_unavailable
 
     choices = []
+    if form.get('required_checkboxes') and form.get('kind') == 'signup' \
+            and getattr(session, 'account_mode', '') == 'create' and not form.get('_consent_ticked'):
+        # The person approved creating ONE test account: its sign-up form's "I agree to the terms" box is part of that
+        # sign-up (CartNShop: without it the account was never made and the run never got past the login screen).
+        # Anywhere else a consent box still needs an explicitly approved flow.
+        for box in form['required_checkboxes']:
+            if not box.get('checked'):
+                choices += [tap(box)]
+            choices.append({'action': 'assert_checked', 'locator': box['locators'][0], 'value': 'true'})
+        form['_consent_ticked'] = True
+        rest = dict(form, required_checkboxes=[])
+        prepare_choices(session, screen, rest)
+        form['choice_steps'] = choices + rest.get('choice_steps', [])
+        if rest.get('choice_error'):
+            form['choice_error'] = rest['choice_error']
+        return
     if form.get('required_checkboxes'):
         form['choice_error'] = (
             'A required or consent checkbox needs an explicitly approved test flow; Qpilot will not accept it automatically.'

@@ -22,6 +22,15 @@ from .qa_oracles import check_http, check_sqlite
 from .safety import redact
 
 
+def _text_selector(text: str) -> str:
+    """A UiSelector for a control's visible text that ignores spaces before and after it - used only when the exact
+    text finds nothing (CartNShop's checkbox reads 'I Agree To The Terms & Condition ' on one screen and without the
+    space on the next: the exact match called the check 'not repeatable'). The words still match exactly."""
+    core = str(text or "").strip()
+    if not core or "\\E" in core:
+        return "new UiSelector().text(" + json.dumps(text) + ")"
+    return "new UiSelector().textMatches(" + json.dumps("^\\s*\\Q" + core + "\\E\\s*$") + ")"
+
 class ControlMissing(AssertionError):
     """An expected control could not be found at all (hidden by the keyboard, scrolled away, or really gone). Kept
     apart from a control that was found with the wrong text or state: only the caller knows whether it is a finding."""
@@ -485,6 +494,7 @@ class AndroidContractAdapter:
                     "Use accessibility_id, resource_id, text or xpath."
                 )
             value = "new UiSelector().text(" + json.dumps(locator.value) + ")" if strategy == "text" else locator.value
+            loose = _text_selector(locator.value) if strategy == "text" else ""
             using = strategies[strategy]
         while True:
             self.guard()
@@ -494,6 +504,8 @@ class AndroidContractAdapter:
                                                            if e.is_displayed()])
             else:
                 matches = [e for e in self.driver.find_elements(using, value) if e.is_displayed()]
+                if not matches and strategy == "text" and loose:  # (the same words, a space more or less around)
+                    matches = [e for e in self.driver.find_elements(using, loose) if e.is_displayed()]
             if not matches and self.active == "native":
                 from .android import recover_system_ui
                 if recover_system_ui(self.driver):

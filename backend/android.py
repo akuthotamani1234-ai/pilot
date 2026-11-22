@@ -875,6 +875,10 @@ def find_unique(driver, locator: dict):
         value = f"new UiSelector().text({json.dumps(value)})"
     found = [element for element in driver.find_elements(strategies[strategy], value)
              if element.is_displayed()]
+    if not found and strategy == "text":  # (the same words with a space more or less around them)
+        from .qa_runtime import _text_selector
+        found = [element for element in driver.find_elements(strategies[strategy], _text_selector(locator["value"]))
+                 if element.is_displayed()]
     if len(found) != 1:
         from selenium.common.exceptions import NoSuchElementException
 

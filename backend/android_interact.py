@@ -214,6 +214,43 @@ def present(screen: dict, element: dict) -> bool:
 
 # ------------------------------------------------------------------ what to try
 
+def _words(text: str) -> set[str]:
+    out = set()
+    for w in re.findall(r"[a-z][a-z0-9]+", (text or "").lower()):
+        out.add(w)
+        if len(w) > 3 and w.endswith("s"):
+            out.add(w[:-1])  # (cart / carts, product / products)
+    return out
+
+
+def hollow_journey(journey, element_alias: dict, start: dict) -> str:
+    """'' when the AI's journey for one of YOUR lines really works on what the line names; else why not. Live runs
+    (Shoe Store, CartNShop): lines about the cart, the wishlist, sign-up became 'tap the logo, check the screen is
+    there' and passed. A journey must act (tap or type) on a control a person can use, and the controls, values and
+    screens it touches must name at least two of the line's own words (one, for a line of up to three words)."""
+    from .objective import keywords
+    acted, seen = False, _words(start.get("screen_name", ""))
+    for step in journey.steps:
+        if step.element is None:
+            continue
+        screen, element = element_alias[step.element]
+        seen |= _words(label(element) or element.get("text") or "") | _words(screen.get("screen_name", ""))
+        if step.value:
+            seen |= _words(step.value)
+        if step.action in ("tap", "fill") and (element.get("clickable") or element.get("input_capable")):
+            acted = True
+    if not acted:
+        return "the AI's steps only look at the screen - nothing your line asks for is done"
+    wanted = {w for w in keywords(journey.title) if w not in ("app", "shown", "shows", "show", "visible", "screen")}
+    wanted = {w[:-1] if len(w) > 3 and w.endswith("s") else w for w in wanted}
+    hits = wanted & seen
+    need = 1 if len(wanted) <= 3 else 2  # (a short line: one of its words; a longer one: two)
+    if len(hits) < need:
+        return (f"the AI's steps do not touch what your line is about ({', '.join(sorted(wanted)[:6]) or 'nothing'}): "
+                "its screen was not reached, or the app has no such feature")
+    return ""
+
+
 def family(element: dict) -> tuple:
     locator = (element.get("locators") or [{}])[0]
     return (element.get("class_name"), element.get("accessibility_id") or element.get("resource_id") or element.get("text"),
@@ -1574,6 +1611,10 @@ class Session:
 
     # -------- AI journeys
     def ai_journeys(self, ask, requirements: str = "", owner: bool = False):
+        # your own tests: up to 10 lines (CartNShop: lines 5 and 6 were silently cut by a limit of 4); the AI's own
+        # generic journeys stay at 4
+        owner_tests = [line.strip() for line in (requirements or "").splitlines() if line.strip()][:10] if owner else []
+        cap = max(4, len(owner_tests))
         """Ask the AI for end-to-end journeys over the observed controls; keep only the ones that pass a replay."""
         import json
         from typing import Literal
@@ -1626,7 +1667,7 @@ class Session:
             """{"journeys": [...]} as asked. Providers sometimes answer a bare list, or wrap the list in another
             single key ({"user_journeys": [...]}): both are accepted. Invalid journeys are left out, not fatal."""
             model_config = ConfigDict(extra="ignore")
-            journeys: list[Journey] = Field(default_factory=list, max_length=4)
+            journeys: list[Journey] = Field(default_factory=list, max_length=cap)
 
             @model_validator(mode="before")
             @classmethod
@@ -1647,16 +1688,17 @@ class Session:
                         continue
                 if data["journeys"] and not kept:
                     raise ValueError("None of the journeys matched the requested structure")
-                return {"journeys": kept[:4]}
+                return {"journeys": kept[:cap]}
 
-        owner_tests = [line.strip() for line in (requirements or "").splitlines() if line.strip()][:4] if owner else []
         prompt = (
             ("THE OWNER'S OWN TESTS come first: write exactly one journey for EACH line of `owner_tests`, in that "
              "order, that does what the line says and ends with assertions of what it expects. When a line cannot be "
-             "done with the controls below, leave it out (it is reported as not automated). Title = the owner's line.\n"
+             "done with the controls below - its screen was not reached (behind a login), or the app has no such "
+             "feature - leave it out: it is reported as not automated. NEVER write a placeholder journey that only taps "
+             "a logo or a title and checks the screen is there. Title = the owner's line, unchanged.\n"
              if owner_tests else "")
             + "You are a senior mobile QA engineer testing a TEST BUILD of an Android app"
-            + (" (a test website in Android Chrome)" if self.web else "") + ". Propose at most 4 end-to-end user "
+            + (" (a test website in Android Chrome)" if self.web else "") + f". Propose at most {cap} end-to-end user "
             "journeys a real tester would run (for example: add an item, open the cart, check the item is listed). "
             "Use ONLY the S/E references below; each journey starts on its `start` screen. Actions: tap, fill (value = a "
             "realistic test value; for a password field use exactly TEST_PASSWORD and for its username TEST_USERNAME"
@@ -1671,7 +1713,7 @@ class Session:
         result = ask(prompt, JourneyBatch)
         journeys = result.journeys if isinstance(result, JourneyBatch) else JourneyBatch.model_validate(result).journeys
         label_ = "Your test: " if owner_tests else "AI journey: "
-        for journey in journeys[:4]:
+        for journey in journeys[:cap]:
             self.attempt(label_ + journey.title, self._journey, journey, screen_alias, element_alias, bool(owner_tests),
                          area="journey", where=screen_alias[journey.start]["screen_name"])
         if owner_tests:  # (a line the AI could not turn into a journey is said, never silently dropped)
@@ -1731,6 +1773,12 @@ class Session:
                 steps.append({"action": step.action, "locator": element["locators"][0]})
         if not any(s["action"].startswith("assert_") for s in steps):
             return
+        if yours:
+            why = hollow_journey(journey, element_alias, screen)
+            if why:  # (it would 'pass' without doing what you asked: said, never counted as a pass)
+                self.tried.append({"check": "Your test: " + journey.title, "outcome": "not automated", "detail": why,
+                                   "screen": screen["screen_name"]})
+                return
         authentication = any(s.get("secret_ref") == password_ref for s in steps)
         flow = self.build("journey", ("Your test: " if yours else "Journey: ") + journey.title, steps,
                           authentication=authentication)

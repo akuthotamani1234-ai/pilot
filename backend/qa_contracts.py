@@ -40,6 +40,14 @@ TEST_MODE_NEVER = tuple((reason, re.compile(r"\b(?:" + words + r")\b", re.I)) fo
     ("sharing, sending to other apps, phone calls and SMS are never used",
      r"share|send to|sms|text message|call|call us|dial|phone call|whats ?app|invite"),
     ("money is never moved", r"transfer|donate|withdraw|top ?up"),
+    # (CartNShop's 'Add Product' creates a real product in the shop's shared database, for every shopper)
+    ("admin and seller tools are never used: they change the shop for everyone",
+     r"admin(?:istrator|istration)?(?: panel| dashboard| area)?|seller(?: dashboard| panel| account)?|"
+     r"sell (?:a |an |your |my )?(?:product|item)s?|(?:add|create|list|publish) (?:a |an |new |your |my )?"
+     # ('Tap to add product to cart' is My Demo App's Add To Cart: a shopper's action, not a seller's)
+     r"(?:product|listing|item for sale)s?(?! (?:to|in|into) (?:the |your |my )?(?:cart|bag|basket|wish ?list|"
+     r"favou?rites))|(?:edit|delete|update) (?:a |the |this |my )?(?:product|listing)s?|"
+     r"sold products|my (?:products|listings)|manage (?:products|orders|users|inventory|store)|inventory"),
     ("downloads, uploads and app installs are not used", r"download|upload|install|uninstall"),
     # My Demo App's "Reset App State": test mode already clears the app's data before every check
     ("not pressed: it resets the app's data; test mode already starts every check from cleared data",
