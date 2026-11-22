@@ -56,7 +56,7 @@ def test_a_repair_is_refused_only_for_a_cheat_the_repair_adds():
     assert "constant" in (_safe_repair(old, cheat) or "")  # (a NEW one is still refused)
 
 
-def test_twenty_ai_journeys_are_written_five_at_a_time_and_one_bad_answer_loses_only_its_five(monkeypatch):
+def test_twenty_ai_journeys_are_written_five_at_a_time_and_one_bad_journey_loses_only_itself(monkeypatch):
     from backend.agents import script_generator as sg
     from backend.agents.test_design import LARGE
     assert LARGE == 20
@@ -74,13 +74,15 @@ def test_twenty_ai_journeys_are_written_five_at_a_time_and_one_bad_answer_loses_
     flows = [{"id": f"ai_flow_{n}", "title": f"Journey {n}", "guest": True, "pages": ["home"], "test_data": "",
               "steps": ["Open", "Check"], "expected": "Shown"} for n in range(1, 21)]
     code, lost, why = sg._llm_flows_in_batches(flows, {"home": page})
-    assert lost == [f"ai_flow_{n}" for n in range(6, 11)] and "Banned import" in why
+    # the failed batch (6-10) is asked again one journey at a time: only the bad one (6) is lost, not its four
+    # neighbours (live OrangeHRM: 10 of 13 AI journeys were lost to one bad answer)
+    assert lost == ["ai_flow_6"] and "Banned import" in why
     assert sg.validate_script(code) is None
-    assert len(re.findall(r"^def test_ai_flow_\d+\(page\):", code, re.M)) == 15
+    assert len(re.findall(r"^def test_ai_flow_\d+\(page\):", code, re.M)) == 19
     assert code.count("def _said(page):") == 1 and code.count("from playwright.sync_api import expect") == 1
-    # each answer's own helper stays its own (the 2nd and 3rd working answers' `_count` got their number)
-    assert "def _count_2(page):" in code and "def _count_3(page):" in code and "URL_3 = " in code
-    assert "assert _count_3(page) == 5" in code
+    # each answer's own helper stays its own: batch 1, the four single answers (7-10), then batches 3 and 4
+    assert "def _count_2(page):" in code and "def _count_6(page):" in code and "URL_3 = " in code
+    assert "assert _count_2(page) == 1" in code and "assert _count_6(page) == 5" in code
 
 
 def test_a_tracker_we_blocked_is_not_the_websites_error():

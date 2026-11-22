@@ -55,5 +55,5 @@ def test_textbox_sample_respects_maxlength():
         }],
     }
     case = next(c for c in control_cases(page) if c.get("kind") == "textbox")
-    assert case["value"] == "QA Tes"
+    assert case["value"] == "10001"  # (a PIN / postal code box gets a code that fits it, not cut-off text)
     assert len(case["value"]) <= page["inputs"][0]["maxlength"]
