@@ -20,6 +20,9 @@ from tests.accuracy_benchmark import run_agent
 from tests.classic_shop import EMAIL, PASSWORD, ClassicShop
 
 pytestmark = pytest.mark.slow  # (runs the whole tester: quick checks leave it out with -m "not slow")
+# the input-value tests are off by default: test_a_clean_shop_gives_no_false_failures checks them, and both runs need
+# the same test cases (a case that passed on the clean shop must pass again on the buggy one)
+ENV = {"DATA_TESTS": "true"}
 
 
 def _load(run):
@@ -33,7 +36,7 @@ def _load(run):
 def clean(tmp_path_factory):
     shop = ClassicShop().start()
     try:
-        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_clean"), account=())
+        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_clean"), ENV, account=())
         yield _load(run), shop, run
     finally:
         shop.stop()
@@ -43,7 +46,7 @@ def clean(tmp_path_factory):
 def buggy(tmp_path_factory):
     shop = ClassicShop(bugs=True).start()
     try:
-        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_bugs"), account=(EMAIL, PASSWORD))
+        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_bugs"), ENV, account=(EMAIL, PASSWORD))
         yield _load(run), shop, run
     finally:
         shop.stop()

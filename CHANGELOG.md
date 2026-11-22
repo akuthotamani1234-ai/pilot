@@ -2,6 +2,13 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-22 - Footer Subscribe form no longer sent; header search found again
+
+- Forms inside iframes are now numbered after the page's own forms. Before this, each frame started again at 0, so `form<N>` could name two forms on one page. The empty-form check planned for the page's Form 2, an order form with required boxes, was written for a frame's Form 2, the footer newsletter form. That check marked the Subscribe button as approved and clicked it, so `POST account/subscriber` was sent in the default test environment. Subscribe now stays protected and is reported as Blocked.
+- A header or sidebar search box is again a field of its own search form when that form is in the site chrome. It is still left out of other forms, such as a form that wraps the whole page. This lets the crawl reach the search results page again (`?rt=product/search`).
+- When a form control has no label of its own, it can be recorded under a nearby control's label. If the label and the recorded selector point to two different controls, the recorded selector is now used. A category list recorded as 'Search Criteria' is no longer read as the keyword box.
+- The "search for something that doesn't exist" check now looks only at the visible content of the page for a "nothing found" message. Before, it also read the header, so an empty cart showing "0 ITEMS" counted as "nothing found". A search that still listed items could then pass whenever the cart was empty. Hidden "No results" templates are also ignored.
+
 ## 2026-11-17 - Remaining Qpilot X rules
 
 - The large-listing sample is unchanged: a listing still opens the configured few products and leaves the rest, and checkout and payment stay blocked.

@@ -8,6 +8,18 @@ def unique_control(scope, field):
     if name:
         labelled = scope.get_by_label(name, exact=True)
         if labelled.count() == 1:
+            # a control without a label of its own is recorded with a nearby one: a list next to 'Search Criteria'
+            # is named so too, and the label finds the text box. When the recorded selector names exactly one OTHER
+            # control here, the name was borrowed - the selector decides.
+            own = field.get("local_selector") or field.get("selector")
+            if own:
+                try:
+                    recorded = scope.locator(own)
+                    if recorded.count() == 1 and not recorded.evaluate("(e, l) => e === l",
+                                                                       labelled.element_handle()):
+                        labelled = recorded
+                except Exception:
+                    pass  # (an unusable recorded selector: the label stays)
             if labelled.evaluate("e => !!e.closest('nav,aside,[role=navigation],[role=search]')"):
                 raise AssertionError("Automation form target resolved inside global navigation/search")
             return labelled
