@@ -90,6 +90,10 @@ body[data-test-mode=android] .thread:has(.workspace-welcome:only-child){display:
 .mcp-state.ready{color:#388369;background:#eef8f1;border-color:#dbeddf}
 .mcp-state.pending{color:#9b7429;background:#fff7e9;border-color:#f0e4c9}
 .mcp-setup{margin:17px 0;padding:13px;border:1px solid #e7e9f3;border-radius:10px;font-size:12px;color:#758198;background:#f8fafc}
+.mcp-external{margin:14px 0;padding:11px 13px;border:1px dashed #dfe3ee;border-radius:10px;font-size:12px;color:#758198}
+.mcp-external>summary{cursor:pointer;color:#5b6680;font-weight:550}
+.mcp-external[open]>summary{margin-bottom:10px}
+.mcp-external .mcp-state{display:inline-block;margin-bottom:10px}
 .mcp-setup summary{cursor:pointer;color:#1e3a8a;font-weight:550}
 .mcp-setup ol{padding-left:19px;line-height:1.9}
 .inline-button{border:0;padding:0;color:#1d4ed8;background:none;font:inherit;text-decoration:underline;cursor:pointer}

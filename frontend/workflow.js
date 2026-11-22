@@ -66,7 +66,7 @@
     if ($("mcpAndroidActivity")) $("mcpAndroidActivity").hidden = !installed;
     updateMcpTargetLabel();
     $("mcpTask").placeholder = android ? "Explore screens and verify the approved navigation expectations."
-      : "List dashboard menus and dropdowns, then test the approved login flow.";
+      : "Log in as Admin, open PIM and search an employee by name and by ID - every result must match. Then press Reset.";
     updateAndroidProviders();
     renderConnection();
     window.QpilotMcpSettings?.mount(state.engine, state.workflow, state.busy);

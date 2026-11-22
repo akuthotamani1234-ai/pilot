@@ -73,13 +73,15 @@
           <span class="workflow-option-icon" aria-hidden="true">01</span><span><b>Standard testing</b><small>Configure, generate scripts, run and report</small></span><i aria-hidden="true"></i>
         </button>
         <button class="workflow-option" id="mcpWorkflowBtn" type="button" aria-pressed="false" aria-controls="mcpPanel">
-          <span class="workflow-option-icon assistant" aria-hidden="true">02</span><span><b>AI assistant through MCP</b><small>Describe a task to your connected assistant</small></span><i aria-hidden="true"></i>
+          <span class="workflow-option-icon assistant" aria-hidden="true">02</span><span><b>AI-assisted testing</b><small>Type what to test - the AI plans it and Qpilot runs it</small></span><i aria-hidden="true"></i>
         </button>
       </div>
     </section>
     <section class="mcp-panel" id="mcpPanel" hidden aria-labelledby="mcpPanelTitle">
-      <div class="mcp-panel-head"><div><span class="section-label">CONNECTED WORKFLOW</span><h2 id="mcpPanelTitle">Your assistant. Your testing tools.</h2></div><span class="mcp-state" id="mcpConnectionStatus" role="status" aria-live="polite">Checking connection…</span></div>
-      <p class="mcp-panel-copy">Describe the task in your MCP assistant. Qpilot uses the same scripts, test engines and reports, and shows the run here.</p>
+      <div class="mcp-panel-head"><div><span class="section-label">AI-ASSISTED TESTING</span><h2 id="mcpPanelTitle">Tell Qpilot what to test.</h2></div></div>
+      <p class="mcp-panel-copy">1. Enter the website. 2. Write what you want tested, in plain words. 3. Press <b>Run it here with Qpilot AI</b>, choose the AI model and account, and press it again. The AI turns your words into steps and checks; Qpilot runs them and reports what really happened.</p>
+      <details class="mcp-external"><summary>Use an external assistant instead (Cursor / Claude through MCP) - optional</summary>
+      <span class="mcp-state" id="mcpConnectionStatus" role="status" aria-live="polite">Checking connection…</span>
       <div class="mcp-help" id="mcpHelpBlurb" role="note">
         <table><caption>Where to configure, chat and test</caption><tbody>
           <tr><th scope="row">Studio Standard</th><td>Composer / Android form in Qpilot — configure and run tests here.</td></tr>
@@ -92,6 +94,7 @@
         <ol><li>Run <b>setup/install-mcp.bat</b> once.</li><li>Add the Qpilot server configuration to your MCP client.</li><li>Approve the assistant in <button type="button" class="inline-button" id="mcpPrivacyBtn">Privacy settings</button>, then ask it to check the connection.</li></ol>
         <button class="secondary" id="copyMcpConfig" type="button">Copy server configuration</button>
         <pre class="mcp-config" id="mcpConfigText" hidden tabindex="0" aria-label="MCP server configuration"></pre>
+      </details>
       </details>
       <div class="mcp-request">
         <label for="mcpAndroidSource" id="mcpAndroidSourceLabel" hidden>Android app source</label>
@@ -117,7 +120,7 @@
         </div>
         <label for="mcpTarget" id="mcpTargetLabel">Target</label>
         <input id="mcpTarget" type="text" spellcheck="false" placeholder="https://your-test-site.example">
-        <label for="mcpTask">What would you like to check?</label><textarea id="mcpTask" rows="2" maxlength="4000" placeholder="List dashboard menus and dropdowns, then test the approved login flow."></textarea>
+        <label for="mcpTask">What would you like to test? (one test per line)</label><textarea id="mcpTask" rows="3" maxlength="4000" placeholder="Log in as Admin, open PIM and search an employee by name and by ID - every result must match. Then press Reset."></textarea>
         <div class="row"><button class="primary" id="copyMcpRequest" type="button">Prepare assistant request</button><span class="muted small">Review it, then paste it into your assistant.</span></div>
         <textarea class="mcp-prepared" id="mcpRequestPreview" rows="8" readonly hidden aria-label="Prepared assistant request"></textarea>
       </div>

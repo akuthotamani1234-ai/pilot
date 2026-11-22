@@ -49,7 +49,7 @@
   const runHere = document.createElement('button');
   runHere.type = 'button'; runHere.className = 'primary'; runHere.id = 'mcpRunHere'; runHere.textContent = 'Run it here with Qpilot AI';
   $('copyMcpRequest').before(runHere);
-  $('copyMcpRequest').className = 'secondary';
+  $('copyMcpRequest').className = 'secondary'; $('copyMcpRequest').textContent = 'Prepare for an external assistant';
   $('copyMcpRequest').nextElementSibling.textContent = 'Run it here uses the AI model chosen below. Or prepare a request to paste into an external MCP assistant.';
   runHere.onclick = async () => {
     const target = $('mcpTarget').value.trim(), task = $('mcpTask').value.trim();
