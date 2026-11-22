@@ -405,10 +405,18 @@ def extract_json(text: str):
     start = min([i for i in (text.find("{"), text.find("[")) if i != -1], default=-1)
     if start == -1:
         raise LLMError("No JSON found in LLM answer")
+    body = text[start:]
     try:
-        obj, _ = json.JSONDecoder().raw_decode(text[start:])
+        obj, _ = json.JSONDecoder().raw_decode(body)
     except json.JSONDecodeError as e:
-        raise LLMError(f"Invalid JSON in LLM answer: {e.msg}") from e
+        # the most common slip of a model: a comma before a closing } or ] - harmless, so it is accepted
+        lenient = re.sub(r",(\s*[}\]])", r"\1", body)
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(lenient)
+        except json.JSONDecodeError:
+            near = body[max(0, e.pos - 40):e.pos + 20].replace("\n", " ")
+            raise LLMError(f"Invalid JSON in LLM answer: {e.msg} at line {e.lineno} column {e.colno}, near "
+                           f"{near!r} (check for a missing comma or quote, or a comment)") from e
     return obj
 
 

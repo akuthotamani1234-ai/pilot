@@ -65,17 +65,21 @@ class Objective:
         return bool(self.words)
 
     def score(self, url: str = "", text: str = "") -> int:
-        """How many of the objective's words this link / page names (its address path or its visible text)."""
+        """How strongly this link / page matches the objective: each word the visible text names counts 2, a word only
+        in the address path counts 1 (every page of /pim/ names 'pim'; 'Employee List' says what the page IS).
+        0 = no match."""
         if not self.words:
             return 0
         from urllib.parse import urlparse
         path = urlparse(url or "").path.lower()
         parts = set(re.findall(r"[a-z][a-z0-9]{2,}", path))
         label = set(re.findall(r"[a-z][a-z0-9]{2,}", (text or "").lower()))
+
+        def names(w: str, words: set[str]) -> bool:
+            return w in words or any(p.startswith(w) or w.startswith(p) for p in words if len(p) >= 4)
         hits = 0
         for w in self.words:
-            if w in parts or w in label or any(p.startswith(w) or w.startswith(p) for p in parts | label if len(p) >= 4):
-                hits += 1
+            hits += 2 if names(w, label) else 1 if names(w, parts) else 0
         return hits
 
     def matches(self, url: str = "", text: str = "") -> bool:

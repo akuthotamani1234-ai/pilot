@@ -1373,6 +1373,7 @@ class _Frontier:
         self.lanes = {k: deque() for k in self.ORDER}
         self.menu: set = set()  # (the menu's sections - to list the ones never reached)
         self.scores: dict[tuple, int] = {}
+        self.hits: dict[tuple, int] = {}  # (pages your instructions name, and how strongly)
         self.anchor = first  # the address the user asked for stays first until it is opened
         self.append(first)
 
@@ -1410,6 +1411,19 @@ class _Frontier:
 
     def appendleft(self, item: tuple) -> None:  # (the login link, a page to read again: before even the menu)
         self.lanes[(bool(item[3]), "menu")].appendleft(item)
+
+    def insert_hit(self, item: tuple, score: int) -> None:
+        """A page your instructions name: before the rest, the best match first; equal matches keep the order they
+        were found in (the website's own menu order)."""
+        self.hits[item] = max(self.hits.get(item, 0), score)
+        lane = self.lanes[(bool(item[3]), "menu")]
+        pos = 0
+        for queued in lane:
+            if self.hits.get(queued, 0) >= self.hits[item]:
+                pos += 1
+            else:
+                break
+        lane.insert(pos, item)
 
     def popleft(self) -> tuple:
         return next(self.lanes[k] for k in self.ORDER if self.lanes[k]).popleft()
@@ -2484,7 +2498,8 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 continue
             folder = _parent_path(url)
             if n_sample > 0 and folder in typed and depth > 0 \
-                    and (url, auth) not in reread and not _pattern(url, auth):
+                    and (url, auth) not in reread and not _pattern(url, auth) \
+                    and not (objective and objective.score(url) > 0):
                 # queued before its folder's design was known (the sitemap lists every product at once): a sample
                 kind = f"{folder}/* (one design)"
                 kinds = routes.setdefault("item_types", {}).setdefault(kind, {"found": n_sample,
@@ -3028,6 +3043,10 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 from_folder = _in_scope(entry.get("final_url") or url, section)
 
                 here_hit = bool(objective) and objective.score(url, entry.get("title") or "") > 0
+                # focus: does this page lead to a requested page? (then only those links are followed from it)
+                page_hit = here_hit or (bool(objective) and settings.objective_focus and any(
+                    objective.score(_normalize(urljoin(url, link.get("href") or "")), str(link.get("text") or "")) > 0
+                    for link in entry.get("links") or [] if link.get("href")))
 
                 def enqueue(href: str, chrome: bool = False, how: str = "link", text: str = "") -> bool:
                     """Queue a same-site address once; of many pages with one address pattern (/product/{id},
@@ -3051,7 +3070,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     found_by.setdefault(nxt, how)
                     key = _pattern(nxt, auth)
                     folder = _parent_path(nxt)
-                    if n_sample > 0 and not key and folder in typed:
+                    score = objective.score(nxt, text) if objective else 0
+                    hit = score > 0
+                    if hit:  # (a page your instructions name is never left out as "a sample of one design")
+                        key = None
+                    if n_sample > 0 and not key and folder in typed and not hit:
                         if is_payment_url(nxt):
                             skipped.setdefault(nxt, "checkout, payment and placing an order are never tested")
                             return False
@@ -3095,13 +3118,16 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     known = (key and patterns.get(key, 0) > 1) or (folder and any(f == folder for f, _s in designs))
                     # a section of the site's own menu (found near the start): before every deeper page
                     menu = chrome and depth <= 2 and how == "link" and not known
-                    hit = bool(objective) and objective.score(nxt, text) > 0
-                    if objective and settings.objective_focus and not hit and not here_hit and depth > 0:
+                    # focus: from a requested page its own content is followed (not the site-wide menu); from any
+                    # other page only links to requested pages - unless the start page leads to none yet (find a way)
+                    leads = (here_hit and not chrome) or (depth == 0 and not page_hit)
+                    if objective and settings.objective_focus and not hit and not leads:
                         skipped.setdefault(nxt, "outside the focus of your instructions")
                         seen.discard((nxt, auth))
                         return False
-                    if hit:  # (a page your instructions name: explored before the rest, inside the page budget)
-                        queue.appendleft(item)
+                    if hit:  # (a page your instructions name: explored before the rest, the best match first;
+                        # equal matches keep the order the website lists them in)
+                        queue.insert_hit(item, score)
                         if nxt not in objective_first:
                             objective_first.append(nxt)
                             print(f"  [discovery] your instructions: {_normalize(nxt)} is explored first", flush=True)

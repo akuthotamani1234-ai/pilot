@@ -1522,6 +1522,14 @@ class AICase(BaseModel):
     unknowns: list[str] = Field(default_factory=list, max_length=10)
     needs_clarification: str = Field(default="", max_length=400)
 
+    @field_validator("title", mode="before")
+    @classmethod
+    def _cap_title(cls, v):
+        """A title copied from a long instruction is shortened, never a reason to reject the case (the full
+        instruction is kept separately)."""
+        v = "" if v is None else str(v).strip()
+        return v if len(v) <= 200 else v[:199].rstrip() + "…"
+
     @field_validator("preconditions", "assertions", "unknowns", mode="before")
     @classmethod
     def _as_list(cls, v):
@@ -1701,6 +1709,13 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
             continue
         n = start + len([x for x in out if x["kind"] == "flow"])
         used = [s for s in (c.get("pages") or []) if s in by_slug] or [pages[0]["slug"]]
+        not_explored = [str(s) for s in (c.get("pages") or []) if s not in by_slug]
+        if not_explored:  # (the AI named a page discovery never opened: said, never silently dropped)
+            print(f"  [test-design] your own test {t['id']}: the AI's plan uses page(s) discovery did not explore: "
+                  f"{', '.join(not_explored[:3])} - the test starts on {used[0]} and must navigate there itself",
+                  flush=True)
+            c["unknowns"] = list(c.get("unknowns") or []) + [
+                f"page(s) not explored by discovery: {', '.join(not_explored[:3])} - their controls are not known"]
         expected = str(c.get("expected") or "").strip()
         unsupported = _unsupported_expected_quote(expected, observed + "\n" + t["text"].casefold())
         if unsupported:
@@ -1723,7 +1738,8 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
         out[-1]["title"] = _short_title(t["text"])  # (your words stay the title; the full text is "instruction")
         plan_note(t, "automated", navigation=[by_slug[s]["url"] for s in used], preconditions=c.get("preconditions") or [],
                   steps=out[-1]["steps"], test_data=out[-1]["test_data"], expected=expected,
-                  assertions=c.get("assertions") or [], unknowns=c.get("unknowns") or [], test=f"test_ai_flow_{n}")
+                  assertions=c.get("assertions") or [], unknowns=c.get("unknowns") or [], test=f"test_ai_flow_{n}",
+                  pages_not_explored=not_explored)
     return out
 
 

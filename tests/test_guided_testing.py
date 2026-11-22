@@ -147,4 +147,69 @@ def test_requested_pages_are_explored_first_within_the_budget(tmp_path, monkeypa
     assert obj["focus"] is focus and obj["instructions"][0]["targets"]
     if focus:
         crawl = json.loads((tmp_path / "crawl.json").read_text(encoding="utf-8"))
-        assert any("outside the focus" in str(v) for v in (crawl.get("skipped") or {}).values()) or len(visited) <= 3
+        skipped = {x["url"].replace(url.rstrip("/"), ""): x["reason"] for x in crawl.get("skipped") or []}
+        assert "outside the focus" in skipped.get("/about", ""), skipped  # (the start page leads to a requested page)
+
+
+# ---- mistakes found in the live OpenAI run (gpt-4o-mini, OrangeHRM PIM instruction, 2026-11-22)
+
+REAL_ANSWER = """```json
+[
+  {
+    "title": "%s",
+    "priority": "high",
+    "pages": ["employees", "pim_viewEmployeeList"],
+    "guest": false,
+    "test_data": "values typed",
+    "preconditions": ["logged in"],
+    "steps": ["Open the 'Employee List' page", "Type a name in 'Employee Name'", "Click 'Search'", "Click 'Reset'"],
+    "expected": "The results match the typed name and the fields are cleared after reset.",
+    "assertions": ["every result row's Name -> contains the typed employee name"],
+    "unknowns": [],
+    "needs_clarification": "",
+  }
+]
+```""" % PIM
+
+
+def test_a_trailing_comma_in_the_ai_answer_is_accepted():
+    from backend.llm import LLMError, extract_json
+    assert extract_json('[{"a": 1, "b": [1, 2,],},]') == [{"a": 1, "b": [1, 2]}]
+    with pytest.raises(LLMError, match="near"):  # (a real error says where, so the retry can fix it)
+        extract_json('[{"a": 1 "b": 2}]')
+
+
+def test_a_long_instruction_copied_as_title_does_not_reject_the_case():
+    assert len(PIM) > 200
+    case = test_design.AICase(title=PIM, steps=["a", "b"])
+    assert len(case.title) <= 200 and case.title.endswith("…")
+
+
+def test_the_real_openai_answer_becomes_an_automated_plan(tmp_path, monkeypatch):
+    """The exact shape gpt-4o-mini returned: trailing comma, the 218-character instruction as title, and a page
+    discovery never opened. Before the fix it was rejected twice and the instruction stayed 'not automated'."""
+    tests = [{"id": "P1", "text": PIM}]
+    _start(tmp_path, monkeypatch, tests)
+    monkeypatch.setattr(test_design, "llm_enabled", lambda: True)
+    import backend.llm as llm
+    monkeypatch.setattr(llm, "ask_llm", lambda *a, **k: REAL_ANSWER)
+    out = test_design.my_test_cases(PAGES, tests, 1, run_dir=tmp_path)
+    assert not out[0].get("skip_reason"), out[0].get("skip_reason")
+    assert out[0]["instruction"] == PIM and out[0]["pages"] == ["employees"]
+    plan = objective_mod.read(tmp_path)["instructions"][0]["plan"]
+    assert plan["pages_not_explored"] == ["pim_viewEmployeeList"]
+    assert any("not explored by discovery" in u for u in plan["unknowns"])
+
+
+def test_the_best_matching_page_is_explored_first():
+    from backend.agents.discovery import _Frontier
+    obj = objective_mod.Objective([{"id": "x", "text": PIM}])
+    links = [("https://h/web/index.php/pim/updatePassword", "Change Password"),
+             ("https://h/web/index.php/pim/configurePim", "Optional Fields"),
+             ("https://h/web/index.php/pim/viewEmployeeList", "Employee List")]
+    q = _Frontier(("https://h/", 0, True, True))
+    q.popleft()
+    for url, text in links:
+        q.insert_hit((url, 1, True, True), obj.score(url, text))
+    assert q.popleft()[0].endswith("viewEmployeeList")  # (link text 'Employee' beats an address that says /pim/)
+    assert [x[0].rsplit("/", 1)[1] for x in q] == ["updatePassword", "configurePim"]  # (ties keep menu order)
