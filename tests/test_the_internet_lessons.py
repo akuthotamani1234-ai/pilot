@@ -144,4 +144,7 @@ def test_the_empty_form_check_waits_for_a_slow_servers_answer(site):
     ns = {}
     exec(template_script(p, cases), ns)
     page = site({"/login": LOGIN.format(flash=""), "/authenticate": LOGIN.format(flash=SLOW_ANSWER)})
-    ns["test_form0_required_validation"](page)  # (was: 'Empty form: no error message was shown' after 4 s)
+    import inspect
+    args = [page] + ([[]] if "write_guard" in inspect.signature(ns["test_form0_required_validation"]).parameters else [])
+    # (write_guard [] = nothing stopped: this local fixture's own slow answer is what is checked)
+    ns["test_form0_required_validation"](*args)  # (was: 'Empty form: no error message was shown' after 4 s)

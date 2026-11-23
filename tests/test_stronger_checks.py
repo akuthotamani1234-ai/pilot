@@ -61,8 +61,10 @@ def test_a_feature_verified_only_by_a_smoke_test_is_not_verified():
     reg = {"pages": {}, "features": {
         "F-1": {"id": "F-1", "level": "control", "kind": "button", "name": "Save", "page": "P-1", "pages": ["home"],
                 "status": "inspected", "why": "", "tests": [{"tc_id": "TC-1", "how": "verifies"}], "outcomes": {}}}}
+    # (an untagged case can never mark a feature verified - fail-closed, assert_strength.verification_credit - so this
+    # case says it checks a business result; what is tested here is weak vs strong assertions)
     cases = [{"tc_id": "TC-1", "title": "Every button can be clicked", "execution_status": "Passed",
-              "files": ["test_checks.py"], "tests": ["test_check_2"]}]
+              "files": ["test_checks.py"], "tests": ["test_check_2"], "verification": "business"}]
     results = [{"nodeid": "test_checks.py::test_check_2", "file": "test_checks.py", "test": "test_check_2",
                 "outcome": "passed", "checks": 1}]
     record_outcomes(reg, cases, {}, results, {"test_checks.py::test_check_2": "weak"})

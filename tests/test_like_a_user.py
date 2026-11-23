@@ -222,7 +222,8 @@ def test_every_step_of_a_test_is_recorded_and_the_failing_one_marked(tmp_path, m
     r = {x["test"]: x for x in out["results"]}
     steps = [s["text"] for s in r["test_login_steps"]["live_steps"]]
     assert steps[0] == "Open /login" and "Type 'demo' into" in steps[1], steps
-    assert any("[REDACTED]" in s for s in steps) and not any("Very$ecret" in s for s in steps), steps  # (never the password)
+    # (never the password: shown masked - '[REDACTED]' or dots, as the live steps now show it)
+    assert any("[REDACTED]" in s or "\u2022\u2022" in s for s in steps) and not any("Very$ecret" in s for s in steps), steps
     assert any(s.startswith("Check:") for s in steps), steps
     bad = r["test_fails_at_a_step"]["live_steps"]
     assert bad[-1]["ok"] is False and "Click" in bad[-1]["text"], bad  # the step where it failed

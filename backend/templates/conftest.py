@@ -1098,10 +1098,42 @@ def _acts(key_arg, args, kwargs) -> bool:
     return not key_arg or key in ("Enter", "Space", " ", "click")
 
 
+# Enter in a text box sends its form like a click on the form's own button (the browser's implicit submission): the
+# classic shop's newsletter box sent 'POST account/subscriber' although its Subscribe button is protected. That button
+# is marked here so the guard can judge it like a click.
+IMPLICIT_SUBMIT_JS = """e => { const box = /^(INPUT|TEXTAREA)$/.test(e.tagName) && !/^(button|submit|reset|image|checkbox|radio)$/i.test(e.type || '');
+  const f = box && e.tagName === 'INPUT' ? e.form : null;
+  if (!f) return false;
+  const b = [...f.elements].find(x => /^(submit|image)$/i.test(x.type || '') || (x.tagName === 'BUTTON' && !x.getAttribute('type')));
+  if (!b) return false;
+  document.querySelectorAll('[data-qa-implicit]').forEach(x => x.removeAttribute('data-qa-implicit'));
+  b.setAttribute('data-qa-implicit', '1');
+  return true; }"""
+
+
+def _refuse_implicit_submit(loc) -> None:
+    """Enter in a text box: judge the form's own submit button as if it were clicked."""
+    if not getattr(Locator, "_qa_guard", False):
+        return
+    try:
+        if not loc.first.evaluate(IMPLICIT_SUBMIT_JS, timeout=3000):
+            return
+    except Exception:
+        return
+    _refuse_protected(loc.page.locator('[data-qa-implicit="1"]'))
+
+
+def _enter(args, kwargs) -> bool:
+    key = (args[0] if args else kwargs.get("key")) or ""
+    return isinstance(key, str) and key.split("+")[-1] == "Enter"
+
+
 def _guarded(method, key_arg=False):
     def wrapper(self, *args, **kwargs):
         if _acts(key_arg, args, kwargs):
             _refuse_protected(self)
+            if key_arg and _enter(args, kwargs):
+                _refuse_implicit_submit(self)
         return method(self, *args, **kwargs)
     return wrapper
 
@@ -1110,6 +1142,8 @@ def _page_guarded(method, key_arg=False):
     def wrapper(self, selector, *args, **kwargs):
         if _acts(key_arg, args, kwargs):
             _refuse_protected(self.locator(selector))
+            if key_arg and _enter(args, kwargs):
+                _refuse_implicit_submit(self.locator(selector))
         return method(self, selector, *args, **kwargs)
     return wrapper
 
@@ -1188,7 +1222,8 @@ class _Browser:
 
     def _now(self):
         if self.b is None or not self.b.is_connected():
-            self.b = self.pw.chromium.launch(headless=HEADLESS, slow_mo=0, args=[] if HEADLESS else WINDOW_ARGS)
+            self.b = self.pw.chromium.launch(headless=HEADLESS, slow_mo=0, args=[] if HEADLESS else WINDOW_ARGS,
+                                             **_proxy_settings())
         return self.b
 
     def new_context(self, **opts):
@@ -1203,6 +1238,32 @@ class _Browser:
 
     def __getattr__(self, name):
         return getattr(self._now(), name)
+
+
+def _proxy_settings() -> dict:
+    """The machine's proxy (HTTPS_PROXY / HTTP_PROXY) for the test browser - also for page.request: Playwright's own
+    request client ignores the environment, so behind a proxy every link check failed 'getaddrinfo ENOTFOUND'
+    (30 per OrangeHRM run in a proxied cloud machine). Local addresses from NO_PROXY stay direct. No proxy: {}."""
+    raw = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or os.environ.get("HTTP_PROXY") \
+        or os.environ.get("http_proxy") or ""
+    if not raw:
+        return {}
+    u = urlparse(raw if "://" in raw else "http://" + raw)
+    if not u.hostname:
+        return {}
+    proxy = {"server": f"{u.scheme or 'http'}://{u.hostname}{f':{u.port}' if u.port else ''}"}
+    if u.username:
+        proxy.update(username=u.username, password=u.password or "")
+    keep = []
+    for item in (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").split(","):
+        item = item.strip()
+        if item and "/" not in item and item != "::":  # (Playwright takes host names and addresses, not ranges)
+            keep.append("." + item[2:] if item.startswith("*.") else item)
+    for local in ("localhost", "127.0.0.1"):
+        if local not in keep:
+            keep.append(local)
+    proxy["bypass"] = ",".join(keep)
+    return {"proxy": proxy}
 
 
 @pytest.fixture(scope="session")

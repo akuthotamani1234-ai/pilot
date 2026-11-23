@@ -895,8 +895,13 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
             ]
         elif cid.endswith("_required_validation") and cid.split("_")[0] in forms:
             f = forms[cid.split("_")[0]]
+            from ..forms import _guarded as _writes_blocked
+            # where nothing may be sent (test / production) the EMPTY form is sent behind the write guard: it is
+            # stopped in the browser (classic shop: 'Subscribe' with an empty e-mail reached the website as
+            # POST account/subscriber). On a staging copy it is really sent and the website must refuse it.
+            guarded = _writes_blocked()
             out += [
-                f"def test_{cid}(page):",
+                f"def test_{cid}(page{', write_guard' if guarded else ''}):",
                 f'    """{title}"""',
                 "    page.goto(URL)",
                 "    _settle(page)",
@@ -910,9 +915,13 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
                 "            pass",
                 "    before, start = page.evaluate(LINES_JS), page.url",
                 f"    submit = {_submit_locator(f)}",
-                "    submit.evaluate(APPROVE_JS)  # planned: an EMPTY form is sent, the website must refuse it (test env.)",
+                "    submit.evaluate(APPROVE_JS)  # planned: an EMPTY form is sent, the website must refuse it",
                 "    submit.click()",
                 "    refused, how = _validation_shown(page, form, before)",
+                *(["    if write_guard and not refused:  # (stopped in the browser: the page sends it without checking)",
+                   "        pytest.skip(\"Inconclusive: the page does not check the empty form before sending it - the \"",
+                   "                    \"website's own check happens when it is sent, and nothing is sent here (write guard)\")"]
+                  if guarded else []),
                 "    left = page.url.split('#')[0].rstrip('/') != start.split('#')[0].rstrip('/')",
                 "    assert refused, (f'Empty form was accepted: the website went on to {page.url} without an error message'",
                 "                     if left else 'Empty form: no error message was shown (the form stayed on the page, '",
@@ -923,8 +932,10 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
             f = forms[cid.split("_")[0]]
             email = next(fl for fl in f["fields"] if fl["type"] == "email")
             email_sel = email["selector"] or f"{f['selector']} >> input[type=email]"
+            from ..forms import _guarded as _writes_blocked
+            guarded = _writes_blocked()  # (as above: a wrong e-mail is stopped in the browser where nothing may be sent)
             out += [
-                f"def test_{cid}(page):",
+                f"def test_{cid}(page{', write_guard' if guarded else ''}):",
                 f'    """{title}"""',
                 "    page.goto(URL)",
                 "    _settle(page)",
@@ -938,6 +949,10 @@ def template_script(page: dict, cases: list[dict], as_steps: bool = False) -> st
                 "    submit.click()",
                 "    is_valid = field.evaluate('el => el.checkValidity()') if field.count() else True",
                 "    refused, how = (True, 'browser validation') if not is_valid else _validation_shown(page, form, before)",
+                *(["    if write_guard and not refused:  # (stopped in the browser: the page sends it without checking)",
+                   "        pytest.skip(\"Inconclusive: the page does not check the e-mail before sending it - the \"",
+                   "                    \"website's own check happens when it is sent, and nothing is sent here (write guard)\")"]
+                  if guarded else []),
                 '    assert refused, "Invalid email \'not-an-email\' was accepted (no error message, the box is not marked invalid)"',
                 "",
             ]
