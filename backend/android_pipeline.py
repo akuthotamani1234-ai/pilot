@@ -142,6 +142,13 @@ def setup_agent(state):
     }
 
 
+def _stop_file(run_dir) -> bool:
+    try:
+        return (Path(run_dir) / "STOP").exists()
+    except OSError:
+        return False
+
+
 def start_logged_out(driver, config: dict) -> bool:
     """A test build starts like a fresh install: logged out, empty cart (Shoe Store, 2026-11-23: the app was still
     logged in from an earlier session, so login and sign-up were never seen). Only for a native app in test-build
@@ -842,6 +849,13 @@ def discovery_agent(state):
                 reset_for_check(driver, config, package)
             except Exception:
                 pass
+        if not stopped.startswith("Stop requested") and not _stop_file(run_dir) and not config.get("skip_phone_checks"):
+            # deep links, dark mode / large font / another language, device-only features, start time and memory
+            print("[android] Phone checks: deep links, dark mode, large font, another language, start time, memory.",
+                  flush=True)
+            from .android_checks import Checks
+            Checks(driver, config, state.get("environment", {}).get("adb"), run_dir,
+                   lambda: inspect_driver(driver, config), session).run_all(screens)
         return finish_session(session, stopped)
 
     interaction, lost = None, False
