@@ -156,7 +156,7 @@ def test_requested_pages_are_explored_first_within_the_budget(tmp_path, monkeypa
 REAL_ANSWER = """```json
 [
   {
-    "title": "%s",
+    "title": "__PIM__",
     "priority": "high",
     "pages": ["employees", "pim_viewEmployeeList"],
     "guest": false,
@@ -169,7 +169,7 @@ REAL_ANSWER = """```json
     "needs_clarification": "",
   }
 ]
-```""" % PIM
+```""".replace("__PIM__", PIM)
 
 
 def test_a_trailing_comma_in_the_ai_answer_is_accepted():
