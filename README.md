@@ -483,6 +483,15 @@ durable actions, safe continuation, and approved flows stay inside the Android e
 limits are in [STATUS](STATUS.md). The controlled fixture is [tests/android_demo/README.md](tests/android_demo/README.md).
 Real device tests are opt-in.
 
+In test-build mode a run also does what a tester adds after the screens work: your own tests first (up to 10
+lines), a control repeated on every list item checked once, the app opened with Wi-Fi and data off, sent to the
+background and back, its deep links opened, and the start screen checked in dark mode, at a 130% font and in German
+(every phone setting is put back). On an emulator, camera, scanner, fingerprint and similar features are reported as
+"not testable here". Cold start time and memory are measured. When the app asks for a one-time code (SMS / e-mail),
+the run pauses and Studio shows a box to type it; the code is never saved. Set `fresh_start` to clear the app's
+data before a run. Payment, admin and seller tools are never pressed. Some of these checks are unit-tested but not
+yet proven on a device: see CHANGELOG.
+
 
 ## Local MCP integration
 
@@ -496,7 +505,14 @@ Appium and the selected emulator. Restart Studio and reconnect the MCP client af
 
 ## Choose your workflow and privacy
 
-Select **Playwright or Appium**, then **Standard testing or AI assistant through MCP**. Privacy & connections defaults to local AI processing; cloud providers and MCP data access require approval.
+Select **Playwright or Appium**, then **Standard testing** or **AI-assisted testing**. Privacy & connections defaults to local AI processing; cloud providers and MCP data access require approval.
+
+**AI-assisted testing** (option 02): enter the website, write what to test (one test per line), press **Run it here
+with Qpilot AI**, choose the AI model and account, and press it again. Your lines become the run's own tests: the
+pages they name are explored first, the AI writes a plan with assertions, and the report answers each line under
+**Your request**. A line the AI cannot automate is reported as not automated, never as a pass. A cloud AI needs its
+API key in `.env` (for example `OPENAI_API_KEY=`); a key typed in the UI is used for that one run only. Connecting an
+external assistant (Cursor / Claude through MCP) is optional; see Local MCP integration.
 
 The local project folder is `Qpilot`. After moving or renaming a checkout, regenerate the MCP configuration with
 `setup/mcp_config.py` or Studio's **Copy server configuration**, update the client and reconnect it. MCP connects

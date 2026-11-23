@@ -2,6 +2,37 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-22 to 2026-11-23 - AI-assisted testing, form values, Android tester checks, safety fixes
+
+Status words below: **verified** = proven in a real run; **unit-tested** = covered by tests, not yet proven in a
+real run.
+
+- AI-assisted testing (option 02) runs inside Studio: **Run it here with Qpilot AI** opens the shared settings
+  (account, AI model, pages) and starts the run with the typed request as the run's own tests. Connecting an external
+  MCP assistant is optional. *Verified (OrangeHRM, OpenAI).*
+- Your own tests steer the run: matching pages are explored first (optionally only them), the AI writes a plan
+  (navigation, preconditions, steps, assertions, unknowns), destructive requests are refused, vague ones ask for
+  clarification, and the report has a **Your request** section. *Verified (OrangeHRM PIM).* The AI-written PIM search
+  test passed on the live site on its own; *inside one complete run it is not yet proven*.
+- AI test code is checked against what the page really showed: unobserved selectors and guessed row counts are
+  refused; table rows reach the AI as {column: value}; row checks wait for new results. *Verified (live PIM search).*
+- Forms are filled like a tester: real field labels, stable addresses, values that fit each field (IDs, addresses,
+  phones, dates in the page's own format, realistic names new every run), picking from suggestion lists and custom
+  dropdowns, tables built of divs. *Verified (OrangeHRM: 0 "keep the typed text" failures, was 9).*
+- Android: your tests run first (up to 10 lines) and a placeholder journey is "not automated", never a pass;
+  a control repeated on every list item is checked once ("sampled"); the network-off check and tap-to-return after
+  background. *Verified (My Demo App, CartNShop on an emulator).* One-time codes typed by a person in Studio, deep
+  links, dark mode / 130% font / German layout checks, device-only features marked "not testable here" on an
+  emulator, cold start and memory, sign-up error text + screenshot. *Unit-tested.* Clearing the app's data before a
+  run is opt-in (`fresh_start`).
+- Safety: in test / production the "empty form" and "wrong e-mail" checks no longer send the form (it is stopped in
+  the browser); Enter in a text box is judged like a click on the form's own button; admin and seller tools (Add
+  Product, Sold Products) are never pressed. *Verified (classic-shop safety test).*
+- Link checks work behind an HTTPS proxy. The test suite no longer overwrites `docs/ops-evidence/android_adb_probe.json`.
+- Dependencies: PyJWT 2.15.1, certifi 2026.10.18, opentelemetry-api 1.45.2 (pip-audit: no known vulnerabilities).
+- Known open items: 5 older test failures (`tests/test_classic_shop.py` x3, `tests/test_end_to_end.py` x2); see the
+  audit linked from issue #22.
+
 ## 2026-11-17 - Remaining Qpilot X rules
 
 - The large-listing sample is unchanged: a listing still opens the configured few products and leaves the rest, and checkout and payment stay blocked.
