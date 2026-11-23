@@ -33,7 +33,9 @@ def _load(run):
 def clean(tmp_path_factory):
     shop = ClassicShop().start()
     try:
-        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_clean"), account=())
+        # (DATA_TESTS: the typed-value checks are off by default; test_a_clean_shop_gives_no_false_failures checks
+        # them, so this run turns them on instead of depending on a developer's .env)
+        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_clean"), {"DATA_TESTS": "true"}, account=())
         yield _load(run), shop, run
     finally:
         shop.stop()

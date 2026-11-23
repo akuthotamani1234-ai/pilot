@@ -662,6 +662,12 @@ EXTRACT_JS = r"""
         readonly: i.readOnly, disabled: i.disabled,
         placeholder: i.placeholder || '', autocomplete: i.getAttribute('autocomplete') || '', html: tag(i),
         chrome: chromeShell(i), in_table: inTableRow(i)})),
+      // the site-wide search box of a header / sidebar GET form: not a field to test, but the box that builds the
+      // search results address (?rt=product/search&keyword=...) - kept apart so the form tests stay as they are
+      search_fields: native ? [...(f.elements || [])].filter(i => /^(INPUT)$/.test(i.tagName) && i.name
+        && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i) && isChromeSearch(i))
+        .slice(0, 3).map(i => ({name: i.name, id: i.id || '', type: i.type || '', placeholder: i.placeholder || '',
+          label: labelFor(i).slice(0, 80)})) : [],
       submit: submit ? {text: accName(submit), selector: sel(submit),
         formaction: submit.getAttribute('formaction') || ''} : null
     };
@@ -1857,7 +1863,8 @@ def _search_url(entry: dict, url: str, word: str) -> str | None:
     for f in entry.get("forms", []):
         if (f.get("method") or "get") != "get" or not f.get("action"):
             continue
-        box = next((x for x in f.get("fields", []) if x.get("name") and ((x.get("type") or "") == "search" or SEARCH_BOX.search(
+        boxes = f.get("fields", []) + f.get("search_fields", [])  # (a header search box is kept apart from fields)
+        box = next((x for x in boxes if x.get("name") and ((x.get("type") or "") == "search" or SEARCH_BOX.search(
             f"{x.get('name')} {x.get('id')} {x.get('placeholder')} {x.get('label')}"))), None)
         if box:  # (written like the website's own links: rt=product/search, not rt=product%2Fsearch)
             action = urljoin(url, f.get("action") or url).split("#")[0].split("?")[0]

@@ -5,6 +5,7 @@ No AI (rule-based), hidden browser, separate runs/ and baseline/ folders. Takes 
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -19,12 +20,12 @@ ROOT = Path(__file__).resolve().parent.parent
 VERDICTS = {"Ready", "Ready with Risks", "Not Ready", "Insufficient Evidence"}
 
 
-def _run(app, tmp_path, *extra, user=USER, password=PASSWORD):
+def _run(app, tmp_path, *extra, user=USER, password=PASSWORD, env_extra=None):
     env = os.environ.copy()
     env.update({"LLM_PROVIDER": "none", "HEADLESS": "true", "SLOW_MO_MS": "0", "TEST_WORKERS": "2",
                 "RUNS_DIR": str(tmp_path / "runs"), "BASELINE_DIR": str(tmp_path / "baseline"),
                 "WORKSPACE_DIR": str(tmp_path / "ws"), "TEST_USERNAME": user, "TEST_PASSWORD": password,
-                "AUTO_REGISTER": "false", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
+                "AUTO_REGISTER": "false", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", **(env_extra or {})})
     r = subprocess.run([sys.executable, "main.py", app.url, "--no-open", "--max-pages", "25", *extra], check=False, cwd=ROOT,
                        env=env, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1200)
     assert r.returncode == 0, r.stdout[-4000:] + r.stderr[-2000:]
@@ -143,7 +144,10 @@ def test_deep_testing_behind_the_login_on_a_shop(tmp_path):
     from tests.demo_store import EMAIL, PASSWORD as STORE_PW, DemoStore
     store = DemoStore().start()
     try:
-        run, out = _run(store, tmp_path, "--max-pages", "0", user=EMAIL, password=STORE_PW)
+        # (sampling: 3 pages of each repeated design are opened, the rest counted as 'sampled'. Set here, not taken
+        # from a developer's .env - the test used to pass only where .env said SWARM_SAMPLE=3)
+        run, out = _run(store, tmp_path, "--max-pages", "0", user=EMAIL, password=STORE_PW,
+                        env_extra={"SWARM_SAMPLE": "3", "PATTERN_SAMPLES": "0"})
         s = json.loads((run / "summary.json").read_text(encoding="utf-8"))
         assert s["login_outcome"] == "success" and s["authenticated_pages"] >= 12
         cov = s["coverage"]
@@ -189,10 +193,13 @@ def test_a_repaired_script_is_run_again_and_reported_with_its_real_result(tmp_pa
     saved_learned = list((tmp_path / "baseline").rglob("test_learned.py"))
     assert len(saved_learned) == 1, saved_learned
     code = saved_learned[0].read_text(encoding="utf-8")
-    start = code.index("def test_learned_5(page, console_errors):")
-    end = code.find("\n@pytest.mark.", start)
-    if end < 0:
-        end = len(code)
+    # the learned test of 'Notify me' (found by its control, not by its number: the order of learned tests follows
+    # discovery, which may change)
+    starts = [m.start() for m in re.finditer(r"^def test_learned_\d+\(page, console_errors\):", code, re.M)]
+    cases = [(a, code.find("\n@pytest.mark.", a) if code.find("\n@pytest.mark.", a) >= 0 else len(code)) for a in starts]
+    notify = [(a, b) for a, b in cases if "'name': 'Notify me'" in code[a:b] and "'selector': '#notify'" in code[a:b]]
+    assert len(notify) == 1, [code[a:b][:120] for a, b in cases]
+    start, end = notify[0]
     case = code[start:end]
     assert case.count("'name': 'Notify me'") == 1, case
     saved_learned[0].write_text(code[:start] + case.replace("'name': 'Notify me'", "'name': ''", 1) + code[end:],
