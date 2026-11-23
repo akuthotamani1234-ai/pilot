@@ -229,7 +229,9 @@ class ContractRuntime:
                                 if element is not None and self.adapter.input_sensitive(element):
                                     raise ValueError("Input contents cannot be asserted as report text")
                                 actual = self.adapter.text(element) if element is not None else ""
-                                if element is not None and actual == step.value:
+                                # (spaces around or doubled inside are not part of what a person reads: CartNShop's
+                                # 'Terms & Condition ' made a check 'not repeatable')
+                                if element is not None and " ".join(str(actual).split()) == " ".join(str(step.value).split()):
                                     break
                             except StaleElementReferenceException:
                                 pass

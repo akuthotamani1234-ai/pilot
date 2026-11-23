@@ -735,7 +735,10 @@ def render_mobile_report(summary, cases, results, failures, screens, healing):
                           if summary.get("incomplete") else '')
     account = summary.get("account_setup") or {}
     account_section = ('<section class="scope"><b>Test account: ' + esc(account.get("status", ""))
-                       + '</b><p>' + esc(account.get("detail", "")) + '</p></section>' if account.get("detail") else '')
+                       + '</b><p>' + esc(account.get("detail", "")) + '</p>'
+                       + ('<p><a href="' + esc(account["screenshot"]) + '">Screenshot of the error</a></p>'
+                          if account.get("screenshot") else '')
+                       + '</section>' if account.get("detail") else '')
     dynamic = summary.get("dynamic") or {}
     dynamic_section = (
         '<section class="scope"><b>Dynamic screens</b><p>Overlays detected: '

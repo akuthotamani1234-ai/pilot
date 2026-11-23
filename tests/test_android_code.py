@@ -154,3 +154,36 @@ def test_after_leaving_the_app_the_tester_taps_it_again(monkeypatch):
     adapter, calls = _adapter("com.google.android.apps.nexuslauncher")
     adapter.device_action("background", "3")
     assert ("activate", "com.shop") in calls
+
+
+# ---- CartNShop run android_20261123_075125_a149f8
+
+def test_a_field_wrapper_is_not_offered_to_the_ai():
+    from backend.android_interact import wraps_input
+    box = {"input_capable": True, "bounds": "[60,500][1020,640]"}
+    til = {"class_name": "com.google.android.material.textfield.TextInputLayout", "resource_id": "x:id/til_email",
+           "bounds": "[40,480][1040,660]", "clickable": True}
+    frame = {"class_name": "android.widget.FrameLayout", "bounds": "[40,480][1040,660]", "text": ""}
+    button = {"class_name": "android.widget.Button", "text": "LOGIN", "bounds": "[60,700][1020,800]"}
+    screen = {"elements": [til, frame, box, button]}
+    assert wraps_input(screen, til) and wraps_input(screen, frame)
+    assert not wraps_input(screen, box) and not wraps_input(screen, button)
+
+
+def test_a_sign_up_error_keeps_its_text_masked_and_a_screenshot(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    import backend.android as android
+    from backend import android_interact as ai
+    monkeypatch.setattr(android, "capture_screenshot", lambda driver, run_dir, name, pkg=None: f"screenshots/{name}.png")
+    import backend.android_accounts as acc
+    monkeypatch.setattr(acc, "persist", lambda s: None)
+    session = ai.Session.__new__(ai.Session)
+    session.screens = [{"package_name": "com.mycompany.cartnshop"}]
+    session.device = SimpleNamespace(stop_path=tmp_path / "STOP", driver=object())
+    session.account_setup = {"status": "attempted"}
+    said = session.keep_error({"screen_name": "CREATE AN ACCOUNT"}, "Sign-up",
+                              "The email qa.x@example.com is badly formatted", ["qa.x@example.com"])
+    assert "qa.x@example.com" not in said and "badly formatted" in said
+    assert session.account_setup["status"] == "failed" and session.account_setup["screenshot"].endswith("sign-up_error.png")
+    assert "badly formatted" in session.account_setup["detail"]

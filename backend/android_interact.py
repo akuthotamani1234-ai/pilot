@@ -252,6 +252,28 @@ def hollow_journey(journey, element_alias: dict, start: dict) -> str:
     return ""
 
 
+def wraps_input(screen: dict, element: dict) -> bool:
+    """A layout around a typing box (Material TextInputLayout 'til_email'): not a control of its own - the AI must use
+    the box inside it."""
+    if element.get("input_capable"):
+        return False
+    if "TextInputLayout" in (element.get("class_name") or ""):
+        return True
+    outer = _box(element)
+    if not outer or (element.get("text") or "").strip():
+        return False
+    for other in screen.get("elements", []):
+        inner = _box(other) if other is not element and other.get("input_capable") else None
+        if inner and outer[0] <= inner[0] and outer[1] <= inner[1] and inner[2] <= outer[2] and inner[3] <= outer[3]:
+            return True
+    return False
+
+
+def _box(element: dict):
+    m = re.match(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", str(element.get("bounds") or ""))
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
 def family(element: dict) -> tuple:
     locator = (element.get("locators") or [{}])[0]
     return (element.get("class_name"), element.get("accessibility_id") or element.get("resource_id") or element.get("text"),
@@ -831,6 +853,29 @@ class Session:
         """The live screen, opened from a fresh start (`fresh=False`: a website may skip clearing for navigation)."""
         return self.device.go_to(screen)
 
+    def keep_error(self, screen: dict, action_name: str, message: str, private: list) -> str:
+        """What a tester attaches when sign-up / login fails: the app's own error text (private values masked) and a
+        screenshot (CartNShop: 'the app showed an error' - with neither, nobody could tell why)."""
+        said = redact(str(message or ""), private)[:200].strip()
+        shot = None
+        try:
+            from .android import capture_screenshot
+            stop = getattr(self.device, "stop_path", None)
+            if stop is not None and getattr(self.device, "driver", None) is not None:
+                shot = capture_screenshot(self.device.driver, stop.parent, f"{action_name.lower()}_error",
+                                          (self.screens[0] or {}).get("package_name") if self.screens else None)
+        except Exception:
+            shot = None
+        if action_name == "Sign-up" and getattr(self, "account_setup", None) is not None:
+            self.account_setup.update(status="failed", error=said, screenshot=shot,
+                                      detail=f"Sign-up showed an error: '{said}'" if said else "Sign-up showed an error.")
+            try:
+                from .android_accounts import persist
+                persist(self)
+            except Exception:
+                pass
+        return said
+
     def person_code(self, after: dict) -> dict:
         """The app asks for a one-time code (SMS / e-mail): a PERSON types it in Qpilot, the run enters it and goes
         on. The code is typed live and never becomes a step of a saved test, a report or a log line."""
@@ -1376,7 +1421,7 @@ class Session:
         if self.native:
             from .android_forms import destination_check
             checks = destination_check(self, before, after, form)
-        error_response = False
+        error_response, error_text = False, ""
         for change in changes:
             # A successful registration may keep the form open and show a status.
             # Never copy an email, username, or password into an assertion/report.
@@ -1388,6 +1433,7 @@ class Session:
                 from .android_forms import outcome_error
                 if outcome_error(message):
                     error_response = True
+                    error_text = error_text or message
                     continue
             if (change["kind"] in ("message", "appeared", "text", "title") and SUCCESS.search(message)
                     and not any(value.casefold() in message.casefold() for value in private)):
@@ -1397,8 +1443,10 @@ class Session:
         # A click, screen-name change or disappearing form alone is never success.
         if not checks and not success_message:
             if error_response:
+                said = self.keep_error(screen, action_name, error_text, private)
                 self.tried.append({'check': title, 'outcome': 'inconclusive', 'screen': screen['screen_name'],
-                                   'detail': 'The app showed an error instead of a verified success result.'})
+                                   'detail': 'The app showed an error instead of a verified success result'
+                                             + (f": '{said}'" if said else '.')})
                 return
             self.findings.append({"screen": screen["screen_name"],
                                   "finding": f"Valid {action_name.casefold()} details did not produce an observable success",
@@ -1672,6 +1720,8 @@ class Session:
             for element in screen["elements"]:
                 if element.get("id") in managed:
                     continue  # Account setup owns credentials; AI journeys exercise other features.
+                if wraps_input(screen, element):
+                    continue  # (the box inside is listed: CartNShop's 'til_email' wrapper was blocked as an e-mail link)
                 if not usable(element) or not (label(element) or element.get("text")):
                     continue
                 if element.get("clickable") and not element.get("input_capable") and self.protected(label(element)):
