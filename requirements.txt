@@ -19,5 +19,5 @@ uvicorn==0.54.0
 python-multipart==0.0.33     # FastAPI APK uploads
 redis==5.2.1                 # optional Gate B/G Redis DurableQueue adapter
 minio==7.2.15                # optional Gate G MinIO/S3 object store client
-PyJWT==2.10.1              # Gate I OIDC bearer JWT signature verification (optional path)
+PyJWT==2.15.1              # Gate I OIDC bearer JWT signature verification (optional path)
 cryptography==50.0.2         # RSA keys for Gate I loopback OIDC JWT
