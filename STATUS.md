@@ -5,14 +5,19 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–1
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–2
 
-**Phase 1:** a read-only Jira Cloud connector and an incremental, resumable, tenant-scoped, audited story sync
+**Phase 2:** read-only Confluence Cloud spaces and pages (sections with heading paths, lists, tables, tasks, code;
+Confluence's own version numbers; malformed and very large pages handled), linked-page walks with depth / page limits
+(circular, inaccessible and deleted pages handled), and story ↔ page links from Jira remote links, descriptions and
+page mentions (`backend/atlassian/confluence.py`, `sync.py`), with 24 tests against a local mock site
+(`tests/test_atlassian_confluence.py`). **Mock only; no live Confluence evidence. No AI used.** **Phase 1:** a read-only Jira Cloud connector and an incremental, resumable, tenant-scoped, audited story sync
 (`backend/atlassian/client.py`, `jira.py`, `store.py`, `sync.py`), with 26 tests against a local mock Jira
 (`tests/test_atlassian_jira_sync.py`). **Mock only; no live Jira evidence.** **Phase 0:** design, data contracts and schema tests: `docs/REQUIREMENTS_INTELLIGENCE.md`, `backend/atlassian/models.py`,
 `tests/test_atlassian_models.py` (24 passed). Nothing is wired into a test run yet; there is **no live Atlassian evidence**. The existing opt-in Jira defect creation is unchanged; every new Jira write will need
 approval. Baseline: the full suite at `4754f7f` had **2241 passed, 5 failed**; the five failures predate this work and
-are listed in the design document for separate investigation.
+are listed in the design document for separate investigation. Their re-run (23 Nov) gave **4 failed, 9 passed**: four
+reproduced; `test_deep_testing_behind_the_login_on_a_shop` passed once and is intermittent, not fixed.
 
 ## Shared MCP settings and Qpilot branding
 

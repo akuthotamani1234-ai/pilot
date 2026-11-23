@@ -2,6 +2,17 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-23 - Requirements Intelligence, Phase 2 (read-only Confluence and story links)
+
+- Confluence Cloud spaces and pages (v2 API) through the same read-only client: storage format to sections with
+  heading paths (paragraphs, nested lists, tables, tasks, code), requirement-like sections marked, links to pages and
+  Jira issues found, malformed and very large pages handled, Confluence's own version numbers kept with every old
+  version.
+- Incremental, resumable space sync; linked-page walks with depth and page limits (circular, inaccessible and deleted
+  pages handled); a Jira story linked to the pages that specify it (remote links, description, page mentions).
+  *Tested against a local mock Atlassian site (24 tests); not yet against a real site. No AI used.*
+- Baseline: the re-run of the pre-existing failures gave 4 failed, 9 passed (one of the five is intermittent).
+
 ## 2026-11-23 - Requirements Intelligence, Phase 1 (read-only Jira connector)
 
 - Read-only Jira Cloud client (retries, Retry-After, 401 = expired token, no redirects, size cap, redacted errors),

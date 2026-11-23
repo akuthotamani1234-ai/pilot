@@ -10,7 +10,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from .client import AtlassianError, Client
-from .models import ISSUE_KEY, Connection, SourceKind, SourceRef, content_hash
+from .models import ISSUE_KEY, Connection, SourceKind, SourceRef, content_hash, parse_time
 
 PAGE_SIZE = 50
 STORY_TYPES = ("Story",)
@@ -87,6 +87,23 @@ def search(client: Client, jql: str, fields: list[str], next_page_token: str = "
     return {"issues": issues, "next_page_token": token, "is_last": bool(page.get("isLast", not token))}
 
 
+def remote_links(client: Client, key: str) -> list[dict]:
+    """An issue's remote links (Confluence pages appear here when a page is linked to the story):
+    [{'url', 'title', 'application', 'global_id'}]."""
+    if not ISSUE_KEY.match(key or ""):
+        raise ValueError("not an issue key")
+    data = client.get(f"/rest/api/3/issue/{key}/remotelink")
+    out = []
+    for link in data.get("values", []):
+        if not isinstance(link, dict):
+            continue
+        obj = link.get("object") or {}
+        out.append({"url": str(obj.get("url", "")), "title": str(obj.get("title", "")),
+                    "application": str((link.get("application") or {}).get("type", "")),
+                    "global_id": str(link.get("globalId", ""))})
+    return out
+
+
 # ---------------------------------------------------------------- ADF -> text
 
 def adf_to_text(node) -> str:
@@ -153,21 +170,6 @@ def adf_to_text(node) -> str:
 
 # ---------------------------------------------------------------- normalize
 
-def _when(value) -> datetime:
-    """Jira time '2026-11-20T09:15:02.123+0000' -> aware datetime (UTC)."""
-    text = str(value or "")
-    m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?([+-]\d\d):?(\d\d)$", text)
-    if m:
-        text = f"{m.group(1)}{m.group(2) or ''}{m.group(3)}:{m.group(4)}"
-    try:
-        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        raise ValueError(f"unreadable time {value!r}") from None
-    if when.tzinfo is None:
-        raise ValueError("time without a time zone")
-    return when.astimezone(UTC)
-
-
 def normalize(issue: dict, connection: Connection, *, ac_field: str = "", retrieved_at: datetime | None = None,
               version: int = 1) -> dict:
     """One Jira issue -> {'source': SourceRef, 'story': {...plain fields...}, 'text': the hashed content}.
@@ -204,7 +206,7 @@ def normalize(issue: dict, connection: Connection, *, ac_field: str = "", retrie
         "acceptance_field": ac_field,
         "links": sorted(links, key=lambda x: (x["key"], x["type"])),
         "parent": str((f.get("parent") or {}).get("key", "")),
-        "created": _when(f["created"]).isoformat() if f.get("created") else "",
+        "created": parse_time(f["created"]).isoformat() if f.get("created") else "",
     }
     text = "\n".join([story["summary"], story["type"], story["status"], " ".join(story["labels"]),
                       story["description"], story["acceptance_criteria"],
@@ -212,7 +214,7 @@ def normalize(issue: dict, connection: Connection, *, ac_field: str = "", retrie
     if not story["summary"]:
         raise ValueError(f"{key}: no summary")
     source = SourceRef(tenant_id=connection.tenant_id, connection_id=connection.id, kind=SourceKind.jira_issue,
-                       source_id=key, version=version, updated=_when(f.get("updated")),
+                       source_id=key, version=version, updated=parse_time(f.get("updated")),
                        url=f"{connection.site_url}/browse/{key}", title=story["summary"][:500],
                        content_hash=content_hash(text), retrieved_at=retrieved_at or datetime.now(UTC),
                        parent_id=story["parent"])

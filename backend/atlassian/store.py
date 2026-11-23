@@ -5,6 +5,7 @@
   source_versions   every version ever seen: content hash, Jira 'updated', normalized content (traceability needs
                     to know what a test was designed from)
   sync_cursors      where each sync stands (resume after a failure)
+  links             story <-> page and page -> page links, with how each was found
 
 Every function takes the tenant and filters by it: one tenant can never read or change another tenant's rows.
 Same pattern as backend/approvals.py (a linked database file is refused).
@@ -39,6 +40,10 @@ CREATE TABLE IF NOT EXISTS source_versions (
 CREATE TABLE IF NOT EXISTS sync_cursors (
     tenant_id TEXT NOT NULL, connection_id TEXT NOT NULL, scope TEXT NOT NULL, data TEXT NOT NULL,
     PRIMARY KEY (tenant_id, connection_id, scope));
+CREATE TABLE IF NOT EXISTS links (
+    tenant_id TEXT NOT NULL, from_key TEXT NOT NULL, to_key TEXT NOT NULL, relation TEXT NOT NULL,
+    found_via TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, from_key, to_key, relation));
 CREATE INDEX IF NOT EXISTS sources_by_connection ON sources (tenant_id, connection_id, scope);
 """
 
@@ -89,11 +94,14 @@ def list_connections(db: sqlite3.Connection, tenant_id: str) -> list[Connection]
 
 # ---------------------------------------------------------------- sources
 
-def upsert_source(db: sqlite3.Connection, source: SourceRef, data: dict, scope: str = "") -> tuple[str, SourceRef]:
-    """Store one source read from Atlassian. Returns ('new' | 'changed' | 'unchanged', the stored SourceRef).
+def upsert_source(db: sqlite3.Connection, source: SourceRef, data: dict, scope: str = "",
+                  native_version: bool = False) -> tuple[str, SourceRef]:
+    """Store one source read from Atlassian. Returns ('new' | 'changed' | 'unchanged' | 'reappeared', stored ref).
 
-    Unchanged content (same hash) keeps its version; changed content becomes version + 1 and the old version
-    stays in source_versions. The version number on the incoming SourceRef is ignored: the store assigns it."""
+    Unchanged content (same hash) keeps its version; changed content gets a new version and the old one stays in
+    source_versions. Jira has no content version number, so the store counts (native_version=False). Confluence
+    numbers its versions itself (native_version=True): that number is kept, so a trace link names the exact
+    Confluence version a test was designed from."""
     tenant = _tenant(source.tenant_id)
     row = db.execute("SELECT version, content_hash, present FROM sources WHERE tenant_id = ? AND source_key = ?",
                      (tenant, source.key)).fetchone()
@@ -104,11 +112,16 @@ def upsert_source(db: sqlite3.Connection, source: SourceRef, data: dict, scope: 
                        (source.retrieved_at.isoformat(), scope, scope, tenant, source.key))
         stored = source.model_copy(update={"version": row["version"]})
         return ("unchanged" if row["present"] else "reappeared"), stored
-    version = (row["version"] + 1) if row else 1
+    if native_version:
+        version = source.version
+        if row and version < row["version"]:
+            raise ValueError(f"{source.key}: version {version} is older than the stored version {row['version']}")
+    else:
+        version = (row["version"] + 1) if row else 1
     stored = source.model_copy(update={"version": version})
     body = json.dumps({"source": json.loads(stored.model_dump_json()), "content": data}, sort_keys=True)
     with db:
-        db.execute("INSERT OR IGNORE INTO source_versions (tenant_id, source_key, version, content_hash, updated, "
+        db.execute("INSERT OR REPLACE INTO source_versions (tenant_id, source_key, version, content_hash, updated, "
                    "retrieved_at, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
                    (tenant, source.key, version, source.content_hash, source.updated.isoformat(),
                     source.retrieved_at.isoformat(), body))
@@ -149,6 +162,13 @@ def list_sources(db: sqlite3.Connection, tenant_id: str, connection_id: str = ""
     return [_row(r) for r in db.execute(q + " ORDER BY source_key", args)]
 
 
+def find_sources(db: sqlite3.Connection, tenant_id: str, kind: str, source_id: str) -> list[str]:
+    """The source keys of an issue key / page id in this tenant (one per connection that has it)."""
+    rows = db.execute("SELECT source_key FROM sources WHERE tenant_id = ? AND kind = ? AND source_id = ? "
+                      "ORDER BY source_key", (_tenant(tenant_id), kind, source_id))
+    return [r["source_key"] for r in rows]
+
+
 def history(db: sqlite3.Connection, tenant_id: str, source_key: str) -> list[dict]:
     rows = db.execute("SELECT data FROM source_versions WHERE tenant_id = ? AND source_key = ? ORDER BY version",
                       (_tenant(tenant_id), source_key))
@@ -165,6 +185,38 @@ def mark_missing(db: sqlite3.Connection, tenant_id: str, connection_id: str, sco
         db.executemany("UPDATE sources SET present = 0 WHERE tenant_id = ? AND source_key = ?",
                        [(tenant_id, k) for k in gone])
     return gone
+
+
+def mark_source_missing(db: sqlite3.Connection, tenant_id: str, source_key: str) -> bool:
+    """One source Atlassian now answers 'not found' / 'no permission' for: kept, marked missing."""
+    with db:
+        cur = db.execute("UPDATE sources SET present = 0 WHERE tenant_id = ? AND source_key = ? AND present = 1",
+                         (_tenant(tenant_id), source_key))
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------- links
+
+def save_link(db: sqlite3.Connection, tenant_id: str, from_key: str, to_key: str, relation: str, found_via: str
+              ) -> None:
+    now = _now()
+    with db:
+        db.execute("INSERT INTO links (tenant_id, from_key, to_key, relation, found_via, first_seen, last_seen) "
+                   "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (tenant_id, from_key, to_key, relation) DO UPDATE SET "
+                   "last_seen = excluded.last_seen, found_via = excluded.found_via",
+                   (_tenant(tenant_id), from_key, to_key, relation, found_via, now, now))
+
+
+def links_from(db: sqlite3.Connection, tenant_id: str, from_key: str) -> list[dict]:
+    rows = db.execute("SELECT to_key, relation, found_via FROM links WHERE tenant_id = ? AND from_key = ? "
+                      "ORDER BY to_key, relation", (_tenant(tenant_id), from_key))
+    return [dict(r) for r in rows]
+
+
+def links_to(db: sqlite3.Connection, tenant_id: str, to_key: str) -> list[dict]:
+    rows = db.execute("SELECT from_key, relation, found_via FROM links WHERE tenant_id = ? AND to_key = ? "
+                      "ORDER BY from_key, relation", (_tenant(tenant_id), to_key))
+    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------- cursors

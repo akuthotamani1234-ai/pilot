@@ -54,6 +54,22 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def parse_time(value) -> datetime:
+    """Atlassian time ('2026-11-20T09:15:02.123+0000', '...Z', '...+05:30') -> aware UTC datetime."""
+    from datetime import UTC
+    text = str(value or "")
+    m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?([+-]\d\d):?(\d\d)$", text)
+    if m:
+        text = f"{m.group(1)}{m.group(2) or ''}{m.group(3)}:{m.group(4)}"
+    try:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(f"unreadable time {value!r}") from None
+    if when.tzinfo is None:
+        raise ValueError("time without a time zone")
+    return when.astimezone(UTC)
+
+
 def content_hash(text: str) -> str:
     """sha256 of the normalized content: the same text in a later sync -> the same hash (no change)."""
     return hashlib.sha256(normalize_text(text).encode("utf-8")).hexdigest()

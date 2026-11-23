@@ -1,7 +1,8 @@
-"""A local mock of the Jira Cloud REST API v3 (the parts Requirements Intelligence reads), on 127.0.0.1.
+"""A local mock of one Atlassian Cloud site (the parts Requirements Intelligence reads), on 127.0.0.1.
 
-Shapes follow Atlassian's public Cloud API: /project/search (startAt paging), /field, POST /search/jql
-(nextPageToken paging). It checks Basic auth, can inject faults (429 with Retry-After, 401, 503, redirects, big
+Jira: /project/search (startAt paging), /field, POST /search/jql (nextPageToken paging), /issue/{key}/remotelink.
+Confluence: /wiki/api/v2/spaces, /spaces/{id}/pages (cursor paging, newest change first), /pages/{id},
+/pages?space-id&title. Shapes follow Atlassian's public Cloud APIs. It checks Basic auth, can inject faults (429 with Retry-After, 401, 503, redirects, big
 bodies), expire page tokens, and records every request so tests can prove the client only reads.
 No real tenant data: every story is generated here.
 """
@@ -13,6 +14,7 @@ import re
 import threading
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 
 EMAIL, TOKEN = "qa@acme.test", "mock-token-value-123"
 T0 = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
@@ -25,6 +27,18 @@ def jira_time(when: datetime) -> str:
 def adf(*paragraphs: str) -> dict:
     return {"type": "doc", "version": 1,
             "content": [{"type": "paragraph", "content": [{"type": "text", "text": p}]} for p in paragraphs]}
+
+
+def conf_time(when: datetime) -> str:
+    return when.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def page(page_id: str, title: str, body: str, space_id: str = "100", version: int = 1,
+         when: datetime = T0, status: str = "current", parent: str = "") -> dict:
+    return {"id": page_id, "title": title, "status": status, "spaceId": space_id, "parentId": parent or None,
+            "version": {"number": version, "createdAt": conf_time(when)},
+            "body": {"storage": {"value": body, "representation": "storage"}},
+            "_links": {"webui": f"/spaces/ENG/pages/{page_id}/{title.replace(' ', '+')}"}}
 
 
 def story(key: str, summary: str, updated: datetime, description: str = "", ac: str = "", **fields) -> dict:
@@ -45,6 +59,10 @@ class MockJira:
         self.faults: list[dict] = []  # {"path": prefix, "status": 429, "headers": {...}, "body": "..."}
         self.requests: list[dict] = []
         self.generation = 0  # page tokens of older generations are 'expired'
+        self.remote_links: dict[str, list[dict]] = {}
+        self.spaces = [{"id": "100", "key": "ENG", "name": "Engineering", "type": "global", "status": "current"}]
+        self.pages: dict[str, dict] = {}
+        self.forbidden: set[str] = set()  # page ids answered 403
         self.lock = threading.Lock()
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -71,6 +89,53 @@ class MockJira:
 
     def expire_tokens(self):
         self.generation += 1
+
+    def add_page(self, page_id: str, title: str, body: str, **kw) -> dict:
+        self.pages[page_id] = page(page_id, title, body, **kw)
+        return self.pages[page_id]
+
+    def edit_page(self, page_id: str, body: str, when: datetime):
+        p = self.pages[page_id]
+        p["body"]["storage"]["value"] = body
+        p["version"] = {"number": p["version"]["number"] + 1, "createdAt": conf_time(when)}
+
+    def _token(self, offset: int) -> str:
+        return base64.b64encode(f"{self.generation}:{offset}".encode()).decode()
+
+    def _confluence(self, path: str, q: dict):
+        """(status, body) for a Confluence v2 GET, or None when the path is not Confluence."""
+        limit = int(q.get("limit", 25))
+        start = int(base64.b64decode(q["cursor"]).decode().split(":")[1]) if q.get("cursor") else 0
+        if path == "/wiki/api/v2/spaces":
+            keys = set(q["keys"].split(",")) if q.get("keys") else None
+            found = [sp for sp in self.spaces if keys is None or sp["key"] in keys]
+            chunk = found[start:start + limit]
+            links = {"next": f"/wiki/api/v2/spaces?cursor={self._token(start + limit)}&limit={limit}"} \
+                if start + limit < len(found) else {}
+            return 200, {"results": chunk, "_links": links}
+        if m := re.fullmatch(r"/wiki/api/v2/spaces/(\d+)/pages", path):
+            found = sorted((p for p in self.pages.values() if p["spaceId"] == m.group(1) and p["status"] == "current"),
+                           key=lambda p: p["version"]["createdAt"], reverse=True)
+            chunk = found[start:start + limit]
+            links = {"next": f"{path}?cursor={self._token(start + limit)}&limit={limit}"} \
+                if start + limit < len(found) else {}
+            return 200, {"results": chunk, "_links": links}
+        if m := re.fullmatch(r"/wiki/api/v2/pages/(\d+)", path):
+            if m.group(1) in self.forbidden:
+                return 403, {"errors": [{"status": 403, "title": "Forbidden"}], "message": "no permission"}
+            found = self.pages.get(m.group(1))
+            if not found or found["status"] == "deleted":
+                return 404, {"errors": [{"status": 404, "title": "Not Found"}]}
+            return 200, found
+        if path == "/wiki/api/v2/pages":
+            found = [p for p in self.pages.values() if p["spaceId"] == q.get("space-id") and p["title"] == q.get("title")
+                     and p["status"] == "current"]
+            return 200, {"results": found[:limit], "_links": {}}
+        if m := re.fullmatch(r"/rest/api/3/issue/([A-Z][A-Z0-9_]*-\d+)/remotelink", path):
+            if m.group(1) not in self.issues:
+                return 404, {"errorMessages": ["Issue does not exist or you do not have permission to see it."]}
+            return 200, self.remote_links.get(m.group(1), [])
+        return None
 
     # ------------------------------------------------------------ JQL (the subset the connector writes)
     def _matching(self, jql: str) -> list[dict]:
@@ -112,8 +177,8 @@ class MockJira:
             def _handle(self, method: str):
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length) or b"{}") if length else {}
-                path = self.path.split("?")[0]
-                query = dict(p.split("=", 1) for p in self.path.split("?", 1)[1].split("&")) if "?" in self.path else {}
+                path = urlparse(self.path).path
+                query = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
                 auth = self.headers.get("Authorization", "")
                 ok = auth == "Basic " + base64.b64encode(f"{EMAIL}:{TOKEN}".encode()).decode()
                 with mock.lock:
@@ -126,6 +191,8 @@ class MockJira:
                                       fault["headers"])
                 if not ok:
                     return self._send(401, {"errorMessages": ["Client must be authenticated"]})
+                if method == "GET" and (answer := mock._confluence(path, query)) is not None:
+                    return self._send(answer[0], raw=json.dumps(answer[1]).encode())
                 if method == "GET" and path == "/rest/api/3/project/search":
                     start, size = int(query.get("startAt", 0)), int(query.get("maxResults", 50))
                     values = mock.projects[start:start + size]
@@ -166,3 +233,6 @@ class MockJira:
                 self._handle("DELETE")
 
         return Handler
+
+
+MockAtlassian = MockJira  # (one mock site answers both Jira and Confluence paths)

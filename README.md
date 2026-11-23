@@ -324,9 +324,11 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
 - `JIRA_URL` + `JIRA_EMAIL` + `JIRA_API_TOKEN` + `JIRA_PROJECT`: one Jira issue per application defect (steps,
   expected / actual, screenshot). The same problem is never sent twice. Test-script problems and inconclusive results
   are never sent.
-- Jira stories as requirements (in progress): a read-only connector reads stories from Jira Cloud into a local,
-  versioned store. It reuses the `JIRA_API_TOKEN` name and never writes to Jira. It is tested against a mock Jira
-  only so far; setup and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
+- Jira stories and Confluence pages as requirements (in progress): read-only connectors read stories from Jira
+  Cloud and requirement pages from Confluence Cloud (sections, tables, lists, linked pages) into a local, versioned
+  store, and link each story to the pages that specify it. They reuse the `JIRA_API_TOKEN` name (one Atlassian token
+  covers both) and never write to Atlassian. Tested against a mock Atlassian site only so far; setup, test
+  instructions and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
 - `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.

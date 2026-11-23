@@ -1,8 +1,8 @@
 # Requirements Intelligence: Jira Cloud + Confluence Cloud
 
-Status: **Phase 1 complete against a mock Jira Cloud (read-only Jira connector and sync).** It is tested only against
-a local mock server. There is no live Atlassian evidence. Nothing is wired into a test run yet (Phase 4). Development and automated tests use mock Atlassian servers. A real test site is configured later
-for the live acceptance run.
+Status: **Phases 0–2 complete against a mock Atlassian site (read-only Jira and Confluence connectors, sync,
+story ↔ page links).** They are tested only against a local mock server. There is no live Atlassian evidence. Nothing
+is wired into a test run yet (Phase 4), and no AI is used yet (Phase 3).
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
 become reviewed test cases. Those run on Qpilot's existing web (Playwright) and Android (Appium) engines. The results
@@ -167,13 +167,62 @@ The read sync reuses the existing `JIRA_API_TOKEN` name by default. Any other se
 Tests: `tests/test_atlassian_jira_sync.py` (26) against `tests/atlassian_mock.py`, a local mock of the Jira Cloud
 v3 endpoints above. It checks Basic auth, injects faults, expires page tokens and records every request.
 
+## Phase 2: Confluence pages and story links (implemented)
+
+| File | What it does |
+|---|---|
+| `backend/atlassian/confluence.py` | `spaces()` (v2, cursor paging, key filter), `space_pages()` (a space's pages, newest change first, storage body), `get_page()`, `find_page()` (a link written as space + title). `extract()` turns storage-format XHTML into sections with their heading path. Paragraphs, list items (nested, in reading order), table rows (`cell \| cell`), tasks and code macros are kept word for word. Sections are marked `requirement_like` from their headings (rules, acceptance, requirements, scenarios…) or wording (must, shall, Given/When/Then). It also finds links to pages (by URL, by id, by space + title), to Jira issues (`/browse/KEY`, the Jira macro, keys in text) and counts links to other sites. Malformed markup is read as far as it goes (unclosed headings and paragraphs end at the next block). Large pages are capped at 400 sections × 400 blocks × 4,000 characters (`truncated: true`), and the content hash still covers all the text. `normalize()` keeps **Confluence's own version number**. |
+| `backend/atlassian/sync.py` | `sync_confluence_space()`: first sync reads every page of the space. Later syncs stop at the first page older than the last complete sync. The cursor is saved after every listing page, so a sync resumes. A page that can't be read goes to `failed_items` (status `partial`, high-water not moved). A complete full sync marks pages no longer listed as missing. `follow_links()`: breadth-first from given pages up to `depth` link steps and `max_pages` pages; each page is read once, so circular links end. A page answered *not found* / *no permission* is listed as inaccessible and marked missing if it was stored. A page too large or unreadable is a failed item, not a deletion. A site-wide problem (expired token, rate limit after retries, network) stops the walk with its reason. `link_story()`: a synced story → the pages its Jira remote links (`pageId` in the global id or the URL) and its description point to, plus stored pages that mention it. Each link records how it was found. Then the walk continues to the pages those link to. |
+| `backend/atlassian/store.py` | `upsert_source(..., native_version=True)` keeps Confluence's version number (an older number is refused). `links` table (`specified_by`, `links_to`, `mentions`, how each was found, first/last seen). `find_sources()`, `mark_source_missing()`. |
+| `backend/atlassian/jira.py` | `remote_links()`: one more Jira read (`GET /rest/api/3/issue/{key}/remotelink`). |
+
+Mentions of issue keys are linked only to stories already synced into the store, so text such as "UTF-8" never becomes
+a link. Nothing in Phase 2 creates acceptance criteria, and nothing calls an AI. Sections are stored exactly as
+written, with their page, version and heading path, so Phase 3 can quote them.
+
+### Testing the Confluence integration
+
+Automated, against the local mock site (no network, no real data):
+
+```bash
+.venv/bin/python -m pytest -q tests/test_atlassian_models.py tests/test_atlassian_jira_sync.py tests/test_atlassian_confluence.py
+```
+
+Against a real Atlassian Cloud test site (later, for live acceptance), from the repository folder, with the token in
+the environment (never in code or chat):
+
+```python
+from backend.atlassian import store
+from backend.atlassian.client import Client
+from backend.atlassian.models import Connection
+from backend.atlassian.sync import link_story, sync_confluence_space, sync_jira
+
+site = "https://<your-test-site>.atlassian.net"
+jira_c = Connection(id="jira-main", tenant_id="default", product="jira", site_url=site,
+                    email="<you>@<company>", token_ref="JIRA_API_TOKEN")
+conf_c = Connection(id="conf-main", tenant_id="default", product="confluence", site_url=site,
+                    email="<you>@<company>", token_ref="JIRA_API_TOKEN")  # (one Atlassian API token covers both)
+db = store.connect()
+print(sync_jira(db, jira_c, Client(jira_c), tenant_id="default", project="<KEY>", actor="you"))
+print(sync_confluence_space(db, conf_c, Client(conf_c), tenant_id="default", space_key="<SPACE>", actor="you"))
+print(link_story(db, jira_c, Client(jira_c), conf_c, Client(conf_c), tenant_id="default",
+                 issue_key="<KEY-1>", depth=1, max_pages=25, actor="you"))
+print(store.links_from(db, "default", "jira-main:jira_issue:<KEY-1>"))
+```
+
+What to check there:
+* every page has its real version number
+* editing a page and syncing again makes version + 1 and keeps the old one (`store.history`)
+* a restricted page shows as `inaccessible`
+* the audit log has one row per sync or link run (`audit_store.list_audits(tenant_id="default")`)
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
 |---|---|---|
 | 0 | This design, `models.py`, schema unit tests | Tests pass; no existing behavior changed ✅ (`f73d15d`) |
 | 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume ✅ (mock only) |
-| 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance |
+| 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance ✅ (mock only) |
 | 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works |
 | 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results |
 | 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval |
@@ -183,7 +232,10 @@ v3 endpoints above. It checks Basic auth, injects faults, expires page tokens an
 ## Baseline issues (before this work, investigated separately)
 
 The full offline suite at `4754f7f` (23 Nov 2026) gave **2241 passed, 5 failed**. These five failures existed before
-Requirements Intelligence. They are not hidden, skipped or counted as passing:
+Requirements Intelligence. They are not hidden, skipped or counted as passing. Re-run of the two files on 23 Nov 2026
+(`f73d15d`, Requirements Intelligence not imported by them): **4 failed, 9 passed** (17 min 53 s). The four
+`test_classic_shop` / `test_a_repaired_script…` failures reproduced. `test_deep_testing_behind_the_login_on_a_shop`
+passed this time, so it is intermittent, not fixed:
 
 | Test | Area |
 |---|---|
@@ -207,7 +259,12 @@ Requirements Intelligence. They are not hidden, skipped or counted as passing:
 * The Jira connector is proven only against the local mock. The real Cloud API shapes (field names, ADF variants,
   rate limits, time-zone behavior of JQL dates) are checked at live acceptance.
 * Deleted or no-longer-visible stories are detected only by a full sync (`full=True`), not by incremental syncs.
-* Story sub-tasks, attachments and remote links (Confluence) are read in Phase 2.
+* Confluence: attachments (files on a page) are not read yet, only page text. Page comments, inline
+  comments, blog posts, whiteboards and databases are not read. Macros other than code, tasks and the Jira macro
+  contribute only their visible text. A page body larger than 10 MB is refused (failed item).
+* Confluence incremental syncs see new and edited pages. Deleted or moved pages are seen by a full sync or when
+  a linked page is read again.
+* Links by title are resolved only within the same site. Links to other sites are counted, never followed.
 * Cloud APIs change: the plan uses `/rest/api/3/search/jql` (the older `/search` paging is being retired) and the
   Confluence v2 pages API. Both will be checked against the live site at acceptance.
 * `tenancy_store`/`rbac` are offline helpers. Hosted multi-tenant isolation is still a separate open item.
