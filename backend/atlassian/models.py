@@ -386,6 +386,8 @@ class SyncCursor(_Model):
     scope: str = Field(min_length=1, max_length=2000)  # 'jql:project = PROJ AND type = Story' | 'space:ENG'
     high_water: datetime | None = None  # newest 'updated' fully stored; the next sync asks for updated >= this
     next_page_token: str = Field(default="", max_length=4000)  # Jira /search/jql nextPageToken, Confluence cursor
+    active_query: str = Field(default="", max_length=4000)  # the exact query the page token belongs to (resume)
+    started_at: datetime | None = None  # when the sync in progress began (its high-water once complete)
     status: SyncStatus = SyncStatus.idle
     fetched: int = Field(default=0, ge=0)
     failed_items: list[str] = Field(default_factory=list)

@@ -131,7 +131,8 @@ def apply_worker_policy(env: dict, provider: str | None = None, expected_mode: s
     if policy.mode == "local":
         # Explicit blanks prevent the child .env loader from restoring these credentials.
         for key in ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY",
-                    "SLACK_WEBHOOK_URL", "JIRA_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT"):
+                    "SLACK_WEBHOOK_URL", "JIRA_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT",
+                    "CONFLUENCE_API_TOKEN"):
             env[key] = ""
     return public_policy(policy)
 

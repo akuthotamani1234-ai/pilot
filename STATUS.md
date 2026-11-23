@@ -5,11 +5,12 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phase 0
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–1
 
-Design, data contracts and schema tests only: `docs/REQUIREMENTS_INTELLIGENCE.md`, `backend/atlassian/models.py`,
-`tests/test_atlassian_models.py` (24 passed). Nothing talks to Atlassian yet and nothing is wired into a run; there is
-**no live Atlassian evidence**. The existing opt-in Jira defect creation is unchanged; every new Jira write will need
+**Phase 1:** a read-only Jira Cloud connector and an incremental, resumable, tenant-scoped, audited story sync
+(`backend/atlassian/client.py`, `jira.py`, `store.py`, `sync.py`), with 26 tests against a local mock Jira
+(`tests/test_atlassian_jira_sync.py`). **Mock only; no live Jira evidence.** **Phase 0:** design, data contracts and schema tests: `docs/REQUIREMENTS_INTELLIGENCE.md`, `backend/atlassian/models.py`,
+`tests/test_atlassian_models.py` (24 passed). Nothing is wired into a test run yet; there is **no live Atlassian evidence**. The existing opt-in Jira defect creation is unchanged; every new Jira write will need
 approval. Baseline: the full suite at `4754f7f` had **2241 passed, 5 failed**; the five failures predate this work and
 are listed in the design document for separate investigation.
 

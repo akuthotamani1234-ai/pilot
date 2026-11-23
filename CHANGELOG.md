@@ -2,6 +2,14 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-23 - Requirements Intelligence, Phase 1 (read-only Jira connector)
+
+- Read-only Jira Cloud client (retries, Retry-After, 401 = expired token, no redirects, size cap, redacted errors),
+  project discovery, paged JQL search (`/rest/api/3/search/jql`), ADF to text, story normalization with a content
+  hash, a tenant-scoped SQLite store with every source version, and an incremental, resumable, audited sync.
+  *Tested against a local mock Jira (26 tests); not yet against a real Jira site.*
+- `CONFLUENCE_API_TOKEN` is redacted like the other secrets and blanked for local-only test workers.
+
 ## 2026-11-23 - Requirements Intelligence, Phase 0 (design only)
 
 - Design for reading Jira Cloud stories and Confluence Cloud pages as requirements, with cited acceptance criteria,

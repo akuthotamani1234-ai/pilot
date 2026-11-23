@@ -1,7 +1,7 @@
 # Requirements Intelligence: Jira Cloud + Confluence Cloud
 
-Status: **Phase 0 complete (design, data contracts, unit tests).** Nothing talks to Atlassian yet. There is no live
-Atlassian evidence. Development and automated tests use mock Atlassian servers. A real test site is configured later
+Status: **Phase 1 complete against a mock Jira Cloud (read-only Jira connector and sync).** It is tested only against
+a local mock server. There is no live Atlassian evidence. Nothing is wired into a test run yet (Phase 4). Development and automated tests use mock Atlassian servers. A real test site is configured later
 for the live acceptance run.
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
@@ -136,12 +136,43 @@ Package layout (Phase 0 creates only `models.py`):
   proves the whole chain: story → linked page → criteria → review → run → evidence → trace → Jira comment. Until
   then, no live claim is made.
 
+## Phase 1: the read-only Jira connector (implemented)
+
+| File | What it does |
+|---|---|
+| `backend/atlassian/client.py` | `Client`: Basic auth with the connection's email and the token read from the secret named by `token_ref` at request time. Allows only GET and the read-only search POSTs (`READ_POSTS`). Retries 429/502/503/504 and network errors (`Retry-After` in seconds or as an HTTP date, capped by `max_wait`, otherwise exponential back-off). 401 → `auth_expired` with no retry. 403/404/400 are named errors. Redirects are never followed. Answers over 10 MB are refused. Error texts are redacted (the token value, `ATATT…` patterns). `base_url` accepts only a loopback mock server. |
+| `backend/atlassian/jira.py` | `projects()` (paged `/project/search`), `acceptance_field()` (the custom field named "Acceptance Criteria"), `search()` (`POST /rest/api/3/search/jql` with `nextPageToken`), `build_jql()` (project key checked, strings escaped, `ORDER BY` refused in filters, `ORDER BY updated ASC, key ASC`), `adf_to_text()`, `normalize()` → `SourceRef` + plain story fields + a content hash over what a tester reads. |
+| `backend/atlassian/store.py` | SQLite `runs/.requirements.sqlite` (a linked file is refused). Connections (no token), sources (newest version), `source_versions` (every version), sync cursors. Every function requires and filters by the tenant. |
+| `backend/atlassian/sync.py` | `sync_jira()`: first sync reads the whole scope; later syncs read `updated >= last sync − 14 h 1 min` (JQL uses the Jira user's time zone and minutes; unchanged re-reads are recognized by hash). The cursor is saved after every page. A failure or page limit resumes from the saved page token. An expired token re-reads the same query. Unreadable stories go to `failed_items` and the high-water mark stays, so they are retried. A complete full sync marks stories Jira no longer returns as missing (kept, with history). A connection of another tenant is refused. Every sync, including a refused one, is written to `audit_store`. |
+
+Using it (Studio screens come in Phase 6):
+
+```python
+from backend.atlassian import store
+from backend.atlassian.client import Client
+from backend.atlassian.models import Connection
+from backend.atlassian.sync import sync_jira
+
+conn = Connection(id="jira-main", tenant_id="default", product="jira", site_url="https://<site>.atlassian.net",
+                  email="qa@example.com", token_ref="JIRA_API_TOKEN")  # the token stays in the environment
+db = store.connect()
+store.save_connection(db, conn)
+print(sync_jira(db, conn, Client(conn), tenant_id="default", project="SHOP", actor="you"))
+```
+
+The read sync reuses the existing `JIRA_API_TOKEN` name by default. Any other secret name can be given in
+`token_ref`. In "local only" privacy mode, Jira variables are still blanked for test workers (unchanged), and
+`CONFLUENCE_API_TOKEN` is now blanked too and redacted like the other secrets.
+
+Tests: `tests/test_atlassian_jira_sync.py` (26) against `tests/atlassian_mock.py`, a local mock of the Jira Cloud
+v3 endpoints above. It checks Basic auth, injects faults, expires page tokens and records every request.
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
 |---|---|---|
-| 0 | This design, `models.py`, schema unit tests | Tests pass; no existing behavior changed ✅ |
-| 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume |
+| 0 | This design, `models.py`, schema unit tests | Tests pass; no existing behavior changed ✅ (`f73d15d`) |
+| 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume ✅ (mock only) |
 | 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance |
 | 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works |
 | 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results |
@@ -173,7 +204,10 @@ Requirements Intelligence. They are not hidden, skipped or counted as passing:
 
 ## Limitations
 
-* Phase 0 has no network code, so Atlassian behavior is designed, not proven.
+* The Jira connector is proven only against the local mock. The real Cloud API shapes (field names, ADF variants,
+  rate limits, time-zone behavior of JQL dates) are checked at live acceptance.
+* Deleted or no-longer-visible stories are detected only by a full sync (`full=True`), not by incremental syncs.
+* Story sub-tasks, attachments and remote links (Confluence) are read in Phase 2.
 * Cloud APIs change: the plan uses `/rest/api/3/search/jql` (the older `/search` paging is being retired) and the
   Confluence v2 pages API. Both will be checked against the live site at acceptance.
 * `tenancy_store`/`rbac` are offline helpers. Hosted multi-tenant isolation is still a separate open item.
