@@ -2,6 +2,15 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-23 - Fixed the five baseline test failures
+
+- Discovery finds header search boxes (kept as `search_fields`), numbers iframe forms after the page's own (no more
+  duplicate `form1` and `StopIteration` in script generation), and never names a box after another box's label.
+- `test_classic_shop.py` enables data tests in both fixtures; `test_end_to_end.py` sets its own sample size instead
+  of relying on the developer `.env`, and finds the repaired test by its control rather than by number.
+- No assertion weakened or removed. Verified without `.env`: classic shop 9 passed, end-to-end 4 passed, deep test 3/3
+  on repeat, non-slow suite 2284 passed / 28 skipped, lint clean.
+
 ## 2026-11-23 - Requirements Intelligence, Phase 3 (requirement analysis)
 
 - Acceptance criteria copied by rules from Jira (custom field, description, numbered / bulleted lines,

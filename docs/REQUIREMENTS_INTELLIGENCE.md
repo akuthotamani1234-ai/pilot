@@ -18,7 +18,7 @@ are kept as requirement → test → run traceability, and, with a person's appr
 4. Reuse Qpilot's test design, review, Playwright, Appium, oracle, privacy, tenancy and audit systems. Nothing is
    duplicated, and there is no second automation engine.
 5. Traceability persists across runs, with source IDs and source versions.
-6. The five existing full-suite failures are baseline issues. They are recorded below and investigated separately.
+6. The five existing full-suite failures were baseline issues, investigated separately. All five are now fixed (see below).
 
 ## Phase 0 audit summary
 
@@ -285,21 +285,24 @@ print(analysis.stale(db, "default", store.get_analysis(db, "default", a.requirem
 | 6 | Studio workspace | UI tests on desktop and phone widths |
 | 7 | Full test matrix and live acceptance on a real test site | Real evidence, recorded in `STATUS.md` |
 
-## Baseline issues (before this work, investigated separately)
+## Baseline issues (before this work, now fixed)
 
 The full offline suite at `4754f7f` (23 Nov 2026) gave **2241 passed, 5 failed**. These five failures existed before
-Requirements Intelligence. They are not hidden, skipped or counted as passing. Re-run of the two files on 23 Nov 2026
-(`f73d15d`, Requirements Intelligence not imported by them): **4 failed, 9 passed** (17 min 53 s). The four
-`test_classic_shop` / `test_a_repaired_script…` failures reproduced. `test_deep_testing_behind_the_login_on_a_shop`
-passed this time, so it is intermittent, not fixed:
+Requirements Intelligence. They were investigated separately and fixed without weakening or removing any assertion.
+Verified with no `.env` (as in CI): `tests/test_classic_shop.py` **9 passed** (18 min 47 s);
+`tests/test_end_to_end.py` 4 passed; the deep test repeated 3 more times, **3 passed**; the non-slow suite **2284
+passed, 28 skipped**; `ruff check .` clean.
 
-| Test | Area |
-|---|---|
-| `tests/test_classic_shop.py::test_every_route_is_visited_and_is_its_own_page_pattern` | discovery on the classic-shop fixture |
-| `tests/test_classic_shop.py::test_a_clean_shop_gives_no_false_failures` | false alarms on the classic-shop fixture |
-| `tests/test_classic_shop.py::test_a_planted_bug_fails_its_own_feature_and_nothing_else` | seeded-bug attribution |
-| `tests/test_end_to_end.py::test_deep_testing_behind_the_login_on_a_shop` | logged-in deep testing |
-| `tests/test_end_to_end.py::test_a_repaired_script_is_run_again_and_reported_with_its_real_result` | self-healing re-run reporting |
+| Test | Root cause | Fix |
+|---|---|---|
+| `test_classic_shop.py::test_every_route_is_visited_and_is_its_own_page_pattern` | Qpilot bug: header search boxes were removed from a form's fields, so the search page was never found | Discovery keeps them as `search_fields`; `_search_url` uses them |
+| `test_classic_shop.py::test_a_clean_shop_gives_no_false_failures` | Test out of date: data tests are off by default (`DATA_TESTS=false`) and the test never enabled them. Enabling them exposed a Qpilot bug: a select took the next box's label ("Search Criteria") and was filled as a text box | Fixture enables `DATA_TESTS`; a control's nearby text never comes from another control's `<label>` |
+| `test_classic_shop.py::test_a_planted_bug_fails_its_own_feature_and_nothing_else` | Qpilot bugs: search not found (above); help-iframe forms reused the page's form numbers, so `form1` named two forms and script generation crashed (`StopIteration`) | Frame forms are numbered after the page's own; buggy run uses the same data-test setting as the clean run it is compared with |
+| `test_end_to_end.py::test_deep_testing_behind_the_login_on_a_shop` | Not random: passed only when the developer `.env` set `SWARM_SAMPLE=3`; without it (CI) 0 samples | The test sets `SWARM_SAMPLE=3`, `PATTERN_SAMPLES=0` itself |
+| `test_end_to_end.py::test_a_repaired_script_is_run_again_and_reported_with_its_real_result` | Test hard-coded `test_learned_5`; learned-test order changed, so that number is now another case | The test finds the learned test by its control (`Notify me`, `#notify`) |
+
+Note: the two ClassicShop agent runs take 8–10 minutes each. Running both slow files with more workers than CPUs can
+push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setup timeouts, not test failures).
 
 ## Later roadmap (after Phase 7, not started)
 
