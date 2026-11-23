@@ -382,8 +382,14 @@ EXTRACT_JS = r"""
     let n = el;
     for (let k = 0; k < 3 && n.parentElement; k++) {
       n = n.parentElement;
+      // the words of ANOTHER box's own label are not this box's name ('Search Criteria' <input> <select>: the
+      // label is the input's, the list has none)
+      const others = new Set([...n.querySelectorAll('label')].filter(l => !l.contains(el)
+        && ((l.htmlFor && l.htmlFor !== el.id) || l.querySelector('input, select, textarea')))
+        .map(l => (l.innerText || '').trim()));
       const t = (n.innerText || '').split('\n').map(s => s.trim())
-        .find(s => /[A-Za-z0-9]{2}/.test(s) && s.length < 30 && s !== String(el.value || '').trim());  // not "*"
+        .find(s => /[A-Za-z0-9]{2}/.test(s) && s.length < 30 && s !== String(el.value || '').trim()  // not "*"
+          && !others.has(s));
       if (t) return t;
     }
     return '';
@@ -2727,6 +2733,9 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 # embedded frames: listed with their status; a same-site frame's controls belong to this page
                 entry["frames"], inner = _frame_inventory(page, base_host)
                 for group, items in inner.items():
+                    if group == "forms":  # (a frame numbers its forms from 0 too: renumbered after the page's own,
+                        #   so 'form1' names one form - the test design and the scripts look forms up by it)
+                        items = [dict(f, index=len(entry.get("forms", [])) + n) for n, f in enumerate(items)]
                     entry.setdefault(group, []).extend(items)
                 entry["unsupported"] = entry.get("unsupported", []) + [
                     dict(u, frame=" > ".join(fr["path"])) for fr in entry["frames"] for u in fr.pop("unsupported", [])]
