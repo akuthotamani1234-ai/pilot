@@ -88,7 +88,7 @@ def run_device_matrix_drill(*, ops_dir: Path | None = None) -> dict:
     android_live += _load_rows("android_emulator_smoke_drill.json")
     android_live += _load_rows("android_appium_product_matrix_drill.json")
     android_dry = protocol_dry_run_evidence()
-    adb = run_adb_probe()
+    adb = run_adb_probe(ops_dir=ops_dir)  # (into the same folder as this drill: a test's temp folder stays a temp folder)
     scored = evaluate_matrix(list(web_rows) + list(android_live) + list(android_dry))
     appium_rows = [
         r for r in android_live

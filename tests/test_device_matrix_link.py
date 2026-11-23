@@ -10,7 +10,7 @@ def test_a_device_matrix_does_not_follow_a_link_into_another_folder(tmp_path, mo
 
     calls = {"n": 0}
 
-    def _probe():
+    def _probe(ops_dir=None):
         calls["n"] += 1
         return {
             "ok": False,
