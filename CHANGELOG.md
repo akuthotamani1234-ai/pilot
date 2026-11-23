@@ -2,6 +2,14 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-23 - Requirements Intelligence, Phase 0 (design only)
+
+- Design for reading Jira Cloud stories and Confluence Cloud pages as requirements, with cited acceptance criteria,
+  review, runs on the existing engines, persistent traceability and approved Jira writeback:
+  `docs/REQUIREMENTS_INTELLIGENCE.md`.
+- Data contracts with their safety rules (`backend/atlassian/models.py`) and 24 unit tests. *Unit-tested; no
+  Atlassian connection exists yet.* No existing behavior changed.
+
 ## 2026-11-22 to 2026-11-23 - AI-assisted testing, form values, Android tester checks, safety fixes
 
 Status words below: **verified** = proven in a real run; **unit-tested** = covered by tests, not yet proven in a

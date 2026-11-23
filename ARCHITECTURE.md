@@ -28,6 +28,7 @@ Qpilot is a **local QA product** (primary target: Windows) with:
 | HTTP routes / job orchestration | Prefer extending `backend/server.py` carefully; extract helpers into `backend/` modules when a route block grows | New top-level packages |
 | Pipeline step / agent | `backend/agents/<step>.py` and wire in `backend/graph.py` + `backend/state.py` | Ad-hoc scripts in repo root |
 | Android / Appium domain | `backend/android*.py`, templates in `backend/templates/` | Duplicating locators inside `frontend/` |
+| Jira / Confluence requirements (read, review, trace, approved writeback) | `backend/atlassian/` (design: `docs/REQUIREMENTS_INTELLIGENCE.md`); the older opt-in defect creation stays in `backend/integrations.py` | Atlassian calls from agents or `frontend/` |
 | Safety / secrets / URL policy | `backend/safety.py`, `backend/actions.py` | Inline checks scattered in UI |
 | Shared types / state keys | `backend/state.py` (`QAState` TypedDict) | Untyped dict keys invented in one agent only |
 | Unit / regression tests | `tests/test_*.py` mirroring the module under test | Embedding heavy live network tests without `@pytest.mark.slow` |
@@ -75,4 +76,5 @@ Before generating or editing files, an assistant or developer **must**:
 - `backend/README.md` — pipeline and modules
 - `CONTRIBUTING.md` — branching, commits, PR checklist
 - `SECURITY.md` — security reporting
+- `docs/REQUIREMENTS_INTELLIGENCE.md` — Jira + Confluence requirements design, data contracts, phase plan
 - `.cursorrules` and `.github/copilot-instructions.md` — short copies of these guardrails for assistants

@@ -3,7 +3,15 @@
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 
-**Last updated:** 2026-11-16
+**Last updated:** 2026-11-23
+
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phase 0
+
+Design, data contracts and schema tests only: `docs/REQUIREMENTS_INTELLIGENCE.md`, `backend/atlassian/models.py`,
+`tests/test_atlassian_models.py` (24 passed). Nothing talks to Atlassian yet and nothing is wired into a run; there is
+**no live Atlassian evidence**. The existing opt-in Jira defect creation is unchanged; every new Jira write will need
+approval. Baseline: the full suite at `4754f7f` had **2241 passed, 5 failed**; the five failures predate this work and
+are listed in the design document for separate investigation.
 
 ## Shared MCP settings and Qpilot branding
 
