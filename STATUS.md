@@ -5,9 +5,14 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–2
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3
 
-**Phase 2:** read-only Confluence Cloud spaces and pages (sections with heading paths, lists, tables, tasks, code;
+**Phase 3:** requirement analysis (`backend/atlassian/analysis.py`): criteria copied by rules with source, version
+and quote; ambiguous / incomplete / duplicate / contradictory / missing criteria; story ↔ page conflicts with both
+quotes; positive / negative / boundary / security ideas marked explicit or inferred, reviewed in the existing
+approval queue (`requirement_suggestion`); AI only when the privacy settings allow it, with its ideas grounded;
+per-criterion coverage; stale detection; audit and history. 22 tests (`tests/test_atlassian_analysis.py`) with mock
+data and a **stub AI: no live AI or Atlassian evidence**. **Phase 2:** read-only Confluence Cloud spaces and pages (sections with heading paths, lists, tables, tasks, code;
 Confluence's own version numbers; malformed and very large pages handled), linked-page walks with depth / page limits
 (circular, inaccessible and deleted pages handled), and story ↔ page links from Jira remote links, descriptions and
 page mentions (`backend/atlassian/confluence.py`, `sync.py`), with 24 tests against a local mock site

@@ -485,3 +485,112 @@ def ai_use_allowed(classification: Classification, *, privacy_mode: str, cloud_c
             connection and connection.allow_cloud_ai_for_confidential):
         return False, "confidential requirements are not sent to a cloud AI unless the connection allows it"
     return True, "cloud AI allowed by the privacy settings"
+
+
+# ---------------------------------------------------------------- Phase 3: analysis
+
+class IssueKind(str, Enum):
+    ambiguous = "ambiguous"          # vague words: fast, user-friendly, appropriate, etc.
+    incomplete = "incomplete"        # TBD / TODO, Given-When without Then
+    duplicate = "duplicate"          # the same criterion twice (same or near-same words)
+    contradictory = "contradictory"  # two criteria of the SAME source disagree (between sources: Conflict)
+    missing_criteria = "missing_criteria"  # a requirement without any acceptance criterion (never invented)
+
+
+class QualityIssue(_Model):
+    id: str = Field(min_length=1, max_length=80)
+    requirement_id: str
+    kind: IssueKind
+    criterion_ids: list[str] = Field(default_factory=list)
+    detail: str = Field(min_length=3, max_length=1000)
+    citations: list[Citation] = Field(min_length=1)
+    detected_by: Literal["rules", "ai"] = "rules"
+
+    @model_validator(mode="after")
+    def has_criteria(self):
+        if self.kind != IssueKind.missing_criteria and not self.criterion_ids:
+            raise ValueError("a quality issue names the criteria it is about")
+        return self
+
+
+class ScenarioKind(str, Enum):
+    positive = "positive"
+    negative = "negative"
+    boundary = "boundary"
+    security = "security"
+
+
+class Basis(str, Enum):
+    explicit = "explicit"  # the expected outcome is quoted from the requirement
+    inferred = "inferred"  # derived by a rule template or an AI: NOT a confirmed requirement
+
+
+class ScenarioSuggestion(_Model):
+    """A test idea for one or more criteria. Never a requirement: always reviewed by a person first."""
+    id: str = Field(pattern=r"^[A-Za-z0-9:_-]+#S-[1-9][0-9]{0,4}$")
+    requirement_id: str
+    criterion_ids: list[str] = Field(min_length=1)
+    kind: ScenarioKind
+    title: str = Field(min_length=3, max_length=300)
+    steps: list[str] = Field(default_factory=list, max_length=20)
+    expected_outcome: str = Field(default="", max_length=1000)
+    basis: Basis
+    support_quote: str = Field(default="", max_length=2000)  # the source words an explicit outcome comes from
+    note: str = Field(default="", max_length=500)  # e.g. 'the rejection message is not given in the source'
+    origin: Literal["rules", "ai"]
+    destructive: str = ""  # the destructive words, if any (such a test needs separate permission)
+    review: ReviewStatus = ReviewStatus.needs_review
+    reviewer: str = ""
+    approval_id: str = ""
+    fingerprint: str = ""  # same criterion + same idea -> same fingerprint (a decision survives re-analysis)
+
+    @model_validator(mode="after")
+    def honest(self):
+        for cid in self.criterion_ids:
+            if not cid.startswith(self.requirement_id + "#AC-"):
+                raise ValueError(f"{cid} is not a criterion of {self.requirement_id}")
+        if self.basis == Basis.explicit:
+            if not (self.expected_outcome and self.support_quote):
+                raise ValueError("an explicit scenario quotes the source for its expected outcome")
+            if normalize_text(self.expected_outcome) not in normalize_text(self.support_quote):
+                raise ValueError("an explicit expected outcome must be in the quoted source text")
+        if self.review == ReviewStatus.accepted and not self.reviewer:
+            raise ValueError("a suggestion is accepted only by a named reviewer")
+        return self
+
+
+class Coverage(str, Enum):
+    covered = "covered"                # an approved test scenario exists (executed coverage: Phase 5)
+    uncovered = "uncovered"            # usable, but no approved scenario
+    ambiguous = "ambiguous"            # ambiguous or incomplete: clarify before testing
+    blocked = "blocked"                # not automatable, its source is gone, or an open conflict
+    pending_review = "pending_review"  # scenarios (or the criterion) wait for a person
+
+
+class Analysis(_Model):
+    """One analysis of one requirement, at the exact source versions it read."""
+    tenant_id: str = Field(min_length=1, max_length=64)
+    requirement: Requirement
+    source_versions: dict[str, int]  # source key -> version analysed
+    missing_sources: list[str] = Field(default_factory=list)  # sources already gone when it was analysed
+    analyzed_at: datetime
+    actor: str = "system"
+    ai: Literal["off", "used", "not_allowed", "failed"] = "off"
+    ai_note: str = ""
+    issues: list[QualityIssue] = Field(default_factory=list)
+    conflicts: list[Conflict] = Field(default_factory=list)
+    suggestions: list[ScenarioSuggestion] = Field(default_factory=list)
+    coverage: dict[str, Coverage] = Field(default_factory=dict)  # criterion id -> status
+    coverage_reason: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def one_tenant(self):
+        if self.requirement.tenant_id != self.tenant_id:
+            raise ValueError("an analysis belongs to its requirement's tenant")
+        if set(self.source_versions) != {s.key for s in self.requirement.sources}:
+            raise ValueError("source_versions must list exactly the requirement's sources")
+        known = {c.id for c in self.requirement.criteria}
+        for s in self.suggestions:
+            if not set(s.criterion_ids) <= known:
+                raise ValueError(f"{s.id} refers to a criterion that does not exist")
+        return self

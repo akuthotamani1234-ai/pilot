@@ -6,6 +6,8 @@
                     to know what a test was designed from)
   sync_cursors      where each sync stands (resume after a failure)
   links             story <-> page and page -> page links, with how each was found
+  analyses          the newest analysis of each requirement (criteria, issues, conflicts, suggestions, coverage)
+  analysis_history  every analysis and every review decision, in order (nothing is overwritten without a trace)
 
 Every function takes the tenant and filters by it: one tenant can never read or change another tenant's rows.
 Same pattern as backend/approvals.py (a linked database file is refused).
@@ -18,7 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..migrate import sqlite_path_is_linked
-from .models import Connection, SourceRef, SyncCursor
+from .models import Analysis, Connection, SourceRef, SyncCursor
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DB = ROOT / "runs" / ".requirements.sqlite"
@@ -44,6 +46,12 @@ CREATE TABLE IF NOT EXISTS links (
     tenant_id TEXT NOT NULL, from_key TEXT NOT NULL, to_key TEXT NOT NULL, relation TEXT NOT NULL,
     found_via TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL,
     PRIMARY KEY (tenant_id, from_key, to_key, relation));
+CREATE TABLE IF NOT EXISTS analyses (
+    tenant_id TEXT NOT NULL, requirement_id TEXT NOT NULL, analyzed_at TEXT NOT NULL, data TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, requirement_id));
+CREATE TABLE IF NOT EXISTS analysis_history (
+    tenant_id TEXT NOT NULL, requirement_id TEXT NOT NULL, analyzed_at TEXT NOT NULL, event TEXT NOT NULL,
+    data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS sources_by_connection ON sources (tenant_id, connection_id, scope);
 """
 
@@ -234,3 +242,28 @@ def save_cursor(db: sqlite3.Connection, cursor: SyncCursor) -> None:
         db.execute("INSERT INTO sync_cursors (tenant_id, connection_id, scope, data) VALUES (?, ?, ?, ?) "
                    "ON CONFLICT (tenant_id, connection_id, scope) DO UPDATE SET data = excluded.data",
                    (_tenant(cursor.tenant_id), cursor.connection_id, cursor.scope, cursor.model_dump_json()))
+
+
+# ---------------------------------------------------------------- analyses
+
+def save_analysis(db: sqlite3.Connection, analysis: Analysis, event: str = "analyzed") -> None:
+    data = analysis.model_dump_json()
+    tenant = _tenant(analysis.tenant_id)
+    with db:
+        db.execute("INSERT INTO analyses (tenant_id, requirement_id, analyzed_at, data) VALUES (?, ?, ?, ?) "
+                   "ON CONFLICT (tenant_id, requirement_id) DO UPDATE SET analyzed_at = excluded.analyzed_at, "
+                   "data = excluded.data", (tenant, analysis.requirement.id, analysis.analyzed_at.isoformat(), data))
+        db.execute("INSERT INTO analysis_history (tenant_id, requirement_id, analyzed_at, event, data) "
+                   "VALUES (?, ?, ?, ?, ?)", (tenant, analysis.requirement.id, _now(), event[:200], data))
+
+
+def get_analysis(db: sqlite3.Connection, tenant_id: str, requirement_id: str) -> Analysis | None:
+    row = db.execute("SELECT data FROM analyses WHERE tenant_id = ? AND requirement_id = ?",
+                     (_tenant(tenant_id), requirement_id)).fetchone()
+    return Analysis.model_validate_json(row["data"]) if row else None
+
+
+def analysis_history(db: sqlite3.Connection, tenant_id: str, requirement_id: str) -> list[dict]:
+    rows = db.execute("SELECT analyzed_at, event FROM analysis_history WHERE tenant_id = ? AND requirement_id = ? "
+                      "ORDER BY rowid", (_tenant(tenant_id), requirement_id))
+    return [dict(r) for r in rows]

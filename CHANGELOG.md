@@ -2,6 +2,19 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-23 - Requirements Intelligence, Phase 3 (requirement analysis)
+
+- Acceptance criteria copied by rules from Jira (custom field, description, numbered / bulleted lines,
+  Given/When/Then) and linked Confluence sections (lists, must/shall sentences, tables, Gherkin), each with its
+  source, version, locator and quote; unautomatable criteria marked with the reason.
+- Ambiguous, incomplete, duplicate, contradictory and missing criteria; Jira vs Confluence conflicts with both
+  quotes (rules only).
+- Positive / negative / boundary / security test ideas, explicit or inferred, each an item in the existing approval
+  queue (new kind `requirement_suggestion`); optional AI ideas only when the privacy settings allow it, grounded
+  against the criteria (unknown criteria and invented records refused, unquoted outcomes marked inferred).
+- Per-criterion coverage (covered / uncovered / ambiguous / blocked / pending review), stale detection, audit and
+  analysis history, tenant isolation. *Tested with mock data and a stub AI (22 tests); no live evidence.*
+
 ## 2026-11-23 - Requirements Intelligence, Phase 2 (read-only Confluence and story links)
 
 - Confluence Cloud spaces and pages (v2 API) through the same read-only client: storage format to sections with

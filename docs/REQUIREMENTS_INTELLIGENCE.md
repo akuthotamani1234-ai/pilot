@@ -1,8 +1,9 @@
 # Requirements Intelligence: Jira Cloud + Confluence Cloud
 
-Status: **Phases 0–2 complete against a mock Atlassian site (read-only Jira and Confluence connectors, sync,
-story ↔ page links).** They are tested only against a local mock server. There is no live Atlassian evidence. Nothing
-is wired into a test run yet (Phase 4), and no AI is used yet (Phase 3).
+Status: **Phases 0–3 complete against a mock Atlassian site and a stub AI (read-only Jira and Confluence
+connectors, sync, story ↔ page links, requirement analysis).** They are tested only against a local mock server, and
+the AI part only with a stub. There is no live Atlassian or live-AI evidence. Nothing is wired into a test run yet
+(Phase 4). Nothing is written to Atlassian.
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
 become reviewed test cases. Those run on Qpilot's existing web (Playwright) and Android (Appium) engines. The results
@@ -216,6 +217,61 @@ What to check there:
 * a restricted page shows as `inaccessible`
 * the audit log has one row per sync or link run (`audit_store.list_audits(tenant_id="default")`)
 
+## Phase 3: requirement analysis (implemented)
+
+`backend/atlassian/analysis.py` analyses one stored story (with the pages linked to it) or one stored page. Rules
+come first, then AI only if allowed.
+
+| Step | How | Rules that cannot be bypassed |
+|---|---|---|
+| 1. Extract criteria | Copied by rules from the Jira acceptance-criteria field (or the *Acceptance criteria* part of the description), numbered / bulleted lines, Given/When/Then (one line or a multi-line `Scenario:`), and the requirement-like sections of linked pages (list items, tasks, *must/shall* sentences, table rows with their header, Gherkin code blocks) | Each criterion keeps source, **version**, locator (`customfield_10045`, `section: Login > Business rules (table)`) and the quoted words. Its text, Given/When/Then and expected outcome must be inside the quote (`AcceptanceCriterion` validator). Criteria needing a camera/scanner/fingerprint (the Android `DEVICE_ONLY` list) or a manual/visual/legal check are not automatable, with the reason |
+| 2. Check | Ambiguous (vague words: fast, user-friendly, appropriate, etc.), incomplete (TBD/TODO, Given/When without Then), duplicate, contradictory within one source (numbers with the same unit, *can* vs *cannot*), and a story **without** criteria (`missing_criteria`: none are invented). Conflicts between the story and a linked page carry the quotes of both | Rules only. The AI does not decide issues. An open conflict blocks both criteria until a named person resolves it |
+| 3. Suggest | Rule templates: positive (the criterion itself, **explicit**), negative (*break the rule*), boundary (n−1/n or n/n+1 from the source's number), security (password/login/session/payment…). With `ai="auto"` and the privacy settings allowing it, AI ideas too | Every idea is **explicit** (expected outcome quoted from the source) or **inferred** (says so). No idea for an ambiguous, disputed or unautomatable criterion. AI ideas naming an unknown criterion or an invented person/record (`ai_grounding.invented_record_problem`) are refused. Outcomes not in the source become *inferred*. Destructive words are flagged (`objective.destructive`). The AI never changes a criterion |
+| 4. Review | Each idea becomes an item in the existing approval queue (`backend/approvals.py`, new kind `requirement_suggestion` in `human_review.WAITING`). `analysis.review()` decides it there with the reviewer's name | No answer means not accepted. Another tenant cannot decide it. Decisions survive re-analysis (fingerprint of criterion + idea) and are kept in `analysis_history` |
+| 5. Coverage | Per criterion: `blocked` (not automatable, source gone, open conflict, rejected), `ambiguous`, `covered` (an approved scenario; **executed** coverage comes with Phase 5 traceability), `pending_review`, `uncovered` | Coverage never says "covered" without a person's approval |
+
+* **Privacy:** `ai="off"` is rules only. `ai="auto"` asks `ai_use_allowed` with the existing privacy policy
+  (`privacy.load_policy`, `runtime_mode`) and the AI provider. A local Ollama on this computer is allowed. A cloud
+  AI needs cloud mode and consent, and confidential sources also need the connection's explicit permission.
+  Otherwise the result says `ai: not_allowed` with the reason, and the rules result stands. The prompt contains
+  only criterion ids and texts: no email, token or URL. An AI failure keeps the rules result (`ai: failed`).
+* **Storage:** `analyses` (newest per requirement) and `analysis_history` (every analysis and review decision), per
+  tenant. Each analysis records the exact source versions it read and the sources already missing.
+  `analysis.stale()` says why it is out of date: a newer version, a source no longer visible, or a page linked
+  afterwards.
+* **Audit:** `requirements.analyze` and `requirements.review` in `audit_store` (refusals included).
+* **No writes:** analysis reads only the local store and makes no Atlassian request (tested end to end on the mock
+  site).
+
+Example (from mock data: a story with 4 criteria and a linked page with conflicting rules; full output in the
+Phase 3 report):
+
+```
+SHOP-12#AC-3  blocked   Passwords must have at least 8 characters.      (SHOP-12 v1 · customfield_10045)
+SHOP-12#AC-5  blocked   Passwords must have at least 12 characters.     (900 v1 · section: Login > Business rules)
+  conflict: SHOP-12#AC-3 and SHOP-12#AC-5 disagree: different characters: 8 vs 12 (quotes from both sources)
+SHOP-12#AC-7  ambiguous The login page loads fast.                      vague word 'fast'
+SHOP-12#AC-4/6 pending  Lock the account after 3 wrong tries.           duplicate (story and page)
+  S-6 [boundary, inferred] Boundary attempts: try 2 and 3
+```
+
+### Testing the analysis
+
+```bash
+.venv/bin/python -m pytest -q tests/test_atlassian_analysis.py
+```
+
+On stored data (after the Phase 1–2 syncs):
+
+```python
+from backend.atlassian import analysis, store
+db = store.connect()
+a = analysis.analyze(db, "default", "jira-main:jira_issue:<KEY-1>", ai="off", actor="you")
+print(analysis.summary(a))                       # criteria, issues, conflicts, suggestions, coverage
+analysis.review(db, "default", a.requirement.id, a.suggestions[0].id, "accept", "you")
+print(analysis.stale(db, "default", store.get_analysis(db, "default", a.requirement.id)))
+```
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -223,7 +279,7 @@ What to check there:
 | 0 | This design, `models.py`, schema unit tests | Tests pass; no existing behavior changed ✅ (`f73d15d`) |
 | 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume ✅ (mock only) |
 | 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance ✅ (mock only) |
-| 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works |
+| 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works ✅ (mock + stub AI) |
 | 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results |
 | 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval |
 | 6 | Studio workspace | UI tests on desktop and phone widths |
@@ -265,6 +321,14 @@ passed this time, so it is intermittent, not fixed:
 * Confluence incremental syncs see new and edited pages. Deleted or moved pages are seen by a full sync or when
   a linked page is read again.
 * Links by title are resolved only within the same site. Links to other sites are counted, never followed.
+* Analysis is English-only rules (vague words, units, Gherkin keywords). Contradictions are found for numbers with
+  the same unit and for can / cannot wording. Other contradictions (different workflows, roles) are not detected.
+  Conflict and duplicate detection compares words, not meaning.
+* The AI path is tested with a stub only. A real model's suggestions are checked by the same rules but have not
+  been evaluated live.
+* Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
+  decisions follow content (fingerprint), not the number.
+* There is no Studio screen yet (Phase 6). The approval queue rows appear wherever the queue is listed.
 * Cloud APIs change: the plan uses `/rest/api/3/search/jql` (the older `/search` paging is being retired) and the
   Confluence v2 pages API. Both will be checked against the live site at acceptance.
 * `tenancy_store`/`rbac` are offline helpers. Hosted multi-tenant isolation is still a separate open item.

@@ -327,8 +327,11 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
 - Jira stories and Confluence pages as requirements (in progress): read-only connectors read stories from Jira
   Cloud and requirement pages from Confluence Cloud (sections, tables, lists, linked pages) into a local, versioned
   store, and link each story to the pages that specify it. They reuse the `JIRA_API_TOKEN` name (one Atlassian token
-  covers both) and never write to Atlassian. Tested against a mock Atlassian site only so far; setup, test
-  instructions and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
+  covers both) and never write to Atlassian. An analysis step then copies each acceptance criterion with its source,
+  version and quote; finds ambiguous, incomplete, duplicate and conflicting criteria; and proposes positive,
+  negative, boundary and security test ideas, each marked explicit (quoted) or inferred and approved by a person in
+  the approval queue. AI ideas are used only when the privacy settings allow it. Tested against a mock Atlassian
+  site and a stub AI only so far; setup, test instructions and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
 - `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.

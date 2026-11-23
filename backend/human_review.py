@@ -3,7 +3,7 @@
 An uncertain assertion, a self-healing locator change, and a sensitive action
 are not applied when nobody answers. The safe choice is to leave them unchanged.
 """
-WAITING = frozenset({"uncertain_assertion", "heal", "sensitive"})
+WAITING = frozenset({"uncertain_assertion", "heal", "sensitive", "requirement_suggestion"})
 ACCEPTED = frozenset({"yes", "accept", "approved"})
 REJECTED = frozenset({"no", "reject"})
 
