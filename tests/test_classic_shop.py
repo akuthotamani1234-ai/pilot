@@ -34,7 +34,7 @@ def clean(tmp_path_factory):
     shop = ClassicShop().start()
     try:
         # (DATA_TESTS: the typed-value checks are off by default; test_a_clean_shop_gives_no_false_failures checks
-        # them, so this run turns them on instead of depending on a developer's .env)
+        # them, so this run turns them on instead of depending on a developer's .env - the buggy run does the same)
         run, out = run_agent(shop, tmp_path_factory.mktemp("classic_clean"), {"DATA_TESTS": "true"}, account=())
         yield _load(run), shop, run
     finally:
@@ -45,7 +45,10 @@ def clean(tmp_path_factory):
 def buggy(tmp_path_factory):
     shop = ClassicShop(bugs=True).start()
     try:
-        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_bugs"), account=(EMAIL, PASSWORD))
+        # (the same settings as the clean run: test_a_planted_bug_fails_its_own_feature_and_nothing_else compares
+        # the two runs case by case)
+        run, out = run_agent(shop, tmp_path_factory.mktemp("classic_bugs"), {"DATA_TESTS": "true"},
+                             account=(EMAIL, PASSWORD))
         yield _load(run), shop, run
     finally:
         shop.stop()
