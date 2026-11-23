@@ -150,11 +150,11 @@ def _stop_file(run_dir) -> bool:
 
 
 def start_logged_out(driver, config: dict) -> bool:
-    """A test build starts like a fresh install: logged out, empty cart (Shoe Store, 2026-11-23: the app was still
-    logged in from an earlier session, so login and sign-up were never seen). Only for a native app in test-build
-    mode, which already clears data before every check; an app on someone's real phone is never in that mode.
-    True = cleared."""
-    if config.get("app_mode") == "web" or not config.get("interaction_testing") or config.get("keep_app_data"):
+    """Only when asked (config fresh_start): start like a fresh install - logged out, empty cart (Shoe Store,
+    2026-11-23: the app was still logged in from an earlier session, so login was never seen). Not by default: an app
+    whose state the person prepared on purpose (a seeded test account, the CI fixture's saved state) must keep it -
+    clearing it by default broke the Android emulator CI. Native test builds only. True = cleared."""
+    if config.get("app_mode") == "web" or not config.get("interaction_testing") or not config.get("fresh_start"):
         return False
     package = config.get("package_name") or ""
     if not package:  # (an uploaded APK: its package is known once it runs)

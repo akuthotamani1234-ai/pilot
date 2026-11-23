@@ -194,9 +194,10 @@ def test_a_test_build_starts_logged_out(monkeypatch):
     cleared = []
     monkeypatch.setattr(android, "reset_app_data", lambda driver, package: cleared.append(package))
     driver = SimpleNamespace(current_package="com.project.stacklab")
-    assert start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True})
+    # (only when asked: by default a prepared app keeps its state - clearing it broke the emulator CI fixture)
+    assert not start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True})
+    assert start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True, "fresh_start": True})
     assert cleared == ["com.project.stacklab"]
-    assert not start_logged_out(driver, {"app_mode": "installed", "interaction_testing": False})  # (not a test build)
-    assert not start_logged_out(driver, {"app_mode": "web", "interaction_testing": True})
-    assert not start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True, "keep_app_data": True})
+    assert not start_logged_out(driver, {"app_mode": "installed", "interaction_testing": False, "fresh_start": True})
+    assert not start_logged_out(driver, {"app_mode": "web", "interaction_testing": True, "fresh_start": True})
     assert cleared == ["com.project.stacklab"]
