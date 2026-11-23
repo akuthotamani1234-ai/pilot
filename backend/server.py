@@ -4471,6 +4471,30 @@ def repo_fix_info(run: str):
             "preparation": status(d), "provider": settings.llm_provider}
 
 
+class CodeRequest(BaseModel):
+    code: str = Field(min_length=3, max_length=12)
+
+
+@app.get("/api/runs/{run}/code")
+def run_code_request(run: str):
+    """Is this Android run waiting for a one-time code a person types? (never the code itself)"""
+    from backend.android_code import waiting
+    return {"waiting": waiting(_run_dir(run))}
+
+
+@app.post("/api/runs/{run}/code")
+def run_code_answer(run: str, req: CodeRequest, x_agentic_qa: str | None = Header(default=None)):
+    """The person's one-time code for the waiting run: handed to it once, never logged or kept."""
+    from backend.android_code import give_code
+    if x_agentic_qa != "1":
+        raise HTTPException(403, "forbidden")
+    try:
+        give_code(_run_dir(run), req.code)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
 @app.post("/api/runs/{run}/repo-fix/prepare")
 def repo_fix_prepare(run: str, req: RepoFixRequest, x_agentic_qa: str | None = Header(default=None)):
     """Step 1: download the repo and preview the changes (nothing is sent to GitHub)."""

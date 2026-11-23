@@ -142,6 +142,32 @@ def setup_agent(state):
     }
 
 
+def start_logged_out(driver, config: dict) -> bool:
+    """A test build starts like a fresh install: logged out, empty cart (Shoe Store, 2026-11-23: the app was still
+    logged in from an earlier session, so login and sign-up were never seen). Only for a native app in test-build
+    mode, which already clears data before every check; an app on someone's real phone is never in that mode.
+    True = cleared."""
+    if config.get("app_mode") == "web" or not config.get("interaction_testing") or config.get("keep_app_data"):
+        return False
+    package = config.get("package_name") or ""
+    if not package:  # (an uploaded APK: its package is known once it runs)
+        try:
+            package = str(driver.current_package or "")
+        except Exception:
+            package = ""
+    from .android import PACKAGE_NAME, reset_app_data
+    if not PACKAGE_NAME.fullmatch(package) or package in ("com.android.launcher3", "com.google.android.apps.nexuslauncher"):
+        return False
+    try:
+        reset_app_data(driver, package)
+        print("[android] Test build: the app's data was cleared before the run, so it starts logged out.", flush=True)
+        return True
+    except Exception as error:  # (never stops the run: discovery then starts from whatever is on screen)
+        print(f"[android] The app's data could not be cleared before the run ({type(error).__name__}); "
+              "it starts in its current state.", flush=True)
+        return False
+
+
 def discovery_agent(state):
     config = state["config"].copy()
     run_dir = _run_dir(state)
@@ -154,6 +180,7 @@ def discovery_agent(state):
     from .android_dynamic import set_progress_log
     set_progress_log(run_dir / "progress.log")
     driver = create_session(config)
+    start_logged_out(driver, config)
     screens, actions, issues, unvisited = [], [], [], []
     from .android import EXHAUSTIVE_WALL_CLOCK_S
     discovery_timeout = int(config.get("discovery_timeout_s") or 0)

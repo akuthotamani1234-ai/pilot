@@ -25,6 +25,7 @@ import re
 import secrets
 import time
 from collections import Counter
+from pathlib import Path
 
 from .android import AndroidEnvironmentError
 from .android_coverage import full_run
@@ -830,6 +831,36 @@ class Session:
         """The live screen, opened from a fresh start (`fresh=False`: a website may skip clearing for navigation)."""
         return self.device.go_to(screen)
 
+    def person_code(self, after: dict) -> dict:
+        """The app asks for a one-time code (SMS / e-mail): a PERSON types it in Qpilot, the run enters it and goes
+        on. The code is typed live and never becomes a step of a saved test, a report or a log line."""
+        from .android_code import ask_person, code_field
+        box = code_field(after) if after else None
+        if box is None or getattr(self, "_code_asked", 0) >= 3:  # (at most 3 codes per run)
+            return after
+        self._code_asked = getattr(self, "_code_asked", 0) + 1
+        stop = getattr(self.device, "stop_path", None)
+        wait_s = int((getattr(self.device, "config", None) or {}).get("human_wait_s", 180) or 0)
+        code = ask_person(stop.parent if stop else Path("."), after.get("screen_name", "a screen"), name(box), wait_s,
+                          stop_path=stop)
+        if not code:
+            self.tried.append({"check": f"One-time code on {after.get('screen_name', 'a screen')}", "outcome": "needs a person",
+                               "detail": "the app asked for a code sent by SMS or e-mail and nobody typed it in time"})
+            return after
+        submit = next((e for e in after.get("elements", []) if usable(e) and e.get("clickable")
+                       and re.search(r"\b(verify|submit|continue|confirm|next|log ?in|sign ?in|done)\b", label(e), re.I)), None)
+        steps = reach(box) + [{"action": "fill", "locator": box["locators"][0], "value": code}]
+        if submit is not None:
+            steps += reach(submit) + [tap(submit)]
+        self.secrets["__one_time_code__"] = code  # (masked in every live step and log line while it is typed)
+        try:
+            self.perform(steps)
+        finally:
+            self.secrets.pop("__one_time_code__", None)
+        self.tried.append({"check": f"One-time code on {after.get('screen_name', 'a screen')}", "outcome": "typed by you",
+                           "detail": "entered as you typed it; not saved"})
+        return self.device.observe()
+
     def observe_after(self, screen: dict, steps: list[dict], fresh: bool = True, setup: int = 0):
         """Open the screen from cleared data, do the steps, and return (before, after); after is None if the app left.
         Leading scroll steps (and the first `setup` steps: log in, fill the cart) happen before the 'before' picture:
@@ -844,7 +875,7 @@ class Session:
                 self.perform(steps[:scrolls])
                 before = self.device.observe()
             self.perform(steps[scrolls:])
-            return before, self.device.observe()
+            return before, self.person_code(self.device.observe())
         except AndroidEnvironmentError as error:
             if "left the selected" in str(error) or "contract left the" in str(error) or "left the approved" in str(error):
                 return before, None  # another app (browser, store, launcher) is in front: never inspected
@@ -1597,6 +1628,17 @@ class Session:
                       {**meta, "expected": f"After 3 seconds in the background, the app returns to '{name(mark)}'.",
                        "requirement": "Standard mobile behaviour (the app resumes where it was)"}, universal=True)
         start = anchor(launch)
+        if self.native and start is not None:
+            # No internet: the app must still open (no crash, no endless blank screen). Kept only when it repeats;
+            # the network is switched on again after the check, even when it fails.
+            self.keep(self.build("device", f"{launch['screen_name']} opens without internet",
+                                 [{"action": "network", "value": "off"}, {"action": "relaunch"}]
+                                 + anchor_checks(start) + [{"action": "network", "value": "on"}]),
+                      {"category": "device", "screen_id": launch["id"], "screen": launch["screen_name"],
+                       "element_ids": [start["id"]], "source": "interaction",
+                       "expected": f"With Wi-Fi and mobile data off, the app still opens on '{name(start)}' "
+                                   "(it does not crash or stay blank).",
+                       "requirement": "Standard mobile behaviour (the app copes without internet)"})
         for screen in deeper:
             if start is None:
                 break
@@ -1611,11 +1653,11 @@ class Session:
 
     # -------- AI journeys
     def ai_journeys(self, ask, requirements: str = "", owner: bool = False):
+        """Ask the AI for end-to-end journeys over the observed controls; keep only the ones that pass a replay."""
         # your own tests: up to 10 lines (CartNShop: lines 5 and 6 were silently cut by a limit of 4); the AI's own
         # generic journeys stay at 4
         owner_tests = [line.strip() for line in (requirements or "").splitlines() if line.strip()][:10] if owner else []
         cap = max(4, len(owner_tests))
-        """Ask the AI for end-to-end journeys over the observed controls; keep only the ones that pass a replay."""
         import json
         from typing import Literal
 

@@ -185,3 +185,18 @@ def test_without_an_ai_your_android_tests_are_listed_as_not_automated(monkeypatc
     session.run(ask=None, requirements="Log in with the demo user - the catalog is shown")
     assert any(t["check"] == "Your test: Log in with the demo user - the catalog is shown"
                and t["outcome"] == "not automated" for t in session.tried)
+
+
+def test_a_test_build_starts_logged_out(monkeypatch):
+    """Shoe Store (2026-11-23): the app was still logged in from an earlier session, so login was never seen."""
+    import backend.android as android
+    from backend.android_pipeline import start_logged_out
+    cleared = []
+    monkeypatch.setattr(android, "reset_app_data", lambda driver, package: cleared.append(package))
+    driver = SimpleNamespace(current_package="com.project.stacklab")
+    assert start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True})
+    assert cleared == ["com.project.stacklab"]
+    assert not start_logged_out(driver, {"app_mode": "installed", "interaction_testing": False})  # (not a test build)
+    assert not start_logged_out(driver, {"app_mode": "web", "interaction_testing": True})
+    assert not start_logged_out(driver, {"app_mode": "apk", "interaction_testing": True, "keep_app_data": True})
+    assert cleared == ["com.project.stacklab"]

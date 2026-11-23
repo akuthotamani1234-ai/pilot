@@ -62,7 +62,7 @@ TEST_MODE_NEVER_NATIVE = ("device features (camera, scanner, location, fingerpri
                           "and other apps are never used",
                           re.compile(r"\b(camera|photo|gallery|microphone|location|locate|contacts?|e-?mail|scanner|scan|"
                                      r"qr|finger ?print|biometrics?|face ?id|usb|allow|accept)\b", re.I))
-DEVICE_ACTIONS = ("back", "rotate", "background", "hide_keyboard")
+DEVICE_ACTIONS = ("back", "rotate", "background", "hide_keyboard", "network")
 
 
 def never_in_test_mode(text: str, native: bool = False) -> str:
@@ -162,6 +162,8 @@ class Step(Model):
         "rotate",
         "background",
         "hide_keyboard",
+        # switch the phone's Wi-Fi and mobile data off / on (the app must cope without internet; always on again after)
+        "network",
         "long_press",
         # Android Chrome: open a page of the approved website, and check (then close) a browser message (alert)
         "open",
@@ -219,6 +221,8 @@ class Step(Model):
                 seconds = self.value or ""
                 if not seconds.isdigit() or not 1 <= int(seconds) <= 30:
                     raise ValueError("Background needs a whole number of seconds between 1 and 30")
+            if self.action == "network" and self.value not in ("off", "on"):
+                raise ValueError("Network needs off or on")
             if self.action in ("back", "hide_keyboard") and self.value is not None:
                 raise ValueError("Back and hide_keyboard steps take no value")
         if self.action not in ("context", "assert_screen", "relaunch", "permission_state", "handle_permission", "assert_permission",

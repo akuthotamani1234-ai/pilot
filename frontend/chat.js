@@ -782,6 +782,31 @@
     $("todoBar").style.width = `${100 * done / entries.length}%`;
   }
 
+  // The app asks for a one-time code (SMS / e-mail): you type it here, the run enters it. Never saved or shown again.
+  let codeAsked = "";
+  async function askForCode(run) {
+    if (!run) return;
+    let wait = null;
+    try { wait = ((await (await fetch(`/api/runs/${encodeURIComponent(run)}/code`)).json()) || {}).waiting; } catch (e) { return; }
+    const box = $("codeAsk");
+    if (!wait) { if (box) box.closest(".bubble")?.remove(); codeAsked = ""; return; }
+    if (codeAsked === wait.screen && box) return;
+    codeAsked = wait.screen;
+    say(`<div class="warn" id="codeAskWrap"><p><b>The app asks for a one-time code</b> on “${esc(wait.screen)}”.
+      Type the code that was sent to you (SMS or e-mail). It is entered once and never saved.
+      <span class="muted small">About ${wait.seconds_left} s left.</span></p>
+      <div class="row"><input id="codeAsk" inputmode="numeric" autocomplete="one-time-code" maxlength="12" aria-label="One-time code">
+      <button class="primary" id="codeSend" type="button">Send code</button></div><p class="note" id="codeNote"></p></div>`);
+    $("codeSend").onclick = async () => {
+      const code = $("codeAsk").value.trim();
+      const res = await fetch(`/api/runs/${encodeURIComponent(run)}/code`, {method: "POST",
+        headers: {"Content-Type": "application/json", "X-Agentic-QA": "1"}, body: JSON.stringify({code})});
+      const out = await res.json().catch(() => ({}));
+      $("codeAsk").value = "";
+      $("codeNote").textContent = res.ok ? "Sent - the run is entering it now." : (out.detail || "Could not send the code.");
+    };
+  }
+
   async function pollMobile() {
     if (!job) return;
     try {
@@ -791,6 +816,7 @@
       job = Object.assign(job || {}, result);
       window.QpilotLive?.update(job);
       window.QpilotAndroid?.update(job);
+      askForCode(job.run);
       renderMobileTodo(result.stages || {});
       $("costNow").textContent = usd((result.cost || {}).cost_usd);
       $("costCalls").textContent = `${(result.cost || {}).calls || 0} AI calls`;

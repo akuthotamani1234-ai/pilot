@@ -125,7 +125,7 @@ class ContractRuntime:
                         raise ValueError("Android Toast assertions require native Android testing")
                     self.adapter.assert_toast(step.value, min(2.5, max(0.0, self.deadline - time.monotonic())))
                     self.checks += 1
-                elif step.action in ("back", "rotate", "background", "hide_keyboard"):
+                elif step.action in ("back", "rotate", "background", "hide_keyboard", "network"):
                     device = getattr(self.adapter, "device_action", None)
                     if device is None:
                         raise ValueError("Back, rotate, background and hide_keyboard steps require Android testing")
@@ -336,6 +336,11 @@ class ContractRuntime:
                 if self.rotated:
                     try:  # the next test must start in the normal orientation, even after a failure
                         self.adapter.device_action("rotate", "portrait")
+                    except Exception:
+                        pass
+                if getattr(self.adapter, "offline", False):
+                    try:  # the internet is ALWAYS switched on again, even when the check failed
+                        self.adapter.device_action("network", "on")
                     except Exception:
                         pass
                 if isinstance(self.adapter, AndroidContractAdapter):
@@ -702,14 +707,29 @@ class AndroidContractAdapter:
         elif action == "background":
             if self.config.get("app_mode") == "web":
                 raise ValueError("Background/resume steps require a native Android app")
-            self.driver.background_app(int(value))  # returns after the app was brought back
+            self.driver.background_app(int(value))  # (older drivers return after bringing the app back)
             from .android import AndroidEnvironmentError
+            package = self.config["package_name"]
+            deadline = time.monotonic() + 3
+            while self.driver.current_package != package and time.monotonic() < deadline:
+                time.sleep(.25)
+            if self.driver.current_package != package:
+                # Newer drivers leave the phone on its home screen: a tester taps the app again (2026-11-23: two
+                # 'comes back after leaving the app' checks failed on the home screen, not because of the app)
+                self.driver.activate_app(package)
             deadline = time.monotonic() + 15
-            while self.driver.current_package != self.config["package_name"]:
+            while self.driver.current_package != package:
                 if time.monotonic() >= deadline:
                     raise AndroidEnvironmentError("The app did not come back after being sent to the background")
                 time.sleep(.25)
             time.sleep(.5)
+        elif action == "network":
+            if self.config.get("app_mode") == "web":
+                raise ValueError("Network steps require a native Android app")
+            on = value == "on"
+            self.driver.execute_script("mobile: setConnectivity", {"wifi": on, "data": on})
+            self.offline = not on
+            time.sleep(2 if on else 1.5)  # (the app notices the change)
         elif action == "hide_keyboard":
             if self.active == "native" and self.driver.is_keyboard_shown():
                 self.driver.hide_keyboard()
