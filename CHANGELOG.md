@@ -2,6 +2,31 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Jira workspace: one guided test from requirements to report
+
+- "Requirements" is called "Jira" in everything a person reads (Studio and Lab links, page title, breadcrumb);
+  routes, APIs and identifiers are unchanged. The sidebar group has the 15 items in workflow order, collapses,
+  scrolls on its own, has icons and ✓ marks taken from the stores.
+- Guided workflow: step indicator, Back / Next, a server-side draft per person (`backend/atlassian/workflow.py`,
+  `/api/requirements/workflow`), Import & Continue, Analyze Selected / All, bulk review, Generate Test Cases, Run
+  Selected Tests, the Live Execution view opening by itself, View Report.
+- New Test (six options) starts a fresh draft and keeps every earlier execution and report.
+- Target detection with sources (saved target, earlier execution, requirement text), the four outcomes, a
+  reachability check classifying DNS / TLS / timeout / connection / availability problems
+  (`backend/target_check.py`), saved targets per Jira project with an optional test account kept in the owner-only
+  credentials file and reused only for the same address.
+- Live Execution: sticky header and controls, independently scrolling panels, auto-follow that pauses when the log
+  is scrolled up, "Jump to latest", frames loaded only when the run recorded one. Reports: one record per run,
+  counts, per-case results, screenshots, Rerun Failed, Run Impacted, Export.
+- Specific rule-based scenarios (e.g. "Verify sorting by Price (low to high)" with real steps); negative ideas only
+  for stated constraints. A test whose login / precondition / environment prerequisite failed is Blocked, not Failed.
+- Found in the live QPL-3 SauceDemo run and fixed at the cause: the script writer dropped client-rendered 404
+  pages (SauceDemo's inventory), so the AI got no page and invented `https://example.com/...`; it now uses
+  `page_testable`, refuses to ask without a page, gives the AI the observed item cards, and grounding refuses
+  `goto` to unexplored hosts, unseen `.class` selectors and `guest` on logged-in cases. An off-site navigation is a
+  test-script defect, never Blocked.
+- Tests: `tests/test_jira_workflow.py` (24) and updated `tests/test_requirements_ui.py` (19).
+
 ## 2026-11-24 - Requirements Intelligence, Phase 5 (defects and controlled Jira write-back)
 
 - `backend/atlassian/defects.py`: defect records from real requirement-test failures - one per test case and failure

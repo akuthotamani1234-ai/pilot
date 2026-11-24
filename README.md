@@ -329,8 +329,9 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   store, and link each story to the pages that specify it. They use their own read token, `JIRA_READ_API_TOKEN` (and
   `CONFLUENCE_API_TOKEN`), never the defect-creation `JIRA_API_TOKEN`, and never write to Atlassian. A read-only command
   line tests a connection, lists work-item types and imports: `python -m backend.atlassian --help`.
-  In the Studio, **Requirements** (`/requirements`) connects Jira and Confluence, imports with a preview, and shows
-  criteria, analysis and the review center. An analysis step then copies each acceptance criterion with its source,
+  In the Studio, **Jira** (`/requirements`) is one guided test: connect, import, select, analyse, review, generate
+  test cases, run them on the target website (detected or asked for) with a live view, and read the report; **New
+  Test** starts the next one and keeps earlier reports. It shows criteria, analysis and the review center. An analysis step then copies each acceptance criterion with its source,
   version and quote; finds ambiguous, incomplete, duplicate and conflicting criteria; and proposes positive,
   negative, boundary and security test ideas, each marked explicit (quoted) or inferred and approved by a person in
   the approval queue. AI ideas are used only when the privacy settings allow it. Accepted ideas become stored test

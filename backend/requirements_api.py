@@ -28,7 +28,7 @@ from fastapi import Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .atlassian import analysis as an, bridge, confluence, credentials, jira, store, sync
+from .atlassian import analysis as an, bridge, confluence, credentials, jira, store, sync, workflow
 from .atlassian.client import AtlassianError, Client
 from .atlassian.models import (
     DEFAULT_TOKEN_REF,
@@ -299,10 +299,32 @@ class ExecutionTarget(BaseModel):
     show_browser: bool = False
     record_video: bool = False
     thorough: bool = False
+    use_saved_account: bool = True  # the project's saved test account for this same website (never returned)
+    save_target: bool = False  # remember this website (and the account typed, if any) for the project
+    project_key: str = Field(default="", max_length=20)
 
     def public(self) -> dict:
         return {k: v for k, v in self.model_dump().items() if k not in ("test_password", "api_key")} | {
             "test_password": "[set]" if self.test_password else "", "api_key": "[set]" if self.api_key else ""}
+
+
+class DraftBody(BaseModel):
+    draft_id: str = Field(default="", max_length=20)
+    changes: dict = Field(default_factory=dict)
+
+
+class TargetBody(BaseModel):
+    project_key: str = Field(pattern=r"^[A-Z][A-Z0-9_]{0,19}$")
+    url: str = Field(min_length=4, max_length=2000)
+    environment: str = Field(default="test", pattern=r"^(test|staging)$")
+    app_type: str = Field(default="web", pattern=r"^(web|android)$")
+    authorized: bool = False
+    test_username: str = Field(default="", max_length=200)
+    test_password: str = Field(default="", max_length=200)
+
+
+class UrlBody(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
 
 
 class ExecutionBody(BaseModel):
@@ -992,6 +1014,18 @@ def register_requirements_api(app) -> None:
             ex = planned["execution"]
             from . import server
             t = body.target
+            projects = sorted({c.split("-", 1)[1].rsplit("-", 1)[0].split("-")[0] for c in ex.get("case_ids", [])
+                               if c.startswith("TC-")} | ({t.project_key.upper()} if t.project_key else set()))
+            if t.save_target:
+                for p in projects:
+                    workflow.save_target(db, ctx["tenant"], p, t.url, environment=t.environment, actor=ctx["actor"],
+                                         username=t.test_username, password=t.test_password)
+            if t.use_saved_account and not (t.test_username and t.test_password):
+                for p in projects:  # (the project's saved account for THIS website only)
+                    user, pw = workflow.test_account(db, ctx["tenant"], p, t.environment, t.url)
+                    if user and pw:
+                        t = t.model_copy(update={"test_username": user, "test_password": pw})
+                        break
             req = server.RunRequest(
                 source=t.url, authorized=True, environment=t.environment, max_pages=t.max_pages,
                 show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
@@ -1093,6 +1127,103 @@ def register_requirements_api(app) -> None:
             return {"coverage": bridge.coverage(db, ctx["tenant"]), "impacted": bridge.impacted(db, ctx["tenant"])}
         finally:
             db.close()
+
+    # -- the guided workflow and the application under test
+    def _connection_ready(db, ctx: dict) -> bool:
+        conns = [c for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
+        return any(credentials.status(ctx["tenant"], c.token_ref)["configured"] for c in conns)
+
+    def _workflow_answer(db, ctx: dict, draft: dict) -> dict:
+        return {"draft": draft, "state": workflow.state(db, ctx["tenant"], draft,
+                                                        connection_ready=_connection_ready(db, ctx)),
+                "steps": list(workflow.STEPS)}
+
+    @app.get("/api/requirements/workflow")
+    def get_workflow(authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            return _workflow_answer(db, ctx, workflow.get_draft(db, ctx["tenant"], ctx["actor"]))
+        finally:
+            db.close()
+
+    @app.put("/api/requirements/workflow/draft")
+    def put_draft(body: DraftBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            try:
+                d = workflow.update_draft(db, ctx["tenant"], ctx["actor"], body.changes, body.draft_id)
+            except ValueError as error:
+                raise HTTPException(409, str(error)) from None
+            return _workflow_answer(db, ctx, d)
+        finally:
+            db.close()
+
+    @app.post("/api/requirements/workflow/new")
+    def new_workflow(body: DraftBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        """New Test: a fresh draft. Executions, reports, requirements and test cases are all kept."""
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            d = workflow.new_draft(db, ctx["tenant"], ctx["actor"], **body.changes)
+            _audit(ctx, "workflow.new", True, draft=d["id"])
+            return _workflow_answer(db, ctx, d)
+        finally:
+            db.close()
+
+    @app.get("/api/requirements/targets/resolve")
+    def resolve_target(requirements: str = "", environment: str = "test", authorization: str | None = A,
+                       x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        reqs = [r.strip() for r in requirements.split(",") if r.strip()][:100]
+        db = bridge.connect()
+        try:
+            return workflow.resolve(db, ctx["tenant"], reqs, environment if environment in ("test", "staging")
+                                    else "test")
+        finally:
+            db.close()
+
+    @app.put("/api/requirements/targets")
+    def put_target(body: TargetBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        if not body.authorized:
+            raise HTTPException(400, "Confirm that you own the application or have permission to test it.")
+        from .safety import UrlError, check_target
+        try:
+            check_target(body.url, resolve=False)
+        except UrlError as error:
+            raise HTTPException(400, str(error)) from None
+        db = bridge.connect()
+        try:
+            try:
+                t = workflow.save_target(db, ctx["tenant"], body.project_key, body.url, environment=body.environment,
+                                         actor=ctx["actor"], app_type=body.app_type, username=body.test_username,
+                                         password=body.test_password)
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from None
+        finally:
+            db.close()
+        _audit(ctx, "target.save", True, project=body.project_key, environment=body.environment)
+        return {"target": t}
+
+    @app.delete("/api/requirements/targets/{project_key}/account")
+    def forget_target_account(project_key: str, environment: str = "test", authorization: str | None = A,
+                              x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        db = bridge.connect()
+        try:
+            workflow.forget_account(db, ctx["tenant"], project_key.upper(), environment)
+        finally:
+            db.close()
+        _audit(ctx, "target.account.delete", True, project=project_key)
+        return {"removed": True}
+
+    @app.post("/api/requirements/targets/check")
+    def check_target_url(body: UrlBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        _context(authorization, x_qa_token, "run.write")
+        from . import target_check
+        return target_check.check(body.url)
 
     # -- defects and controlled Jira write-back (Phase 5)
     from .atlassian import defects as dfx, writeback as wb

@@ -11,6 +11,12 @@ skips: Postgres / Redis / MinIO / the optional `mcp` package not present here, o
 
 ## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–4 (web) + Milestones 1–3
 
+**Jira workspace, guided workflow (24 Nov 2026):** renamed "Jira" in the UI, 15-item sidebar, step indicator with
+Back / Next and a server-side draft, New Test, target detection (found / several / not found / unreachable with its
+cause), saved targets with a protected test account, Live Execution that opens by itself and scrolls stably,
+Reports per run, specific scenarios, Blocked for failed prerequisites. See docs/REQUIREMENTS_INTELLIGENCE.md
+"The guided Jira workflow".
+
 **Phase 4 (requirements → execution, websites):** accepted ideas become versioned test cases (Test Case Builder:
 generate, edit, approve, stale detection); the Execution Center runs them through the existing Qpilot run
 (requirement-based, hybrid or autonomous; selected / requirements / all approved / failed / impacted / regression /

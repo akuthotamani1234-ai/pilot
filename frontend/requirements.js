@@ -49,7 +49,8 @@
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (S.auth) headers.Authorization = `Bearer ${S.auth}`;
     let res;
-    try { res = await fetch(`/api/requirements${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); }
+    const url = path.startsWith("/api/") ? path : `/api/requirements${path}`;  // (/api/runs/...: the run's own live data)
+    try { res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); }
     catch (e) { throw new ApiError("The Studio server could not be reached. Is it still running?", 0); }
     let data = null;
     try { data = await res.json(); } catch (e) { data = null; }
@@ -76,22 +77,42 @@
 
   // ---------------------------------------------------------------- routing
   const navigation = [...document.querySelectorAll(".rq-nav a[data-view]")];
-  const VIEWS = navigation.map((link) => link.dataset.view);
+  const VIEWS = [...document.querySelectorAll(".rq-view")].map((s) => s.id.replace("view-", ""));
+  // (older bookmarks keep working: the pages they named now live inside these)
+  const ALIAS = { coverage: "reports", evidence: "reports" };
   function route() {
     if (!S.caps) return;
-    const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
+    const asked = location.hash.slice(1);
+    if (ALIAS[asked]) { history.replaceState(null, "", `#${ALIAS[asked]}`); }
+    const want = ALIAS[asked] || asked;
+    const view = VIEWS.includes(want) ? want : "overview";
     for (const v of VIEWS) $(`view-${v}`).hidden = v !== view;
     for (const link of navigation) {
       if (link.dataset.view === view) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    document.title = `Qpilot | ${$(`view-${view}`).dataset.title}`;
+    const title = $(`view-${view}`).dataset.title;
+    document.title = `Qpilot | Jira · ${title}`;
+    $("crumb").textContent = title;
     banner("");
+    S.view = view;
+    clearTimeout(X.poll); clearTimeout(LV.timer);
     ({ overview, integrations, import: wizardOpen, explorer, analysis: analysisView, reviews,
-      confluence: confluenceView, coverage: coverageView, history, settings: settingsView, builder,
-      execution: executionCenter, agents: liveView, evidence: evidenceView, traceability: traceabilityView,
+      confluence: confluenceView, reports: reportsView, history, audit: auditView, settings: settingsView, builder,
+      execution: executionCenter, agents: liveView, traceability: traceabilityView,
       writeback: writebackView })[view]?.();
+    workflowChrome(view);
   }
+  // the Jira group in the sidebar opens and closes; the choice is kept on this computer
+  (() => {
+    const group = document.querySelector(".rq-navgroup"), btn = $("navToggle");
+    let closed = false;
+    try { closed = localStorage.getItem("qpilot.jiraNav") === "closed"; } catch (e) { /* (private mode) */ }
+    const set = (c) => { group.classList.toggle("collapsed", c); btn.setAttribute("aria-expanded", String(!c));
+      try { localStorage.setItem("qpilot.jiraNav", c ? "closed" : "open"); } catch (e) { /* (private mode) */ } };
+    set(closed);
+    btn.addEventListener("click", () => set(btn.getAttribute("aria-expanded") === "true"));
+  })();
   window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
   document.querySelector(".rq-skip").addEventListener("click", (event) => {
     event.preventDefault();
@@ -195,7 +216,8 @@
       h("button", { class: "secondary", type: "button", text: "Test connection", onclick: async () => {
         status.textContent = "Testing…";
         try { const r = await api(`/connections/${encodeURIComponent(id)}/test`, { method: "POST" });
-          status.textContent = product === "jira" ? `Connected as ${r.account}. ${plural(r.projects, "project")} visible. Read-only.` : `Connected. ${plural(r.spaces, "space")} visible. Read-only.`;
+          status.textContent = product === "jira" ? `Connected as ${r.account}. ${plural(r.projects, "project")} visible. Read-only. ` : `Connected. ${plural(r.spaces, "space")} visible. Read-only.`;
+          if (product === "jira") { status.append(h("a", { class: "primary rq-action-link", href: "#import", text: "Continue to Import" })); refreshWorkflow(); }
         } catch (err) { status.textContent = err.message; }
       } }),
       h("button", { class: "secondary", type: "button", text: jira ? "Discover projects" : "Discover spaces", onclick: async () => {
@@ -491,6 +513,15 @@
     W.importConn = W.lastImport.conn;
     $("toAnalyze").hidden = !(S.caps && S.caps.capabilities.analyze_requirements) || !W.imported.length;
     $("newImport").hidden = false;
+    // the guided workflow: what was just imported becomes this test's selection, and the explorer opens
+    const got = W.lastImport.body.mode === "space" ? [] : [...new Set([...(r.new_keys || []), ...(r.changed_keys || []), ...(r.unchanged_keys || []),
+      ...(W.lastImport.body.mode === "items" ? list(W.lastImport.body.keys || "").map((k) => k.toUpperCase()).filter((k) => /^[A-Z][A-Z0-9_]*-\d+$/.test(k)) : [])])];
+    if (ok && got.length && S.view === "import") {
+      saveDraft({ connection_id: W.lastImport.conn, requirement_ids: got, step: "explorer" }).then(() => {
+        banner(`Imported: ${got.join(", ")} selected for this test. Analyse them next.`, true);
+        location.hash = "#explorer";
+      }).catch((e) => banner(e.message));
+    }
   }
   $("anRun").addEventListener("click", async () => {
     const keys = W.imported || [];
@@ -516,6 +547,7 @@
     S.ex.sort = S.ex.sort === k ? `-${k}` : k; explorer();
   }));
   async function explorer() {
+    if (!WF.draft) await refreshWorkflow();
     const tbody = $("exTable").tBodies[0];
     $("exTable").setAttribute("aria-busy", "true");
     const q = new URLSearchParams({ kind: "jira_issue", q: $("exQ").value, type: $("exType").value, status: $("exStatus").value,
@@ -528,7 +560,10 @@
         const s = S.ex.sort === k ? "ascending" : S.ex.sort === `-${k}` ? "descending" : null;
         if (s) b.parentElement.setAttribute("aria-sort", s); else b.parentElement.removeAttribute("aria-sort");
       });
+      const sel = new Set(draftReqs());
       tbody.replaceChildren(...kids(...r.items.map((it) => h("tr", { class: it.present ? "" : "missing" },
+        h("td", {}, h("input", { type: "checkbox", "data-key": it.key, "aria-label": `Select ${it.key}`, checked: sel.has(it.key),
+          onchange: async (e) => { const s = new Set(draftReqs()); if (e.target.checked) s.add(it.key); else s.delete(it.key); await saveDraft({ requirement_ids: [...s] }); selInfo(); } })),
         h("td", {}, h("button", { class: "rq-open", type: "button", text: it.key, "aria-label": `Open ${it.key}`, onclick: () => openDetail(it.connection_id, it.key) })),
         h("td", { text: it.summary }), h("td", { text: it.type }), h("td", { text: it.priority }), h("td", { text: it.status }),
         h("td", { text: it.criteria }), h("td", { text: it.linked_pages }),
@@ -537,7 +572,8 @@
         h("td", { text: it.pending_reviews ? `${it.pending_reviews} pending` : it.review_status || "—" }),
         h("td", { text: it.covered === null || !it.criteria ? "—" : `${it.covered}/${it.criteria}` }),
         h("td", { text: `v${it.version}` }), h("td", { text: when(it.last_synced) })))));
-      if (!r.items.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty" },
+      selInfo();
+      if (!r.items.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 13, class: "rq-empty" },
         r.total === 0 && !$("exQ").value ? h("span", {}, "No requirements imported yet. ", h("a", { href: "#import", text: "Import from Jira" }), ".") : "Nothing matches these filters."))));
       const pages = Math.max(1, Math.ceil(r.total / r.size));
       $("exPager").replaceChildren(...kids(`${plural(r.total, "requirement")} · page ${r.page} of ${pages}`,
@@ -751,7 +787,14 @@
       const r = await api(`/reviews?${new URLSearchParams({ status: $("rvStatus").value, q: $("rvQ").value })}`);
       $("rvWho").textContent = r.can_review ? `You review as “${r.reviewer}”. Each decision is recorded with your name.` : "You can read the ideas, but decisions need a named, signed-in reviewer.";
       if ($("rvStatus").value === "needs_review") navCount(r.total);
-      box.replaceChildren(...kids(...(r.reviews.length ? r.reviews.map((x) => reviewCard(x, r.can_review)) : [h("p", { class: "rq-empty", text: $("rvStatus").value === "needs_review" ? "Nothing waiting for review." : "Nothing here." })])));
+      if (!WF.draft) await refreshWorkflow();
+      const mine = new Set(draftReqs());
+      const shown = mine.size && !S.rvAll ? r.reviews.filter((x) => mine.has(x.key)) : r.reviews;
+      S.shownReviews = shown;
+      $("rvScope").replaceChildren(...kids(mine.size ? (S.rvAll ? "All requirements' ideas. " : `Ideas of this test's requirements (${[...mine].join(", ")}). `) : "",
+        mine.size ? h("button", { type: "button", class: "linklike", text: S.rvAll ? "Show only this test's" : "Show all", onclick: () => { S.rvAll = !S.rvAll; reviews(); } }) : null));
+      $("rvAcceptAll").disabled = $("rvRejectAll").disabled = !r.can_review || !shown.some((x) => x.suggestion.review === "needs_review");
+      box.replaceChildren(...kids(...(shown.length ? shown.map((x) => reviewCard(x, r.can_review)) : [h("p", { class: "rq-empty", text: $("rvStatus").value === "needs_review" ? (WF.state && WF.state.with_accepted ? "Nothing waiting for review. Next: Generate Test Cases." : "Nothing waiting for review.") : "Nothing here." })])));
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
     finally { box.removeAttribute("aria-busy"); }
   }
@@ -884,6 +927,8 @@
     $(id).addEventListener("submit", (event) => { event.preventDefault(); render(); });
   }
   async function analysisView() {
+    if (!WF.draft) await refreshWorkflow();
+    analysisFlow().catch((e) => { $("anFlow").replaceChildren(h("p", { class: "rq-issue", text: e.message })); });
     const panel = $("analysisItems");
     const query = new URLSearchParams({ kind: "jira_issue", q: $("analysisSearch").value, size: 25 });
     panel.textContent = "Loading requirements…";
@@ -941,6 +986,8 @@
     target: "_blank", rel: "noopener", text: e.split("/").pop() }));
 
   async function builder() {
+    await refreshWorkflow();
+    if (draftCases().length) X.selected = new Set(draftCases());
     try {
       const reqs = await api("/items?kind=jira_issue&analysis=current&size=100");
       $("genReq").replaceChildren(...kids(reqs.items.length ? reqs.items.map((r) => h("option", { value: `${r.connection_id}|${r.key}`, text: `${r.key} — ${r.summary}` }))
@@ -963,7 +1010,16 @@
   });
   ["tcQ", "tcStatus"].forEach((id) => $(id).addEventListener(id === "tcQ" ? "input" : "change", () => tcList()));
   $("tcForm").addEventListener("submit", (e) => e.preventDefault());
-  $("tcRun").addEventListener("click", () => { location.hash = "#execution"; });
+  const toExecution = async () => {  // (the selection is saved before the Execution Center reads it)
+    if (!X.selected.size) return;
+    clearTimeout(selTimer);
+    await saveDraft({ test_case_ids: [...X.selected], step: "execution" });
+    location.hash = "#execution";
+  };
+  $("tcRun").addEventListener("click", toExecution);
+  $("tcContinue").addEventListener("click", toExecution);
+  let selTimer;
+  function selChanged() { tcCount(); clearTimeout(selTimer); selTimer = setTimeout(() => saveDraft({ test_case_ids: [...X.selected] }), 150); }
   async function tcList() {
     const tbody = $("tcTable").tBodies[0];
     try {
@@ -971,7 +1027,7 @@
       S.cases = r.test_cases;
       tbody.replaceChildren(...kids(r.test_cases.map((c) => h("tr", { class: c.status === "stale" ? "missing" : "" },
         h("td", {}, h("input", { type: "checkbox", "aria-label": `Select ${c.id}`, checked: X.selected.has(c.id), disabled: !runnable(c),
-          onchange: (e) => { e.target.checked ? X.selected.add(c.id) : X.selected.delete(c.id); tcCount(); } })),
+          onchange: (e) => { e.target.checked ? X.selected.add(c.id) : X.selected.delete(c.id); selChanged(); } })),
         h("td", {}, h("button", { class: "rq-open", type: "button", text: c.id, "aria-label": `Open ${c.id}`, onclick: () => tcDetail(c.id) })),
         h("td", { text: c.requirement_id }), h("td", { text: c.criterion_ids.map((x) => x.split("#")[1]).join(", ") }),
         h("td", { text: c.title }), h("td", { text: c.kind }), h("td", {}, caseBadge(c.status)),
@@ -980,10 +1036,15 @@
       tcCount();
     } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 8, class: "rq-empty", text: e.message })))); }
   }
-  function tcCount() { $("tcRun").disabled = !X.selected.size; $("tcRun").textContent = X.selected.size ? `Run selected (${X.selected.size})` : "Run selected"; $("exSelCount").textContent = X.selected.size; }
+  function tcCount() {
+    const n = X.selected.size;
+    $("tcRun").disabled = $("tcContinue").disabled = !n;
+    $("tcRun").textContent = n ? `Run Selected Tests (${n})` : "Run Selected Tests";
+    $("exSelCount").textContent = n;
+  }
   $("tcAll").addEventListener("change", (e) => {
     (S.cases || []).filter(runnable).forEach((c) => { e.target.checked ? X.selected.add(c.id) : X.selected.delete(c.id); });
-    tcList();
+    selChanged(); tcList();
   });
   async function tcDetail(id) {
     const d = await api(`/test-cases/${encodeURIComponent(id)}`);
@@ -1120,28 +1181,62 @@
   }
   // -- execution center
   async function executionCenter() {
-    tcCount();
-    exList();
+    await refreshWorkflow();
+    const d = WF.draft || {};
+    if (draftCases().length) X.selected = new Set(draftCases());
+    const strat = document.querySelector(`input[name=exStrategy][value=${d.strategy || "requirements"}]`);
+    if (strat) strat.checked = true;
+    if (d.environment) $("exEnv").value = d.environment;
+    const scope = document.querySelector(`input[name=exScope][value=${S.presetScope || "selected"}]`);
+    if (scope) scope.checked = true;
+    if (S.presetScope && S.presetScope !== "selected") $("exAdvanced").open = true;
+    S.caseCriteria = [];
+    try {
+      for (const c of draftCases().slice(0, 30)) {
+        const one = await api(`/test-cases/${encodeURIComponent(c)}`);
+        one.test_case.criterion_ids.forEach((x) => { if (!S.caseCriteria.includes(x)) S.caseCriteria.push(x); });
+      }
+    } catch (err) { /* (shown without criteria) */ }
+    tcCount(); execSummary(); resolveTarget(); exList();
   }
+  document.querySelectorAll("input[name=exStrategy]").forEach((r) => r.addEventListener("change", () => {
+    execSummary(); if (WF.draft) saveDraft({ strategy: r.value });
+  }));
   $("exForm2").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const out = $("xcStatus");
+    const fail = (text) => { out.replaceChildren(h("span", { class: "rq-issue", role: "alert", text })); stop(text); };
     const strategy = document.querySelector("input[name=exStrategy]:checked").value;
     const mode = document.querySelector("input[name=exScope]:checked").value;
-    const scope = { selected: { test_case_ids: [...X.selected] }, requirements: { requirements: list($("exReqs").value).map((x) => x.toUpperCase()) },
+    const selected = [...X.selected];
+    const scope = { selected: { test_case_ids: selected }, requirements: { requirements: list($("exReqs").value).map((x) => x.toUpperCase()) },
       all_approved: { all_approved: true }, failed: { failed: true }, impacted: { impacted: true }, regression: { regression: true },
       epic: { epic: $("exEpic").value.trim().toUpperCase() } }[mode];
-    const target = { type: $("xcApp").value, url: $("exUrl").value.trim(), authorized: $("exAuth").checked, environment: $("exEnv").value,
+    const url = $("exUrl").value.trim();
+    if (strategy !== "autonomous" && mode === "selected" && !selected.length) return fail("No test case is selected. Select approved test cases in Test Cases first (or choose Autonomous).");
+    if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
+    if (!/^https?:\/\/[^\s/]+/i.test(url)) { $("exUrl").focus(); return fail("Enter a full website address starting with http:// or https://"); }
+    if (!$("exAuth").checked) { $("exAuth").focus(); return fail("Confirm that you own the application or have permission to test it."); }
+    out.textContent = "Checking the website…";
+    let reach;
+    try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
+    if (!reach || !reach.ok) return fail(`The website could not be used: ${reach ? reach.message : "no answer"} Your selection is kept: correct the address and run again.`);
+    const projects = TG.projects || [];
+    const target = { type: $("xcApp").value, url, authorized: true, environment: $("exEnv").value,
       test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
       api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
-      show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked };
+      show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
+      use_saved_account: true, save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
     $("exPass").value = ""; $("exKey").value = "";  // (sent once, never kept in the page)
-    $("xcStatus").textContent = "Starting the test run…";
+    out.textContent = "Starting the test run…";
     try {
       const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
       const ex = r.execution;
-      $("xcStatus").textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`;
-      X.current = ex.id; exList(); exDetail(ex.id);
-    } catch (err) { $("xcStatus").textContent = err.message; }
+      out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`;
+      S.presetScope = null; S.reportId = null;
+      await saveDraft({ execution_id: ex.id, target_url: url, strategy, step: "agents" });
+      location.hash = "#agents";  // (the live view opens by itself: no second Run button)
+    } catch (err) { fail(err.message); }
   });
   async function exList() {
     const tbody = $("exList").tBodies[0];
@@ -1185,39 +1280,7 @@
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
   }
 
-  // -- live execution, evidence, traceability
-  async function liveView() {
-    const box = $("liveBox");
-    try {
-      const r = await api("/executions?limit=10");
-      const ex = r.executions.find((x) => ["running", "queued"].includes(x.status));
-      if (!ex) { box.replaceChildren(...kids(h("p", { class: "small", text: "No requirement execution is running." }), h("a", { href: "#execution", text: "Start one in the Execution Center" }))); return; }
-      const d = await api(`/executions/${encodeURIComponent(ex.id)}`);
-      const live = d.live || {};
-      box.replaceChildren(...kids(h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.case_ids.join(", ")}` }),
-        h("p", { role: "status", "aria-live": "polite", text: live.current ? `Now: ${live.current}` : "Starting…" }),
-        h("dl", { class: "rq-kv" }, h("dt", { text: "Pages found" }), h("dd", { text: live.pages ?? "—" }), h("dt", { text: "Test cases designed" }), h("dd", { text: live.cases ?? "—" }),
-          h("dt", { text: "Elapsed" }), h("dd", { text: live.elapsed != null ? `${live.elapsed} s` : "—" })),
-        h("h3", { class: "rq-sub", text: "Latest events from the run" }), h("pre", { class: "rq-desc", text: (live.lines || []).slice(-25).map((l) => (typeof l === "string" ? l : l.text || JSON.stringify(l))).join("\n") || "—" })));
-      clearTimeout(X.poll);
-      X.poll = setTimeout(() => { if (location.hash === "#agents") liveView(); }, 3000);
-    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
-  }
-  async function evidenceView() {
-    const box = $("evBox");
-    try {
-      const r = await api("/executions?limit=20");
-      const blocks = [];
-      for (const ex of r.executions.filter((x) => x.status !== "running" && x.status !== "queued").slice(0, 10)) {
-        const d = await api(`/executions/${encodeURIComponent(ex.id)}`);
-        blocks.push(h("section", { class: "lab-card" }, h("h2", { class: "rq-sub", text: `${ex.id} · ${when(ex.created_at)}` }),
-          d.results.length ? h("ul", { class: "rq-audit" }, d.results.map((x) => h("li", {}, resultBadge(x.status), h("b", { text: x.test_case_id }),
-            h("span", { text: x.actual || x.reason || "" }), ...evidenceLinks(x),
-            x.run_folder ? h("a", { href: `/runs/${encodeURIComponent(x.run_folder)}/report.html`, target: "_blank", rel: "noopener", text: "report" }) : null))) : h("p", { class: "small", text: "No results." })));
-      }
-      box.replaceChildren(...kids(blocks.length ? blocks : h("p", { class: "small", text: "No finished requirement executions yet." })));
-    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
-  }
+  // -- traceability
   let trRows = [];
   async function traceabilityView() {
     const tbody = $("trTable").tBodies[0];
@@ -1270,14 +1333,485 @@
         h("td", { text: x.result.duration_s !== undefined ? `${x.result.duration_s} s` : "—" }), h("td", { text: x.actor }),
         h("td", { text: x.scope || "—" })))));
       if (!rows.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: "No imports yet." }))));
-    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 13, class: "rq-empty", text: e.message })))); }
+  }
+  async function auditView() {
     try {
-      const a = await api("/audit?limit=100");
+      const a = await api("/audit?limit=200");
       $("auditList").replaceChildren(...kids(...(a.events.length ? a.events.map((e) => h("li", {}, h("time", { text: when(typeof e.created_at === "number" ? e.created_at * 1000 : (e.created_at || e.at)) }),
         h("b", { text: e.action.replace("requirements.", "") }), e.allowed ? null : badge("refused", "bad"), h("span", { class: "small", text: `${e.actor}` })))
         : [h("li", { class: "small", text: "No events yet." })])));
     } catch (e) { $("auditList").replaceChildren(...kids(h("li", { class: "small", text: e.status === 403 ? "The audit trail is for administrators." : e.message }))); }
   }
+
+  // ---------------------------------------------------------------- the guided workflow (its draft is kept on the server)
+  // A draft holds what was chosen (requirements, test cases, strategy, target, execution id) - never a password or
+  // key. "Done" marks come from the stores (GET /workflow), never from "the page was opened". New Test = a new draft.
+  const WF = { draft: null, state: null, steps: [] };
+  const STEP_LABEL = { connect: "Connect Jira", import: "Import", explorer: "Requirements", analysis: "Analyze", reviews: "Review",
+    builder: "Test Cases", execution: "Execution", agents: "Live", reports: "Report" };
+  const STEP_VIEW = { connect: "integrations", import: "import", explorer: "explorer", analysis: "analysis", reviews: "reviews",
+    builder: "builder", execution: "execution", agents: "agents", reports: "reports" };
+  const VIEW_STEP = Object.fromEntries(Object.entries(STEP_VIEW).map(([k, v]) => [v, k]));
+  const LV = { id: "", job: null, cursor: "", follow: true, timer: null, workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} };
+  async function loadWorkflow() { const r = await api("/workflow"); WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps; return r; }
+  async function saveDraft(changes) {
+    try {
+      const r = await api("/workflow/draft", { method: "PUT", body: { draft_id: WF.draft ? WF.draft.id : "", changes } });
+      WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps;
+    } catch (e) {
+      if (e.status !== 409) throw e;
+      await loadWorkflow(); banner(e.message);
+    }
+    paintWorkflow();
+    return WF.draft;
+  }
+  async function refreshWorkflow() { try { await loadWorkflow(); paintWorkflow(); } catch (e) { /* the page itself still works */ } }
+  const draftReqs = () => (WF.draft && WF.draft.requirement_ids) || [];
+  const draftCases = () => (WF.draft && WF.draft.test_case_ids) || [];
+  function paintWorkflow() {
+    if (!WF.state) return;
+    const done = WF.state.done;
+    for (const link of navigation) {
+      const step = VIEW_STEP[link.dataset.view];
+      link.classList.toggle("done", Boolean(step && done[step]));
+      const name = link.querySelector(".rq-nav-text").textContent;
+      link.title = step && done[step] ? `${name} — done` : name;
+    }
+    const cur = VIEW_STEP[S.view];
+    $("wfSteps").hidden = !cur; $("wfNav").hidden = !cur;
+    if (!cur) return;
+    const idx = WF.steps.indexOf(cur);
+    const nDone = WF.steps.filter((s) => done[s]).length;
+    $("wfProgress").textContent = `Step ${idx + 1} of ${WF.steps.length} · ${nDone} of ${WF.steps.length} done`
+      + (draftReqs().length ? ` · ${draftReqs().join(", ")}` : "");
+    $("wfBar").style.width = `${Math.round((100 * nDone) / WF.steps.length)}%`;
+    $("wfList").replaceChildren(...WF.steps.map((s, i) => h("li", { class: `${done[s] ? "done" : ""} ${s === cur ? "current" : ""}`.trim() },
+      h("a", { href: `#${STEP_VIEW[s]}`, "aria-current": s === cur ? "step" : null, "aria-label": `${STEP_LABEL[s]}${done[s] ? " (done)" : ""}` },
+        h("span", { class: "n", "aria-hidden": "true", text: done[s] ? "✓" : String(i + 1) }), STEP_LABEL[s]))));
+    const prev = WF.steps[idx - 1];
+    $("wfBack").hidden = !prev;
+    $("wfBack").textContent = prev ? `Back: ${STEP_LABEL[prev]}` : "Back";
+    const nx = NEXT[cur];
+    $("wfNext").hidden = !nx;
+    if (nx) $("wfNext").textContent = nx.label();
+  }
+  function workflowChrome(view) {
+    $("wfMsg").textContent = ""; $("wfMsg").className = "small";
+    paintWorkflow();
+    if (VIEW_STEP[view]) refreshWorkflow();
+  }
+  function stop(text, href, action) {  // a missing prerequisite: say what and offer the way to fix it
+    const msg = $("wfMsg");
+    msg.className = "small bad";
+    msg.replaceChildren(...kids(text, href ? h("span", {}, " ", h("a", { href, text: action })) : null));
+    return true;
+  }
+  const NEXT = {
+    connect: { label: () => "Continue to Import", go: () => (WF.state.done.connect ? go("#import")
+      : stop("Connect Jira first: enter the site, the account email and an API token, then Connect.")) },
+    import: { label: () => "Continue to Requirements", go: () => (!WF.state.done.connect ? stop("Import needs a connected Jira site.", "#integrations", "Connect Jira")
+      : WF.state.imported ? go("#explorer") : stop("Import requirements first: choose the project or work items above, then Import & Continue.")) },
+    explorer: { label: () => "Analyze Selected Requirements", go: () => (WF.state.imported ? (draftReqs().length ? analyzeSelected(draftReqs())
+      : stop("Select at least one requirement: tick it in the table.")) : stop("No requirements imported yet.", "#import", "Import requirements")) },
+    analysis: { label: () => "Continue to Review", go: () => (!draftReqs().length ? stop("Select the requirements to analyse first.", "#explorer", "Choose requirements")
+      : WF.state.done.analysis ? go("#reviews") : stop("Analyse the selected requirements first (above).")) },
+    reviews: { label: () => "Generate Test Cases", go: () => generateForSelected() },
+    builder: { label: () => "Continue to Execution", go: () => (draftCases().some((c) => WF.state.runnable.includes(c)) ? go("#execution")
+      : stop(WF.state.runnable.length ? "Select the test cases to run (tick them in the table)." : "No approved test case yet.", WF.state.runnable.length ? null : "#reviews", "Review and generate")) },
+    execution: { label: () => "Run Tests", go: () => { $("exForm2").requestSubmit(); return false; } },
+    agents: { label: () => "View Report", go: () => (WF.state.execution && WF.state.done.agents ? go("#reports")
+      : stop(WF.state.execution ? "The test is still running: the report opens when it ends." : "No execution yet.", WF.state.execution ? null : "#execution", "Go to the Execution Center")) },
+  };
+  function go(hash) { location.hash = hash; return false; }
+  $("wfBack").addEventListener("click", () => {
+    const i = WF.steps.indexOf(VIEW_STEP[S.view]);
+    if (i > 0) location.hash = `#${STEP_VIEW[WF.steps[i - 1]]}`;
+  });
+  $("wfNext").addEventListener("click", async () => {
+    const nx = NEXT[VIEW_STEP[S.view]];
+    if (!nx) return;
+    $("wfMsg").textContent = ""; $("wfMsg").className = "small";
+    try { await refreshWorkflow(); await nx.go(); }
+    catch (e) { stop(e.message); }
+  });
+
+  // -- step 3: the requirements chosen in the explorer
+  async function connOf(keys) {  // requirement key -> its connection (from the imported items)
+    const map = {};
+    for (let page = 1; page < 50; page += 1) {
+      const r = await api(`/items?${new URLSearchParams({ kind: "jira_issue", size: 100, page, missing: true })}`);
+      r.items.forEach((it) => { map[it.key] = it.connection_id; });
+      if (page * r.size >= r.total) break;
+    }
+    return keys ? Object.fromEntries(keys.map((k) => [k, map[k]])) : map;
+  }
+  async function analyzeSelected(keys) {
+    await saveDraft({ requirement_ids: keys, step: "analysis" });
+    S.autoAnalyze = true;
+    location.hash = "#analysis";
+    return false;
+  }
+  $("exAnSel").addEventListener("click", () => analyzeSelected(draftReqs()));
+  $("exAnAll").addEventListener("click", async () => analyzeSelected(Object.keys(await connOf())));
+  $("exAllSel").addEventListener("change", async (e) => {
+    const keys = [...document.querySelectorAll("#exTable tbody input[data-key]")].map((x) => x.dataset.key);
+    const sel = new Set(draftReqs());
+    keys.forEach((k) => (e.target.checked ? sel.add(k) : sel.delete(k)));
+    await saveDraft({ requirement_ids: [...sel] }); explorer();
+  });
+  function selInfo() {
+    const n = draftReqs().length;
+    $("exSelInfo").textContent = n ? `${plural(n, "requirement")} selected: ${draftReqs().join(", ")}` : "No requirement selected.";
+    $("exAnSel").disabled = !n;
+  }
+
+  // -- step 4: analyse the selected requirements, then send their ideas to the Review Center
+  async function analysisFlow() {
+    const box = $("anFlow");
+    const keys = draftReqs();
+    if (!keys.length) { box.replaceChildren(h("div", { class: "rq-issue" }, "No requirement selected for this test. ", h("a", { href: "#explorer", text: "Choose requirements" }), ".")); return; }
+    const conns = await connOf(keys);
+    await refreshWorkflow();
+    const rows = {};
+    const list = h("div", { class: "rq-an-list" });
+    const status = h("p", { class: "small", role: "status", "aria-live": "polite" });
+    box.replaceChildren(h("section", { class: "lab-card" }, h("h2", { class: "rq-sub", text: `Selected requirements (${keys.length})` }), status, list));
+    for (const k of keys) { rows[k] = h("article", { class: "rq-review", "aria-label": k }, h("h3", { text: k }), h("p", { class: "small", text: "…" })); list.append(rows[k]); }
+    const auto = S.autoAnalyze; S.autoAnalyze = false;
+    let n = 0;
+    for (const k of keys) {
+      n += 1;
+      if (!conns[k]) { rows[k].lastChild.textContent = "Not imported in this workspace."; continue; }
+      let view = null;
+      if (((WF.state || {}).has_analysis || []).includes(k)) {  // (never ask for an analysis that does not exist yet)
+        try { view = await api(`/items/${encodeURIComponent(conns[k])}/${encodeURIComponent(k)}/analysis`); } catch (e) { view = null; }
+      }
+      if (!view || (view.stale_reasons || []).length || auto) {
+        if (!view || (view.stale_reasons || []).length) {
+          status.textContent = `Analysing ${k} (${n} of ${keys.length})…`;
+          try { view = await api(`/items/${encodeURIComponent(conns[k])}/${encodeURIComponent(k)}/analyze`, { method: "POST", body: { ai: "auto" } }); }
+          catch (e) { rows[k].replaceChildren(h("h3", { text: k }), h("p", { class: "rq-issue", role: "alert", text: e.message })); continue; }
+        }
+      }
+      if (!view) { rows[k].lastChild.textContent = "Not analysed yet."; continue; }
+      const s = view.summary, a = view.analysis;
+      const sugg = a.suggestions || [];
+      const pending = sugg.filter((x) => x.review === "needs_review").length;
+      rows[k].replaceChildren(...kids(h("h3", { text: `${k} — ${s.title}` }),
+        h("div", { class: "rq-row" }, badge(`${s.criteria.length} acceptance criteria`, "info"), badge(`${sugg.length} test suggestions`, "info"),
+          pending ? badge(`${pending} waiting for review`, "warn") : badge("all reviewed", "ok"),
+          s.issues.length ? badge(`${s.issues.length} missing / unclear`, "warn") : null, s.conflicts.length ? badge(`${s.conflicts.length} conflicts`, "bad") : null,
+          s.criteria.some((c) => !c.coverage) ? badge("coverage gaps", "warn") : null),
+        h("details", {}, h("summary", { text: "Criteria, suggestions and findings" }),
+          h("ul", { class: "rq-list" }, s.criteria.map((c) => h("li", { text: `${c.id.split("#")[1]}: ${c.text} (${c.from})` }))),
+          h("ul", { class: "rq-list" }, sugg.map((x) => h("li", { text: `${x.title} — ${x.kind}${x.expected_outcome ? `; expected: ${x.expected_outcome}` : ""}` }))),
+          s.issues.length ? h("ul", { class: "rq-list" }, s.issues.map((x) => h("li", { text: x }))) : null,
+          s.conflicts.length ? h("ul", { class: "rq-list" }, s.conflicts.map((x) => h("li", { text: x.summary }))) : null)));
+    }
+    status.textContent = "Analysis is done for the selected requirements. Their test suggestions are in the Review Center.";
+    await refreshWorkflow();
+  }
+
+  // -- step 5: generate test cases for the selected requirements' accepted ideas
+  async function generateForSelected() {
+    await refreshWorkflow();
+    const keys = WF.state.with_accepted;
+    if (!keys.length) return stop("Accept at least one test idea of the selected requirements first.");
+    if (WF.state.pending_reviews) return stop(`${plural(WF.state.pending_reviews, "idea")} still waiting: accept or reject them (or use Accept all / Reject all).`);
+    const conns = await connOf(keys);
+    const ids = [];
+    for (const k of keys) {
+      const r = await api(`/items/${encodeURIComponent(conns[k])}/${encodeURIComponent(k)}/test-cases`, { method: "POST" });
+      r.test_cases.filter((c) => runnable(c)).forEach((c) => ids.push(c.id));
+    }
+    await saveDraft({ test_case_ids: ids, step: "builder" });
+    X.selected = new Set(ids);
+    location.hash = "#builder";
+    return false;
+  }
+  $("rvGenerate").addEventListener("click", async () => { try { await generateForSelected(); } catch (e) { stop(e.message); } });
+  async function bulkReview(answer) {
+    const cards = (S.shownReviews || []).filter((x) => x.suggestion.review === "needs_review");
+    const out = $("rvScope");
+    let n = 0;
+    for (const x of cards) {
+      out.textContent = `${answer === "yes" ? "Accepting" : "Rejecting"} ${n + 1} of ${cards.length}…`;
+      try {
+        await api(`/items/${encodeURIComponent(x.connection_id)}/${encodeURIComponent(x.key)}/suggestions/${encodeURIComponent(x.suggestion.id)}/review`, { method: "POST", body: { answer } });
+        n += 1;
+      } catch (e) { out.textContent = e.message; return; }
+    }
+    reviews();
+  }
+  $("rvAcceptAll").addEventListener("click", () => bulkReview("yes"));
+  $("rvRejectAll").addEventListener("click", () => bulkReview("no"));
+
+  // -- step 7: the target of these requirements (found, several, or asked for) and its test account
+  const TG = { cand: null, account: false };
+  async function resolveTarget() {
+    const box = $("tgBox");
+    const reqs = [...new Set([...draftReqs(), ...draftCases().map((c) => c.replace(/^TC-/, "").replace(/-\d+$/, ""))])];
+    if ($("exUrl").value && WF.draft.target_url === $("exUrl").value) return;
+    try {
+      const r = await api(`/targets/resolve?${new URLSearchParams({ requirements: reqs.join(","), environment: $("exEnv").value })}`);
+      TG.projects = r.projects;
+      const pick = (c) => {
+        TG.cand = c; $("exUrl").value = c.url; TG.account = c.has_test_account;
+        saveDraft({ target_url: c.url, target_source: c.sources[0] });
+        accountUi();
+      };
+      if (WF.draft.target_url) {
+        $("exUrl").value = WF.draft.target_url;
+        const c = r.candidates.find((x) => x.url === WF.draft.target_url);
+        TG.account = Boolean(c && c.has_test_account); TG.cand = c || null;
+        box.replaceChildren(h("p", { class: "small" }, badge("chosen", "ok"), ` ${WF.draft.target_url} — ${WF.draft.target_source || (c ? c.sources[0] : "entered by you")}. You can change it below.`));
+      } else if (r.status === "found") {
+        const c = r.candidates.find((x) => x.authorized);
+        pick(c);
+        box.replaceChildren(h("p", { class: "small" }, badge("Target website found", "ok"), ` ${c.url} — from the ${c.sources.join("; ")}. You can change it below.`));
+      } else if (r.status === "multiple") {
+        box.replaceChildren(h("p", { class: "small", text: r.message }), h("div", { class: "rq-tg-cand", role: "radiogroup", "aria-label": "Possible websites" },
+          r.candidates.map((c) => h("label", {}, h("input", { type: "radio", name: "tgPick", value: c.url, onchange: () => pick(c) }),
+            h("span", {}, h("b", { text: c.url }), h("br"), h("small", { text: c.sources.join("; ") + (c.authorized ? "" : " — not yet confirmed: confirm the permission below") }))))),
+        h("p", { class: "small", text: "Or type another address below." }));
+        $("exUrl").value = "";
+      } else {
+        box.replaceChildren(h("p", { class: "rq-issue", role: "alert", text: "Target website not found. Please enter the website URL you want to test." }));
+        $("exUrl").value = "";
+      }
+    } catch (e) { box.replaceChildren(h("p", { class: "small", text: e.message })); }
+    accountUi();
+  }
+  function accountUi() {
+    const same = TG.cand && TG.cand.url === $("exUrl").value.trim();
+    const saved = Boolean(same && TG.account);
+    $("tgAccount").replaceChildren(...kids(saved ? h("p", { class: "small" }, badge("saved test account", "ok"),
+      " The project's saved test account for this website is used (encrypted; it is never shown). Type another below to use it instead.")
+      : h("p", { class: "small", text: "If the website needs a login, give the test account (used for this run only; tick 'remember' to keep it encrypted for this project). A website without a login needs none." })));
+  }
+  $("exUrl").addEventListener("change", () => { $("tgCheckOut").textContent = ""; accountUi(); if (WF.draft) saveDraft({ target_url: $("exUrl").value.trim(), target_source: "entered by you" }); });
+  async function checkTarget() {
+    const out = $("tgCheckOut");
+    const url = $("exUrl").value.trim();
+    if (!url) { out.textContent = "Enter the website address first."; return null; }
+    out.textContent = "Checking the website…";
+    const r = await api("/targets/check", { method: "POST", body: { url } });
+    out.replaceChildren(...kids(r.ok ? badge("reachable", "ok") : badge(r.kind.replace("_", " "), "bad"), ` ${r.message}`));
+    return r;
+  }
+  $("tgCheck").addEventListener("click", () => checkTarget().catch((e) => { $("tgCheckOut").textContent = e.message; }));
+  $("exEnv").addEventListener("change", () => { if (WF.draft) saveDraft({ environment: $("exEnv").value, target_url: "" }).then(() => resolveTarget()); });
+  function execSummary() {
+    const reqs = draftReqs(), cases = draftCases();
+    const strategy = document.querySelector("input[name=exStrategy]:checked").value;
+    $("exSelCount").textContent = cases.length;
+    $("xcSummary").replaceChildren(...kids(
+      strategy === "autonomous" ? h("p", { class: "small", text: "Autonomous testing: no Jira requirement is needed. Qpilot explores the website and tests what it finds." })
+        : [h("span", { class: "small", text: "Requirements:" }), reqs.length ? reqs.map((k) => h("span", { class: "rq-chip", text: k })) : h("a", { href: "#explorer", text: "choose requirements" }),
+          h("span", { class: "small", text: "Test cases:" }), cases.length ? cases.map((c) => h("span", { class: "rq-chip", text: c })) : h("a", { href: "#builder", text: "select test cases" }),
+          cases.length ? h("span", { class: "small", text: `(${plural(cases.length, "test case")}; criteria: ${(S.caseCriteria || []).join(", ") || "—"})` }) : null]));
+  }
+
+  // -- step 8: live execution (the run's real events, agents and screens; only the panels scroll)
+  async function liveView() {
+    await refreshWorkflow();
+    let id = WF.draft && WF.draft.execution_id;
+    if (!id) {
+      const r = await api("/executions?limit=10");
+      const run = r.executions.find((x) => ["running", "queued"].includes(x.status));
+      id = run ? run.id : "";
+    }
+    const box = $("liveBox");
+    if (!id) {
+      $("liveCtrl").replaceChildren(h("button", { type: "button", class: "primary", "data-newtest": "", text: "+ New Test" }));
+      box.replaceChildren(h("div", { class: "lab-card" }, h("p", { class: "small", text: "No test of this workflow is running." }), h("a", { href: "#execution", text: "Go to the Execution Center" })));
+      return;
+    }
+    if (LV.id !== id) {
+      Object.assign(LV, { id, job: null, cursor: "", follow: true, workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
+      box.replaceChildren(h("div", { class: "rq-live-grid" },
+        h("section", { class: "rq-panel", "aria-labelledby": "lvScTitle" }, h("h2", { id: "lvScTitle", text: "Scenarios" }), h("div", { class: "rq-panel-body", id: "lvCases" })),
+        h("section", { class: "rq-panel", "aria-labelledby": "lvBrTitle" }, h("h2", { id: "lvBrTitle" }, "Browser", h("span", { class: "small", id: "lvUrl" })), h("div", { class: "rq-panel-body rq-screen", id: "lvScreens" }, h("p", { class: "small", text: "The browser screen appears when the run opens the website." }))),
+        h("section", { class: "rq-panel", "aria-labelledby": "lvAgTitle" }, h("h2", { id: "lvAgTitle", text: "Agents" }), h("div", { class: "rq-panel-body", id: "lvAgents" }))),
+      h("div", { class: "rq-logwrap" }, h("section", { class: "rq-panel", "aria-labelledby": "lvLogTitle" },
+        h("h2", { id: "lvLogTitle" }, "Activity log", h("label", { class: "rq-check small" }, h("input", { type: "checkbox", id: "lvFollow", checked: true, onchange: (e) => { LV.follow = e.target.checked; if (LV.follow) jumpLatest(); } }), " follow new events")),
+        h("div", { class: "rq-panel-body", id: "lvLogBody", onscroll: logScrolled }, h("ul", { class: "rq-log", id: "lvLog" }))),
+        h("button", { type: "button", class: "secondary rq-jump", id: "lvJump", hidden: true, text: "Jump to latest", onclick: () => { LV.follow = true; $("lvFollow").checked = true; jumpLatest(); } })));
+    }
+    liveTick();
+  }
+  function logScrolled() {
+    const b = $("lvLogBody");
+    const atBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 24;
+    if (!atBottom && LV.follow) { LV.follow = false; $("lvFollow").checked = false; }
+    $("lvJump").hidden = atBottom;
+  }
+  function jumpLatest() { const b = $("lvLogBody"); if (b) { b.scrollTop = b.scrollHeight; $("lvJump").hidden = true; } }
+  async function liveTick() {
+    clearTimeout(LV.timer);
+    if (S.view !== "agents" || !LV.id) return;
+    const id = LV.id;
+    try {
+      const d = await api(`/executions/${encodeURIComponent(id)}`);
+      if (LV.id !== id) return;  // (a newer test was started: this answer is old)
+      const ex = d.execution, live = d.live || {};
+      const running = ["running", "queued"].includes(ex.status);
+      LV.job = ex.run_id;
+      const counts = ex.counts || {};
+      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${(ex.target || {}).url || ""} · `, statusBadge(running ? "running" : ex.status === "finished" ? "complete" : ex.status),
+        live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : ""));
+      $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),
+        running ? badge(`${ex.case_ids.length} scenario(s) in this run`, "info") : null),
+        running ? h("button", { type: "button", class: "secondary", text: "Cancel", onclick: async () => { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); liveTick(); } }) : null,
+        !running ? h("a", { class: "primary rq-action-link", href: "#reports", text: "View Report" }) : null,
+        !running ? h("button", { type: "button", class: "secondary", "data-newtest": "", text: "+ New Test" }) : null));
+      const byCase = Object.fromEntries((d.results || []).map((r) => [r.test_case_id, r]));
+      const testing = /^(execution|self_healing)$/.test(live.current || "");  // (exploring first: the cases wait)
+      $("lvCases").replaceChildren(h("ul", { class: "rq-audit" }, ex.case_ids.map((c) => h("li", {}, h("b", { text: c }),
+        byCase[c] ? resultBadge(byCase[c].status) : badge(!running ? "—" : testing ? "running" : `waiting (${live.current || "starting"})`, "info"),
+        byCase[c] && (byCase[c].actual || byCase[c].reason) ? h("span", { class: "small", text: byCase[c].actual || byCase[c].reason }) : null))));
+      if (LV.job && /^\d+$/.test(String(LV.job))) await liveRun(LV.job, running);
+      if (running) LV.timer = setTimeout(liveTick, 1500);
+      else refreshWorkflow();
+    } catch (e) { $("liveSub").textContent = e.message; LV.timer = setTimeout(liveTick, 4000); }
+  }
+  async function liveRun(job, running) {
+    try {
+      const ev = await api(`/api/runs/${job}/events?${new URLSearchParams({ after: LV.cursor, limit: 300 })}`);
+      const log = $("lvLog"), body = $("lvLogBody");
+      const stick = LV.follow && body.scrollHeight - body.scrollTop - body.clientHeight < 24;
+      for (const e of ev.events || []) {
+        if (LV.seen.has(e.id)) continue;
+        LV.seen.add(e.id);
+        log.append(h("li", { class: e.status }, `${new Date(e.timestamp * 1000).toLocaleTimeString()} ${e.worker} · ${e.test} · ${e.text} (${e.status})`));
+        if (e.url && e.url !== "about:blank") $("lvUrl").textContent = ` · ${e.url}`;
+        if (e.worker && e.worker !== "main" && e.frame != null) {  // (the worker saved a real screen with this event)
+          if (!LV.workers.includes(e.worker)) LV.workers.push(e.worker);
+          LV.framed[e.worker] = e.id;
+        }
+      }
+      while (log.children.length > 2000) log.firstChild.remove();  // (thousands of events: keep the page fast)
+      if (ev.cursor) LV.cursor = ev.cursor;
+      if (stick || (LV.follow && (ev.events || []).length)) jumpLatest();
+      else if ((ev.events || []).length) $("lvJump").hidden = false;
+    } catch (e) { /* (events start once the run has a folder) */ }
+    try {
+      const ag = await api(`/api/runs/${job}/agents`);
+      $("lvAgents").replaceChildren(h("ul", { class: "rq-audit" }, (ag.agents || []).map((a) => h("li", {}, h("b", { text: a.name }),
+        badge(a.status, { completed: "ok", running: "info", failed: "bad", skipped: "" }[a.status] || ""), a.detail ? h("span", { class: "small", text: a.detail }) : null))));
+    } catch (e) { /* (no agents yet) */ }
+    const workers = running ? LV.workers.slice(-2) : LV.workers.slice(-1);
+    for (const w of workers) {
+      if (LV.shown[w] === LV.framed[w]) continue;  // (only a new frame is loaded)
+      LV.shown[w] = LV.framed[w];
+      try {
+        const res = await fetch(`/api/runs/${job}/live/${encodeURIComponent(w)}?t=${Date.now()}`, { headers: { "X-Agentic-QA": "1", ...(S.auth ? { Authorization: `Bearer ${S.auth}` } : {}) } });
+        if (!res.ok) continue;
+        const url = URL.createObjectURL(await res.blob());
+        if (LV.frames[w]) URL.revokeObjectURL(LV.frames[w].src);
+        if (!LV.frames[w]) {
+          const img = h("img", { alt: `Live screen of ${w}` });
+          LV.frames[w] = img;
+          if ($("lvScreens").querySelector("p")) $("lvScreens").replaceChildren();
+          $("lvScreens").append(h("figure", {}, img, h("figcaption", { text: `${w} — the real browser of the run` })));
+        }
+        LV.frames[w].src = url;
+      } catch (e) { /* (no screen yet) */ }
+    }
+  }
+
+  // -- step 9: reports of real executions (kept; never overwritten), coverage and history
+  async function reportsView() {
+    await refreshWorkflow();
+    const r = await api("/executions?limit=50");
+    const finished = r.executions;
+    const id = S.reportId || (WF.draft && WF.draft.execution_id) || (finished.find((x) => !["running", "queued"].includes(x.status)) || {}).id;
+    $("rpHistory").tBodies[0].replaceChildren(...kids(finished.map((ex) => h("tr", { class: ex.id === id ? "current" : "" },
+      h("td", {}, h("button", { class: "rq-open", type: "button", text: ex.id, onclick: () => { S.reportId = ex.id; reportsView(); } })),
+      h("td", { text: ex.strategy }), h("td", { text: (ex.target || {}).url || "" }), h("td", { text: ex.case_ids.length }),
+      h("td", {}, statusBadge({ finished: "complete", running: "running", queued: "running", stopped: "cancelled", failed: "failed" }[ex.status] || ex.status)),
+      h("td", { text: Object.entries(ex.counts || {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—" }),
+      h("td", { text: when(ex.created_at) }), h("td", { text: ex.finished_at && ex.created_at ? `${Math.round((new Date(ex.finished_at) - new Date(ex.created_at)) / 1000)} s` : "—" })))));
+    if (!finished.length) $("rpHistory").tBodies[0].append(h("tr", {}, h("td", { colspan: 8, class: "rq-empty", text: "No executions yet." })));
+    coverageView();
+    if (!id) { $("rpBox").replaceChildren(h("div", { class: "lab-card" }, h("p", { class: "small", text: "No execution yet: a report appears after a test has run." }), h("a", { href: "#execution", text: "Go to the Execution Center" }))); return; }
+    const d = await api(`/executions/${encodeURIComponent(id)}`);
+    const ex = d.execution, res = d.results || [];
+    const count = (s) => res.filter((x) => x.status === s).length;
+    const reqs = [...new Set(ex.case_ids.map((c) => c.replace(/^TC-/, "").replace(/-\d+$/, "")))];
+    let trace = [], defects = [];
+    try { trace = (await api("/traceability")).rows.filter((x) => reqs.includes(x.requirement)); } catch (e) { /* (shown as none) */ }
+    try { defects = (await api("/defects")).defects.filter((x) => ex.case_ids.includes(x.test_case_id)); } catch (e) { /* (shown as none) */ }
+    const run = (res.find((x) => x.run_folder) || {}).run_folder || "";
+    const shots = res.flatMap((x) => (x.evidence || []).filter((e) => /\.(png|jpe?g)$/i.test(e)).map((e) => ({ e, x })));
+    const tile = (n, label, kind = "") => h("div", { class: `rq-stat ${kind}` }, h("b", { text: n }), h("span", { text: label }));
+    const failedIds = res.filter((x) => ["Failed", "Blocked", "Flaky"].includes(x.status)).map((x) => x.test_case_id);
+    $("rpBox").replaceChildren(...kids(h("section", { class: "lab-card" },
+      h("div", { class: "rq-head-row" }, h("div", {}, h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.strategy}` }),
+        h("p", { class: "small", text: `${(ex.target || {}).url || ""} · started ${when(ex.created_at)}${ex.finished_at ? ` · ended ${when(ex.finished_at)}` : ""} · by ${ex.actor} · ${reqs.join(", ")}` })),
+        h("div", { class: "rq-row" },
+          h("button", { type: "button", class: "secondary", text: "Rerun Failed Tests", disabled: !failedIds.length, onclick: async () => { await saveDraft({ test_case_ids: failedIds, execution_id: "" }); S.presetScope = "selected"; location.hash = "#execution"; } }),
+          h("button", { type: "button", class: "secondary", text: "Run Impacted Tests", onclick: () => { S.presetScope = "impacted"; location.hash = "#execution"; } }),
+          h("button", { type: "button", class: "secondary", text: "Export Report", onclick: () => {
+            const blob = new Blob([JSON.stringify({ execution: ex, results: res, traceability: trace, defects }, null, 2)], { type: "application/json" });
+            const a = h("a", { href: URL.createObjectURL(blob), download: `${ex.id}-report.json` }); document.body.append(a); a.click(); a.remove(); } }),
+          h("a", { href: "#rpHistTitle", class: "secondary rq-action-link", text: "View Execution History" }))),
+      h("div", { class: "rq-stats" }, tile(count("Passed"), "passed", "ok"), tile(count("Failed") + count("Flaky"), "failed", count("Failed") ? "bad" : ""),
+        tile(count("Blocked"), "blocked", count("Blocked") ? "bad" : ""), tile(count("Not automated") + count("Not run") + count("Cancelled"), "skipped / not run", ""),
+        tile((ex.exploratory || {}).cases || 0, "exploratory (not from requirements)")),
+      h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" }, h("caption", { class: "rq-sr", text: "Results per test case" }),
+        h("thead", {}, h("tr", {}, ["Test case", "Requirement", "Result", "Assertions", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
+        h("tbody", {}, res.map((x) => {
+          const row = trace.find((t) => t.test_case === x.test_case_id) || {};
+          return h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: x.test_case_id, onclick: () => tcDetail(x.test_case_id) })),
+            h("td", { text: row.requirement ? `${row.requirement} ${String(row.criterion || "").split("#")[1] || ""}` : "" }),
+            h("td", {}, resultBadge(x.status)),
+            h("td", { text: x.checks ? `${x.checks} check(s); expected: ${x.expected || "—"}` : x.expected || "—" }),
+            h("td", { text: x.actual || x.reason || "" }), h("td", {}, ...evidenceLinks(x)));
+        })))),
+      shots.length ? h("div", {}, h("h3", { class: "rq-sub", text: "Screenshots" }), h("div", { class: "rq-rp-shots" }, shots.slice(0, 12).map(({ e, x }) => h("a", { href: `/runs/${encodeURIComponent(x.run_folder)}/${e.split("/").map(encodeURIComponent).join("/")}`, target: "_blank", rel: "noopener" },
+        h("img", { src: `/runs/${encodeURIComponent(x.run_folder)}/${e.split("/").map(encodeURIComponent).join("/")}`, alt: `${x.test_case_id} ${x.status}`, loading: "lazy" }))))) : null,
+      h("p", { class: "small" }, run ? h("span", {}, h("a", { href: `/runs/${encodeURIComponent(run)}/report.html`, target: "_blank", rel: "noopener", text: "Full Qpilot report (logs, traces, all checks)" }), " · ") : null,
+        h("a", { href: "#traceability", text: `Traceability (${trace.length} row(s))` }), " · ",
+        h("a", { href: "#writeback", text: `Defects (${defects.length})` }), defects.length ? ` — ${defects.map((x) => `${x.id} ${x.status}`).join(", ")}` : ""))));
+  }
+
+  // -- New Test: a fresh draft; reports, requirements and test cases are kept
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-newtest]"); if (b) { e.preventDefault(); openNewTest(); } });
+  async function openNewTest() {
+    const box = $("ntRunning");
+    box.hidden = true;
+    try {
+      const r = await api("/executions?limit=10");
+      const run = r.executions.find((x) => ["running", "queued"].includes(x.status));
+      if (run) {
+        box.hidden = false;
+        box.replaceChildren(h("b", { text: `${run.id} is still running. ` }), "It keeps running while you start a new test. ",
+          h("a", { href: "#agents", text: "Continue watching it", onclick: async () => { $("newTest").close(); await saveDraft({ execution_id: run.id }); } }), " · ",
+          h("button", { type: "button", class: "secondary", text: "Cancel it", onclick: async () => { await api(`/executions/${encodeURIComponent(run.id)}/cancel`, { method: "POST" }); box.textContent = `${run.id} is being cancelled.`; } }));
+      }
+    } catch (e) { /* (the choices still work) */ }
+    $("newTest").showModal();
+  }
+  document.querySelectorAll("[data-nt]").forEach((b) => b.addEventListener("click", async () => {
+    const kind = b.dataset.nt;
+    if (kind === "android") { location.href = "/?target=android"; return; }
+    const old = WF.draft || {};
+    const start = { existing: { step: "explorer" }, import: { step: "import" },
+      website: { step: "execution", requirement_ids: old.requirement_ids || [], test_case_ids: old.test_case_ids || [] },
+      autonomous: { step: "execution", strategy: "autonomous" }, hybrid: { step: "explorer", strategy: "hybrid" } }[kind];
+    const r = await api("/workflow/new", { method: "POST", body: { changes: start } });
+    WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps;
+    X.selected = new Set(start.test_case_ids || []); S.reportId = null; S.presetScope = null;
+    Object.assign(LV, { id: "", job: null, cursor: "", workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
+    TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false;
+    $("tgCheckOut").textContent = ""; $("xcStatus").textContent = ""; $("exDetail").replaceChildren();
+    $("newTest").close();
+    banner(`New test started (${r.draft.id}). Earlier reports are kept in Reports.`, true);
+    const hash = `#${STEP_VIEW[start.step] || start.step}`;
+    if (location.hash === hash) route(); else location.hash = hash;
+  }));
 
   // ---------------------------------------------------------------- start
   async function start() {
@@ -1285,6 +1819,7 @@
       S.caps = await api("/capabilities");
       $("who").textContent = `Signed in as ${S.caps.actor}${S.caps.tenant !== "local" ? " · " + S.caps.tenant : ""}`;
     } catch (e) { if (e.status !== 401) banner(e.message); return; }
+    await refreshWorkflow();
     route();
   }
   start();

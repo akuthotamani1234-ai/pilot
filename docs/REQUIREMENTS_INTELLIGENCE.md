@@ -560,6 +560,82 @@ The AI writes the code anew each run, so a cheaper model can still vary; a stron
 **Live Jira (QPL-2..QPL-6, sync, Confluence):** not run. It needs a read token for the site, which was not provided;
 the opt-in test `tests/test_live_jira_acceptance.py` is ready (see Milestone 4).
 
+## The guided Jira workflow (Jira workspace)
+
+The page at `/requirements` is called **Jira** everywhere a person reads it (routes, API paths and identifiers are
+unchanged). Its sidebar group, in order: Overview, Integrations, Import Requirements, Requirements Explorer, Analyze
+Requirements, Review Center, Test Cases, Execution Center, Live Execution, Reports, Traceability Matrix, Defects,
+Confluence, Sync History, Audit Trail. The group collapses (remembered per browser), scrolls on its own, and a ✓
+marks a step the STORES say is complete (`backend/atlassian/workflow.state`), never "the page was visited".
+
+**One continuous test.** A step indicator with progress, Back / Next buttons and a server-side draft
+(`req_workflow_drafts`, one per person and tenant: requirement ids, test case ids, strategy, target, environment,
+execution id, step - never a secret) carry the test from step to step and across reloads:
+Connect → Import & Continue (the Explorer opens with what was imported selected) → Analyze Selected / Analyze All
+(criteria, suggestions, missing information, conflicts, coverage gaps) → Continue to Review (accept / correct /
+reject, bulk accept / reject of what is shown) → Generate Test Cases (the selected requirements' accepted ideas) →
+Continue to Execution / Run Selected Tests (the selection is saved first) → Run Tests (the Live Execution view opens
+by itself: real events, agents and browser frames of the run) → View Report.
+
+**New Test** (Overview, Execution Center, the finished Live view, Reports): existing requirements, import new ones,
+a different website, Android, autonomous or hybrid. It starts a fresh draft (`POST /api/requirements/workflow/new`,
+audited); executions, reports, requirements and test cases are all kept. A late change for the old draft (another
+tab) is refused with 409.
+
+**Target detection** (`GET /api/requirements/targets/resolve`): candidates with their source - the project's saved
+target (authorized), a website an earlier execution of these requirements used (authorized when that run started),
+an address written in the requirement text (a candidate only: it must be confirmed). Jira, Confluence, GitHub /
+GitLab / Bitbucket, documentation and image links are never candidates. Outcomes: found; several (choose one);
+not found ("Target website not found. Please enter the website URL you want to test."); and before every run
+`POST /targets/check` sends one plain GET and classifies an unusable address as invalid, dns, tls, timeout,
+connection, unavailable (5xx - availability, never a test result) or not_found; nothing runs then and the selection
+is kept. Nothing is tested without the "I own it / I have permission" confirmation.
+
+**Saved target and test account** (`PUT /targets`, needs `run.write` and the authorization): the website per Jira
+project and environment; the optional test account is kept in the owner-only credentials file
+(`credentials.set_account`: DPAPI on Windows, chmod 600 elsewhere), never in the requirements database and never
+returned. A run without typed credentials uses the saved account only for that same address; typed credentials win;
+another address never receives it. Jira tokens are never sent to the application under test.
+
+**Specific scenarios.** Rule-based ideas name what they check with executable steps: "Verify sorting by Price (low to
+high)" → open the list, locate the sort control, select the option, read the prices, compare with ascending numeric
+order; listing, login and quoted-message criteria likewise. A negative idea is made only for a stated constraint
+(required, only, at least / at most, must not, cannot ...), never by reversing a behaviour.
+
+**Prerequisites.** A requirement test whose subject is not the login, failing with an authentication, test-data /
+precondition or infrastructure failure, is recorded **Blocked** ("Blocked: a prerequisite failed (...)"), not Failed;
+a login test failing at the login stays Failed. The engine logs in with the test account before non-login tests.
+
+**Live QPL-3 run, attempt 1 (24 Nov 2026, `runs/www.saucedemo.com_20261124_170641` and `..._170808`):** the guided
+UI worked end to end (import → analysis → review → test cases → target not found → unreachable address refused →
+run → live view → report → New Test → target found from the saved project target → second run with the saved
+account), but all three tests were reported **Blocked**, and that was wrong. The AI-written code opened
+`https://example.com/inventory_html` (an invented address the run's browser refuses), used invented class selectors
+(`.product-name`), and marked the logged-in cases `guest`. Failure analysis called it "Infrastructure", and the new
+Blocked rule then hid a test defect. Root cause: SauceDemo answers `/inventory.html` with HTTP 404 and renders it
+(a single-page app); test design already treats such a proven rendered page as a page (`page_testable`), but the
+script writer dropped every page >= 400, so the AI was given no page at all and invented one. Fixed at the causes:
+the script writer uses `page_testable` too and never asks the AI without an explored page; grounding refuses a `page.goto` to an unexplored website and
+`.class` selectors seen on no page; a logged-in case written as `guest` is refused (one repair, then Not automated);
+an off-site navigation is a test-script defect; and Blocked never applies to it.
+
+**Attempt 3** (`..._171644`, `..._171846`): the AI now saw the pages; its guessed class selectors were refused
+(Not automated, honestly) and one sort test read items by fixed ids (Failed, classified "test mistake"). The page
+model already held the product cards (`itemLinks.selector`), but neither the AI's page data nor grounding had them:
+both do now, and the prompt says to read cards in the order shown, never fixed ids, for an order check.
+
+**Attempt 4** (`runs/www.saucedemo.com_20261124_172234`, execution EX-3addbd3e30): **3 of 3 Passed** on the real site
+with real assertions - 6 product cards each with a name and a `$` price; prices read after choosing "Price (low to
+high)" equal their ascending sort; names after "Name (Z to A)" equal their reverse sort. The tests ran logged in
+(the discovery log shows the login evidence; the inventory page needs it). New Test → target found from the saved
+project target → run without typing credentials (saved account reused) (`..._172406`, EX-d924663d2c): 2 Passed,
+TC-QPL-3-1 **Failed** - that run's AI code could not parse a card ("Product name and price not found"); failure
+analysis checked the screen and calls it a test mistake. Both reports are kept in Reports / history. The AI writes
+the code anew on each run, so results with `gpt-4o-mini` can vary between runs.
+
+Tests: `tests/test_jira_workflow.py` (draft, New Test, cases A-D, saved account reuse, link exclusions, Blocked,
+scenarios) and `tests/test_requirements_ui.py` (the guided flow in Chromium, 15-item menu, phone width).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |

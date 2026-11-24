@@ -428,6 +428,89 @@ def _fingerprint(criterion: AcceptanceCriterion, kind: str, title: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:20]
 
 
+SORT = re.compile(r"\bsort(?:s|ed|ing)?\b(?:\s+\w+){0,4}?\s+by\s+(?P<field>[\w ]{2,30}?)\s*\((?P<order>[^)]{2,30})\)",
+                  re.I)
+SORT_PLAIN = re.compile(r"\bsort(?:s|ed|ing)?\b(?:\s+\w+){0,4}?\s+by\s+(?P<field>[a-z][\w ]{1,30}?)"
+                        r"(?:\s+in)?\s+(?P<order>ascending|descending|alphabetical|reverse alphabetical)", re.I)
+LISTS = re.compile(r"\b(?P<page>[\w ]{2,30}?)\s+(?:page\s+)?(?:lists?|shows?|displays?)\s+(?:every|each|all)\s+"
+                   r"(?P<item>[a-z]+?)s?\s+with\s+(?:its|their)\s+(?P<fields>[\w ,]+?)\s*\.?$", re.I)
+LOGIN_OK = re.compile(r"\b(valid|correct)\b.*\b(user ?name|email|credentials?)\b.*\b(password)?", re.I)
+QUOTED = re.compile(r"[\'\"“‘](?P<msg>[^\'\"”’]{3,200})[\'\"”’]")
+CONSTRAINT = re.compile(r"\b(?:is required|are required|required|mandatory|must not|shall not|cannot|can not|"
+                        r"is not allowed|are not allowed|only|at least|at most|maximum|minimum|no more than|"
+                        r"no fewer than|up to)\b", re.I)
+
+
+def _descending(order: str) -> bool:
+    o = order.lower()
+    return any(w in o for w in ("high to low", "z to a", "z-a", "descending", "reverse", "newest", "largest"))
+
+
+def specific_scenario(c: AcceptanceCriterion) -> tuple[str, list[str], str]:
+    """A specific, executable scenario for one criterion: a title naming what is checked, concrete steps and the
+    expected result in the criterion's own words. Recognises sorting, listing, login and quoted messages; anything
+    else keeps the criterion's own given / when / then."""
+    text = c.text.strip().rstrip(".")
+    expected = c.then or c.text
+    m = SORT.search(text) or SORT_PLAIN.search(text)
+    if m:
+        field, order = m["field"].strip(), m["order"].strip()
+        label = f"{field} ({order})" if SORT.search(text) else f"{field} {order}"
+        kind = "numeric" if re.search(r"price|cost|amount|total|number|qty|quantity|rating", field, re.I) else "text"
+        direction = "descending" if _descending(order) else "ascending"
+        what = f"{field.lower()}s" if not field.lower().endswith("s") else field.lower()
+        steps = [f"Given {c.given}" if c.given else "Open the page that lists the items",
+                 "Locate the sort control", f"Select '{label}'",
+                 f"Read the {what} of the items in the order shown",
+                 f"Compare them with the same {what} sorted in {direction} {'numeric' if kind == 'numeric' else 'alphabetical'} order"]
+        return (f"Verify sorting by {label}", steps, expected)
+    m = LISTS.search(text)
+    if m:
+        fields = [f.strip() for f in re.split(r",|\band\b", m["fields"]) if f.strip()]
+        item = m["item"].strip()
+        steps = [f"Given {c.given}" if c.given else "Open the " + re.sub(r"^the\s+", "", m["page"].strip(), flags=re.I).lower() + " page",
+                 f"Count the {item}s shown"] + [f"Check every {item} shows its {f}" for f in fields]
+        return (f"Verify every {item} is listed with its {' and '.join(fields)}", steps, expected)
+    q = QUOTED.search(text)
+    if q and re.search(r"\b(log ?in|sign ?in|password|user ?name)\b", text, re.I):
+        steps = ["Open the login page", "Type the test account's user name", "Type a password that is not the "
+                 "test account's password", "Submit the login form", "Read the message shown"]
+        return (f"Verify the message '{q['msg']}' for a wrong password", steps, expected)
+    if LOGIN_OK.search(text) and re.search(r"\b(log ?in|sign ?in|taken to|redirect|lands?|opens?)\b", text, re.I):
+        steps = ["Open the login page", "Type the test account's user name", "Type the test account's password",
+                 "Submit the login form", "Check the page that opens"]
+        dest = re.search(r"\b(?:taken to|redirected to|lands? on|opens?)\s+(?:the\s+)?(?P<d>[\w ]{2,40})", text, re.I)
+        return ((f"Verify a valid login opens the {dest['d'].strip()}" if dest else "Verify login with a valid account"),
+                steps, expected)
+    if q:
+        steps = [s for s in (f"Given {c.given}" if c.given else "", f"When {c.when}" if c.when else "") if s] \
+            or ["Open the page where this applies", f"Do what makes the message appear: {text}"]
+        return (f"Verify the message '{q['msg']}' is shown", steps + ["Read the message shown"], expected)
+    steps = [s for s in (f"Given {c.given}" if c.given else "", f"When {c.when}" if c.when else "") if s] \
+        or ["Open the page where this applies", f"Use the feature as described: {text}"]
+    return (f"Verify: {text}", steps + [f"Check that {expected[0].lower() + expected[1:]}"], expected)
+
+
+def constraint_violation(c: AcceptanceCriterion) -> tuple[str, list[str]] | None:
+    """A negative idea only for a real constraint the criterion states (required, only, at least / most, must not,
+    cannot ...); never by simply reversing a criterion that describes behaviour."""
+    m = CONSTRAINT.search(c.text)
+    if not m:
+        return None
+    word = m.group(0).lower()
+    text = c.text.strip().rstrip(".")
+    if word in ("required", "is required", "are required", "mandatory"):
+        return (f"Leave out what is required: {text}", ["Fill in everything else", "Leave the required value empty",
+                                                         "Submit", "Check it is refused and nothing is saved"])
+    if word in ("must not", "shall not", "cannot", "can not", "is not allowed", "are not allowed"):
+        return (f"Try what is not allowed: {text}", ["Attempt the action the criterion forbids",
+                                                      "Check it is refused and nothing changes"])
+    if word == "only":
+        return (f"Try outside what is allowed: {text}", ["Use a value or user outside the allowed set",
+                                                          "Check it is refused"])
+    return (f"Go past the limit: {text}", ["Use a value just past the stated limit", "Check it is refused"])
+
+
 def rule_suggestions(requirement: Requirement, blocked: set[str]) -> list[dict]:
     """Test ideas from fixed templates. Only the positive check of a criterion can be EXPLICIT (its own words);
     negative, boundary and security ideas are INFERRED and say so."""
@@ -436,16 +519,15 @@ def rule_suggestions(requirement: Requirement, blocked: set[str]) -> list[dict]:
         if c.id in blocked or not c.usable:
             continue
         quote = c.citations[0].quote
-        steps = [s for s in (f"Given {c.given}" if c.given else "", f"When {c.when}" if c.when else "") if s]
-        expected = c.then or c.text
-        out.append({"criterion": c, "kind": ScenarioKind.positive, "title": f"Check: {c.text}"[:300], "steps": steps,
+        title, steps, expected = specific_scenario(c)
+        out.append({"criterion": c, "kind": ScenarioKind.positive, "title": title[:300], "steps": steps,
                         "expected_outcome": expected, "basis": Basis.explicit, "support_quote": quote,
                         "note": "expected outcome quoted from the source"})
-        if SHALL.search(c.text) or re.search(r"\b(required|only|at least|at most|maximum|minimum)\b",
-                                             c.text, re.I):
-            out.append({"criterion": c, "kind": ScenarioKind.negative, "title": f"Break the rule: {c.text}"[:300],
-                            "steps": ["Do what the criterion forbids or leave out what it requires"],
-                            "expected_outcome": "", "basis": Basis.inferred, "support_quote": "",
+        negative = constraint_violation(c)
+        if negative:
+            out.append({"criterion": c, "kind": ScenarioKind.negative, "title": negative[0][:300],
+                            "steps": negative[1], "expected_outcome": "", "basis": Basis.inferred,
+                            "support_quote": "",
                             "note": "inferred: the source does not say how a violation is reported"})
         for unit, n, kind in _limits(c.text):
             if kind == "min" or (not kind and unit in ("characters", "digits", "items")):

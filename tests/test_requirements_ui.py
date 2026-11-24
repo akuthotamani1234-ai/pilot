@@ -133,9 +133,14 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(page.locator("#impResult")).to_contain_text("2new")
         expect(page.locator("#impResult")).to_contain_text("4criteria found")
         assert studio.mock.issues  # (unticked QPL-3 was not imported:)
-        page.click("#toAnalyze")
-        page.click("#anRun")
-        expect(page.locator("#anStatus")).to_contain_text("2 requirements analysed")
+        # Import & Continue: the Explorer opens with what was just imported already selected
+        expect(page).to_have_url(re.compile(r"#explorer$"))
+        expect(page.locator("#exSelInfo")).to_contain_text("2 requirements selected")
+        page.click("#exAnSel")  # Analyze Selected: the Analyze step opens and analyses them
+        expect(page).to_have_url(re.compile(r"#analysis$"))
+        expect(page.locator("#anFlow")).to_contain_text("Analysis is done for the selected requirements", timeout=15000)
+        expect(page.locator("#anFlow")).to_contain_text("acceptance criteria")
+        expect(page.locator("#wfSteps")).to_contain_text("Analyze")
         # explorer
         page.goto(studio.url + "/requirements#explorer")
         expect(page.locator("#exTable tbody tr")).to_have_count(2)
@@ -198,6 +203,7 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         page.goto(studio.url + "/requirements#history")
         expect(page.locator("#hsTable tbody tr")).to_have_count(1)
         expect(page.locator("#hsTable tbody tr").first).to_contain_text("items")
+        page.goto(studio.url + "/requirements#audit")  # (the audit trail has its own place in the menu)
         expect(page.locator("#auditList")).to_contain_text("token.set")
         page.goto(studio.url + "/requirements#history")  # (audit times are ISO text: shown as a date, never '—')
         first_time = page.locator("#auditList time").first
@@ -272,15 +278,19 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
         page.locator('[data-panel="3"] [data-next="4"]').click()
         page.click("#startImport")
         expect(page.locator("#impStatus")).to_contain_text("Import complete")
-        page.click("#toAnalyze")
-        page.click("#anRun")
-        expect(page.locator("#anStatus")).to_contain_text("1 requirement analysed")
+        expect(page).to_have_url(re.compile(r"#explorer$"))
+        page.click("#exAnSel")
+        expect(page.locator("#anFlow")).to_contain_text("Analysis is done for the selected requirements", timeout=15000)
 
         screenshots = os.environ.get("QPILOT_REQUIREMENTS_SCREENSHOTS")
         if screenshots:
             Path(screenshots).mkdir(parents=True, exist_ok=True)
         nav = page.locator(".rq-nav [data-view]")
-        assert nav.count() == 16
+        assert nav.count() == 15
+        assert [t.strip() for t in nav.locator(".rq-nav-text").all_inner_texts()] == [
+            "Overview", "Integrations", "Import Requirements", "Requirements Explorer", "Analyze Requirements",
+            "Review Center", "Test Cases", "Execution Center", "Live Execution", "Reports", "Traceability Matrix",
+            "Defects", "Confluence", "Sync History", "Audit Trail"]
         for link in nav.all():
             view = link.get_attribute("data-view")
             link.click()
@@ -291,7 +301,7 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
             if view == "writeback":
                 expect(section.locator("#wbState")).to_contain_text("off (QPILOT_JIRA_WRITEBACK=1 not set)")
                 expect(section.locator("#wbState")).to_contain_text("not stored")
-            if view in {"builder", "execution", "agents", "evidence", "traceability", "writeback"}:
+            if view in {"builder", "execution", "agents", "reports", "traceability", "writeback"}:
                 expect(section).not_to_contain_text("Upcoming")
             if view == "execution":
                 expect(section.locator("#exAuth")).not_to_be_checked()
@@ -301,7 +311,7 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
                 expect(page.get_by_role("tab", name="AI Analysis")).to_have_attribute("aria-selected", "true")
                 expect(page.locator("#dtBody")).to_contain_text("Extracted acceptance criteria")
                 page.get_by_role("button", name="Close details").click()
-            if view == "coverage":
+            if view == "reports":
                 expect(section.get_by_role("rowheader", name="User Login Functionality")).to_be_visible()
             if view == "settings":
                 expect(section).to_contain_text("Read-only")
@@ -370,7 +380,7 @@ def test_a_refused_token_gets_a_clear_message(browser, studio):
 def test_empty_states_explain_the_next_step(browser, studio):
     ctx, page, errors = open_page(browser, studio)
     try:
-        for view, text in (("explorer", "No requirements imported yet."), ("reviews", "Nothing waiting for review."),
+        for view, text in (("explorer", "No requirements imported yet."), ("reviews", "Nothing waiting for review"),
                            ("confluence", "No Confluence pages imported yet."), ("history", "No imports yet.")):
             page.goto(studio.url + f"/requirements#{view}")
             expect(page.locator(f"#view-{view}")).to_contain_text(text)
@@ -387,7 +397,7 @@ def test_every_control_has_a_name_and_the_page_fits_a_phone(browser, studio):
     try:
         connect_jira(page)
         views = page.locator(".rq-nav [data-view]").evaluate_all("(links) => links.map(link => link.dataset.view)")
-        assert len(views) == 16
+        assert len(views) == 15
         for view in views:
             page.goto(studio.url + f"/requirements#{view}")
             page.wait_for_load_state("networkidle")
@@ -436,6 +446,7 @@ def test_the_studio_and_lab_link_to_the_workspace(browser, studio):
         for path in ("/", "/qa-lab"):
             page.goto(studio.url + path)
             expect(page.locator('a.studio-nav[href="/requirements"]')).to_be_visible()
+            expect(page.locator('a.studio-nav[href="/requirements"]')).to_have_text("Jira")  # (renamed from Requirements)
         page.click('a.studio-nav[href="/requirements"]')
         expect(page).to_have_url(studio.url + "/requirements")
         expect(page.locator("#view-overview h1")).to_have_text("Your Jira and Confluence requirements")
@@ -511,7 +522,7 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         expect(table).to_contain_text("TC-QPL-2-1")
         expect(table).to_contain_text("TC-QPL-2-2")
         page.get_by_role("checkbox", name="Select TC-QPL-2-1").check()
-        expect(page.locator("#tcRun")).to_have_text("Run selected (1)")
+        expect(page.locator("#tcRun")).to_have_text("Run Selected Tests (1)")
         page.locator("#tcRun").click()
         expect(page.locator("#view-execution")).to_be_visible()
         expect(page.locator("#exSelCount")).to_have_text("1")
@@ -519,23 +530,35 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         page.fill("#exUser", "standard_user")
         page.fill("#exPass", "secret_sauce")
         page.locator("#exAuth").check()
+        # (the reachability check is a real GET in the product; the test answers it so nothing leaves the machine)
+        page.route("**/api/requirements/targets/check", lambda route: route.fulfill(
+            json={"ok": True, "kind": "ok", "status": 200, "url": "https://www.saucedemo.com/", "message": "The site answered."}))
         page.locator("#exStart").click()
-        expect(page.locator("#xcStatus")).to_contain_text("Running 1 test case")
+        # Run Tests: the Live Execution view opens by itself
+        expect(page).to_have_url(re.compile(r"#agents$"))
         expect(page.locator("#exPass")).to_have_value("")  # (sent once, not kept in the page)
         assert [t["tc"] for t in launched["req"].requirement_tests] == ["TC-QPL-2-1"]
         assert launched["req"].requirements_only and launched["req"].test_password == "secret_sauce"
-        expect(page.locator("#exDetail")).to_contain_text("running")
+        expect(page.locator("#liveSub")).to_contain_text("running")
         assert "secret_sauce" not in page.content()
         # the run finishes: its real result file is read, nothing is assumed
         run = tmp_path / "runs" / "ui_run"
         run.mkdir(parents=True)
+        # (the report shows the run's screenshot; this fake run lives outside the served runs folder)
+        page.route("**/runs/ui_run/screenshots/ok.png", lambda route: route.fulfill(
+            content_type="image/png", body=bytes.fromhex(
+                "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")))
         (run / "test_cases.json").write_text(json.dumps([{
             "requirement_test": "TC-QPL-2-1", "execution_status": "Passed", "check_count": 3,
             "actual_result": "the dashboard opened", "evidence": ["screenshots/ok.png"]}]))
         monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
         server.jobs[5151].update(status="done", run="ui_run")
-        expect(page.locator("#exDetail")).to_contain_text("Passed", timeout=10000)
-        expect(page.locator("#exDetail")).to_contain_text("the dashboard opened")
+        expect(page.locator("#liveRoot")).to_contain_text("the dashboard opened", timeout=10000)
+        page.get_by_role("button", name="View Report").first.click()
+        expect(page).to_have_url(re.compile(r"#reports$"))
+        expect(page.locator("#rpBox")).to_contain_text("Passed")
+        expect(page.locator("#rpBox")).to_contain_text("the dashboard opened")
         page.goto(studio.url + "/requirements#traceability")
         tr = page.locator("#trTable")
         expect(tr).to_contain_text("TC-QPL-2-1")
@@ -646,7 +669,7 @@ def test_filled_phase_4_and_5_screens_fit_a_phone_and_every_control_is_named(bro
     shots = os.environ.get("QPILOT_UI_SCREENSHOTS")
     ctx, page, errors = open_page(browser, studio, {"width": 390, "height": 844})
     try:
-        for view in ("builder", "execution", "agents", "evidence", "traceability", "coverage", "writeback"):
+        for view in ("builder", "execution", "agents", "reports", "traceability", "audit", "writeback"):
             page.goto(studio.url + f"/requirements#{view}")
             page.wait_for_load_state("networkidle")
             if view == "execution":

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -88,6 +89,48 @@ def delete_token(tenant_id: str, name: str, *, path: Path | None = None) -> bool
     with _lock:
         data = _load(path)
         found = data.pop(key, None) is not None
+        if found:
+            _save(data, path)
+    return found
+
+
+ACCOUNT_SLOT = re.compile(r"^[A-Z][A-Z0-9_]{0,19}:(test|staging)$")
+
+
+def _account_key(tenant_id: str, slot: str) -> str:
+    tenant = (tenant_id or "").strip()
+    if not tenant or "|" in tenant or not ACCOUNT_SLOT.match(slot or ""):
+        raise ValueError("a tenant and a PROJECT:environment slot are required")
+    return f"{tenant}|account:{slot}"
+
+
+def set_account(tenant_id: str, slot: str, username: str, password: str, *, path: Path | None = None) -> None:
+    """A saved test account of a project's website (the guided workflow's credential reuse). Kept in this file, the
+    same way as the Jira token - never in the requirements database."""
+    stored, method = protect(json.dumps({"u": username, "p": password}))
+    with _lock:
+        data = _load(path)
+        data[_account_key(tenant_id, slot)] = {"value": stored, "protection": method,
+                                               "updated_at": datetime.now(UTC).isoformat()}
+        _save(data, path)
+    register_secret_values(password)
+
+
+def get_account(tenant_id: str, slot: str, *, path: Path | None = None) -> tuple[str, str]:
+    try:
+        entry = _load(path).get(_account_key(tenant_id, slot))
+        raw = json.loads(unprotect(entry["value"], entry.get("protection", "dpapi"))) if entry else {}
+    except (OSError, ValueError, KeyError, TypeError):
+        return "", ""
+    if raw.get("p"):
+        register_secret_values(str(raw["p"]))
+    return str(raw.get("u", "")), str(raw.get("p", ""))
+
+
+def delete_account(tenant_id: str, slot: str, *, path: Path | None = None) -> bool:
+    with _lock:
+        data = _load(path)
+        found = data.pop(_account_key(tenant_id, slot), None) is not None
         if found:
             _save(data, path)
     return found

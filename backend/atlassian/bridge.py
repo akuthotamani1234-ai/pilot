@@ -366,7 +366,28 @@ def _result_status(case: dict) -> str:
             return "Not automated"
         if reason.startswith("Blocked"):
             return "Blocked"
+    if status == "Failed" and _prerequisite_failure(case):
+        return "Blocked"
     return status if status in RESULTS else "Not run"
+
+
+LOGIN_WORDS = re.compile(r"\b(log ?in|sign ?in|username|password|credentials?|authenticat\w*)\b", re.I)
+PREREQ_CATEGORIES = ("Authentication / permission failure", "Test data / precondition problem",
+                     "Infrastructure failure")
+
+
+def _prerequisite_failure(case: dict) -> bool:
+    """A failed case whose own subject is not the login, failing because the login (or the environment) it needs did
+    not work: its prerequisite failed, so it is Blocked, not a product failure of what it tests. A login test failing
+    on the login stays Failed."""
+    category = str(case.get("failure_category") or "")
+    if not category.startswith(PREREQ_CATEGORIES):
+        return False
+    if category.startswith("Infrastructure failure"):  # (the website itself could not be reached - never a test
+        actual = str(case.get("actual_result") or "")  # that went to another address the browser refused)
+        return "ERR_BLOCKED_BY_CLIENT" not in actual and "not explored" not in actual
+    subject = " ".join(str(case.get(k) or "") for k in ("title", "expected"))
+    return not LOGIN_WORDS.search(subject)
 
 
 def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str = "done") -> dict:
@@ -395,8 +416,11 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                       "evidence": [], "actual": "", "run_case": ""}
         else:
             status = _result_status(c)
+            reason = str(c.get("skip_reason") or "")[:500]
+            if status == "Blocked" and c.get("execution_status") == "Failed":
+                reason = f"Blocked: a prerequisite failed ({c.get('failure_category')}), not the feature under test"
             result = {"status": status, "actual": str(c.get("actual_result") or "")[:2000],
-                      "reason": str(c.get("skip_reason") or "")[:500], "expected": str(c.get("expected") or "")[:1000],
+                      "reason": reason, "expected": str(c.get("expected") or "")[:1000],
                       "steps": c.get("steps") or [], "evidence": [str(e) for e in c.get("evidence") or []][:20],
                       "run_case": str(c.get("tc_id") or c.get("id") or ""), "checks": c.get("check_count"),
                       "verification": c.get("verification"), "type": c.get("type"),
