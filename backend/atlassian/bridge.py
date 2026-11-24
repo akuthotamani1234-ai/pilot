@@ -147,6 +147,10 @@ def instruction(case: dict) -> str:
         parts.append("Expected: " + case["expected"].rstrip(".") + ".")
     if case.get("assertions"):
         parts.append("Check: " + "; ".join(case["assertions"]) + ".")
+    if any(str(n).startswith("a test") for n in case.get("test_data_needs") or []):
+        parts.append("Test account: take its user name and password from the qa_login fixture (never write them). "
+                     "A valid login uses both; a wrong-password check types the test account's user name with "
+                     "another password.")
     return " ".join(parts)[:1800]
 
 

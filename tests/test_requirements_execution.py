@@ -425,3 +425,12 @@ def test_a_test_that_would_type_a_removed_secret_is_refused():
     code = ('def test_a(page):\n    page.locator("#user-name").fill("[REDACTED]")\n'
             '    page.locator("#password").fill("wrong")\n')
     assert "qa_login" in (validate_script(code) or "")
+
+
+def test_an_instruction_that_needs_the_test_account_says_where_it_comes_from():
+    case = {"title": "Wrong password", "preconditions": [], "steps": ["Log in with a wrong password"],
+            "expected": "An error is shown", "assertions": [], "test_data_needs": ["a test account (user name and "
+                                                                                  "password)"]}
+    text = bridge.instruction(case)
+    assert "qa_login" in text and "another password" in text
+    assert "qa_login" not in bridge.instruction({**case, "test_data_needs": []})
