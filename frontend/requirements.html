@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qpilot | Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/chat.css">
+<link rel="stylesheet" href="/static/studio.css">
+<link rel="stylesheet" href="/static/qpilot.css">
+<link rel="stylesheet" href="/static/requirements.css">
+</head>
+<body>
+<a class="rq-skip" href="#rqMain">Skip to content</a>
+<div class="lab-shell rq-shell">
+  <aside class="side lab-sidebar" aria-label="Workspace navigation">
+    <div class="logo"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>Qpilot</b><small>STUDIO</small></div>
+    <div class="side-title">WORKSPACE</div>
+    <a class="studio-nav" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span></a>
+    <a class="studio-nav current" href="/requirements" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 4h8l4 4v12H4V4h4Z"/><path d="M8 11h8M8 15h5"/></svg><span>Requirements</span></a>
+    <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
+    <div class="side-title">REQUIREMENTS</div>
+    <nav class="rq-nav" aria-label="Requirements sections">
+      <a href="#overview" data-view="overview">Overview</a>
+      <a href="#integrations" data-view="integrations">Integrations</a>
+      <a href="#import" data-view="import">Import</a>
+      <a href="#explorer" data-view="explorer">Requirements</a>
+      <a href="#reviews" data-view="reviews">Review center <span class="rq-count" id="navReviews" hidden></span></a>
+      <a href="#confluence" data-view="confluence">Confluence</a>
+      <a href="#history" data-view="history">Sync history</a>
+    </nav>
+    <div class="side-footer"><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Read-only to Jira</b><small>Qpilot never changes your issues</small></div></div>
+  </aside>
+
+  <main class="lab-main rq-main" id="rqMain" tabindex="-1">
+    <div class="lab-topline"><span>Workspace</span><span>/</span><b>Requirements</b><span class="rq-who" id="who" role="status"></span></div>
+    <div class="rq-banner" id="banner" role="alert" hidden></div>
+
+    <section class="rq-signin lab-card" id="signin" hidden aria-labelledby="signinTitle">
+      <h2 id="signinTitle">Sign in to this workspace</h2>
+      <p class="small">Studio login is switched on. Paste your Studio access token (your principal id or OIDC token). It is kept in this tab only and forgotten when you close it.</p>
+      <form id="signinForm" class="rq-inline">
+        <label for="signinToken">Access token<input id="signinToken" type="password" autocomplete="off" required></label>
+        <button class="primary" type="submit">Continue</button>
+      </form>
+    </section>
+
+    <!-- ===== 1 overview ===== -->
+    <section class="rq-view" id="view-overview" data-title="Overview" hidden>
+      <header class="lab-header">
+        <span class="eyebrow">REQUIREMENTS INTELLIGENCE</span>
+        <h1>Your Jira and Confluence requirements</h1>
+        <p class="lab-purpose">Import user stories and specification pages, check their acceptance criteria, and review test ideas before any test is written. <b>Qpilot only reads Jira and Confluence.</b></p>
+      </header>
+      <div class="rq-stats" id="stats" aria-busy="true"><p class="small">Loading…</p></div>
+      <div class="rq-grid2">
+        <section class="lab-card" aria-labelledby="ovConnTitle"><div class="lab-card-title"><span>01</span><h2 id="ovConnTitle">Connected sites</h2></div><div id="ovConnections"></div></section>
+        <section class="lab-card" aria-labelledby="ovSyncTitle"><div class="lab-card-title"><span>02</span><h2 id="ovSyncTitle">Last import</h2></div><div id="ovSync"></div></section>
+      </div>
+      <section class="lab-card rq-actions-card" aria-labelledby="ovActionsTitle">
+        <div class="lab-card-title"><span>03</span><h2 id="ovActionsTitle">What you can do</h2></div>
+        <div class="rq-actions" id="actions"></div>
+        <p class="small">Importing never runs tests. Each step is its own action.</p>
+      </section>
+    </section>
+
+    <!-- ===== 2 integrations ===== -->
+    <section class="rq-view" id="view-integrations" data-title="Integrations" hidden>
+      <header class="rq-head"><h1>Integrations</h1><p class="small">Connect a Jira Cloud and a Confluence Cloud site. Use an Atlassian <b>API token</b> (id.atlassian.com → Security → API tokens) with the email of the account it belongs to. Read access is enough.</p></header>
+      <div class="rq-legacy" id="legacyWarning" role="note" hidden></div>
+      <div class="rq-grid2" id="connCards"></div>
+    </section>
+
+    <!-- ===== 3 import wizard ===== -->
+    <section class="rq-view" id="view-import" data-title="Import" hidden>
+      <header class="rq-head"><h1>Import requirements</h1><p class="small">Choose what to read, preview it, then import. You can analyse afterwards; nothing is tested automatically.</p></header>
+      <ol class="rq-steps" id="wizardSteps" aria-label="Import steps">
+        <li data-step="1">Connect</li><li data-step="2">Project</li><li data-step="3">Types &amp; filters</li><li data-step="4">Preview</li><li data-step="5">Import</li><li data-step="6">Analyze</li>
+      </ol>
+      <div class="lab-card" id="wizard">
+        <div class="rq-step" data-panel="1">
+          <h2>1. Which Jira site?</h2>
+          <label for="wConn">Jira connection<select id="wConn"></select></label>
+          <p class="small" id="wConnHelp"></p>
+          <label>What to import</label>
+          <div class="rq-radios" role="radiogroup" aria-label="What to import">
+            <label><input type="radio" name="wMode" value="incremental" checked> <b>New and changed</b> <small>since the last import (everything the first time)</small></label>
+            <label><input type="radio" name="wMode" value="full"> <b>Everything</b> <small>re-read all, and mark removed items as missing</small></label>
+            <label><input type="radio" name="wMode" value="items"> <b>Specific work items</b> <small>keys such as QPL-2 or Jira links</small></label>
+          </div>
+          <div class="rq-nav-buttons"><button class="primary" type="button" data-next="2">Next</button></div>
+        </div>
+        <div class="rq-step" data-panel="2" hidden>
+          <h2>2. Project or work items</h2>
+          <div id="wProjectBox"><label for="wProject">Project<select id="wProject"><option value="">Loading projects…</option></select></label></div>
+          <div id="wKeysBox" hidden>
+            <label for="wKeys">Work items<textarea id="wKeys" rows="3" placeholder="QPL-2, QPL-3 or https://your-site.atlassian.net/browse/QPL-4"></textarea></label>
+            <fieldset class="rq-checks"><legend>Also read</legend>
+              <label><input type="checkbox" value="subtasks" name="wInclude"> sub-tasks</label>
+              <label><input type="checkbox" value="parent" name="wInclude"> the parent epic</label>
+              <label><input type="checkbox" value="linked" name="wInclude"> linked work items</label>
+            </fieldset>
+            <label for="wConf">Linked Confluence pages from<select id="wConf"><option value="">(do not read pages)</option></select></label>
+          </div>
+          <div class="rq-nav-buttons"><button class="secondary" type="button" data-next="1">Back</button><button class="primary" type="button" data-next="3">Next</button></div>
+        </div>
+        <div class="rq-step" data-panel="3" hidden>
+          <h2>3. Work-item types and filters</h2>
+          <div id="wTypes" class="rq-checks" role="group" aria-label="Work-item types"><p class="small">Loading types…</p></div>
+          <details class="rq-filters"><summary>More filters (optional)</summary>
+            <div class="rq-filter-grid">
+              <label for="fStatus">Status<input id="fStatus" placeholder="To Do, In Progress"></label>
+              <label for="fPriority">Priority<input id="fPriority" placeholder="High"></label>
+              <label for="fLabels">Labels<input id="fLabels" placeholder="checkout"></label>
+              <label for="fEpic">Epic<input id="fEpic" placeholder="QPL-1"></label>
+              <label for="fSprint">Sprint<input id="fSprint" placeholder="open, a sprint id or name"></label>
+              <label for="fAssignee">Assignee<select id="fAssignee"><option value="">anyone</option><option value="me">me</option><option value="unassigned">unassigned</option></select></label>
+              <label for="fCreatedFrom">Created from<input id="fCreatedFrom" type="date"></label>
+              <label for="fCreatedTo">Created to<input id="fCreatedTo" type="date"></label>
+              <label for="fUpdatedFrom">Updated from<input id="fUpdatedFrom" type="date"></label>
+              <label for="fUpdatedTo">Updated to<input id="fUpdatedTo" type="date"></label>
+              <label for="fText">Summary contains<input id="fText"></label>
+              <label class="rq-wide" for="fJql">Extra JQL<input id="fJql" placeholder='component = "Web"'></label>
+            </div>
+            <button class="secondary" type="button" id="fJqlCheck">Check JQL with Jira</button> <span class="small" id="fJqlResult" role="status"></span>
+          </details>
+          <div class="rq-nav-buttons"><button class="secondary" type="button" data-next="2">Back</button><button class="primary" type="button" data-next="4">Preview</button></div>
+        </div>
+        <div class="rq-step" data-panel="4" hidden>
+          <h2>4. Preview</h2>
+          <p class="small" id="pvSummary" role="status"></p>
+          <div class="rq-table-wrap"><table class="rq-table" id="pvTable"><caption class="rq-sr">Work items that the import would read</caption>
+            <thead><tr><th scope="col"><input type="checkbox" id="pvAll" aria-label="Select all" checked></th><th scope="col">Key</th><th scope="col">Summary</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">In Qpilot</th></tr></thead><tbody></tbody></table></div>
+          <button class="secondary" type="button" id="pvMore" hidden>Load more</button>
+          <p class="small">Unticked items are skipped: the import then reads only the ticked ones.</p>
+          <div class="rq-nav-buttons"><button class="secondary" type="button" data-next="3">Back</button><button class="primary" type="button" id="startImport">Import</button></div>
+        </div>
+        <div class="rq-step" data-panel="5" hidden>
+          <h2>5. Importing</h2>
+          <div class="rq-progress" role="progressbar" aria-label="Import progress" aria-valuetext="starting" id="impBar"><span></span></div>
+          <p id="impStatus" role="status" aria-live="polite"></p>
+          <div class="rq-nav-buttons"><button class="secondary" type="button" id="impCancel">Cancel import</button><button class="secondary" type="button" id="impRetry" hidden>Retry</button></div>
+          <div id="impResult"></div>
+          <div class="rq-nav-buttons"><button class="primary" type="button" data-next="6" id="toAnalyze" hidden>Analyze imported requirements</button></div>
+        </div>
+        <div class="rq-step" data-panel="6" hidden>
+          <h2>6. Analyze</h2>
+          <p class="small">Rules read the acceptance criteria and look for gaps, vague words, duplicates and conflicts. AI ideas are added only if your privacy settings allow it.</p>
+          <label class="rq-check"><input type="checkbox" id="anAi"> Also ask the AI for test ideas (if allowed)</label>
+          <div class="rq-nav-buttons"><button class="primary" type="button" id="anRun">Analyze</button></div>
+          <p id="anStatus" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 4 explorer ===== -->
+    <section class="rq-view" id="view-explorer" data-title="Requirements" hidden>
+      <header class="rq-head"><h1>Requirements</h1></header>
+      <form class="rq-toolbar" id="exForm" role="search">
+        <label for="exQ" class="rq-sr">Search</label><input id="exQ" type="search" placeholder="Search key, summary or description">
+        <label for="exType" class="rq-sr">Type</label><select id="exType"><option value="">All types</option></select>
+        <label for="exStatus" class="rq-sr">Status</label><select id="exStatus"><option value="">All statuses</option></select>
+        <label for="exAnalysis" class="rq-sr">Analysis</label><select id="exAnalysis"><option value="">Any analysis</option><option value="not_analyzed">Not analysed</option><option value="current">Analysed</option><option value="stale">Out of date</option></select>
+        <label class="rq-check"><input type="checkbox" id="exMissing"> include missing</label>
+      </form>
+      <div class="rq-table-wrap"><table class="rq-table" id="exTable"><caption class="rq-sr">Imported requirements</caption>
+        <thead><tr>
+          <th scope="col"><button type="button" data-sort="key">Key</button></th><th scope="col"><button type="button" data-sort="summary">Summary</button></th>
+          <th scope="col">Type</th><th scope="col"><button type="button" data-sort="priority">Priority</button></th><th scope="col"><button type="button" data-sort="status">Status</button></th>
+          <th scope="col"><button type="button" data-sort="criteria">Criteria</button></th><th scope="col">Pages</th><th scope="col">Analysis</th><th scope="col">Version</th><th scope="col"><button type="button" data-sort="updated">Last synced</button></th>
+        </tr></thead><tbody></tbody></table></div>
+      <div class="rq-pager" id="exPager"></div>
+    </section>
+
+    <!-- ===== 6 reviews ===== -->
+    <section class="rq-view" id="view-reviews" data-title="Review center" hidden>
+      <header class="rq-head"><h1>Review center</h1><p class="small">Test ideas wait here until a person accepts, corrects or rejects them. Each shows the requirement words it rests on.</p></header>
+      <div class="rq-toolbar"><label for="rvStatus" class="rq-sr">Show</label><select id="rvStatus"><option value="needs_review">Waiting for review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="all">All</option></select>
+        <label for="rvQ" class="rq-sr">Search</label><input id="rvQ" type="search" placeholder="Search ideas"></div>
+      <p class="small" id="rvWho" role="status"></p>
+      <div id="rvList"></div>
+    </section>
+
+    <!-- ===== 7 confluence ===== -->
+    <section class="rq-view" id="view-confluence" data-title="Confluence" hidden>
+      <header class="rq-head"><h1>Confluence pages</h1><p class="small">Imported specification pages, their headings and requirement sections, and the Jira stories they relate to.</p></header>
+      <div class="rq-grid-side"><div id="cfSpaces" class="lab-card"></div><div id="cfPage" class="lab-card"><p class="small">Choose a page.</p></div></div>
+    </section>
+
+    <!-- ===== sync history ===== -->
+    <section class="rq-view" id="view-history" data-title="Sync history" hidden>
+      <header class="rq-head"><h1>Sync history</h1></header>
+      <div class="rq-table-wrap"><table class="rq-table" id="hsTable"><caption class="rq-sr">Imports, newest first</caption>
+        <thead><tr><th scope="col">Finished</th><th scope="col">Connection</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">New</th><th scope="col">Changed</th><th scope="col">Unchanged</th><th scope="col">Missing</th><th scope="col">Failed</th><th scope="col">Took</th><th scope="col">By</th></tr></thead><tbody></tbody></table></div>
+      <h2 class="rq-sub">Audit trail</h2>
+      <ul class="rq-audit" id="auditList"></ul>
+    </section>
+  </main>
+</div>
+
+<!-- requirement detail -->
+<dialog class="rq-drawer" id="detail" aria-labelledby="dtTitle">
+  <header><div><span class="eyebrow" id="dtKey"></span><h2 id="dtTitle"></h2><p class="small" id="dtMeta"></p></div><button class="secondary" type="button" id="dtClose" aria-label="Close details">Close</button></header>
+  <div class="rq-tabs" role="tablist" aria-label="Requirement details">
+    <button role="tab" type="button" data-tab="details" aria-selected="true">Details</button>
+    <button role="tab" type="button" data-tab="analysis" aria-selected="false">Analysis</button>
+    <button role="tab" type="button" data-tab="versions" aria-selected="false">Versions</button>
+    <button role="tab" type="button" data-tab="links" aria-selected="false">Linked pages</button>
+  </div>
+  <div class="rq-tabpanel" id="dtBody" role="tabpanel"></div>
+</dialog>
+<script src="/static/requirements.js"></script>
+</body>
+</html>

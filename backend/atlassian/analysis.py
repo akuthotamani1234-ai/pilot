@@ -683,11 +683,17 @@ def stale(db, tenant_id: str, analysis: Analysis) -> list[str]:
 
 
 def review(db, tenant_id: str, requirement_id: str, suggestion_id: str, answer: str, reviewer: str, *,
-           approvals_db=None, audit_db=None) -> ScenarioSuggestion:
-    """A person accepts or rejects one suggestion, through the existing approval queue. The criteria never change."""
+           approvals_db=None, audit_db=None, edit: dict | None = None) -> ScenarioSuggestion:
+    """A person accepts or rejects one suggestion, through the existing approval queue. The criteria never change.
+
+    edit: {'title', 'steps', 'expected_outcome'} - the reviewer accepts the idea WITH corrections. The original is
+    kept; an expected outcome that is no longer word for word in the source becomes 'inferred' (never claimed as
+    quoted). An edit can only accept, never reject."""
     from .. import approvals
     if not (reviewer or "").strip():
         raise ValueError("a review needs the reviewer's name")
+    if edit and (answer or "").strip().lower() not in ("yes", "accept", "accepted", "approve", "approved"):
+        raise ValueError("an edited suggestion can only be accepted")
     analysis = store.get_analysis(db, tenant_id, requirement_id)
     if analysis is None:
         raise LookupError(f"{requirement_id} has no analysis for this tenant")
@@ -705,7 +711,19 @@ def review(db, tenant_id: str, requirement_id: str, suggestion_id: str, answer: 
                audit_db)
         raise
     decision = ReviewStatus.accepted if row["status"] == "accepted" else ReviewStatus.rejected
-    updated = target.model_copy(update={"review": decision, "reviewer": reviewer.strip()})
+    changes = {"review": decision, "reviewer": reviewer.strip()}
+    if edit and decision == ReviewStatus.accepted and target.review == ReviewStatus.needs_review:
+        title = str(edit.get("title") or "").strip()
+        steps = [str(x).strip() for x in edit.get("steps") or [] if str(x).strip()][:20]
+        outcome = str(edit.get("expected_outcome") or "").strip()
+        quoted = bool(outcome and target.support_quote
+                      and normalize_text(outcome) in normalize_text(target.support_quote))
+        changes.update(title=title or target.title, steps=steps, expected_outcome=outcome,
+                       basis=Basis.explicit if quoted else Basis.inferred, edited_by=reviewer.strip(),
+                       original={"title": target.title, "steps": target.steps,
+                                 "expected_outcome": target.expected_outcome, "basis": target.basis.value},
+                       note=(target.note + " " if target.note else "") + f"edited by {reviewer.strip()}")
+    updated = ScenarioSuggestion.model_validate({**target.model_dump(), **changes})
     suggestions = [updated if s.id == suggestion_id else s for s in analysis.suggestions]
     missing = {k for k in analysis.source_versions
                if not (store.get_source(db, tenant_id, k) or {}).get("present", True)}

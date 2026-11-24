@@ -583,6 +583,8 @@ class ScenarioSuggestion(_Model):
     reviewer: str = ""
     approval_id: str = ""
     fingerprint: str = ""  # same criterion + same idea -> same fingerprint (a decision survives re-analysis)
+    edited_by: str = ""  # a reviewer who corrected the idea when accepting it
+    original: dict = Field(default_factory=dict)  # the idea as proposed, before that correction
 
     @model_validator(mode="after")
     def honest(self):

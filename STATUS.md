@@ -5,7 +5,14 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–2
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–3
+
+**Milestone 3 (Studio workspace, part A):** `/requirements` with Overview, Integrations (connection cards, write-only
+token, test, disconnect), Import wizard (connect → project → types & filters → preview with selection → import with
+progress / cancel / retry → analyze), Requirements explorer with detail drawer (criteria and citations, analysis,
+versions, links), Review center (accept / edit / reject, signed reviewer, evidence), Confluence explorer and Sync
+history with audit. Phase 4–5 actions are shown as labelled "not available yet" notes. 9 browser tests against the real
+server and a mock site, plus 4 API tests. **Mock only; no live Atlassian evidence.**
 
 **Milestone 2 (backend):** import modes - incremental (new / changed keys, affected requirements, resume, cancel),
 full (any work-item type, missing kept), targeted (keys or work-item links, optional sub-tasks / parent / linked items

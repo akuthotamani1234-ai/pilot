@@ -75,6 +75,16 @@ def _context(authorization: str | None, x_qa_token: str | None, action: str) -> 
     return {"tenant": credentials.LOCAL_TENANT, "actor": f"{mode}-token", "reviewer": None, "mode": mode}
 
 
+def _can_review(authorization: str | None, x_qa_token: str | None, ctx: dict) -> bool:
+    """A named person whose role may decide reviews (what the review route itself will require)."""
+    if not ctx["reviewer"]:
+        return False
+    if ctx["mode"] == "none":
+        return True
+    from .dashboard_auth import authorize
+    return bool(authorize(authorization, x_qa_token=x_qa_token, action="review.write").get("ok"))
+
+
 def _audit(ctx: dict, action: str, allowed: bool, **detail) -> None:
     try:
         import json
@@ -226,8 +236,15 @@ class AnalyzeBody(BaseModel):
     ai: str = Field(default="off", pattern=r"^(off|auto)$")
 
 
+class SuggestionEdit(BaseModel):
+    title: str = Field(min_length=3, max_length=300)
+    steps: list[str] = Field(default_factory=list, max_length=20)
+    expected_outcome: str = Field(default="", max_length=1000)
+
+
 class ReviewBody(BaseModel):
     answer: str = Field(pattern=r"^(?i:yes|no|accept|accepted|approve|approved|reject|rejected)$")
+    edit: SuggestionEdit | None = None  # accept with the reviewer's corrections (kept with the original)
 
 
 # ---------------------------------------------------------------- helpers for items
@@ -273,7 +290,7 @@ def _item_row(db, tenant: str, row: dict, runs: dict) -> dict:
             "labels": content.get("labels", []), "criteria": criteria, "linked_pages": pages,
             "analysis": state, "pending_reviews": pending, "version": src.version, "present": row["present"],
             "updated": src.updated.isoformat(), "last_synced": src.retrieved_at.isoformat(), "url": src.url,
-            "space": content.get("space_key", ""),
+            "space": content.get("space", ""),
             "last_sync": runs.get(src.connection_id, "")}
 
 
@@ -287,7 +304,7 @@ def register_requirements_api(app) -> None:
     def capabilities(authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")
         return {"capabilities": CAPABILITIES, "coming": COMING, "tenant": ctx["tenant"], "actor": ctx["actor"],
-                "can_review": bool(ctx["reviewer"]), "read_only_atlassian": True}
+                "can_review": _can_review(authorization, x_qa_token, ctx), "read_only_atlassian": True}
 
     # -- connections
     @app.get("/api/requirements/connections")
@@ -570,7 +587,7 @@ def register_requirements_api(app) -> None:
                 rows = [r for r in rows if words in r["source"].source_id.lower() or words in r["source"].title.lower()
                         or words in str(r["content"].get("description", "")).lower()]
             for field, wanted in (("type", type), ("status", status), ("priority", priority),
-                                  ("space_key", space)):
+                                  ("space", space)):
                 if wanted:
                     rows = [r for r in rows if str(r["content"].get(field, "")).lower() == wanted.lower()]
             out = [_item_row(db, ctx["tenant"], r, runs) for r in rows]
@@ -687,15 +704,54 @@ def register_requirements_api(app) -> None:
                 raise HTTPException(404, "Not imported in your workspace.")
             req_id = _requirement_id(row["source"])
             try:
-                updated = an.review(db, ctx["tenant"], req_id, suggestion_id, body.answer, ctx["reviewer"])
+                updated = an.review(db, ctx["tenant"], req_id, suggestion_id, body.answer, ctx["reviewer"],
+                                    edit=body.edit.model_dump() if body.edit else None)
             except LookupError as error:
                 raise HTTPException(404, safe_error(error)) from None
             except PermissionError as error:
                 raise HTTPException(403, safe_error(error)) from None
+            except ValueError as error:
+                raise HTTPException(400, safe_error(error)) from None
             return {"suggestion": updated.model_dump(mode="json"),
                     "analysis": _analysis_view(db, ctx["tenant"], store.get_analysis(db, ctx["tenant"], req_id))}
         finally:
             db.close()
+
+    @app.get("/api/requirements/reviews")
+    def reviews(status: str = "needs_review", q: str = "", authorization: str | None = A,
+                x_qa_token: str | None = Q):
+        """Every suggestion of the tenant's analysed requirements, with the criteria and source words behind it."""
+        ctx = _context(authorization, x_qa_token, "run.read")
+        if status not in ("needs_review", "accepted", "rejected", "all"):
+            raise HTTPException(400, "status is needs_review, accepted, rejected or all")
+        from . import approvals
+        db = _db()
+        try:
+            out = []
+            for a in store.list_analyses(db, ctx["tenant"]):
+                source = a.requirement.sources[0]
+                criteria = {c.id: c for c in a.requirement.criteria}
+                stale = bool(an.stale(db, ctx["tenant"], a))
+                for s in a.suggestions:
+                    if status != "all" and s.review.value != status:
+                        continue
+                    if q and q.lower() not in (s.title + " " + a.requirement.id + " " + a.requirement.title).lower():
+                        continue
+                    try:
+                        row = approvals.get_approval(s.approval_id, tenant_id=ctx["tenant"]) if s.approval_id else {}
+                    except (KeyError, PermissionError):
+                        row = {}
+                    out.append({
+                        "suggestion": s.model_dump(mode="json"), "requirement_id": a.requirement.id,
+                        "requirement_title": a.requirement.title, "connection_id": source.connection_id,
+                        "key": source.source_id, "stale": stale,
+                        "criteria": [_criterion(criteria[c]) for c in s.criterion_ids if c in criteria],
+                        "decided_by": row.get("decided_by", ""), "decided_at": row.get("decided_at"),
+                        "approval_status": row.get("status", "")})
+        finally:
+            db.close()
+        can = _can_review(authorization, x_qa_token, ctx)
+        return {"reviews": out, "total": len(out), "can_review": can, "reviewer": ctx["reviewer"] if can else None}
 
     # -- overview, coverage, audit
     @app.get("/api/requirements/overview")

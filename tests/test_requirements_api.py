@@ -578,3 +578,61 @@ def test_importing_never_runs_tests(api, monkeypatch):
     api.post("/api/requirements/items/jira-main/SHOP-1/analyze", headers=H, json={})
     assert started == [] and not server.jobs or all(
         "requirements" not in json.dumps(j, default=str) for j in server.jobs.values())
+
+
+def _analysed(api, headers=H):
+    api.post("/api/requirements/connections", headers=headers, json=CONN)
+    api.put("/api/requirements/connections/jira-main/token", headers=headers, json={"token": TOKEN})
+    wait_job(api, api.post("/api/requirements/connections/jira-main/imports", headers=headers,
+                           json={"mode": "items", "keys": "SHOP-1"}).json(), headers)
+    return api.post("/api/requirements/items/jira-main/SHOP-1/analyze", headers=headers, json={}).json()
+
+
+def test_the_review_list_shows_ideas_with_their_evidence_and_decisions(api):
+    analysed = _analysed(api)
+    r = api.get("/api/requirements/reviews").json()
+    assert r["can_review"] is True and r["reviewer"] == "local-user"
+    assert r["total"] == len(analysed["analysis"]["suggestions"])
+    first = r["reviews"][0]
+    assert first["key"] == "SHOP-1" and first["criteria"][0]["citation"]["quote"]
+    sid = quote(first["suggestion"]["id"], safe="")
+    api.post(f"/api/requirements/items/jira-main/SHOP-1/suggestions/{sid}/review", headers=H, json={"answer": "no"})
+    done = api.get("/api/requirements/reviews?status=rejected").json()["reviews"]
+    assert len(done) == 1 and done[0]["decided_by"] == "local-user" and done[0]["approval_status"] == "rejected"
+    assert api.get("/api/requirements/reviews?status=needs_review").json()["total"] == r["total"] - 1
+    assert api.get("/api/requirements/reviews?q=no-such-idea").json()["total"] == 0
+    assert api.get("/api/requirements/reviews?status=bogus").status_code == 400
+
+
+def test_accepting_with_corrections_keeps_the_original_and_never_claims_a_quote(api):
+    analysed = _analysed(api)
+    explicit = next(s for s in analysed["analysis"]["suggestions"] if s["basis"] == "explicit")
+    url = f"/api/requirements/items/jira-main/SHOP-1/suggestions/{quote(explicit['id'], safe='')}/review"
+    edit = {"title": "Wrong password is refused", "steps": ["Open login", "Type a wrong password"],
+            "expected_outcome": "A red banner says the password is wrong"}
+    assert api.post(url, headers=H, json={"answer": "no", "edit": edit}).status_code == 400  # (an edit only accepts)
+    assert api.get("/api/requirements/reviews").json()["total"] == len(analysed["analysis"]["suggestions"])
+    r = api.post(url, headers=H, json={"answer": "yes", "edit": edit})
+    s = r.json()["suggestion"]
+    assert s["review"] == "accepted" and s["title"] == "Wrong password is refused" and s["edited_by"] == "local-user"
+    assert s["basis"] == "inferred"  # (the new outcome is not in the requirement's words)
+    assert s["original"]["title"] == explicit["title"] and s["original"]["basis"] == "explicit"
+    assert "edited by local-user" in s["note"]
+
+
+def test_a_viewer_is_told_they_cannot_review(api, monkeypatch):
+    _analysed(api)
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    assert api.get("/api/requirements/capabilities", headers=as_("view-1")).json()["can_review"] is False
+    assert api.get("/api/requirements/capabilities", headers=as_("op-1")).json()["can_review"] is True
+    r = api.get("/api/requirements/reviews", headers=as_("view-1")).json()
+    assert r["can_review"] is False and r["reviewer"] is None
+
+
+def test_the_requirements_page_is_served():
+    from fastapi.testclient import TestClient
+
+    from backend import server
+    r = TestClient(server.app, base_url="http://127.0.0.1:8000").get("/requirements")
+    assert r.status_code == 200 and "Requirements Intelligence" not in r.text.split("<body")[0]
+    assert 'src="/static/requirements.js"' in r.text

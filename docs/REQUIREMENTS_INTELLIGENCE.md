@@ -371,6 +371,32 @@ Tests: `tests/test_requirements_api.py` (48): filters, keys and links, every imp
 (end-to-end flow, roles, tenants, shared token, token secrecy, error answers, one import at a time, imports never start
 runs).
 
+## Milestone 3: the Studio workspace, part A (implemented)
+
+`http://127.0.0.1:8000/requirements` (sidebar: **Requirements**). Files: `frontend/requirements.html`, `.js`, `.css`
+(the Accuracy lab shell and the Studio's colours and type). Everything shown comes from `/api/requirements/*`.
+
+| Screen | What it does |
+|---|---|
+| Overview | Imported requirements, pages, criteria, analysed, ideas waiting, open conflicts, out-of-date analyses, missing items; connected sites; last import; the actions that exist (Import, Analyze, Review) and the ones that do not yet, shown as labelled notes (Generate test cases, Run selected / impacted / all approved tests: Phase 4), never as buttons |
+| Integrations | Jira Cloud and Confluence Cloud cards: site, account email, work-item types, write-only API token (password box, cleared once sent, never shown again), test connection, remove token, disconnect (imports kept), read-only badge, last successful import; a warning when the older defect creation is configured to write |
+| Import | Connect → Project → Types & filters (real types with counts; status, priority, labels, epic, sprint, assignee, dates, summary words, extra JQL with a "Check JQL with Jira" button) → Preview (new / updated / unchanged per item, untick items, load more) → Import (progress, cancel, retry, warnings, failed / missing / inaccessible items, criteria found, out-of-date analyses) → Analyze (rules; AI only if allowed) |
+| Requirements | Search, type / status / analysis filters, sortable columns, paging; key, summary, type, priority, status, criteria, linked pages, analysis state, version, last synced. A row opens the detail drawer |
+| Detail drawer | Details (fields, description, AC field, criteria with their quote and citation), Analysis (criteria with coverage, missing / ambiguous / incomplete / duplicate / contradictory, Jira–Confluence conflicts with both quotes, test ideas, history), Versions (every version, its content), Linked pages / related work items |
+| Review center | Ideas waiting / accepted / rejected, with the requirement words they rest on; Accept, Edit (accept with corrections: the original is kept, an outcome no longer word for word in the source becomes *inferred*), Reject. The reviewer is the signed-in person; viewers and shared tokens see no decision buttons |
+| Confluence | Imported pages by space; a page's headings, requirement sections, the criteria taken from it, related Jira stories, version |
+| Sync history | Every import (mode, status, counts, duration, who) and the requirements audit trail |
+
+Security in the page: all Jira / Confluence text is inserted as text (never HTML); the Atlassian token is never stored
+in the browser; with Studio login on, the page asks for the Studio access token and keeps it in memory for that tab
+only. Accessibility: skip link, labelled controls, tabs with arrow keys, `aria-live` status lines, focus moved on
+navigation, reduced-motion progress bar; fits a 390 px phone without sideways scrolling.
+
+Tests: `tests/test_requirements_ui.py` (9, real server + mock site in Chromium): the whole flow from connection to
+review, Jira text shown as text, targeted import by link, wrong-site link, refused token, empty states, labelled
+controls and phone width, sign-in with Studio login, the Confluence explorer, and the Studio links. API additions
+(`GET /reviews`, review with `edit`, `can_review` from the role) in `tests/test_requirements_api.py` (52).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -430,7 +456,8 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
   been evaluated live.
 * Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
   decisions follow content (fingerprint), not the number.
-* There is no Studio screen yet (Milestone 3); the API exists (Milestone 2). Suggestions are listed by `GET /api/approvals`
+* The workspace has no test-case builder, execution, traceability or write-back screens yet (Milestone 7,
+  after Phases 4–5). With Studio login on, the access token must be pasted again after a page reload. Suggestions are listed by `GET /api/approvals`
   and decided by `POST /api/approvals/{id}/decide` (signed-in reviewer), or by `analysis.review` in Python.
 * Analyses are stored per tenant and work-item key: two Jira sites of one tenant with the same project key would
   share an analysis (not expected in practice; noted for multi-site tenants).

@@ -4928,6 +4928,14 @@ def _take_over(port: int) -> str:
 
 
 
+@app.get("/requirements")
+def requirements_page():
+    page = _studio_file("requirements.html")
+    if page is None:
+        raise HTTPException(404, "The Studio page is a link.")
+    return FileResponse(page)
+
+
 @app.get("/qa-lab")
 def qa_lab():
     page = _studio_file("qa-lab.html")

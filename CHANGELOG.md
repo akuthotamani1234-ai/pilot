@@ -2,6 +2,16 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Requirements Intelligence, Milestone 3 (Studio workspace, part A)
+
+- New Studio page `/requirements` (sidebar link from Test studio and Accuracy lab): Overview, Integrations, Import
+  wizard with preview and selection, Requirements explorer with detail drawer, Review center, Confluence explorer,
+  Sync history and audit. Unavailable actions (test generation and runs) are labelled, not buttons.
+- API: `GET /api/requirements/reviews`; a review may accept with corrections (`edit`), keeping the original and
+  marking a changed outcome as inferred; `can_review` follows the role.
+- Fixed: the item list read the Confluence space from the wrong field.
+- *9 browser tests (real server, mock site) and 4 API tests.*
+
 ## 2026-11-24 - Requirements Intelligence, Milestone 2 (import modes and the Studio API)
 
 - Import modes: incremental (with `new_keys`, `changed_keys`, affected requirements, cancel and resume), full (any
