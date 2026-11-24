@@ -19,7 +19,7 @@ FAIL = {"execution_status": "Failed", "actual_result": "stayed on the login page
 
 
 @pytest.fixture
-def ready(api, monkeypatch):  # noqa: F811
+def ready(api, monkeypatch):
     _accept(api, 2)
     api.client.post("/api/requirements/items/jira-main/QPL-2/test-cases", headers=api.H)
     state = {"n": 0}
