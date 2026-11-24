@@ -403,3 +403,15 @@ def test_a_message_quoted_by_an_approved_requirement_test_is_grounded_but_invent
     assert quoted in evidence
     assert grounding_problem(by_text, pages, evidence) is None
     assert "was not observed" in (grounding_problem(invented, pages, evidence) or "")
+
+
+def test_calling_the_login_fixture_like_a_function_is_caught_before_the_test_runs():
+    """Live SauceDemo run: the AI wrote `user, password = qa_login()` without asking for the fixture -> NameError at
+    run time. The static check now refuses it, so the AI's self-repair fixes it before anything runs."""
+    from backend.agents.script_generator import validate_script
+    called = "def test_a(page):\n    user, password = qa_login()\n    assert user\n"
+    missing = "def test_a(page):\n    user, password = qa_login\n    assert user\n"
+    right = "def test_a(page, qa_login):\n    user, password = qa_login\n    assert user\n"
+    assert "fixture" in (validate_script(called) or "")
+    assert "add qa_login to its parameters" in (validate_script(missing) or "")
+    assert validate_script(right) is None

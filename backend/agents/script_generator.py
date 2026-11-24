@@ -96,6 +96,14 @@ def validate_script(code: str, need_tests: bool = True) -> str | None:
             if node.name in {"page", "browser", "console_errors", "qa_login", "run_steps", "_shared"}:
                 return f"Do not redefine fixture `{node.name}`"
             args = {a.arg for a in node.args.args}
+            used = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+            if "qa_login" in used and "qa_login" not in args and node.name.startswith("test_"):
+                return (f"{node.name} uses qa_login without asking for it: add qa_login to its parameters "
+                        "(def test_x(page, qa_login)) and write `user, password = qa_login` (it is a fixture, not "
+                        "a function: never call qa_login())")
+            if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "qa_login"
+                   for n in ast.walk(node)):
+                return "qa_login is a fixture, not a function: write `user, password = qa_login`, never qa_login()"
             if node.name.startswith(("test_", "step_")) and args & BANNED_FIXTURES:
                 return f"{node.name} may not use the fixture(s) {', '.join(sorted(args & BANNED_FIXTURES))}"
             if node.name.startswith("test_"):
