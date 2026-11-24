@@ -5,6 +5,10 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
+**Test suite health (24 Nov):** the test-order pollution and the "flaky" busy-server test are fixed (the latter was a
+real discovery bug in `payment_nav.py`). Non-slow suite without `.env`: **2430 passed, 0 failed, 28 skipped** (all
+skips: Postgres / Redis / MinIO / the optional `mcp` package not present here, or Windows-only).
+
 ## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–3
 
 **Milestone 4 (prepared, not run live):** opt-in live read-only acceptance test for the QPL project

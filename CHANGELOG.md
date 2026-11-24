@@ -2,6 +2,18 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Test pollution and a lost slow page fixed
+
+- Tests that load `backend/templates/conftest.py` in-process now use the `template_conftest` fixture
+  (`tests/conftest.py`), which restores Playwright's `Page`, `Locator`, `APIRequestContext`, `SyncBase` and
+  `pytest.qa_step` afterwards. Four tests no longer skip ("Blocked: checkout or payment") depending on which worker ran
+  first. An autouse check fails any test that leaves Playwright patched.
+- Discovery bug (`backend/payment_nav.py`): when a slow page's first load timed out, the checkout guard answered the
+  already-settled request again; Playwright passed "Route is already handled!" to the retry, so a page that opened was
+  reported as failed or lost. Such a request is now left alone (other routing errors still surface). Under load the
+  busy-server test went from 7 failures in 40 runs to 40 of 40 passing.
+- Non-slow suite without `.env`: 2430 passed, 0 failed, 28 skipped (all for services not running here or Windows-only).
+
 ## 2026-11-24 - Requirements Intelligence, Milestone 3 (Studio workspace, part A)
 
 - New Studio page `/requirements` (sidebar link from Test studio and Accuracy lab): Overview, Integrations, Import
