@@ -19,7 +19,8 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
   records the signed-in reviewer (`decided_by`), refuses shared tokens and other tenants; `POST /api/approvals` refuses
   `requirement_suggestion`; a queue row not created by analysis cannot decide a suggestion.
 - New read-only command line: `check`, `connect`, `projects`, `types`, `sync`, `show`, `analyze`, `spaces`,
-  `sync-space`. Documentation inconsistencies from the audit corrected. *84 new tests, local mock only.*
+  `sync-space`. Documentation inconsistencies from the audit corrected. *84 new tests, local mock only. Non-slow
+  suite 2367 passed, 0 failed, 29 skipped; lint clean.*
 
 ## 2026-11-23 - Fixed the five baseline test failures
 

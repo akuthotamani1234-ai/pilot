@@ -13,7 +13,10 @@ when an import finds nothing; a separate read token (`JIRA_READ_API_TOKEN`) so r
 creation, and a client that refuses every write; requirement suggestions decided through `/api/approvals` update the
 stored analysis, are signed by the logged-in reviewer (not a shared token, not a body field), stay in their tenant,
 and cannot be created or forged through the API; every Atlassian secret name redacted; a read-only command line
-(`python -m backend.atlassian`). 84 tests (`tests/test_atlassian_milestone1.py`) against the local mock. **Still no
+(`python -m backend.atlassian`). 84 tests (`tests/test_atlassian_milestone1.py`) against the local mock. Verified
+(no `.env`, 24 Nov): affected files 275 passed / 1 skipped; non-slow suite **2367 passed, 0 failed, 29 skipped**; lint
+clean. (The 29th skip and one occasional timing failure also happen on the previous `final`: test-order effects, not
+Milestone 1.) **Still no
 requirements API or Studio screen (Milestones 2–3), no test generation from requirements (Phase 4), no traceability
 or write-back (Phase 5), and no live Atlassian evidence.**
 
