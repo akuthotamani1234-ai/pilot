@@ -281,6 +281,8 @@ def _item_row(db, tenant: str, row: dict, runs: dict) -> dict:
         except (LookupError, ValueError):
             criteria = 0
         pending = 0
+    covered = sum(1 for status in analysis.coverage.values() if status.value == "covered") if analysis else None
+    review_status = ("pending" if pending else "reviewed") if analysis and analysis.suggestions else ""
     pages = sum(1 for link in store.links_from(db, tenant, src.key) if link["relation"] == "specified_by") \
         if src.kind == SourceKind.jira_issue else 0
     return {"key": src.source_id, "connection_id": src.connection_id, "kind": src.kind.value, "requirement_id": req_id,
@@ -288,9 +290,10 @@ def _item_row(db, tenant: str, row: dict, runs: dict) -> dict:
             "type": content.get("type", "page" if src.kind != SourceKind.jira_issue else ""),
             "priority": content.get("priority", ""), "status": content.get("status", ""),
             "labels": content.get("labels", []), "criteria": criteria, "linked_pages": pages,
-            "analysis": state, "pending_reviews": pending, "version": src.version, "present": row["present"],
+            "analysis": state, "pending_reviews": pending, "review_status": review_status, "covered": covered,
+            "version": src.version, "present": row["present"],
             "updated": src.updated.isoformat(), "last_synced": src.retrieved_at.isoformat(), "url": src.url,
-            "space": content.get("space", ""),
+            "space": content.get("space", ""), "parent_id": content.get("parent_id", ""),
             "last_sync": runs.get(src.connection_id, "")}
 
 
@@ -722,8 +725,8 @@ def register_requirements_api(app) -> None:
                 x_qa_token: str | None = Q):
         """Every suggestion of the tenant's analysed requirements, with the criteria and source words behind it."""
         ctx = _context(authorization, x_qa_token, "run.read")
-        if status not in ("needs_review", "accepted", "rejected", "all"):
-            raise HTTPException(400, "status is needs_review, accepted, rejected or all")
+        if status not in ("needs_review", "accepted", "rejected", "stale", "all"):
+            raise HTTPException(400, "status is needs_review, accepted, rejected, stale or all")
         from . import approvals
         db = _db()
         try:
@@ -733,7 +736,9 @@ def register_requirements_api(app) -> None:
                 criteria = {c.id: c for c in a.requirement.criteria}
                 stale = bool(an.stale(db, ctx["tenant"], a))
                 for s in a.suggestions:
-                    if status != "all" and s.review.value != status:
+                    if status == "stale" and not stale:
+                        continue
+                    if status not in ("all", "stale") and s.review.value != status:
                         continue
                     if q and q.lower() not in (s.title + " " + a.requirement.id + " " + a.requirement.title).lower():
                         continue

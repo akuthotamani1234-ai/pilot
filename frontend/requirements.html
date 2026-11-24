@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/static/qpilot.css">
 <link rel="stylesheet" href="/static/requirements.css">
 </head>
-<body>
+<body class="rq-workspace">
 <a class="rq-skip" href="#rqMain">Skip to content</a>
 <div class="lab-shell rq-shell">
   <aside class="side lab-sidebar" aria-label="Workspace navigation">
@@ -21,17 +21,40 @@
     <a class="studio-nav" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span></a>
     <a class="studio-nav current" href="/requirements" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 4h8l4 4v12H4V4h4Z"/><path d="M8 11h8M8 15h5"/></svg><span>Requirements</span></a>
     <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
-    <div class="side-title">REQUIREMENTS</div>
     <nav class="rq-nav" aria-label="Requirements sections">
-      <a href="#overview" data-view="overview">Overview</a>
-      <a href="#integrations" data-view="integrations">Integrations</a>
-      <a href="#import" data-view="import">Import</a>
-      <a href="#explorer" data-view="explorer">Requirements</a>
-      <a href="#reviews" data-view="reviews">Review center <span class="rq-count" id="navReviews" hidden></span></a>
-      <a href="#confluence" data-view="confluence">Confluence</a>
-      <a href="#history" data-view="history">Sync history</a>
+      <div class="rq-nav-group" role="group" aria-label="Workspace">
+        <span class="rq-nav-label" aria-hidden="true">Workspace</span>
+        <a href="#overview" data-view="overview">Overview</a>
+        <a href="#integrations" data-view="integrations">Integrations</a>
+      </div>
+      <div class="rq-nav-group" role="group" aria-label="Requirements management">
+        <span class="rq-nav-label" aria-hidden="true">Requirements management</span>
+        <a href="#import" data-view="import">Import Requirements</a>
+        <a href="#explorer" data-view="explorer">Requirements Explorer</a>
+        <a href="#confluence" data-view="confluence">Confluence Explorer</a>
+      </div>
+      <div class="rq-nav-group" role="group" aria-label="Test intelligence">
+        <span class="rq-nav-label" aria-hidden="true">Test intelligence</span>
+        <a href="#analysis" data-view="analysis">AI Analysis</a>
+        <a href="#reviews" data-view="reviews">Review Center <span class="rq-count" id="navReviews" hidden></span></a>
+        <a href="#builder" data-view="builder">Test Case Builder</a>
+      </div>
+      <div class="rq-nav-group" role="group" aria-label="Test execution">
+        <span class="rq-nav-label" aria-hidden="true">Test execution</span>
+        <a href="#execution" data-view="execution">Execution Center</a>
+        <a href="#agents" data-view="agents">Live Agents</a>
+        <a href="#evidence" data-view="evidence">Test Evidence</a>
+      </div>
+      <div class="rq-nav-group" role="group" aria-label="Quality and governance">
+        <span class="rq-nav-label" aria-hidden="true">Quality and governance</span>
+        <a href="#traceability" data-view="traceability">Traceability Matrix</a>
+        <a href="#coverage" data-view="coverage">Coverage and Release</a>
+        <a href="#history" data-view="history">Sync History</a>
+        <a href="#writeback" data-view="writeback">Defects and Write-back</a>
+        <a href="#settings" data-view="settings">Settings</a>
+      </div>
     </nav>
-    <div class="side-footer"><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Read-only to Jira</b><small>Qpilot never changes your issues</small></div></div>
+    <div class="side-footer"><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Read-only to Jira</b><small>Requirements Intelligence uses read-only access</small></div></div>
   </aside>
 
   <main class="lab-main rq-main" id="rqMain" tabindex="-1">
@@ -56,11 +79,11 @@
       </header>
       <div class="rq-stats" id="stats" aria-busy="true"><p class="small">Loading…</p></div>
       <div class="rq-grid2">
-        <section class="lab-card" aria-labelledby="ovConnTitle"><div class="lab-card-title"><span>01</span><h2 id="ovConnTitle">Connected sites</h2></div><div id="ovConnections"></div></section>
-        <section class="lab-card" aria-labelledby="ovSyncTitle"><div class="lab-card-title"><span>02</span><h2 id="ovSyncTitle">Last import</h2></div><div id="ovSync"></div></section>
+        <section class="lab-card" aria-labelledby="ovConnTitle"><div class="lab-card-title"><h2 id="ovConnTitle">Connected sites</h2></div><div id="ovConnections"></div></section>
+        <section class="lab-card" aria-labelledby="ovSyncTitle"><div class="lab-card-title"><h2 id="ovSyncTitle">Last import</h2></div><div id="ovSync"></div></section>
       </div>
       <section class="lab-card rq-actions-card" aria-labelledby="ovActionsTitle">
-        <div class="lab-card-title"><span>03</span><h2 id="ovActionsTitle">What you can do</h2></div>
+        <div class="lab-card-title"><h2 id="ovActionsTitle">What you can do</h2></div>
         <div class="rq-actions" id="actions"></div>
         <p class="small">Importing never runs tests. Each step is its own action.</p>
       </section>
@@ -77,7 +100,7 @@
     <section class="rq-view" id="view-import" data-title="Import" hidden>
       <header class="rq-head"><h1>Import requirements</h1><p class="small">Choose what to read, preview it, then import. You can analyse afterwards; nothing is tested automatically.</p></header>
       <ol class="rq-steps" id="wizardSteps" aria-label="Import steps">
-        <li data-step="1">Connect</li><li data-step="2">Project</li><li data-step="3">Types &amp; filters</li><li data-step="4">Preview</li><li data-step="5">Import</li><li data-step="6">Analyze</li>
+        <li data-step="1">Connect</li><li data-step="2">Select Project</li><li data-step="3">Choose Scope</li><li data-step="4">Preview</li><li data-step="5">Import</li>
       </ol>
       <div class="lab-card" id="wizard">
         <div class="rq-step" data-panel="1">
@@ -88,6 +111,7 @@
           <div class="rq-radios" role="radiogroup" aria-label="What to import">
             <label><input type="radio" name="wMode" value="incremental" checked> <b>New and changed</b> <small>since the last import (everything the first time)</small></label>
             <label><input type="radio" name="wMode" value="full"> <b>Everything</b> <small>re-read all, and mark removed items as missing</small></label>
+            <label><input type="radio" name="wMode" value="jql"> <b>Advanced JQL</b> <small>re-read all work items matching a project-scoped JQL filter</small></label>
             <label><input type="radio" name="wMode" value="items"> <b>Specific work items</b> <small>keys such as QPL-2 or Jira links</small></label>
           </div>
           <div class="rq-nav-buttons"><button class="primary" type="button" data-next="2">Next</button></div>
@@ -97,6 +121,12 @@
           <div id="wProjectBox"><label for="wProject">Project<select id="wProject"><option value="">Loading projects…</option></select></label></div>
           <div id="wKeysBox" hidden>
             <label for="wKeys">Work items<textarea id="wKeys" rows="3" placeholder="QPL-2, QPL-3 or https://your-site.atlassian.net/browse/QPL-4"></textarea></label>
+            <details id="issuePicker">
+              <summary>Find work items by summary</summary>
+              <label for="issueQuery">Summary contains<input id="issueQuery" type="search"></label>
+              <button class="secondary" type="button" id="findIssues">Search Jira</button>
+              <div id="issueResults" aria-live="polite"></div>
+            </details>
             <fieldset class="rq-checks"><legend>Also read</legend>
               <label><input type="checkbox" value="subtasks" name="wInclude"> sub-tasks</label>
               <label><input type="checkbox" value="parent" name="wInclude"> the parent epic</label>
@@ -109,7 +139,7 @@
         <div class="rq-step" data-panel="3" hidden>
           <h2>3. Work-item types and filters</h2>
           <div id="wTypes" class="rq-checks" role="group" aria-label="Work-item types"><p class="small">Loading types…</p></div>
-          <details class="rq-filters"><summary>More filters (optional)</summary>
+          <details class="rq-filters" id="wFilters"><summary>More filters (optional)</summary>
             <div class="rq-filter-grid">
               <label for="fStatus">Status<input id="fStatus" placeholder="To Do, In Progress"></label>
               <label for="fPriority">Priority<input id="fPriority" placeholder="High"></label>
@@ -141,7 +171,7 @@
           <h2>5. Importing</h2>
           <div class="rq-progress" role="progressbar" aria-label="Import progress" aria-valuetext="starting" id="impBar"><span></span></div>
           <p id="impStatus" role="status" aria-live="polite"></p>
-          <div class="rq-nav-buttons"><button class="secondary" type="button" id="impCancel">Cancel import</button><button class="secondary" type="button" id="impRetry" hidden>Retry</button></div>
+          <div class="rq-nav-buttons"><button class="secondary" type="button" id="impCancel">Cancel import</button><button class="secondary" type="button" id="impRetry" hidden>Retry</button><button class="secondary" type="button" id="newImport" hidden>New import</button></div>
           <div id="impResult"></div>
           <div class="rq-nav-buttons"><button class="primary" type="button" data-next="6" id="toAnalyze" hidden>Analyze imported requirements</button></div>
         </div>
@@ -169,7 +199,7 @@
         <thead><tr>
           <th scope="col"><button type="button" data-sort="key">Key</button></th><th scope="col"><button type="button" data-sort="summary">Summary</button></th>
           <th scope="col">Type</th><th scope="col"><button type="button" data-sort="priority">Priority</button></th><th scope="col"><button type="button" data-sort="status">Status</button></th>
-          <th scope="col"><button type="button" data-sort="criteria">Criteria</button></th><th scope="col">Pages</th><th scope="col">Analysis</th><th scope="col">Version</th><th scope="col"><button type="button" data-sort="updated">Last synced</button></th>
+          <th scope="col"><button type="button" data-sort="criteria">Criteria</button></th><th scope="col">Pages</th><th scope="col">Analysis</th><th scope="col">Review</th><th scope="col">Coverage</th><th scope="col">Version</th><th scope="col"><button type="button" data-sort="updated">Last synced</button></th>
         </tr></thead><tbody></tbody></table></div>
       <div class="rq-pager" id="exPager"></div>
     </section>
@@ -177,7 +207,7 @@
     <!-- ===== 6 reviews ===== -->
     <section class="rq-view" id="view-reviews" data-title="Review center" hidden>
       <header class="rq-head"><h1>Review center</h1><p class="small">Test ideas wait here until a person accepts, corrects or rejects them. Each shows the requirement words it rests on.</p></header>
-      <div class="rq-toolbar"><label for="rvStatus" class="rq-sr">Show</label><select id="rvStatus"><option value="needs_review">Waiting for review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="all">All</option></select>
+      <div class="rq-toolbar"><label for="rvStatus" class="rq-sr">Show</label><select id="rvStatus"><option value="needs_review">Waiting for review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="stale">Stale</option><option value="all">All</option></select>
         <label for="rvQ" class="rq-sr">Search</label><input id="rvQ" type="search" placeholder="Search ideas"></div>
       <p class="small" id="rvWho" role="status"></p>
       <div id="rvList"></div>
@@ -186,6 +216,11 @@
     <!-- ===== 7 confluence ===== -->
     <section class="rq-view" id="view-confluence" data-title="Confluence" hidden>
       <header class="rq-head"><h1>Confluence pages</h1><p class="small">Imported specification pages, their headings and requirement sections, and the Jira stories they relate to.</p></header>
+      <form class="rq-toolbar" id="cfSearchForm" role="search">
+        <label for="cfSearch" class="rq-sr">Search Confluence pages</label><input id="cfSearch" type="search" placeholder="Search Confluence pages">
+        <button type="submit" class="secondary">Search</button>
+      </form>
+      <p class="small">Attachment contents are unavailable in Requirements Intelligence.</p>
       <div class="rq-grid-side"><div id="cfSpaces" class="lab-card"></div><div id="cfPage" class="lab-card"><p class="small">Choose a page.</p></div></div>
     </section>
 
@@ -193,9 +228,45 @@
     <section class="rq-view" id="view-history" data-title="Sync history" hidden>
       <header class="rq-head"><h1>Sync history</h1></header>
       <div class="rq-table-wrap"><table class="rq-table" id="hsTable"><caption class="rq-sr">Imports, newest first</caption>
-        <thead><tr><th scope="col">Finished</th><th scope="col">Connection</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">New</th><th scope="col">Changed</th><th scope="col">Unchanged</th><th scope="col">Missing</th><th scope="col">Failed</th><th scope="col">Took</th><th scope="col">By</th></tr></thead><tbody></tbody></table></div>
+        <thead><tr><th scope="col">Finished</th><th scope="col">Connection</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">New</th><th scope="col">Changed</th><th scope="col">Unchanged</th><th scope="col">Missing</th><th scope="col">Failed</th><th scope="col">Took</th><th scope="col">By</th><th scope="col">Scope</th></tr></thead><tbody></tbody></table></div>
       <h2 class="rq-sub">Audit trail</h2>
       <ul class="rq-audit" id="auditList"></ul>
+    </section>
+    <section class="rq-view" id="view-analysis" data-title="AI Analysis" hidden>
+      <header class="rq-head"><h1>AI Analysis</h1></header>
+      <p class="small">Open a Jira requirement to run deterministic analysis or request AI-assisted ideas when the workspace policy permits it.</p><form class="rq-toolbar" id="analysisSearchForm" role="search"><label for="analysisSearch" class="rq-sr">Search requirements for analysis</label><input id="analysisSearch" type="search" placeholder="Search key or summary"><button type="submit" class="secondary">Search</button></form><div id="analysisItems" aria-live="polite"></div>
+    </section>
+    <section class="rq-view" id="view-builder" data-title="Test Case Builder" hidden>
+      <header class="rq-head"><h1>Test Case Builder</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Approved test ideas are available in the <a href="#reviews">Review Center</a>. Executable test generation and editing will become available when requirements are connected to the Studio engines.</p></div>
+    </section>
+    <section class="rq-view" id="view-execution" data-title="Execution Center" hidden>
+      <header class="rq-head"><h1>Execution Center</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Running selected or impacted requirements will become available with requirement-linked test execution. The <a href="/">Test Studio</a> supports existing website and Android runs.</p></div>
+    </section>
+    <section class="rq-view" id="view-agents" data-title="Live Agents" hidden>
+      <header class="rq-head"><h1>Live Agents</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Use the <a href="/">Test Studio</a> to follow agents during existing Studio runs. This workspace will show assignments when requirement-linked runs are available.</p></div>
+    </section>
+    <section class="rq-view" id="view-evidence" data-title="Test Evidence" hidden>
+      <header class="rq-head"><h1>Test Evidence</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phases 4–5</span><p>Requirement-linked screenshots, traces and device logs will become available with execution and traceability. Existing run evidence is available in the <a href="/">Test Studio</a>.</p></div>
+    </section>
+    <section class="rq-view" id="view-traceability" data-title="Traceability Matrix" hidden>
+      <header class="rq-head"><h1>Traceability Matrix</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><p>Requirements and source citations are available in the <a href="#explorer">Requirements Explorer</a>. Test, run, evidence and defect relationships require Phase 5 traceability.</p></div>
+    </section>
+    <section class="rq-view" id="view-coverage" data-title="Coverage and Release" hidden>
+      <header class="rq-head"><h1>Coverage and Release</h1></header>
+      <h2 class="rq-sub">Approved coverage</h2><p class="small">Coverage reflects reviewed test ideas. Out-of-date source analyses are identified below.</p><div id="rqCoverage" aria-live="polite"></div><div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><h2 class="rq-sub">Executed coverage and release verdict</h2><p>These results require execution evidence linked to requirements.</p></div>
+    </section>
+    <section class="rq-view" id="view-writeback" data-title="Defects and Write-back" hidden>
+      <header class="rq-head"><h1>Defects and Write-back</h1></header>
+      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><p>Requirements Intelligence uses read-only connections. Defect proposals, approval and write history require the Phase 5 write-back workflow.</p><a href="#integrations">View integrations and legacy Jira configuration</a></div>
+    </section>
+    <section class="rq-view" id="view-settings" data-title="Settings" hidden>
+      <header class="rq-head"><h1>Settings</h1></header>
+      <div class="lab-card"><h2 class="rq-sub">Workspace access</h2><dl id="rqSettings" class="rq-kv"></dl><p><a href="#integrations">Manage read-only Atlassian credentials</a></p><p class="small">The server controls whether AI-assisted analysis can send requirement text to a configured provider.</p></div>
     </section>
   </main>
 </div>
@@ -204,12 +275,17 @@
 <dialog class="rq-drawer" id="detail" aria-labelledby="dtTitle">
   <header><div><span class="eyebrow" id="dtKey"></span><h2 id="dtTitle"></h2><p class="small" id="dtMeta"></p></div><button class="secondary" type="button" id="dtClose" aria-label="Close details">Close</button></header>
   <div class="rq-tabs" role="tablist" aria-label="Requirement details">
-    <button role="tab" type="button" data-tab="details" aria-selected="true">Details</button>
-    <button role="tab" type="button" data-tab="analysis" aria-selected="false">Analysis</button>
-    <button role="tab" type="button" data-tab="versions" aria-selected="false">Versions</button>
-    <button role="tab" type="button" data-tab="links" aria-selected="false">Linked pages</button>
+    <button role="tab" type="button" id="dtTab-details" aria-controls="dtBody" data-tab="details" aria-selected="true" tabindex="0">Description</button>
+    <button role="tab" type="button" id="dtTab-criteria" aria-controls="dtBody" data-tab="criteria" aria-selected="false" tabindex="-1">Acceptance Criteria</button>
+    <button role="tab" type="button" id="dtTab-links" aria-controls="dtBody" data-tab="links" aria-selected="false" tabindex="-1">Linked Documents</button>
+    <button role="tab" type="button" id="dtTab-analysis" aria-controls="dtBody" data-tab="analysis" aria-selected="false" tabindex="-1">AI Analysis</button>
+    <button role="tab" type="button" id="dtTab-tests" aria-controls="dtBody" data-tab="tests" aria-selected="false" tabindex="-1">Test Cases</button>
+    <button role="tab" type="button" id="dtTab-results" aria-controls="dtBody" data-tab="results" aria-selected="false" tabindex="-1">Execution Results</button>
+    <button role="tab" type="button" id="dtTab-trace" aria-controls="dtBody" data-tab="trace" aria-selected="false" tabindex="-1">Traceability</button>
+    <button role="tab" type="button" id="dtTab-versions" aria-controls="dtBody" data-tab="versions" aria-selected="false" tabindex="-1">Version History</button>
+    <button role="tab" type="button" id="dtTab-audit" aria-controls="dtBody" data-tab="audit" aria-selected="false" tabindex="-1">Audit History</button>
   </div>
-  <div class="rq-tabpanel" id="dtBody" role="tabpanel"></div>
+  <div class="rq-tabpanel" id="dtBody" role="tabpanel" aria-labelledby="dtTab-details" tabindex="0"></div>
 </dialog>
 <script src="/static/requirements.js"></script>
 </body>

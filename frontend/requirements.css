@@ -119,3 +119,34 @@
   .lab-sidebar .rq-nav{display:flex}.rq-drawer{width:100vw;border-radius:0}.rq-drawer>header{padding:16px}
   .rq-tabpanel{padding:16px}.rq-tabs{padding:8px 16px 0;overflow-x:auto}.rq-stats{grid-template-columns:1fr 1fr}
   .lab-sidebar{flex-wrap:wrap}.rq-who{display:none}}
+
+.rq-workspace { background: #fff; }
+.rq-shell .rq-nav-group { display: grid; gap: 2px; margin: 0 12px 10px; }
+.rq-nav-label {
+  display: block;
+  padding: 8px 10px 2px;
+  color: #a5b4cc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.rq-shell .rq-nav a { padding: 7px 10px; }
+.rq-workspace :is(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+.rq-shell .lab-sidebar { overflow-y: auto; }
+.rq-nav-group > a { min-height: 34px; }
+.rq-view > .lab-card + .lab-card { margin-top: 16px; }
+.rq-view .rq-sub:first-child { margin-top: 0; }
+#rqCoverage { margin-bottom: 20px; }
+@media (max-width: 640px) {
+  .rq-shell .rq-nav { width: 100%; flex-wrap: nowrap; padding-bottom: 4px; }
+  .rq-shell .rq-nav-group { display: flex; margin: 0; }
+  .rq-nav-label { display: none; }
+}
+.rq-nested-pages { padding-inline-start: 16px; }
+.rq-tabs { overflow-x: auto; }
+.rq-tabs button { flex: 0 0 auto; white-space: nowrap; }
+.rq-space-import { margin-inline-start: 8px; }
+@media (min-width: 1000px) {
+  .rq-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

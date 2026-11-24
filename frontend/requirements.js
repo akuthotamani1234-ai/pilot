@@ -63,18 +63,26 @@
   });
 
   // ---------------------------------------------------------------- routing
-  const VIEWS = ["overview", "integrations", "import", "explorer", "reviews", "confluence", "history"];
+  const navigation = [...document.querySelectorAll(".rq-nav a[data-view]")];
+  const VIEWS = navigation.map((link) => link.dataset.view);
   function route() {
+    if (!S.caps) return;
     const view = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "overview";
     for (const v of VIEWS) $(`view-${v}`).hidden = v !== view;
-    document.querySelectorAll(".rq-nav a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.view === view)
-      || a.dataset.view !== view || a.setAttribute("aria-current", "page"));
-    document.querySelectorAll(".rq-nav a").forEach((a) => { if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+    for (const link of navigation) {
+      if (link.dataset.view === view) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    }
     document.title = `Qpilot | ${$(`view-${view}`).dataset.title}`;
     banner("");
-    ({ overview, integrations, import: wizardOpen, explorer, reviews, confluence: confluenceView, history })[view]();
+    ({ overview, integrations, import: wizardOpen, explorer, analysis: analysisView, reviews,
+      confluence: confluenceView, coverage: coverageView, history, settings: settingsView })[view]?.();
   }
   window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
+  document.querySelector(".rq-skip").addEventListener("click", (event) => {
+    event.preventDefault();
+    $("rqMain").focus();
+  });
 
   // ---------------------------------------------------------------- 1 overview
   async function overview() {
@@ -112,7 +120,7 @@
     const later = (key, label) => h("div", { class: "rq-coming", role: "note" }, h("b", { text: label }), `Not available yet — comes with ${coming[key] || "a later phase"}.`);
     $("actions").replaceChildren(...kids(
       caps.import_requirements ? go("Import requirements", "read stories from Jira", "#import") : null,
-      caps.analyze_requirements ? go("Analyze requirements", "criteria, gaps, conflicts", "#explorer") : null,
+      caps.analyze_requirements ? go("Analyze requirements", "criteria, gaps, conflicts", "#analysis") : null,
       caps.review_suggestions ? go("Review suggestions", "accept, correct or reject ideas", "#reviews") : null,
       caps.generate_test_cases ? null : later("generate_test_cases", "Generate test cases"),
       caps.run_selected_tests ? null : later("run_selected_tests", "Run selected tests"),
@@ -166,12 +174,31 @@
       h("label", { for: tokenInput.id }, "API token ", h("span", { class: "small", text: "(stored encrypted, never shown again)" }), tokenInput),
       h("div", { class: "rq-row" }, h("button", { class: "primary", type: "submit", text: conn ? "Save changes" : "Connect" })));
 
+    const discovery = h("div", { "aria-live": "polite" });
+    const jira = product === "jira";
+    const collection = jira ? "projects" : "spaces";
     const actions = conn ? h("div", { class: "rq-row" },
       h("button", { class: "secondary", type: "button", text: "Test connection", onclick: async () => {
         status.textContent = "Testing…";
         try { const r = await api(`/connections/${encodeURIComponent(id)}/test`, { method: "POST" });
           status.textContent = product === "jira" ? `Connected as ${r.account}. ${plural(r.projects, "project")} visible. Read-only.` : `Connected. ${plural(r.spaces, "space")} visible. Read-only.`;
         } catch (err) { status.textContent = err.message; }
+      } }),
+      h("button", { class: "secondary", type: "button", text: jira ? "Discover projects" : "Discover spaces", onclick: async () => {
+        discovery.textContent = "Loading…";
+        try {
+          const data = await api(`/connections/${encodeURIComponent(id)}/${collection}`);
+          discovery.replaceChildren(data[collection].length ? h("ul", { class: "rq-list" },
+            data[collection].map((entry) => h("li", {}, `${entry.key} — ${entry.name}`,
+              jira ? null : h("button", { class: "secondary rq-space-import", type: "button",
+                text: `Import space ${entry.key}`, onclick: () => {
+                  if (W.job || W.submitting) { discovery.textContent = "An import is already active in this tab."; return; }
+                  W.lastImport = { conn: id, body: { mode: "space", space_key: entry.key } };
+                  location.hash = "import";
+                  submitImport();
+                } }))))
+            : h("p", { class: "small", text: `No ${collection} are visible to this account.` }));
+        } catch (err) { discovery.textContent = err.message; }
       } }),
       cred.configured && cred.source === "studio" ? h("button", { class: "secondary", type: "button", text: "Remove token", onclick: async () => {
         try { await api(`/connections/${encodeURIComponent(id)}/token`, { method: "DELETE" }); integrations(); } catch (err) { status.textContent = err.message; }
@@ -182,10 +209,10 @@
       } })) : null;
 
     return h("section", { class: "lab-card rq-conn", "aria-label": name },
-      h("h3", {}, name, conn ? badge("connected", "ok") : badge("not connected"), badge("read-only", "info"),
+      h("h3", {}, name, conn ? badge("configured", "info") : badge("not connected"), badge("read-only", "info"),
         conn ? badge(credText, cred.configured ? "ok" : "warn") : null),
       conn ? h("p", { class: "small" }, `Last successful import: ${when(conn.last_success)}`) : null,
-      save, actions, status);
+      save, actions, status, discovery);
   }
 
   // ---------------------------------------------------------------- 3 import wizard
@@ -195,8 +222,8 @@
     document.querySelectorAll("#wizard .rq-step").forEach((p) => { p.hidden = Number(p.dataset.panel) !== n; });
     document.querySelectorAll("#wizardSteps li").forEach((li) => {
       const s = Number(li.dataset.step);
-      if (s === n) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
-      li.classList.toggle("done", s < n);
+      if (s === Math.min(n, 5)) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+      li.classList.toggle("done", s < Math.min(n, 5));
     });
     const first = document.querySelector(`#wizard [data-panel="${n}"] h2`);
     if (first) { first.tabIndex = -1; first.focus(); }
@@ -213,7 +240,7 @@
       $("wConnHelp").replaceChildren(...kids(jiras.length ? "" : h("span", {}, "No Jira connection yet. ", h("a", { href: "#integrations", text: "Connect Jira first" }), ".")));
       document.querySelector('[data-panel="1"] [data-next="2"]').disabled = !jiras.length;
     } catch (e) { banner(e.message); }
-    if (!W.job) wizardStep(1);
+    if (!W.job && !W.submitting && W.step !== 5) wizardStep(1);
   }
   document.querySelectorAll("#wizard [data-next]").forEach((b) => b.addEventListener("click", async () => {
     const to = Number(b.dataset.next);
@@ -227,16 +254,56 @@
   }));
   async function stepProject() {
     const items = mode() === "items";
-    $("wProjectBox").hidden = items; $("wKeysBox").hidden = !items;
-    if (items) return;
+    $("wKeysBox").hidden = !items;
+    $("issueResults").replaceChildren();
+    $("issuePicker").open = false;
+    if (!items) {
+      $("wProjectBox").hidden = false;
+      await loadProjects();
+    } else {
+      $("wProjectBox").hidden = true;
+    }
+  }
+  async function loadProjects() {
     const sel = $("wProject");
     sel.replaceChildren(...kids(h("option", { value: "", text: "Loading projects…" })));
     const r = await api(`/connections/${encodeURIComponent($("wConn").value)}/projects`);
     sel.replaceChildren(...kids(...(r.projects.length ? r.projects.map((p) => h("option", { value: p.key, text: `${p.key} — ${p.name}` }))
       : [h("option", { value: "", text: "No projects visible to this account" })])));
   }
+  $("issuePicker").addEventListener("toggle", async () => {
+    if (!$("issuePicker").open) return;
+    $("wProjectBox").hidden = false;
+    try { await loadProjects(); }
+    catch (error) { $("issueResults").textContent = error.message; }
+  });
+  $("findIssues").addEventListener("click", async () => {
+    const output = $("issueResults");
+    const project = $("wProject").value;
+    const query = $("issueQuery").value.trim();
+    if (!project || !query) { output.textContent = "Choose a project and enter part of a summary."; return; }
+    output.textContent = "Searching Jira…";
+    const button = $("findIssues");
+    button.disabled = true;
+    try {
+      const result = await api(`/connections/${encodeURIComponent($("wConn").value)}/preview`,
+        { method: "POST", body: { filters: { project, text: query }, limit: 25 } });
+      output.replaceChildren(...kids(
+        result.next_page_token ? h("p", { class: "small", text: "Showing the first page. Refine the search to find more specific matches." }) : null,
+        result.items.length ? h("ul", { class: "rq-list" }, result.items.filter((item) => item.state !== "unreadable").map((item) =>
+          h("li", {}, h("button", { type: "button", class: "rq-open", text: `Add ${item.key} — ${item.summary}`, onclick: (event) => {
+            const keys = $("wKeys");
+            keys.value = [keys.value.trim(), item.key].filter(Boolean).join(", ");
+            event.currentTarget.textContent = `${item.key} added`;
+            event.currentTarget.disabled = true;
+          } })))) : h("p", { text: "No matching work items." })));
+    } catch (error) { output.textContent = error.message; }
+    finally { button.disabled = false; }
+  });
   async function stepTypes() {
     const box = $("wTypes");
+    $("wFilters").hidden = mode() === "items";
+    $("wFilters").open = mode() === "jql";
     if (mode() === "items") { box.replaceChildren(...kids(h("p", { class: "small", text: "Specific work items are imported whatever their type." }))); return; }
     if (!$("wProject").value) throw new Error("Choose a project.");
     box.replaceChildren(...kids(h("p", { class: "small", text: "Reading the project's work-item types…" })));
@@ -262,36 +329,77 @@
     } catch (e) { out.textContent = e.message; }
   });
   let pvToken = "";
+  let pvCounts;
+  function updatePreviewSelection() {
+    const all = $("pvAll");
+    all.checked = W.keys.length > 0 && W.selected.size === W.keys.length;
+    all.indeterminate = W.selected.size > 0 && !all.checked;
+    all.disabled = !W.keys.length;
+    $("startImport").disabled = !W.selected.size && (mode() === "items" || W.keys.length > 0);
+  }
   async function stepPreview(more = false) {
     if (mode() !== "items" && !document.querySelectorAll("input[name=wType]:checked").length) throw new Error("Choose at least one work-item type.");
+    if (mode() === "jql" && !$("fJql").value.trim()) throw new Error("Enter a JQL filter.");
     const body = mode() === "items" ? { keys: $("wKeys").value } : { filters: filters() };
     if (mode() === "items" && !$("wKeys").value.trim()) throw new Error("Enter one or more work-item keys or links.");
     body.limit = 50; if (more) body.next_page_token = pvToken;
     $("pvSummary").textContent = "Asking Jira…";
     const tbody = $("pvTable").tBodies[0];
-    if (!more) { tbody.replaceChildren(); W.selected = new Set(); W.keys = []; }
+    if (!more) {
+      tbody.replaceChildren();
+      W.selected = new Set();
+      W.keys = [];
+      pvCounts = { new: 0, updated: 0, unchanged: 0, reappeared: 0, unreadable: 0 };
+    }
     const r = await api(`/connections/${encodeURIComponent($("wConn").value)}/preview`, { method: "POST", body });
     pvToken = r.next_page_token || "";
     $("pvMore").hidden = !pvToken;
+    if (r.items.length) tbody.querySelector(".rq-empty")?.closest("tr").remove();
     for (const it of r.items) {
-      W.keys.push(it.key); W.selected.add(it.key);
-      const box = h("input", { type: "checkbox", checked: true, "aria-label": `Import ${it.key}`, onchange: (e) => { e.target.checked ? W.selected.add(it.key) : W.selected.delete(it.key); } });
+      pvCounts[it.state] += 1;
+      W.keys.push(it.key);
+      W.selected.add(it.key);
+      const box = h("input", { type: "checkbox", checked: true, "aria-label": `Import ${it.key}`,
+        onchange: (e) => {
+          if (e.target.checked) W.selected.add(it.key);
+          else W.selected.delete(it.key);
+          updatePreviewSelection();
+        } });
       const state = { new: badge("new", "info"), updated: badge("updated", "warn"), unchanged: badge("unchanged"), reappeared: badge("back again", "warn"), unreadable: badge("unreadable", "bad") }[it.state];
       tbody.append(...kids(h("tr", {}, h("td", {}, box), h("td", { text: it.key }), h("td", { text: it.summary || it.error || "" }),
         h("td", { text: it.type || "" }), h("td", { text: it.status || "" }), h("td", {}, state || it.state))));
     }
-    if (!W.keys.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 6, class: "rq-empty" }, "Nothing matches. Check the project, the work-item types and the filters."))));
+    updatePreviewSelection();
+    const shown = Object.values(pvCounts).reduce((sum, count) => sum + count, 0);
+    if (!tbody.rows.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 6, class: "rq-empty" }, "Nothing matches. Check the project, the work-item types and the filters."))));
     const total = r.estimated_total ?? "?";
-    $("pvSummary").textContent = `${plural(W.keys.length, "work item")} shown of about ${total}. ${r.counts.new} new, ${r.counts.updated} updated, ${r.counts.unchanged} unchanged.`
+    $("pvSummary").textContent = `${plural(shown, "work item")} shown of about ${total}. ${pvCounts.new} new, ${pvCounts.updated} updated, ${pvCounts.unchanged} unchanged.`
+      + (pvCounts.reappeared ? ` ${pvCounts.reappeared} back again.` : "")
+      + (pvCounts.unreadable ? ` ${pvCounts.unreadable} unreadable.` : "")
       + (r.inaccessible.length ? ` Not found or not permitted: ${r.inaccessible.join(", ")}.` : "");
   }
-  $("pvMore").addEventListener("click", () => stepPreview(true).catch((e) => banner(e.message)));
+  $("pvMore").addEventListener("click", async () => {
+    const button = $("pvMore");
+    button.disabled = true;
+    try { await stepPreview(true); }
+    catch (e) { banner(e.message); }
+    finally { button.disabled = false; }
+  });
   $("pvAll").addEventListener("change", (e) => {
     $("pvTable").querySelectorAll("tbody input[type=checkbox]").forEach((b) => { b.checked = e.target.checked; });
     W.selected = e.target.checked ? new Set(W.keys) : new Set();
+    updatePreviewSelection();
   });
+  $("newImport").addEventListener("click", () => { wizardStep(1); wizardOpen(); });
   $("startImport").addEventListener("click", () => runImport().catch((e) => banner(e.message)));
-  $("impRetry").addEventListener("click", () => runImport().catch((e) => banner(e.message)));
+  $("impRetry").addEventListener("click", () => {
+    if (W.job) {
+      $("impRetry").hidden = true;
+      watch(W.job);
+    } else {
+      submitImport();
+    }
+  });
   async function runImport() {
     const conn = $("wConn").value;
     let body;
@@ -300,14 +408,28 @@
       if (!W.selected.size) throw new Error("Tick at least one work item.");
       body = { mode: "items", keys: [...W.selected].join(","), include: [...document.querySelectorAll("input[name=wInclude]:checked")].map((x) => x.value),
                confluence_connection: $("wConf").value || "" };
-    } else body = { mode: mode(), filters: filters() };
+    } else body = { mode: mode() === "jql" ? "full" : mode(), filters: filters() };
+    W.lastImport = { conn, body };
+    await submitImport();
+  }
+  async function submitImport() {
+    const { conn, body } = W.lastImport;
+    W.submitting = true;
     wizardStep(5);
-    $("impResult").replaceChildren(); $("impRetry").hidden = true; $("toAnalyze").hidden = true; $("impCancel").hidden = false;
+    $("impResult").replaceChildren(); $("impRetry").hidden = true; $("toAnalyze").hidden = true; $("impCancel").hidden = true;
     $("impBar").className = "rq-progress"; $("impStatus").textContent = "Starting…";
-    W.lastBody = body;
-    const job = await api(`/connections/${encodeURIComponent(conn)}/imports`, { method: "POST", body });
-    W.job = job.id;
-    watch(job.id);
+    $("newImport").hidden = true;
+    try {
+      const job = await api(`/connections/${encodeURIComponent(conn)}/imports`, { method: "POST", body });
+      W.job = job.id;
+      $("impCancel").hidden = false;
+      watch(job.id);
+    } catch (e) {
+      $("impStatus").textContent = e.message;
+      $("impBar").className = "rq-progress failed";
+      $("impRetry").hidden = false;
+      $("newImport").hidden = false;
+    } finally { W.submitting = false; }
   }
   $("impCancel").addEventListener("click", async () => {
     if (!W.job) return;
@@ -349,9 +471,12 @@
       block("No longer in Jira (kept, marked missing)", r.missing), block("Analysed requirements now out of date", r.affected),
       r.last_success ? h("p", { class: "small", text: `Last successful import: ${when(r.last_success)}` }) : null);
     $("impResult").replaceChildren(...kids(...sections));
-    W.imported = [...(r.new_keys || []), ...(r.changed_keys || [])];
-    W.importConn = $("wConn").value;
-    $("toAnalyze").hidden = !(S.caps && S.caps.capabilities.analyze_requirements) || !(r.needs_analysis || []).length;
+    const needsAnalysis = new Set(r.needs_analysis || []);
+    W.imported = W.lastImport.body.mode === "space" ? [] : [...(r.new_keys || []), ...(r.changed_keys || [])]
+      .filter((key) => needsAnalysis.has(key));
+    W.importConn = W.lastImport.conn;
+    $("toAnalyze").hidden = !(S.caps && S.caps.capabilities.analyze_requirements) || !W.imported.length;
+    $("newImport").hidden = false;
   }
   $("anRun").addEventListener("click", async () => {
     const keys = W.imported || [];
@@ -394,15 +519,17 @@
         h("td", { text: it.summary }), h("td", { text: it.type }), h("td", { text: it.priority }), h("td", { text: it.status }),
         h("td", { text: it.criteria }), h("td", { text: it.linked_pages }),
         h("td", {}, { not_analyzed: badge("not analysed"), current: badge("analysed", "ok"), stale: badge("out of date", "warn") }[it.analysis],
-          it.pending_reviews ? badge(`${it.pending_reviews} to review`, "info") : null, it.present ? null : badge("missing", "bad")),
+          it.present ? null : badge("missing", "bad")),
+        h("td", { text: it.pending_reviews ? `${it.pending_reviews} pending` : it.review_status || "—" }),
+        h("td", { text: it.covered === null || !it.criteria ? "—" : `${it.covered}/${it.criteria}` }),
         h("td", { text: `v${it.version}` }), h("td", { text: when(it.last_synced) })))));
-      if (!r.items.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 10, class: "rq-empty" },
+      if (!r.items.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty" },
         r.total === 0 && !$("exQ").value ? h("span", {}, "No requirements imported yet. ", h("a", { href: "#import", text: "Import from Jira" }), ".") : "Nothing matches these filters."))));
       const pages = Math.max(1, Math.ceil(r.total / r.size));
       $("exPager").replaceChildren(...kids(`${plural(r.total, "requirement")} · page ${r.page} of ${pages}`,
         h("button", { class: "secondary", type: "button", text: "Previous", disabled: r.page <= 1, onclick: () => { S.ex.page -= 1; explorer(); } }),
         h("button", { class: "secondary", type: "button", text: "Next", disabled: r.page >= pages, onclick: () => { S.ex.page += 1; explorer(); } })));
-    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 10, class: "rq-empty", text: e.message })))); }
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
     finally { $("exTable").removeAttribute("aria-busy"); }
   }
   async function fillFacets() {
@@ -418,14 +545,16 @@
   }
 
   // ---------------------------------------------------------------- requirement detail (details, analysis, versions, links)
-  const D = { conn: "", key: "", data: null };
+  const D = { conn: "", key: "", data: null, tab: "" };
   async function openDetail(conn, key, tab = "details") {
-    D.conn = conn; D.key = key;
+    D.conn = conn; D.key = key; D.data = null;
     $("dtKey").textContent = key; $("dtTitle").textContent = "Loading…"; $("dtMeta").textContent = "";
     $("dtBody").replaceChildren();
     if (!$("detail").open) $("detail").showModal();
     try {
-      D.data = await api(`/items/${encodeURIComponent(conn)}/${encodeURIComponent(key)}`);
+      const result = await api(`/items/${encodeURIComponent(conn)}/${encodeURIComponent(key)}`);
+      if (D.conn !== conn || D.key !== key) return;
+      D.data = result;
       const d = D.data;
       $("dtTitle").textContent = d.title;
       $("dtMeta").replaceChildren(...kids(`${d.fields.type || d.kind} · ${d.fields.status || ""} · version ${d.version} · synced ${when(d.retrieved_at)} `,
@@ -444,7 +573,34 @@
   });
   function showTab(tab) {
     document.querySelectorAll(".rq-tabs [role=tab]").forEach((t) => { t.setAttribute("aria-selected", String(t.dataset.tab === tab)); t.tabIndex = t.dataset.tab === tab ? 0 : -1; });
-    ({ details: tabDetails, analysis: tabAnalysis, versions: tabVersions, links: tabLinks })[tab]();
+    if (!D.data) return;
+    const upcoming = (phase, text) => $("dtBody").replaceChildren(
+      h("p", {}, badge(`Upcoming · Phase ${phase}`, "info")), h("p", { text }));
+    D.tab = tab;
+    $("dtBody").setAttribute("aria-labelledby", `dtTab-${tab}`);
+    ({
+      details: tabDetails, criteria: tabCriteria, analysis: tabAnalysis, versions: tabVersions, links: tabLinks,
+      tests: () => upcoming(4, "Executable tests will appear after requirement-to-test generation is available."),
+      results: () => upcoming(4, "Results will appear after requirement-linked execution is available."),
+      trace: () => upcoming(5, "Requirement-to-run and evidence relationships will appear with traceability."),
+      audit: tabAudit,
+    })[tab]();
+  }
+  async function tabAudit() {
+    const body = $("dtBody");
+    const current = D.data;
+    const link = h("a", { href: "#history", onclick: () => $("detail").close(), text: "View workspace audit events" });
+    body.replaceChildren(h("p", { role: "status", text: "Loading analysis and review history…" }));
+    try {
+      const result = await api(`/items/${encodeURIComponent(D.conn)}/${encodeURIComponent(D.key)}/analysis`);
+      if (D.data !== current || D.tab !== "audit") return;
+      body.replaceChildren(h("h3", { class: "rq-sub", text: "Analysis and review history" }),
+        h("ul", { class: "rq-audit" }, result.history.map((entry) => h("li", {},
+          h("time", { text: when(entry.analyzed_at) }), entry.event))), link);
+    } catch (error) {
+      if (D.data !== current || D.tab !== "audit") return;
+      body.replaceChildren(h("p", { text: error.status === 404 ? "No analysis or review events yet." : error.message }), link);
+    }
   }
   function criterionCard(c) {
     return h("article", { class: "rq-criterion" },
@@ -462,9 +618,17 @@
         h("dt", { text: "Priority" }), h("dd", { text: f.priority || "—" }), h("dt", { text: "Labels" }), h("dd", { text: (f.labels || []).join(", ") || "—" }),
         h("dt", { text: "Parent" }), h("dd", { text: f.parent || "—" }), h("dt", { text: "Sources" }), h("dd", { text: d.sources.map((s) => `${s.id} v${s.version}`).join(", ") })),
       h("h3", { class: "rq-sub", text: "Description" }), h("div", { class: "rq-desc", text: f.description || f.title || "(empty)" }),
-      f.acceptance_criteria ? h("div", {}, h("h3", { class: "rq-sub", text: "Acceptance criteria field" }), h("div", { class: "rq-desc", text: f.acceptance_criteria })) : null,
+      ...criteriaContent(d)));
+  }
+  function tabCriteria() {
+    $("dtBody").replaceChildren(...criteriaContent(D.data));
+  }
+  function criteriaContent(d) {
+    return kids(
+      d.fields.acceptance_criteria ? h("div", {}, h("h3", { class: "rq-sub", text: "Acceptance criteria field" }),
+        h("div", { class: "rq-desc", text: d.fields.acceptance_criteria })) : null,
       h("h3", { class: "rq-sub", text: `Acceptance criteria found (${d.criteria.length})` }),
-      d.criteria.length ? d.criteria.map(criterionCard) : h("p", { class: "small", text: "None found in this work item. Qpilot does not invent criteria: ask the owner to add them (an 'Acceptance Criteria' heading or AC1:, AC2: lines)." })));
+      d.criteria.length ? d.criteria.map(criterionCard) : h("p", { class: "small", text: "None found in this work item. Qpilot does not invent criteria: ask the owner to add them (an 'Acceptance Criteria' heading or AC1:, AC2: lines)." }));
   }
   async function tabAnalysis() {
     const body = $("dtBody");
@@ -475,9 +639,13 @@
         try { await api(`/items/${encodeURIComponent(D.conn)}/${encodeURIComponent(D.key)}/analyze`, { method: "POST", body: { ai: ai ? "auto" : "off" } }); await openDetail(D.conn, D.key, "analysis"); }
         catch (e) { banner(e.message); }
       } });
+    const selected = D.data;
+    const active = () => D.data === selected && D.tab === "analysis";
+    body.textContent = "Loading analysis…";
     let view = null;
     try { view = await api(`/items/${encodeURIComponent(D.conn)}/${encodeURIComponent(D.key)}/analysis`); }
-    catch (e) { if (e.status !== 404) { body.replaceChildren(...kids(h("p", { text: e.message }))); return; } }
+    catch (e) { if (e.status !== 404) { if (active()) body.replaceChildren(h("p", { text: e.message })); return; } }
+    if (!active()) return;
     if (!view) { body.replaceChildren(...kids(h("p", { class: "small", text: "Not analysed yet." }), h("div", { class: "rq-row" }, run(false), run(true)))); return; }
     const a = view.analysis;
     const byKind = (k) => a.issues.filter((i) => i.kind === k);
@@ -580,14 +748,48 @@
     const left = $("cfSpaces");
     left.replaceChildren(...kids(h("p", { class: "small", text: "Loading pages…" })));
     try {
-      const r = await api("/items?kind=confluence_page&size=100&missing=true&sort=summary");
+      const query = new URLSearchParams({ kind: "confluence_page", size: 100, missing: true,
+        sort: "summary", q: $("cfSearch").value });
+      const r = await api(`/items?${query}`);
+      if (!r.items.length && query.get("q").trim()) {
+        left.textContent = "No pages match your search.";
+        return;
+      }
       if (!r.items.length) { left.replaceChildren(...kids(h("p", { class: "small" }, "No Confluence pages imported yet. Connect Confluence in ", h("a", { href: "#integrations", text: "Integrations" }), ", then import a space or the pages your stories link to."))); return; }
-      const spaces = {};
-      for (const p of r.items) (spaces[p.space || "(no space)"] = spaces[p.space || "(no space)"] || []).push(p);
-      left.replaceChildren(...kids(...Object.entries(spaces).map(([space, pages]) => h("section", {}, h("h3", { class: "rq-sub", text: `${space} (${pages.length})` }),
-        h("ul", { class: "rq-pages" }, pages.map((p) => h("li", {}, h("button", { type: "button", onclick: (e) => { left.querySelectorAll("button").forEach((b) => b.removeAttribute("aria-current")); e.currentTarget.setAttribute("aria-current", "true"); showPage(p); } },
-          p.summary, " ", p.present ? null : badge("missing", "bad")))))))));
+      const spaces = new Map();
+      for (const page of r.items) {
+        const space = page.space || "(no space)";
+        if (!spaces.has(space)) spaces.set(space, []);
+        spaces.get(space).push(page);
+      }
+      left.replaceChildren(...[...spaces].map(([space, pages]) => h("section", {},
+        h("h3", { class: "rq-sub", text: `${space} (${pages.length})` }),
+        confluenceTree(pages, left))));
     } catch (e) { left.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
+  }
+  function confluenceTree(pages, panel) {
+    const byKey = new Map(pages.map((page) => [`${page.connection_id}/${page.key}`, page]));
+    const children = new Map();
+    const roots = [];
+    for (const page of pages) {
+      const parent = byKey.get(`${page.connection_id}/${page.parent_id}`);
+      if (!parent || parent === page) { roots.push(page); continue; }
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent).push(page);
+    }
+    const visited = new Set();
+    const branch = (page) => {
+      if (visited.has(page)) return null;
+      visited.add(page);
+      const button = h("button", { type: "button", onclick: (event) => {
+        panel.querySelector("[aria-current=true]")?.removeAttribute("aria-current");
+        event.currentTarget.setAttribute("aria-current", "true");
+        showPage(page);
+      } }, page.summary, " ", page.present ? null : badge("missing", "bad"));
+      const nested = (children.get(page) || []).map(branch).filter(Boolean);
+      return h("li", {}, button, nested.length ? h("ul", { class: "rq-pages rq-nested-pages" }, nested) : null);
+    };
+    return h("ul", { class: "rq-pages" }, roots.map(branch), pages.map(branch));
   }
   async function showPage(p) {
     const box = $("cfPage");
@@ -595,6 +797,7 @@
     try {
       const d = await api(`/items/${encodeURIComponent(p.connection_id)}/${encodeURIComponent(p.key)}`);
       const sections = d.fields.sections || [];
+      const headings = sections.map((section) => (section.path || []).join(" › ") || "Top of page");
       const stories = d.links.filter((l) => l.kind === "jira_issue");
       box.replaceChildren(...kids(h("h2", { text: d.title }),
         h("p", { class: "small" }, `Confluence version ${d.fields.confluence_version} · read ${when(d.retrieved_at)} · `, h("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", text: "Open in Confluence" })),
@@ -602,11 +805,66 @@
         stories.length ? h("ul", { class: "rq-list" }, stories.map((l) => h("li", {}, l.imported ? h("button", { class: "rq-open", type: "button", text: `${l.key} ${l.title}`, onclick: () => openDetail(l.connection_id, l.key) }) : l.key, " ", badge(l.relation, "info")))) : h("p", { class: "small", text: "None found." }),
         h("h3", { class: "rq-sub", text: `Criteria taken from this page (${d.criteria.length})` }), d.criteria.map(criterionCard),
         h("h3", { class: "rq-sub", text: `Headings (${sections.length})` }),
-        sections.map((s) => h("div", { class: `rq-section${s.requirement_like ? " req" : ""}` },
-          h("h4", {}, (s.path || []).join(" › ") || "(top of page)", " ", s.requirement_like ? badge("requirement section", "info") : null),
+        sections.length > 1 ? h("ul", { class: "rq-pages", "aria-label": "Page sections" },
+          headings.map((heading, index) => h("li", {}, h("button", { type: "button", text: heading, onclick: () => {
+            const section = $(`cfSection-${index}`);
+            section.focus({ preventScroll: true });
+            section.scrollIntoView({ block: "start" });
+          } })))) : null,
+        sections.map((s, index) => h("div", { id: `cfSection-${index}`, tabindex: -1, class: `rq-section${s.requirement_like ? " req" : ""}` },
+          h("h4", {}, headings[index], " ", s.requirement_like ? badge("requirement section", "info") : null),
           h("ul", { class: "rq-list" }, (s.blocks || []).slice(0, 12).map((b) => h("li", { text: b.text }))))),
         h("p", { class: "small" }, h("button", { class: "secondary", type: "button", text: "Versions and analysis", onclick: () => openDetail(p.connection_id, p.key, "versions") }))));
     } catch (e) { box.replaceChildren(...kids(h("p", { text: e.message }))); }
+  }
+
+  for (const [id, render] of [["analysisSearchForm", analysisView], ["cfSearchForm", confluenceView]]) {
+    $(id).addEventListener("submit", (event) => { event.preventDefault(); render(); });
+  }
+  async function analysisView() {
+    const panel = $("analysisItems");
+    const query = new URLSearchParams({ kind: "jira_issue", q: $("analysisSearch").value, size: 25 });
+    panel.textContent = "Loading requirements…";
+    try {
+      const result = await api(`/items?${query}`);
+      panel.replaceChildren(result.items.length ? h("div", { class: "lab-card" },
+        h("p", { class: "small", text: `Showing ${result.items.length} of ${result.total} requirements.` }),
+        h("ul", { class: "rq-list" }, result.items.map((item) => h("li", {},
+          h("button", { type: "button", class: "rq-open", text: `${item.key} — ${item.summary}`,
+            onclick: () => openDetail(item.connection_id, item.key, "analysis") })))))
+        : h("p", {}, "No matching requirements. ", h("a", { href: "#import", text: "Import from Jira" }), "."));
+    } catch (error) { panel.textContent = error.message; }
+  }
+  async function coverageView() {
+    const panel = $("rqCoverage");
+    panel.textContent = "Loading coverage…";
+    const label = (status) => status.replaceAll("_", " ");
+    const counts = (values) => Object.entries(values).map(([status, count]) => `${count} ${label(status)}`).join(" · ");
+    try {
+      const result = await api("/coverage");
+      panel.replaceChildren(...kids(
+        h("p", { class: "small", text: result.basis }),
+        result.requirements.length ? h("div", {},
+          h("p", { text: counts(result.totals) }),
+          h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" },
+            h("caption", { class: "rq-sr", text: "Approved coverage by requirement" }),
+            h("thead", {}, h("tr", {}, ["Requirement", "Criteria", "Coverage", "Analysis"].map((text) => h("th", { scope: "col", text })))),
+            h("tbody", {}, result.requirements.map((row) => h("tr", {},
+              h("th", { scope: "row", text: row.title }), h("td", { text: row.criteria }),
+              h("td", { text: counts(row.coverage) || "—" }),
+              h("td", {}, row.stale ? badge("Out of date", "warn") : badge("Current", "ok"))))))))
+          : h("p", { text: "No analysed requirements yet." })));
+    } catch (error) { panel.textContent = error.message; }
+  }
+  function settingsView() {
+    const caps = S.caps;
+    const values = {
+      "Signed-in user": caps.actor,
+      "Workspace": caps.tenant,
+      "Review permission": caps.can_review ? "Can sign review decisions" : "Can view review decisions",
+      "Atlassian access": caps.read_only_atlassian ? "Read-only" : "Check server configuration",
+    };
+    $("rqSettings").replaceChildren(...Object.entries(values).flatMap(([name, text]) => [h("dt", { text: name }), h("dd", { text })]));
   }
 
   // ---------------------------------------------------------------- sync history + audit
@@ -619,9 +877,10 @@
         h("td", {}, statusBadge(x.status)), h("td", { text: x.result.new ?? 0 }), h("td", { text: (x.result.changed ?? 0) + (x.result.reappeared ?? 0) }),
         h("td", { text: x.result.unchanged ?? 0 }), h("td", { text: (x.result.missing || []).length + (x.result.inaccessible || []).length }),
         h("td", { text: Array.isArray(x.result.failed_items) ? x.result.failed_items.length : x.result.failed_items || 0 }),
-        h("td", { text: x.result.duration_s !== undefined ? `${x.result.duration_s} s` : "—" }), h("td", { text: x.actor })))));
-      if (!rows.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 11, class: "rq-empty", text: "No imports yet." }))));
-    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 11, class: "rq-empty", text: e.message })))); }
+        h("td", { text: x.result.duration_s !== undefined ? `${x.result.duration_s} s` : "—" }), h("td", { text: x.actor }),
+        h("td", { text: x.scope || "—" })))));
+      if (!rows.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: "No imports yet." }))));
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
     try {
       const a = await api("/audit?limit=100");
       $("auditList").replaceChildren(...kids(...(a.events.length ? a.events.map((e) => h("li", {}, h("time", { text: when(e.created_at ? e.created_at * 1000 : e.at) }),

@@ -3,10 +3,12 @@
 The real Studio server (uvicorn) runs on 127.0.0.1 with its stores in a temp folder and talks to the local mock
 Atlassian site (tests/atlassian_mock.py). Every number and row on the page comes from the backend - nothing is
 stubbed in the browser."""
+import os
 import socket
 import threading
 import time
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
@@ -113,7 +115,15 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(page.locator("#pvSummary")).to_contain_text("3 work items shown of about 3. 3 new, 0 updated, 0 unchanged.")
         expect(page.locator("#pvTable tbody tr")).to_have_count(3)
         page.get_by_label("Import QPL-3").uncheck()
+        assert page.locator("#pvAll").evaluate("(checkbox) => checkbox.indeterminate")
+        page.route("**/api/requirements/imports/*", lambda route: route.fulfill(
+            status=503, json={"detail": "Import status temporarily unavailable"}), times=1)
         page.click("#startImport")
+        expect(page.locator("#impStatus")).to_have_text("Import status temporarily unavailable")
+        errors[:] = [error for error in errors if "503 (Service Unavailable)" not in error]
+        with page.expect_request(lambda request: request.method == "GET"
+                                 and "/api/requirements/imports/" in request.url):
+            page.click("#impRetry")
         expect(page.locator("#impStatus")).to_contain_text("Import complete")
         expect(page.locator("#impResult")).to_contain_text("2new")
         expect(page.locator("#impResult")).to_contain_text("4criteria found")
@@ -142,7 +152,10 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(drawer).to_contain_text("Extracted acceptance criteria (2)")
         expect(drawer).to_contain_text("Missing requirements (0)")
         page.keyboard.press("ArrowRight")  # (arrow keys move between tabs)
-        expect(page.get_by_role("tab", name="Versions")).to_have_attribute("aria-selected", "true")
+        expect(page.get_by_role("tab", name="Test Cases")).to_have_attribute("aria-selected", "true")
+        expect(drawer).to_contain_text("Upcoming · Phase 4")
+        page.get_by_role("tab", name="Version History").click()
+        expect(page.get_by_role("tab", name="Version History")).to_have_attribute("aria-selected", "true")
         expect(drawer).to_contain_text("v1")
         page.get_by_role("button", name="Close details").click()
         # review center: accept, edit, reject - signed as the local user
@@ -202,6 +215,101 @@ def test_jira_text_is_shown_as_text_never_as_html(browser, studio):
         ctx.close()
 
 
+@pytest.mark.parametrize("mode", ["incremental", "full", "jql", "items"])
+def test_workspace_import_modes_in_chromium(browser, studio, mode):
+    ctx, page, _ = open_page(browser, studio)
+    try:
+        connect_jira(page)
+        page.get_by_role("button", name="Discover projects").click()
+        expect(page.get_by_text("QPL — Qpilot shop")).to_be_visible()
+        page.goto(studio.url + "/requirements#import")
+        page.check(f'input[name=wMode][value="{mode}"]')
+        page.locator('[data-panel="1"] [data-next="2"]').click()
+        if mode == "items":
+            page.get_by_text("Find work items by summary").click()
+            expect(page.locator("#wProject")).to_have_value("QPL")
+            page.fill("#issueQuery", "User Login")
+            page.click("#findIssues")
+            page.get_by_role("button", name="Add QPL-2 — User Login Functionality").click()
+            expect(page.locator("#wKeys")).to_have_value("QPL-2")
+        page.locator('[data-panel="2"] [data-next="3"]').click()
+        if mode == "jql":
+            page.fill("#fJql", 'status = "To Do"')
+        page.locator('[data-panel="3"] [data-next="4"]').click()
+        expect(page.locator("#pvTable tbody tr")).to_have_count(1 if mode == "items" else 3)
+        page.click("#startImport")
+        expect(page.locator("#impStatus")).to_contain_text("Import complete")
+    finally:
+        ctx.close()
+
+
+def test_all_workspace_destinations_and_screenshots(browser, studio):
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        connect_jira(page, site="https://qpilot-demo.atlassian.net")
+        browser_import = studio.url + "/requirements#import"
+        page.goto(browser_import)
+        page.check('input[name=wMode][value="items"]')
+        page.locator('[data-panel="1"] [data-next="2"]').click()
+        page.fill("#wKeys", "QPL-2")
+        page.locator('[data-panel="2"] [data-next="3"]').click()
+        page.locator('[data-panel="3"] [data-next="4"]').click()
+        page.click("#startImport")
+        expect(page.locator("#impStatus")).to_contain_text("Import complete")
+        page.click("#toAnalyze")
+        page.click("#anRun")
+        expect(page.locator("#anStatus")).to_contain_text("1 requirement analysed")
+
+        screenshots = os.environ.get("QPILOT_REQUIREMENTS_SCREENSHOTS")
+        if screenshots:
+            Path(screenshots).mkdir(parents=True, exist_ok=True)
+        nav = page.locator(".rq-nav [data-view]")
+        assert nav.count() == 16
+        for link in nav.all():
+            view = link.get_attribute("data-view")
+            link.click()
+            section = page.locator(f"#view-{view}")
+            expect(section.get_by_role("heading", level=1)).to_be_visible()
+            expect(link).to_have_attribute("aria-current", "page")
+            page.wait_for_load_state("networkidle")
+            if view in {"builder", "execution", "agents", "evidence", "traceability", "writeback"}:
+                expect(section.get_by_text("Upcoming", exact=False)).to_be_visible()
+            if view == "analysis":
+                section.get_by_role("button", name="QPL-2 — User Login Functionality").click()
+                expect(page.get_by_role("tab", name="AI Analysis")).to_have_attribute("aria-selected", "true")
+                expect(page.locator("#dtBody")).to_contain_text("Extracted acceptance criteria")
+                page.get_by_role("button", name="Close details").click()
+            if view == "coverage":
+                expect(section.get_by_role("rowheader", name="User Login Functionality")).to_be_visible()
+            if view == "settings":
+                expect(section).to_contain_text("Read-only")
+            if screenshots:
+                page.screenshot(path=Path(screenshots) / f"{view}.png", full_page=True)
+        assert not errors, errors
+    finally:
+        ctx.close()
+
+
+def test_jira_preview_counts_all_loaded_pages(browser, studio):
+    for i in range(5, 53):
+        key = f"QPL-{i}"
+        studio.mock.issues[key] = story(key, f"Story {i}", T0 + timedelta(minutes=i), AC, "")
+    ctx, page, _ = open_page(browser, studio)
+    try:
+        connect_jira(page)
+        page.goto(studio.url + "/requirements#import")
+        page.locator('[data-panel="1"] [data-next="2"]').click()
+        page.locator('[data-panel="2"] [data-next="3"]').click()
+        page.locator('[data-panel="3"] [data-next="4"]').click()
+        expect(page.locator("#pvSummary")).to_contain_text("50 work items shown of about 51. 50 new")
+        page.get_by_label("Import QPL-2", exact=True).uncheck()
+        page.click("#pvMore")
+        expect(page.locator("#pvSummary")).to_contain_text("51 work items shown of about 51. 51 new")
+        expect(page.get_by_label("Import QPL-2", exact=True)).not_to_be_checked()
+    finally:
+        ctx.close()
+
+
 def test_targeted_import_by_link_and_a_wrong_site_link_is_explained(browser, studio):
     ctx, page, errors = open_page(browser, studio)
     try:
@@ -256,7 +364,9 @@ def test_every_control_has_a_name_and_the_page_fits_a_phone(browser, studio):
     ctx, page, errors = open_page(browser, studio, {"width": 390, "height": 844})
     try:
         connect_jira(page)
-        for view in ("overview", "integrations", "import", "explorer", "reviews", "confluence", "history"):
+        views = page.locator(".rq-nav [data-view]").evaluate_all("(links) => links.map(link => link.dataset.view)")
+        assert len(views) == 16
+        for view in views:
             page.goto(studio.url + f"/requirements#{view}")
             page.wait_for_load_state("networkidle")
             wide = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
@@ -323,10 +433,9 @@ def test_the_confluence_explorer_shows_spaces_headings_requirement_sections_and_
         page.fill("#confluenceToken", TOKEN)
         page.locator('section[aria-label="Confluence Cloud"]').get_by_role("button", name="Connect").click()
         expect(page.locator('section[aria-label="Confluence Cloud"]')).to_contain_text("token saved")
-        job = page.evaluate("""async () => (await (await fetch('/api/requirements/connections/conf-main/imports',
-            {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Agentic-QA': '1'},
-             body: JSON.stringify({mode: 'space', space_key: 'ENG'})})).json())""")
-        assert job["status"] == "running"
+        page.get_by_role("button", name="Discover spaces").click()
+        page.get_by_role("button", name="Import space ENG").click()
+        expect(page.locator("#impStatus")).to_contain_text("Import complete")
         page.goto(studio.url + "/requirements#confluence")
         expect(page.locator("#cfSpaces")).to_contain_text("ENG (1)")
         page.get_by_role("button", name="Login specification").click()
