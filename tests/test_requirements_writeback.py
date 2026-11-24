@@ -1,3 +1,4 @@
+# ruff: noqa: F811  (the shared `api` fixture is imported, then requested by name)
 """Requirements Intelligence, Phase 5: defect intelligence from REAL requirement results, and controlled Jira
 write-back - off by default, separate write token, a named person's approval, preview, idempotency, audit.
 Every write goes only to the local mock Jira; nothing here can reach a real Atlassian site."""
