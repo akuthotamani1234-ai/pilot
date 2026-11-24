@@ -155,13 +155,25 @@ _REDIRECTS = {301, 302, 303, 307, 308}
 _DROP_HEADERS = {"content-encoding", "content-length", "transfer-encoding"}
 
 
+def _settle(action, *args, **kwargs) -> None:
+    """Answer an intercepted request. A request Playwright has already settled - its navigation timed out or was
+    cancelled while this handler was still fetching it (a slow server), and the route was let through - is left
+    alone: answering it again raises 'Route is already handled!', and Playwright hands that error to the NEXT page
+    load, which then failed although the page itself opened (the busy-server retry lost the home page)."""
+    try:
+        action(*args, **kwargs)
+    except Exception as error:
+        if "already handled" not in str(error).lower():
+            raise
+
+
 def _fulfill(route, response, body: bytes | None = None) -> None:
     """Pass a fetched response to the browser. A modified body drops encoding headers."""
     if body is None:
-        route.fulfill(response=response)
+        _settle(route.fulfill, response=response)
         return
     headers = {k: v for k, v in dict(response.headers).items() if k.lower() not in _DROP_HEADERS}
-    route.fulfill(status=response.status, headers=headers, body=body)
+    _settle(route.fulfill, status=response.status, headers=headers, body=body)
 
 
 def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domcontentloaded"):
@@ -190,7 +202,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
         except Exception:
             top = False
         if not top or blocked["url"]:
-            route.continue_()
+            _settle(route.continue_)
             return
         if is_payment_url(req.url):
             blocked["url"] = req.url
@@ -210,7 +222,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
         try:
             response = route.fetch(max_redirects=0, timeout=timeout)
         except Exception:
-            route.continue_()
+            _settle(route.continue_)
             return
         status = getattr(response, "status", None)
         headers = getattr(response, "headers", None) or {}
@@ -301,7 +313,7 @@ def open_falling_back(page, url: str, *, timeout: int, wait_until: str = "domcon
         if hasattr(route, "fallback"):
             route.fallback()
         else:
-            route.continue_()
+            _settle(route.continue_)
 
     page.route("**/*", handle)
     try:

@@ -13,3 +13,90 @@ os.environ.update({
     # crawl tests count requests in a fixed order; the parallel control learners have their own tests
     "EXPLORE_WORKERS": "0",
 })
+
+
+# ---------------------------------------------------------------- the generated tests' conftest, loaded in-process
+# backend/templates/conftest.py is made for a generated-test run: loading it patches Playwright's classes for the
+# whole process (Page.goto refuses checkout and payment pages, Locator clicks are guarded, page.request only reads...)
+# and adds pytest.qa_step. A test of this repo that loads it must leave the next tests an unpatched Playwright,
+# or they skip ("Blocked: checkout or payment ...") or behave differently depending on which worker ran what before.
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+_TEMPLATE_CONFTEST = Path(__file__).resolve().parent.parent / "backend" / "templates" / "conftest.py"
+
+
+def _patchable():
+    """The Playwright classes the template conftest patches."""
+    from playwright._impl._sync_base import SyncBase
+    from playwright.sync_api import APIRequestContext, Locator, Page
+    return (Page, Locator, APIRequestContext, SyncBase)
+
+
+def _snapshot() -> dict:
+    snap = {cls: dict(vars(cls)) for cls in _patchable()}
+    snap[pytest] = {"qa_step": vars(pytest).get("qa_step", _MISSING)}
+    return snap
+
+
+_MISSING = object()
+
+
+def _restore(snap: dict) -> None:
+    for owner, before in snap.items():
+        if owner is pytest:
+            if before["qa_step"] is _MISSING:
+                vars(pytest).pop("qa_step", None)
+            else:
+                pytest.qa_step = before["qa_step"]
+            continue
+        now = dict(vars(owner))
+        for name in now.keys() - before.keys():
+            delattr(owner, name)
+        for name, value in before.items():
+            if now.get(name, _MISSING) is not value:
+                setattr(owner, name, value)
+
+
+def _changes(snap: dict) -> list[str]:
+    out = []
+    for owner, before in snap.items():
+        if owner is pytest:
+            if vars(pytest).get("qa_step", _MISSING) is not before["qa_step"]:
+                out.append("pytest.qa_step")
+            continue
+        now = vars(owner)
+        out += [f"{owner.__name__}.{n}" for n in sorted(set(now) ^ set(before))]
+        out += [f"{owner.__name__}.{n}" for n in sorted(set(now) & set(before)) if now[n] is not before[n]]
+    return out
+
+
+@pytest.fixture
+def template_conftest():
+    """Load backend/templates/conftest.py as a module; Playwright and pytest are restored after the test."""
+    snap = _snapshot()
+    loaded = []
+
+    def load(name: str = "qa_template_conftest"):
+        spec = importlib.util.spec_from_file_location(name, _TEMPLATE_CONFTEST)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        loaded.append(module)
+        return module
+    yield load
+    _restore(snap)
+
+
+@pytest.fixture(autouse=True)
+def _playwright_left_unpatched(request):
+    """Every test leaves Playwright's classes as it found them (catches the next in-process load of the template)."""
+    snap = _snapshot()
+    yield
+    changed = _changes(snap)
+    if changed:
+        _restore(snap)  # (the next tests still get a clean Playwright)
+        pytest.fail(f"{request.node.nodeid} left Playwright patched: {', '.join(changed[:8])}. Load "
+                    "backend/templates/conftest.py through the template_conftest fixture.", pytrace=False)

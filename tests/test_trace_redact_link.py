@@ -1,12 +1,11 @@
 """A trace redaction edits this run's zip. A link is left unread."""
-import importlib.util
 import json
 import zipfile
 
 from backend.blueprint_progress import progress
 
 
-def _load(tmp_path, monkeypatch):
+def _load(template_conftest, tmp_path, monkeypatch):
     run = tmp_path / "harness"
     run.mkdir()
     monkeypatch.setenv("QA_RUN_DIR", str(run))
@@ -14,11 +13,7 @@ def _load(tmp_path, monkeypatch):
     monkeypatch.setenv("QA_TRACE_DIR", str(run / "traces"))
     monkeypatch.setenv("QA_TRACES", "false")
     monkeypatch.setenv("TEST_PASSWORD", "secret-pass")
-    spec = importlib.util.spec_from_file_location(
-        "qa_conftest_link", "backend/templates/conftest.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return template_conftest("qa_conftest_link")  # (Playwright is restored after the test)
 
 
 def _zip(path, text):
@@ -26,7 +21,7 @@ def _zip(path, text):
         handle.writestr("note.txt", text)
 
 
-def test_a_trace_redaction_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+def test_a_trace_redaction_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch, template_conftest):
     secret = "tenant-b-only-trace"
     other = tmp_path / "other"
     other.mkdir()
@@ -34,7 +29,7 @@ def test_a_trace_redaction_does_not_follow_a_link_into_another_folder(tmp_path, 
     _zip(target, secret)
     original = target.read_bytes()
     (other / "keep.txt").write_text(secret, encoding="utf-8")
-    module = _load(tmp_path, monkeypatch)
+    module = _load(template_conftest, tmp_path, monkeypatch)
 
     run = tmp_path / "run"
     run.mkdir()
@@ -62,14 +57,14 @@ def test_a_trace_redaction_does_not_follow_a_link_into_another_folder(tmp_path, 
     assert target.read_bytes() == original
 
 
-def test_a_trace_redaction_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+def test_a_trace_redaction_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch, template_conftest):
     secret = "tenant-b-only-temp"
     other = tmp_path / "other"
     other.mkdir()
     target = other / "stolen.zip"
     _zip(target, secret)
     original = target.read_bytes()
-    module = _load(tmp_path, monkeypatch)
+    module = _load(template_conftest, tmp_path, monkeypatch)
     run = tmp_path / "run"
     run.mkdir()
     real = run / "trace.zip"

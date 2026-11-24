@@ -100,3 +100,26 @@ def test_a_generated_test_uses_a_page_that_shows_while_one_file_never_comes():
                 goto(page, "http://shop.test/empty", timeout=1500)
         finally:
             browser.close()
+
+
+def test_a_request_already_settled_by_playwright_does_not_fail_the_next_page_load():
+    """A slow page: its first navigation times out while the checkout guard is still fetching it, Playwright lets
+    the route through, and the guard's late answer raised 'Route is already handled!' - which Playwright passed to
+    the retry's page.goto, so a page that did open was reported as failed (or lost). The late answer is now left
+    alone; any other routing error still surfaces."""
+    from backend.payment_nav import _settle
+
+    calls = []
+
+    def settled(*a, **k):
+        calls.append((a, k))
+        raise RuntimeError("Route.continue_: Route is already handled!")
+
+    _settle(settled, status=200)
+    assert calls == [((), {"status": 200})]
+
+    def broken():
+        raise RuntimeError("Target page, context or browser has been closed")
+
+    with pytest.raises(RuntimeError, match="has been closed"):
+        _settle(broken)

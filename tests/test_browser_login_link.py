@@ -1,12 +1,11 @@
 """A browser window loads this run's saved login. A link is not loaded."""
-import importlib.util
 import json
 import os
 
 from backend.blueprint_progress import progress
 
 
-def _load(tmp_path, monkeypatch, auth, roles):
+def _load(template_conftest, tmp_path, monkeypatch, auth, roles):
     run = tmp_path / "harness"
     run.mkdir(exist_ok=True)
     monkeypatch.setenv("QA_RUN_DIR", str(run))
@@ -15,14 +14,10 @@ def _load(tmp_path, monkeypatch, auth, roles):
     monkeypatch.setenv("QA_TRACES", "false")
     monkeypatch.setenv("QA_AUTH_STATE", auth)
     monkeypatch.setenv("QA_ROLE_STATES", json.dumps(roles))
-    spec = importlib.util.spec_from_file_location(
-        "qa_conftest_login_link", "backend/templates/conftest.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return template_conftest("qa_conftest_login_link")  # (Playwright is restored after the test)
 
 
-def test_a_browser_login_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+def test_a_browser_login_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch, template_conftest):
     secret = "tenant-b-only-login"
     other = tmp_path / "other"
     other.mkdir()
@@ -33,7 +28,7 @@ def test_a_browser_login_does_not_follow_a_link_into_another_folder(tmp_path, mo
     linked.symlink_to(stolen)
     role_link = tmp_path / "linked-role.json"
     role_link.symlink_to(stolen)
-    module = _load(tmp_path, monkeypatch, str(linked), {"viewer": str(role_link)})
+    module = _load(template_conftest, tmp_path, monkeypatch, str(linked), {"viewer": str(role_link)})
 
     user = module._context_options("user")
     role = module._context_options("role:viewer")
@@ -59,7 +54,7 @@ def test_a_browser_login_does_not_follow_a_link_into_another_folder(tmp_path, mo
     assert stolen.read_text(encoding="utf-8").count(secret) == 1
 
 
-def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch, template_conftest):
     secret = "tenant-b-only-video"
     other = tmp_path / "other"
     videos = other / "videos"
@@ -67,7 +62,7 @@ def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_p
     (videos / "keep.txt").write_text(secret, encoding="utf-8")
     linked = tmp_path / "linked-videos"
     linked.symlink_to(videos, target_is_directory=True)
-    module = _load(tmp_path, monkeypatch, "", {})
+    module = _load(template_conftest, tmp_path, monkeypatch, "", {})
     module.VIDEO_DIR = str(linked)
     refused = module._context_options("guest")
     assert "record_video_dir" not in refused
@@ -84,7 +79,7 @@ def test_a_browser_video_folder_does_not_follow_a_link_into_another_folder(tmp_p
     assert (videos / "keep.txt").read_text(encoding="utf-8") == secret
 
 
-def test_a_saved_login_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch):
+def test_a_saved_login_temp_file_does_not_follow_a_link_into_another_folder(tmp_path, monkeypatch, template_conftest):
     secret = "tenant-b-only-login-temp"
     other = tmp_path / "other"
     other.mkdir()
@@ -93,7 +88,7 @@ def test_a_saved_login_temp_file_does_not_follow_a_link_into_another_folder(tmp_
     original = stolen.read_text(encoding="utf-8")
     real = tmp_path / "auth.json"
     real.write_text("{}", encoding="utf-8")
-    module = _load(tmp_path, monkeypatch, str(real), {})
+    module = _load(template_conftest, tmp_path, monkeypatch, str(real), {})
     linked = real.with_name(f"auth.{os.getpid()}.tmp")
     linked.symlink_to(stolen)
 
