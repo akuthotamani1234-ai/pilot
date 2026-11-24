@@ -2,6 +2,16 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Ported from branch claude/laughing-wright-yvr79d (74e5000)
+
+- Frame forms are numbered after the page's own by one tested helper (`renumber_frame_forms`), replacing the inline
+  WIP renumbering, so `form<N>` names one form and the footer Subscribe form is never sent by an empty-form check.
+- A header or sidebar search box is again a field of its own search form (still left out of other forms), so the
+  search results page is discovered.
+- A control recorded under a borrowed label is resolved by its own recorded selector.
+- "Nothing found" is read in the page's shown content only (`SHOWN_MAIN_TEXT_JS`): the header cart's "0 ITEMS" and
+  hidden "No results" templates no longer count.
+
 ## 2026-11-24 - Jira workspace: one guided test from requirements to report
 
 - "Requirements" is called "Jira" in everything a person reads (Studio and Lab links, page title, breadcrumb);

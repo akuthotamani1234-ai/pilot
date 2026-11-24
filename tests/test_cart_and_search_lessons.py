@@ -126,3 +126,16 @@ def test_the_cross_icon_removes_the_line_and_it_must_be_gone(page, helpers):
     page.set_content(CART.format(price=500, qty=1, total=500).replace("a.closest('tr').style.display = 'none';", ""))
     with pytest.raises(AssertionError, match="did not take 'Blue Top' out of the cart"):
         helpers["_remove_own"](page, "Blue Top")  # (a cart whose remove does nothing: that is caught)
+
+
+def test_a_search_with_results_is_not_read_as_nothing_found_because_the_cart_says_0_items(page, helpers):
+    """ClassicShop with its planted search bug: a search for a word no item has still lists 2 items, but the header's
+    cart said '0 ITEMS - $0.00' and that was read as the page's 'nothing found' - the bug went unseen whenever the
+    cart was empty. Only the page's own SHOWN content counts (a hidden 'No results' template does not either)."""
+    page.set_content("""<div id="topnav" class="headerstrip"><span class="cart_total_text">0 ITEMS - $0.00</span></div>
+      <div class="contentpanel"><h1>Search</h1><div class="no-results" hidden>No products found</div>
+      <div class="thumbnails grid"><a class="prdocutname">Velvet Matte Lipstick</a></div></div>""")
+    assert not helpers["_said_none"](page)
+    page.set_content("""<div id="topnav"><span>2 ITEMS</span></div>
+      <div class="contentpanel">There is no product that matches the search criteria.</div>""")
+    assert helpers["_said_none"](page)

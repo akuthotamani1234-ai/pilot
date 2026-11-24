@@ -22,7 +22,7 @@ from ..navigation import OPEN_PATH_HELPER, opener_path
 from ..observe import PICTURES_JS, REGION_JS
 from ..page_status import page_testable
 from ..state import QAState
-from .discovery import ITEMS_JS, MAIN_TEXT_JS
+from .discovery import ITEMS_JS, MAIN_TEXT_JS, SHOWN_MAIN_TEXT_JS
 from .test_design import _observed, features, lean, on_screen, safe_buttons
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "templates"
@@ -1674,6 +1674,7 @@ CARDS_JS = """sel => [...new Set([...document.querySelectorAll(sel)].map(e => {
 # page's own content without the website's menus, header and footer (MAIN_TEXT_JS)
 ITEMS_JS = ''' + repr(ITEMS_JS) + r'''
 MAIN_TEXT_JS = ''' + repr(MAIN_TEXT_JS) + r'''
+SHOWN_MAIN_TEXT_JS = ''' + repr(SHOWN_MAIN_TEXT_JS) + r'''
 NONE_FOUND = re.compile(r"\b(no (products?|results?|items?|matches|entries)|nothing (was )?found|0 (results|items|"
                         r"products)|(did not|didn't|does not|doesn't) match|no .{0,40}match|could ?n[o']t find|"
                         r"not found)\b", re.I)
@@ -1690,9 +1691,10 @@ def _listed(page, mark=True, hints=None):
 
 
 def _said_none(page):
-    """Does the page say that nothing was found ('There is no product that matches ...', 'No results')?"""
+    """Does the page say that nothing was found ('There is no product that matches ...', 'No results')? Read in the
+    page's own shown content: the header's cart saying '0 ITEMS' is no answer of the search."""
     try:
-        return bool(NONE_FOUND.search(page.locator('body').inner_text()))
+        return bool(NONE_FOUND.search(page.evaluate(SHOWN_MAIN_TEXT_JS)))
     except Exception:
         return False
 

@@ -322,3 +322,53 @@ def test_field_kind_phone_and_email_values_fit(page):
     assert valid_value(inputs["#ecPhone"], "qa-x").replace(" ", "").lstrip("+").isdigit() or "+" in valid_value(
         inputs["#ecPhone"], "qa-x")
     assert "@" in valid_value(inputs["#ecEmail"], "qa-x")
+
+
+# A header search form (in the site's chrome, like ClassicShop's #topnav) and a page-wrapping form around it.
+HEADER_SEARCH_HTML = """<!doctype html><title>Shop</title>
+<div id="topnav" class="headerstrip">
+  <form id="search_form" action="index.php" method="get"><input type="hidden" name="rt" value="product/search">
+    <input type="text" id="filter_keyword" name="keyword" placeholder="Search Keywords"></form>
+</div>
+<main><form id="wrap" method="post" action="/save">
+  <nav><input id="navSearch" type="search" name="q" placeholder="Search"></nav>
+  <label for="nm">Name</label><input id="nm" name="name" required><button type="submit">Save</button>
+</form></main>"""
+
+
+def test_a_header_search_form_keeps_its_own_box_but_other_forms_do_not(page):
+    page.set_content(HEADER_SEARCH_HTML)
+    forms = {f["selector"]: f for f in page.evaluate(EXTRACT_JS)["forms"]}
+    # its own box: the search results page can be found from it (?rt=product/search&keyword=...)
+    assert [x["selector"] for x in forms["#search_form"]["fields"]] == ["#filter_keyword"]
+    from backend.agents.discovery import _search_url
+    found = _search_url({"forms": [forms["#search_form"]]}, "http://shop.test/", "velvet")
+    assert found == "http://shop.test/index.php?rt=product/search&keyword=velvet"
+    # a form wrapping the page still leaves the menu's search box out
+    assert {x["selector"] for x in forms["#wrap"]["fields"]} == {"#nm"}
+
+
+def test_frame_forms_are_numbered_after_the_page_forms():
+    from backend.agents.discovery import renumber_frame_forms
+    page_forms = [{"index": 0, "selector": "#search_form"}, {"index": 1, "selector": "#CheckOrderFrm"}]
+    frame = [{"index": 0, "selector": "iframe >> #search_form"}, {"index": 1, "selector": "iframe >> #subscribeFrm"}]
+    out = renumber_frame_forms(page_forms, frame)
+    assert [f["index"] for f in out] == [2, 3] and [f["selector"] for f in out] == [f["selector"] for f in frame]
+    assert len({f["index"] for f in page_forms + out}) == 4  # 'form<index>' names one form of the page
+    assert renumber_frame_forms([], frame)[0]["index"] == 0
+
+
+def test_a_list_named_after_the_box_next_to_it_is_still_the_list(page):
+    """ClassicShop's advanced search: the category list has no label of its own and is recorded as 'Search Criteria'
+    (the keyword box's label). Its recorded selector decides - never the text box the label points to."""
+    from backend.form_targets import fill_input_check
+    page.set_content("""<form id="advanced_search"><label for="keyword">Search Criteria</label>
+      <input type="text" id="keyword" name="keyword" value="velvet">
+      <select id="category_id" name="category_id"><option value="0">All</option><option value="10">Shoes</option>
+      </select></form>""")
+    fill_input_check(page, {"form": "#advanced_search", "fields": [
+        {"selector": "#keyword", "local_selector": '[id="keyword"]', "kind": "type", "value": "test",
+         "name": "Search Criteria", "label": "Search Criteria"},
+        {"selector": "#category_id", "local_selector": '[id="category_id"]', "kind": "select", "value": "10",
+         "name": "Search Criteria", "label": "Search Criteria"}]})
+    assert page.locator("#category_id").input_value() == "10" and page.locator("#keyword").input_value() == "test"

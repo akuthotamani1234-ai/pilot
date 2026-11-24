@@ -87,6 +87,19 @@ MAIN_TEXT_JS = "() => {" + CHROME_FN + r"""
   [...b.querySelectorAll('*')].filter(qaChrome).forEach(e => e.remove());
   return (b.textContent || '').replace(/\s+/g, ' ');
 }"""
+# the same, but only what is SHOWN (innerText): a 'No results' template the page keeps hidden is not read, and neither
+# is the header's cart ('0 ITEMS - $0.00' is no answer of a search)
+SHOWN_MAIN_TEXT_JS = "() => {" + CHROME_FN + r"""
+  if (!document.body) return '';
+  const inChrome = e => { for (let a = e.parentElement; a && a !== document.body; a = a.parentElement)
+                            if (qaChrome(a)) return true; return false; };
+  let text = document.body.innerText || '';
+  for (const e of [...document.body.querySelectorAll('*')].filter(e => qaChrome(e) && !inChrome(e))) {
+    const t = (e.innerText || '').trim();  // (the outermost menus / header / footer: their shown text is cut out)
+    if (t) text = text.split(t).join(' ');
+  }
+  return text.replace(/\s+/g, ' ');
+}"""
 ITEM_LIST_FN = CHROME_FN + r"""
 const qaItemList = (mark, hints) => {
   const vis = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e);
@@ -623,10 +636,12 @@ EXTRACT_JS = r"""
   // Framework dialogs often use labelled inputs and a footer button without a <form>.
   // Labeled sections (Emergency Contacts style) are treated like dialogs when they hold fields + a Save/Add button
   // and are not already a native/form/dialog container.
+  // (a header / sidebar search box stays out of OTHER forms - a page-wrapping <form> - but is the box of its own
+  // search form, which lives in the chrome too: without it the search results page is never found)
   const fieldNodes = root => [...(root.elements || root.querySelectorAll('input, textarea, select'))]
     .filter(i => /^(INPUT|TEXTAREA|SELECT)$/.test(i.tagName)
       && !['hidden', 'submit', 'button', 'reset'].includes(i.type) && visible(i)
-      && !isChromeSearch(i) && !inTableRow(i));
+      && (!isChromeSearch(i) || chromeShell(root)) && !inTableRow(i));
   const nativeForms = deepAll('form, [role=form]').filter(f => visible(f) || fieldNodes(f).length);
   const dialogForms = deepAll('dialog, [role=dialog], .modal').filter(d => visible(d)
     && fieldNodes(d).some(i => !i.closest('form, [role=form]')));
@@ -1270,6 +1285,14 @@ def frame_selector(a: dict) -> str:
 def in_frames(path: list[str], selector: str) -> str:
     """The address of an element inside the frames `path` (outermost first)."""
     return ENTER.join(list(path) + [selector]) if path else selector
+
+
+def renumber_frame_forms(page_forms: list[dict], frame_forms: list[dict]) -> list[dict]:
+    """The frames' forms numbered after the page's own. Each frame numbers its forms from 0 again, so without this
+    'form<index>' named several forms of one page: the empty-form test planned for the page's Form 2 (an order form
+    with required boxes) was written for a frame's Form 2 (a footer Subscribe form) and sent it."""
+    start = max((f.get("index", -1) for f in page_forms), default=-1) + 1
+    return [dict(f, index=start + i) for i, f in enumerate(frame_forms)]
 
 
 def _frame_inventory(page, base_host: str) -> tuple[list[dict], dict]:
@@ -2735,7 +2758,7 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                 for group, items in inner.items():
                     if group == "forms":  # (a frame numbers its forms from 0 too: renumbered after the page's own,
                         #   so 'form1' names one form - the test design and the scripts look forms up by it)
-                        items = [dict(f, index=len(entry.get("forms", [])) + n) for n, f in enumerate(items)]
+                        items = renumber_frame_forms(entry.get("forms", []), items)
                     entry.setdefault(group, []).extend(items)
                 entry["unsupported"] = entry.get("unsupported", []) + [
                     dict(u, frame=" > ".join(fr["path"])) for fr in entry["frames"] for u in fr.pop("unsupported", [])]
