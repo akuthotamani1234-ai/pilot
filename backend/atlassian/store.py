@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..migrate import sqlite_path_is_linked
+from ..safety import register_secret_names
 from .models import Analysis, Connection, SourceRef, SyncCursor
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -83,6 +84,7 @@ def _now() -> str:
 # ---------------------------------------------------------------- connections
 
 def save_connection(db: sqlite3.Connection, connection: Connection) -> None:
+    register_secret_names(connection.token_ref)
     with db:
         db.execute("INSERT INTO connections (tenant_id, id, data, updated_at) VALUES (?, ?, ?, ?) "
                    "ON CONFLICT (tenant_id, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
@@ -92,12 +94,23 @@ def save_connection(db: sqlite3.Connection, connection: Connection) -> None:
 def get_connection(db: sqlite3.Connection, tenant_id: str, connection_id: str) -> Connection | None:
     row = db.execute("SELECT data FROM connections WHERE tenant_id = ? AND id = ?",
                      (_tenant(tenant_id), connection_id)).fetchone()
-    return Connection.model_validate_json(row["data"]) if row else None
+    return _load_connection(row["data"]) if row else None
 
 
 def list_connections(db: sqlite3.Connection, tenant_id: str) -> list[Connection]:
     rows = db.execute("SELECT data FROM connections WHERE tenant_id = ? ORDER BY id", (_tenant(tenant_id),))
-    return [Connection.model_validate_json(r["data"]) for r in rows]
+    return [_load_connection(r["data"]) for r in rows]
+
+
+def _load_connection(data: str) -> Connection:
+    try:
+        connection = Connection.model_validate_json(data)
+    except ValueError as error:
+        name = json.loads(data).get("id", "?")
+        raise ValueError(f"saved connection {name!r} no longer passes the rules (e.g. it uses the defect-creation "
+                         f"secret JIRA_API_TOKEN): save it again. {str(error).splitlines()[0][:200]}") from None
+    register_secret_names(connection.token_ref)
+    return connection
 
 
 # ---------------------------------------------------------------- sources

@@ -58,19 +58,20 @@ are kept as requirement → test → run traceability, and, with a person's appr
                                                     └──▶ audit_store.record_audit (every read sync and write)
 ```
 
-Package layout (Phase 0 creates only `models.py`):
+Package layout (✓ exists today; the rest is planned and does not exist yet):
 
 | File | Phase | Role |
 |---|---|---|
-| `backend/atlassian/models.py` | 0 | Data contracts and the rules below (Pydantic v2) |
-| `backend/atlassian/client.py` | 1 | One HTTP client: Basic auth (email + API token from a secret *name*), retries with backoff, `Retry-After` on 429/503, 401 → "token expired or revoked", every message redacted |
-| `backend/atlassian/jira.py` | 1 | Projects, fields (finds the acceptance-criteria custom field), `POST /rest/api/3/search/jql` with `nextPageToken`, issue links, remote links; ADF → text |
-| `backend/atlassian/confluence.py` | 2 | v2 pages API with `version.number`, body in storage format → sections, attachments list, linked pages from the story's remote links / page links |
-| `backend/atlassian/store.py` | 1–5 | SQLite (same pattern as `approvals.py`): connections, sources + versions, requirements, criteria, conflicts, sync cursors, trace links, outbound writes |
-| `backend/atlassian/analysis.py` | 3 | Acceptance-criteria extraction (rules), conflict detection, AI proposals routed to review |
-| `backend/atlassian/bridge.py` | 4 | Accepted criteria → `QA_REQUIREMENTS` / my-test instructions with `requirement_id`, `oracle.bind_assertion(source="requirement")` |
-| `backend/atlassian/writeback.py` | 5 | Story comments, remote links to reports, bug ↔ story links: only after approval, idempotent |
-| `frontend/requirements.js` | 6 | Studio workspace (connections, story explorer, review, runs, traceability) |
+| ✓ `backend/atlassian/models.py` | 0 | Data contracts and the rules below (Pydantic v2) |
+| ✓ `backend/atlassian/client.py` | 1 | One HTTP client: Basic auth (email + API token from a secret *name*), retries with backoff, `Retry-After` on 429/503, 401 → "token expired or revoked", every message redacted |
+| ✓ `backend/atlassian/jira.py` | 1 | Projects, work-item types and counts, the account check, fields (finds the acceptance-criteria custom field), `POST /rest/api/3/search/jql` with `nextPageToken`, issue links, remote links; ADF → text |
+| ✓ `backend/atlassian/confluence.py` | 2 | v2 pages API with `version.number`, body in storage format → sections, linked pages from the story's remote links / page links (attachments are **not** read yet) |
+| ✓ `backend/atlassian/store.py` | 1–5 | SQLite (same pattern as `approvals.py`): connections, sources + versions, sync cursors, links, analyses (criteria, conflicts, suggestions) and their history. Trace links and outbound writes come in Phase 5 (no tables yet) |
+| ✓ `backend/atlassian/analysis.py` | 3 | Acceptance-criteria extraction (rules), conflict detection, AI proposals routed to review |
+| `backend/atlassian/bridge.py` (planned) | 4 | Accepted criteria → `QA_REQUIREMENTS` / my-test instructions with `requirement_id`, `oracle.bind_assertion(source="requirement")` |
+| `backend/atlassian/writeback.py` (planned) | 5 | Story comments, remote links to reports, bug ↔ story links: only after approval, idempotent |
+| ✓ `backend/atlassian/sync.py`, `cli.py` | 1–3, M1 | Syncs and links; the read-only command line (`python -m backend.atlassian`) |
+| `frontend/requirements.js` (planned) | 6 | Studio workspace (connections, story explorer, review, runs, traceability) |
 
 ## Data contracts (`backend/atlassian/models.py`)
 
@@ -89,8 +90,10 @@ Package layout (Phase 0 creates only `models.py`):
 
 ## Security contract
 
-1. **Read-only by default.** Phase 1–3 code calls only `GET` and Jira's read-only `POST /search/jql`. Write
-   methods live only in `writeback.py`, which refuses to send anything without an approved `OutboundWrite`.
+1. **Read-only by default.** All code today calls only `GET` and Jira's read-only `POST /search/jql` and
+   `/search/approximate-count`; `client.Client` refuses any other method or path, even through its private method,
+   and a test checks that no other module of the package sends HTTP. Writes will live only in `writeback.py`
+   (Phase 5, **not written yet**), which must refuse to send anything without an approved `OutboundWrite`.
 2. **Approval for every new write.** Writes become rows in `approvals.py` (a new kind, `jira_write`, added in Phase
    5) and are sent only after a named person accepts. No answer means nothing is sent. The existing opt-in
    defect creation is unchanged.
@@ -100,10 +103,12 @@ Package layout (Phase 0 creates only `models.py`):
 4. **Privacy before AI.** Requirement text goes to an AI only when `ai_use_allowed()` says so. Otherwise
    extraction is rules-only, and the run says so. Prompts include only the text that is needed, never the token,
    email or attachments.
-5. **Tenant isolation.** Every row has a `tenant_id`. Every query filters by it. Studio routes check access with
-   `tenancy_store.assert_run_access`/`rbac.allow`. A connection belongs to one tenant.
-6. **Audit.** Each sync, review decision, approval and write is recorded with `audit_store.record_audit`
-   (actor, action, allowed, tenant, detail with no secrets).
+5. **Tenant isolation.** Every row has a `tenant_id`. Every query filters by it. A connection belongs to one
+   tenant. Today the only HTTP route that touches requirements is the approvals API (`/api/approvals`), which scopes
+   by the signed-in principal's tenant. The requirements routes (Milestone 2, not written yet) will check access with
+   `dashboard_auth.authorize` / `rbac.allow` the same way.
+6. **Audit.** Each sync, analysis, review decision and refused review is recorded with
+   `audit_store.record_audit` (actor, action, allowed, tenant, detail with no secrets). Writes will be too (Phase 5).
 7. **No invented requirements.** Every criterion cites its source version. An AI suggestion is only a proposal.
    An unautomatable scenario is marked with its reason. A test is never "passed" without a run and evidence.
 8. **Network.** Only `https://<site>.atlassian.net`. Redirects to another host are refused. Response size is
@@ -118,7 +123,7 @@ Package layout (Phase 0 creates only `models.py`):
 | 403 / 404 on one item | Recorded in `failed_items`; the rest of the sync continues; status `partial` |
 | Network error mid-page | The cursor keeps the `nextPageToken` of the last stored page, so the next sync resumes there |
 | Same content again | Same `content_hash`, so no new version and no new review |
-| Changed content | New version; trace links to the old version become **stale**, and their criteria go back to review |
+| Changed content | New version (the old one is kept). A stored analysis of the old version is reported **stale** (`analysis.stale()`); re-analysis keeps decisions only for unchanged suggestions. (Trace links, Phase 5, will be marked stale the same way.) |
 | Deleted / no longer visible | Kept with status `missing`, never silently dropped from traceability |
 
 ## Testing strategy
@@ -155,14 +160,16 @@ from backend.atlassian.models import Connection
 from backend.atlassian.sync import sync_jira
 
 conn = Connection(id="jira-main", tenant_id="default", product="jira", site_url="https://<site>.atlassian.net",
-                  email="qa@example.com", token_ref="JIRA_API_TOKEN")  # the token stays in the environment
+                  email="qa@example.com", token_ref="JIRA_READ_API_TOKEN")  # the token stays in the environment
 db = store.connect()
 store.save_connection(db, conn)
 print(sync_jira(db, conn, Client(conn), tenant_id="default", project="SHOP", actor="you"))
 ```
 
-The read sync reuses the existing `JIRA_API_TOKEN` name by default. Any other secret name can be given in
-`token_ref`. In "local only" privacy mode, Jira variables are still blanked for test workers (unchanged), and
+The read sync uses its own secret, `JIRA_READ_API_TOKEN` (Milestone 1). `JIRA_API_TOKEN` belongs to the older defect
+creation, which writes to Jira, and is refused as a `token_ref`. Another name can be given in `token_ref` if it starts
+with `JIRA_`, `CONFLUENCE_` or `ATLASSIAN_` and ends with `TOKEN`, `SECRET` or `KEY` (or starts with
+`QPILOT_SECRET_`); every such name is redacted and kept away from test workers. In "local only" privacy mode, Jira variables are still blanked for test workers (unchanged), and
 `CONFLUENCE_API_TOKEN` is now blanked too and redacted like the other secrets.
 
 Tests: `tests/test_atlassian_jira_sync.py` (26) against `tests/atlassian_mock.py`, a local mock of the Jira Cloud
@@ -200,9 +207,9 @@ from backend.atlassian.sync import link_story, sync_confluence_space, sync_jira
 
 site = "https://<your-test-site>.atlassian.net"
 jira_c = Connection(id="jira-main", tenant_id="default", product="jira", site_url=site,
-                    email="<you>@<company>", token_ref="JIRA_API_TOKEN")
+                    email="<you>@<company>", token_ref="JIRA_READ_API_TOKEN")
 conf_c = Connection(id="conf-main", tenant_id="default", product="confluence", site_url=site,
-                    email="<you>@<company>", token_ref="JIRA_API_TOKEN")  # (one Atlassian API token covers both)
+                    email="<you>@<company>", token_ref="CONFLUENCE_API_TOKEN")  # (the same token value may be used)
 db = store.connect()
 print(sync_jira(db, jira_c, Client(jira_c), tenant_id="default", project="<KEY>", actor="you"))
 print(sync_confluence_space(db, conf_c, Client(conf_c), tenant_id="default", space_key="<SPACE>", actor="you"))
@@ -272,6 +279,43 @@ analysis.review(db, "default", a.requirement.id, a.suggestions[0].id, "accept", 
 print(analysis.stale(db, "default", store.get_analysis(db, "default", a.requirement.id)))
 ```
 
+## Milestone 1: audit findings fixed (implemented)
+
+| Finding | Fix | Where |
+|---|---|---|
+| `AC1:` lines without a heading gave 0 criteria | Labelled criteria are read without a heading: `AC1:`, `AC-2 -`, `AC 3.`, `Acceptance criterion 4:`, `Criteria 5)`, with their Given/When/Then continuation lines. A plain numbered list **without** a heading is still not taken (it is as often steps to reproduce) | `analysis._labelled`, `MARKER`, `AC_LABEL` |
+| Few heading / field variants | Headings: `Acceptance Criteria`, `AcceptanceCriteria`, `Acceptance_Criteria`, `Acceptance criterion`, `AC`, `ACs`, `Definition of Done`, `DoD`, `Conditions of satisfaction`, `Success criteria`, `Business rules`, with `:` / `(AC)` / an emoji after them, and an inline `Acceptance Criteria: text`. Custom field: the same names; an exact `Acceptance Criteria` wins | `analysis.AC_HEADING`, `AC_INLINE`; `jira.acceptance_field` |
+| "Notes: …" became a criterion | A label or heading of other text ends the criteria: Notes, References, Links, Attachments, Out of scope, Dependencies, Assumptions, Open questions, Technical notes, Design, Background, Description, Test data … (also inside the AC field). A later criteria heading opens them again | `analysis.STOP_LABEL`, `_until_other` |
+| A sync of the wrong type silently imported 0 | A full or first sync that stores nothing returns a warning naming the project's real types with counts (e.g. `QPL has: Task (5)`) | `sync.zero_result_warning`, `jira.work_item_types`, `jira.type_counts` |
+| Only `Story` was importable | `Connection.work_item_types` (default `["Story"]`; Task, User Story, custom names); `sync_jira(issue_types=…)` overrides. Jira type Task / Bug / Epic → requirement kind task / bug / epic | `models.Connection`, `sync.sync_jira`, `analysis.build_requirement` |
+| One token for reading and for the defect creation that writes | Read connections use `JIRA_READ_API_TOKEN` (Confluence: `CONFLUENCE_API_TOKEN`); `JIRA_API_TOKEN` and other products' keys are refused as `token_ref`. A saved connection that still names `JIRA_API_TOKEN` asks to be saved again | `models.Connection.name_not_value` |
+| Accidental writes | The client refuses every non-read method and path; a test checks no other module sends HTTP; `check` / `connect` warn when the older defect creation is configured to write (all four `JIRA_*` set) | `client._request`, `cli.legacy_write_status` |
+| Queue and analysis out of step | `POST /api/approvals/{id}/decide` on a requirement suggestion goes through `analysis.review_approval`: queue row and stored analysis change together. The queue itself refuses an unnamed decision of a suggestion | `server._decide_requirement_suggestion`, `approvals.decide_approval(decided_by=…)` |
+| Made-up approval records | `POST /api/approvals` refuses `requirement_suggestion` (created only by analysis). A queue row that analysis did not create for that exact suggestion cannot decide it | `approvals.INTERNAL_KINDS`, `analysis._approval_matches` |
+| Reviewer name was free text | At the API the reviewer is the signed-in principal (principal / OIDC login); a body field is ignored; a shared bearer / webhook token cannot sign a review (403). With Studio login off (localhost) it is recorded as `local-user` | `dashboard_auth.reviewer_identity` |
+| Custom secret names not redacted | Every `JIRA_* / CONFLUENCE_* / ATLASSIAN_*` name ending in TOKEN / SECRET / KEY, and every saved or used `token_ref`, is redacted and removed from generated-test environments; read tokens are blanked for test workers in every privacy mode | `safety.extra_secret_names`, `register_secret_names`, `privacy.apply_worker_policy` |
+| No safe way to test a live site | A read-only command line; the token is never an argument; validation errors never echo the input | `cli.py`, `models.safe_error` |
+
+### The read-only command line
+
+Put the token in `.env` (never on the command line or in chat): `JIRA_READ_API_TOKEN=<classic API token from
+id.atlassian.com → Security → API tokens>`. Leave `JIRA_PROJECT` empty unless you want the older defect creation.
+
+```text
+python -m backend.atlassian check   --site https://<site>.atlassian.net --email <you>@<company>
+python -m backend.atlassian connect --id jira-main --site https://<site>.atlassian.net --email <you>@<company>
+python -m backend.atlassian types   --connection jira-main --project QPL      # real types and counts
+python -m backend.atlassian sync    --connection jira-main --project QPL --types Story,Task
+python -m backend.atlassian show    --connection jira-main QPL-2              # fields, versions, criteria
+python -m backend.atlassian analyze --connection jira-main QPL-2              # rules only, no AI
+```
+
+Global options go before the command: `--tenant` (default `local`), `--db`, `--json`. Exit code 1 on any error,
+with the reason (no secret in it). Scoped API tokens (which use `api.atlassian.com`) are not supported: use a
+classic token with the account email.
+
+Tests: `tests/test_atlassian_milestone1.py` (84).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -331,7 +375,12 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
   been evaluated live.
 * Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
   decisions follow content (fingerprint), not the number.
-* There is no Studio screen yet (Phase 6). The approval queue rows appear wherever the queue is listed.
+* There is no Studio screen or requirements API yet (Milestones 2–3). Suggestions are listed by `GET /api/approvals`
+  and decided by `POST /api/approvals/{id}/decide` (signed-in reviewer), or by `analysis.review` in Python.
+* Plain numbered lists in a description without an acceptance-criteria heading or `AC` labels are not read as
+  criteria; the analysis reports `missing_criteria` instead. Criteria written in other languages are not recognized.
+* The zero-result warning needs Jira's approximate-count endpoint; if it is unavailable the warning says the
+  types could not be read.
 * Cloud APIs change: the plan uses `/rest/api/3/search/jql` (the older `/search` paging is being retired) and the
   Confluence v2 pages API. Both will be checked against the live site at acceptance.
 * `tenancy_store`/`rbac` are offline helpers. Hosted multi-tenant isolation is still a separate open item.

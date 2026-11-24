@@ -16,6 +16,10 @@ from .human_review import WAITING, decide
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = ROOT / "artifacts" / "approvals.sqlite"
+# Kinds that only Qpilot itself creates (never the public POST /api/approvals), each tied to a record elsewhere.
+INTERNAL_KINDS = frozenset({"requirement_suggestion"})
+# Kinds decided only by a named person (an authenticated reviewer, recorded in decided_by).
+NAMED_REVIEW_KINDS = frozenset({"requirement_suggestion"})
 
 
 def _connect(path: Path | None = None) -> sqlite3.Connection:
@@ -47,6 +51,8 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
     if "tenant_id" not in columns:
         conn.execute("ALTER TABLE approvals ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''")
+    if "decided_by" not in columns:
+        conn.execute("ALTER TABLE approvals ADD COLUMN decided_by TEXT NOT NULL DEFAULT ''")
     conn.commit()
     return conn
 
@@ -67,6 +73,7 @@ def create(kind: str, subject: str, *, detail: str = "", tenant_id: str = "", pa
         "created_at": time.time(),
         "decided_at": None,
         "tenant_id": (tenant_id or "").strip(),
+        "decided_by": "",
     }
     with _connect(path) as conn:
         conn.execute(
@@ -227,11 +234,25 @@ def apply_approved_heal(detail: str, token: str = "") -> dict:
     return {"ok": True, "applied": True, "reason": ""}
 
 
+def get_approval(approval_id: str, *, tenant_id: str | None = None, path: Path | None = None) -> dict:
+    """One approval row. KeyError when unknown; PermissionError when it belongs to another tenant."""
+    with _connect(path) as conn:
+        row = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
+    if row is None:
+        raise KeyError(approval_id)
+    current = dict(row)
+    if tenant_id is not None and str(current.get("tenant_id") or "") != tenant_id:
+        raise PermissionError("tenant isolation")
+    return current
+
+
 def decide_approval(approval_id: str, answer: str, *, tenant_id: str | None = None,
-                    path: Path | None = None) -> dict:
+                    path: Path | None = None, decided_by: str = "") -> dict:
     """Apply human_review.decide and persist the outcome.
 
-    An accepted ``heal`` still has to pass the locator-only healing policy.
+    An accepted ``heal`` still has to pass the locator-only healing policy. A NAMED_REVIEW_KINDS item needs
+    ``decided_by`` (the authenticated reviewer); requirement suggestions are decided through
+    backend/atlassian/analysis.review so the stored analysis changes with the queue.
     """
     with _connect(path) as conn:
         row = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()
@@ -240,6 +261,8 @@ def decide_approval(approval_id: str, answer: str, *, tenant_id: str | None = No
         current = dict(row)
         if tenant_id is not None and str(current.get("tenant_id") or "") != tenant_id:
             raise PermissionError("tenant isolation")
+        if current["kind"] in NAMED_REVIEW_KINDS and not (decided_by or "").strip():
+            raise PermissionError("this item is decided only by a named, signed-in reviewer")
         if current["status"] != "pending":
             return current
         verdict = decide(current["kind"], answer)
@@ -281,8 +304,8 @@ def decide_approval(approval_id: str, answer: str, *, tenant_id: str | None = No
                             heal_token = ""
         decided_at = time.time()
         conn.execute(
-            "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ? WHERE id = ?",
-            (status, (answer or "").strip(), reason, decided_at, approval_id),
+            "UPDATE approvals SET status = ?, answer = ?, reason = ?, decided_at = ?, decided_by = ? WHERE id = ?",
+            (status, (answer or "").strip(), reason, decided_at, (decided_by or "").strip()[:200], approval_id),
         )
         conn.commit()
         updated = conn.execute("SELECT * FROM approvals WHERE id = ?", (approval_id,)).fetchone()

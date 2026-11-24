@@ -10,14 +10,17 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from .client import AtlassianError, Client
-from .models import ISSUE_KEY, Connection, SourceKind, SourceRef, content_hash, parse_time
+from .models import ISSUE_KEY, WORK_ITEM_TYPE, Connection, SourceKind, SourceRef, content_hash, parse_time
 
 PAGE_SIZE = 50
 STORY_TYPES = ("Story",)
 BASE_FIELDS = ["summary", "description", "issuetype", "status", "labels", "priority", "updated", "created",
                "issuelinks", "parent", "project"]
-AC_FIELD_NAME = re.compile(r"\bacceptance\s+criteri(a|on)\b", re.I)
-# JQL compares dates in the Jira user's own time zone and to the minute; an overlap of 14 h + 1 min covers every
+# the custom field that holds acceptance criteria: 'Acceptance Criteria', 'AcceptanceCriteria', 'Acceptance_Criteria',
+# 'Acceptance criterion', 'AC', 'ACs', 'Definition of Done'
+AC_FIELD_NAME = re.compile(r"\bacceptance[\s_-]*criteri(a|on)s?\b|^\s*(acs?|definition of done|dod)\s*$", re.I)
+EXACT_AC_FIELD = re.compile(r"^\s*acceptance[\s_-]*criteria\s*$", re.I)
+MAX_TYPES = 20# JQL compares dates in the Jira user's own time zone and to the minute; an overlap of 14 h + 1 min covers every
 # time zone. Re-read issues are recognized by their content hash and create no new version.
 OVERLAP = timedelta(hours=14, minutes=1)
 PROJECT_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,19}$")
@@ -31,13 +34,17 @@ def jql_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def build_jql(project: str, issue_types=STORY_TYPES, extra: str = "", since: datetime | None = None) -> str:
+def build_jql(project: str, issue_types=STORY_TYPES, extra: str = "", since: datetime | None = None,
+              order: bool = True) -> str:
     """project = KEY AND issuetype in ("Story") [AND (extra)] [AND updated >= "..."] ORDER BY updated ASC, key ASC
 
     ORDER BY updated ascending lets the sync move its high-water mark forward page by page."""
     if not PROJECT_KEY.match(project or ""):
         raise ValueError("project must be a Jira project key such as SHOP")
     parts = [f"project = {project}"]
+    issue_types = list(issue_types or [])
+    if len(issue_types) > MAX_TYPES or any(not WORK_ITEM_TYPE.match(str(x)) for x in issue_types):
+        raise ValueError("work-item types must be 1-20 plain type names such as Story or Task")
     if issue_types:
         parts.append("issuetype in (" + ", ".join(jql_string(t) for t in issue_types) + ")")
     if extra:
@@ -47,7 +54,7 @@ def build_jql(project: str, issue_types=STORY_TYPES, extra: str = "", since: dat
     if since is not None:
         start = (since.astimezone(UTC) - OVERLAP).strftime("%Y/%m/%d %H:%M")
         parts.append(f'updated >= "{start}"')
-    return " AND ".join(parts) + " ORDER BY updated ASC, key ASC"
+    return " AND ".join(parts) + (" ORDER BY updated ASC, key ASC" if order else "")
 
 
 # ---------------------------------------------------------------- reads
@@ -65,12 +72,54 @@ def projects(client: Client) -> list[dict]:
 
 
 def acceptance_field(client: Client) -> str:
-    """The id of the custom field named 'Acceptance Criteria' (e.g. customfield_10045), or ''."""
+    """The id of the custom field that holds acceptance criteria (e.g. customfield_10045), or ''. A field named
+    exactly 'Acceptance Criteria' wins over the variants ('AcceptanceCriteria', 'AC', 'Definition of Done')."""
     data = client.get("/rest/api/3/field")
-    for f in data.get("values", data if isinstance(data, list) else []):
-        if isinstance(f, dict) and f.get("custom") and AC_FIELD_NAME.search(str(f.get("name", ""))):
-            return str(f.get("id", ""))
-    return ""
+    found = [f for f in data.get("values", data if isinstance(data, list) else [])
+             if isinstance(f, dict) and f.get("custom") and AC_FIELD_NAME.search(str(f.get("name", "")))]
+    found.sort(key=lambda f: (not EXACT_AC_FIELD.match(str(f.get("name", ""))), str(f.get("id", ""))))
+    return str(found[0].get("id", "")) if found else ""
+
+
+def myself(client: Client) -> dict:
+    """Who the credential belongs to (the connection test). The email address is not returned."""
+    data = client.get("/rest/api/3/myself")
+    if not data.get("accountId"):
+        raise AtlassianError("invalid_response", "the account answer has no account id")
+    return {"account_id": str(data.get("accountId", "")), "display_name": str(data.get("displayName", "")),
+            "active": bool(data.get("active", True)), "account_type": str(data.get("accountType", ""))}
+
+
+def work_item_types(client: Client, project: str) -> list[dict]:
+    """The work-item (issue) types of one project: [{'id', 'name', 'subtask', 'hierarchy_level'}]."""
+    if not PROJECT_KEY.match(project or ""):
+        raise ValueError("project must be a Jira project key such as SHOP")
+    data = client.get(f"/rest/api/3/project/{project}")
+    out = []
+    for t in data.get("issueTypes") or []:
+        if isinstance(t, dict) and WORK_ITEM_TYPE.match(str(t.get("name", ""))):
+            out.append({"id": str(t.get("id", "")), "name": str(t["name"]), "subtask": bool(t.get("subtask")),
+                        "hierarchy_level": int(t.get("hierarchyLevel") or 0)})
+    return out
+
+
+def count(client: Client, jql: str) -> int:
+    """How many work items a query matches (Jira's approximate count: a preview, not an exact total)."""
+    data = client.post_read("/rest/api/3/search/approximate-count", {"jql": jql})
+    value = data.get("count")
+    if not isinstance(value, int) or value < 0:
+        raise AtlassianError("invalid_response", "the count answer has no count")
+    return value
+
+
+def type_counts(client: Client, project: str, types: list[dict] | None = None) -> list[dict]:
+    """[{'name', 'count'}] for each (non-sub-task) type of a project: what an import would find, per type."""
+    types = types if types is not None else work_item_types(client, project)
+    out = []
+    for t in [t for t in types if not t["subtask"]][:MAX_TYPES]:
+        query = build_jql(project, (t["name"],), order=False)
+        out.append({"name": t["name"], "count": count(client, query)})
+    return out
 
 
 def search(client: Client, jql: str, fields: list[str], next_page_token: str = "",

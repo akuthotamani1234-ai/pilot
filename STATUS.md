@@ -5,7 +5,17 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestone 1
+
+**Milestone 1 (audit findings fixed):** headingless `AC1:` / `AC-1` criteria, heading and field-name variants, notes and
+references never criteria; configurable work-item types (Story, Task, custom) with discovery and counts, and a warning
+when an import finds nothing; a separate read token (`JIRA_READ_API_TOKEN`) so reading never enables the older defect
+creation, and a client that refuses every write; requirement suggestions decided through `/api/approvals` update the
+stored analysis, are signed by the logged-in reviewer (not a shared token, not a body field), stay in their tenant,
+and cannot be created or forged through the API; every Atlassian secret name redacted; a read-only command line
+(`python -m backend.atlassian`). 84 tests (`tests/test_atlassian_milestone1.py`) against the local mock. **Still no
+requirements API or Studio screen (Milestones 2–3), no test generation from requirements (Phase 4), no traceability
+or write-back (Phase 5), and no live Atlassian evidence.**
 
 **Phase 3:** requirement analysis (`backend/atlassian/analysis.py`): criteria copied by rules with source, version
 and quote; ambiguous / incomplete / duplicate / contradictory / missing criteria; story ↔ page conflicts with both

@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from ..safety import redact
+from ..safety import redact, register_secret_names
 from .models import LOOKS_LIKE_SECRET, Connection
 
 READ_POSTS = frozenset({"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count"})
@@ -70,6 +70,7 @@ class Client:
                  backoff: float = 1.0, timeout: float = 30.0, sleep: Callable[[float], None] = time.sleep):
         if base_url and not _loopback(base_url):
             raise AtlassianError("refused", "base_url is only for a local mock server (127.0.0.1)")
+        register_secret_names(connection.token_ref)  # (its value is redacted everywhere from now on)
         self.connection = connection
         self.base_url = (base_url or connection.site_url).rstrip("/")
         self._secret = secret
@@ -101,6 +102,9 @@ class Client:
         return self._request("POST", path, payload=body)
 
     def _request(self, method: str, path: str, params: dict | None = None, payload: dict | None = None) -> dict:
+        # (a second lock behind get / post_read: nothing in this package can send a write through this client)
+        if method != "GET" and not (method == "POST" and path in READ_POSTS):
+            raise AtlassianError("refused", f"{method} {path} would change Atlassian data: this client only reads")
         if not path.startswith("/") or "://" in path or ".." in path.split("/"):
             raise AtlassianError("refused", "path must be a site-relative API path")
         url = self.base_url + path

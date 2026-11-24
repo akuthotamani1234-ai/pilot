@@ -25,12 +25,12 @@ def mock():
 def conn(tenant="t1", **kw):
     return Connection(**{"id": "jira-main", "tenant_id": tenant, "product": "jira",
                          "site_url": "https://acme-test.atlassian.net", "email": EMAIL,
-                         "token_ref": "JIRA_API_TOKEN", **kw})
+                         "token_ref": "JIRA_READ_API_TOKEN", **kw})
 
 
 def client(mock, connection=None, **kw):
     sleeps = []
-    c = Client(connection or conn(), base_url=mock.url, secret=lambda name: TOKEN if name == "JIRA_API_TOKEN" else "",
+    c = Client(connection or conn(), base_url=mock.url, secret=lambda name: TOKEN if name == "JIRA_READ_API_TOKEN" else "",
                sleep=sleeps.append, **kw)
     c.sleeps = sleeps
     return c
@@ -78,7 +78,7 @@ def test_an_expired_token_stops_at_once_without_showing_it(mock):
     with pytest.raises(AtlassianError) as e:
         jira.projects(c)
     assert e.value.kind == "auth_expired" and c.calls == 1
-    assert "JIRA_API_TOKEN" in str(e.value) and "wrong-token-value-999" not in str(e.value)
+    assert "JIRA_READ_API_TOKEN" in str(e.value) and "wrong-token-value-999" not in str(e.value)
 
 
 def test_a_missing_secret_sends_nothing(mock):

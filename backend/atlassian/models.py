@@ -31,7 +31,15 @@ SCHEMA_VERSION = 1
 CLOUD_HOST = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}\.atlassian\.net$")
 ISSUE_KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,9}$")
 PAGE_ID = re.compile(r"^[0-9]{1,20}$")
-SECRET_REF = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")  # the NAME of an env var / secret, e.g. JIRA_API_TOKEN
+SECRET_REF = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")  # the NAME of an env var / secret, e.g. JIRA_READ_API_TOKEN
+# A read connection's secret lives in its own namespace, so it is always redacted and kept away from test workers
+# (backend/safety.py ATLASSIAN_SECRET_NAME), and it can never point at another product's key (OPENAI_API_KEY ...).
+READ_SECRET_NAME = re.compile(r"^(?:(?:JIRA|CONFLUENCE|ATLASSIAN)_[A-Z0-9_]*(?:TOKEN|SECRET|KEY)|QPILOT_SECRET_[A-Z0-9_]+)$")
+# JIRA_API_TOKEN belongs to the older opt-in defect creation (backend/integrations.py), which WRITES to Jira.
+# The read-only connectors use their own secret, so configuring one never switches the other on.
+LEGACY_WRITE_SECRETS = frozenset({"JIRA_API_TOKEN"})
+DEFAULT_TOKEN_REF = {"jira": "JIRA_READ_API_TOKEN", "confluence": "CONFLUENCE_API_TOKEN"}
+WORK_ITEM_TYPE = re.compile(r"^[^\x00-\x1f\x7f]{1,60}$")  # a Jira work-item type name (quoted safely in JQL)
 # values that look like a credential rather than a name (Atlassian API tokens start with ATATT, PATs are long)
 LOOKS_LIKE_SECRET = re.compile(r"(ATATT|ATCTT)[A-Za-z0-9_\-=]{8,}|[A-Za-z0-9_\-]{40,}")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -45,6 +53,18 @@ def _no_secret(value: str, field: str) -> str:
     if LOOKS_LIKE_SECRET.search(value or ""):
         raise ValueError(f"{field} looks like a credential; store the token as a secret and give its name")
     return value
+
+
+def safe_error(error: Exception) -> str:
+    """An error message fit to show: a validation error lists only field + rule (never the rejected input, which
+    may be a pasted token), and anything shaped like a credential is masked."""
+    from pydantic import ValidationError
+    if isinstance(error, ValidationError):
+        text = "; ".join(f"{'.'.join(str(x) for x in e.get('loc', ())) or 'value'}: "
+                         f"{str(e.get('msg', '')).removeprefix('Value error, ')}" for e in error.errors())
+    else:
+        text = str(error)
+    return LOOKS_LIKE_SECRET.sub("[REDACTED]", text)[:1000]
 
 
 def normalize_text(text: str) -> str:
@@ -153,7 +173,8 @@ class Connection(_Model):
     product: Product
     site_url: str
     email: str = Field(min_length=3, max_length=254)
-    token_ref: str  # the NAME of the secret (e.g. JIRA_API_TOKEN), resolved only at request time
+    token_ref: str  # the NAME of the secret (e.g. JIRA_READ_API_TOKEN), resolved only at request time
+    work_item_types: list[str] = Field(default_factory=lambda: ["Story"], min_length=1, max_length=20)
     read_only: bool = True
     allow_writes: bool = False  # even when True, every write still needs an approval (OutboundWrite)
     classification: Classification = Classification.internal
@@ -175,8 +196,27 @@ class Connection(_Model):
     def name_not_value(cls, v: str) -> str:
         _no_secret(v, "token_ref")
         if not SECRET_REF.match(v):
-            raise ValueError("token_ref must be the NAME of a secret such as JIRA_API_TOKEN, not the token")
+            raise ValueError("token_ref must be the NAME of a secret such as JIRA_READ_API_TOKEN, not the token")
+        if v in LEGACY_WRITE_SECRETS:
+            raise ValueError(f"{v} belongs to the older Jira defect creation, which writes to Jira; give the read-only "
+                             "connection its own secret, e.g. JIRA_READ_API_TOKEN")
+        if not READ_SECRET_NAME.match(v):
+            raise ValueError("token_ref must start with JIRA_, CONFLUENCE_ or ATLASSIAN_ and end with TOKEN, SECRET or "
+                             "KEY (e.g. JIRA_READ_API_TOKEN), or start with QPILOT_SECRET_")
         return v
+
+    @field_validator("work_item_types")
+    @classmethod
+    def type_names(cls, v: list[str]) -> list[str]:
+        out = []
+        for name in v:
+            name = str(name or "").strip()
+            if not WORK_ITEM_TYPE.match(name):
+                raise ValueError(f"{name!r} is not a Jira work-item type name")
+            name = re.sub(r" {2,}", " ", name)
+            if name.lower() not in {x.lower() for x in out}:
+                out.append(name)
+        return out
 
     @field_validator("email")
     @classmethod

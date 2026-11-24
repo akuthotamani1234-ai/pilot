@@ -22,9 +22,25 @@ METADATA_HOSTS = {"169.254.169.254", "169.254.170.2", "100.100.100.200", "fd00:e
 REDACTED = "[REDACTED]"
 # environment variables whose values are secrets (never printed, never given to generated tests or started apps)
 SECRET_ENV = ("TEST_PASSWORD", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN",
-              "SLACK_WEBHOOK_URL", "JIRA_API_TOKEN", "CONFLUENCE_API_TOKEN", "WEBHOOK_TOKEN", "TEST_TOTP_SECRET")
+              "SLACK_WEBHOOK_URL", "JIRA_API_TOKEN", "JIRA_READ_API_TOKEN", "CONFLUENCE_API_TOKEN", "WEBHOOK_TOKEN",
+              "TEST_TOTP_SECRET")
 API_KEY_ENV = ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "SLACK_WEBHOOK_URL",
-               "JIRA_API_TOKEN", "CONFLUENCE_API_TOKEN", "WEBHOOK_TOKEN", "TEST_TOTP_SECRET")
+               "JIRA_API_TOKEN", "JIRA_READ_API_TOKEN", "CONFLUENCE_API_TOKEN", "WEBHOOK_TOKEN", "TEST_TOTP_SECRET")
+# Atlassian read credentials may have any name in this namespace (backend/atlassian/models.py READ_SECRET_NAME):
+# every such variable is a secret, even one this process has never seen in a saved connection.
+ATLASSIAN_SECRET_NAME = re.compile(r"^(?:JIRA|CONFLUENCE|ATLASSIAN)_[A-Z0-9_]*(?:TOKEN|SECRET|KEY)$")
+_REGISTERED_SECRET_NAMES: set[str] = set()  # token_ref names of saved / used Atlassian connections
+
+
+def register_secret_names(*names: str) -> None:
+    """Treat these environment variables as secrets too (a connection's token_ref)."""
+    _REGISTERED_SECRET_NAMES.update(n for n in names if isinstance(n, str) and n)
+
+
+def extra_secret_names(env=None) -> tuple[str, ...]:
+    """Registered secret names plus every Atlassian-style credential name present in the environment."""
+    env = os.environ if env is None else env
+    return tuple(sorted(_REGISTERED_SECRET_NAMES | {k for k in env if ATLASSIAN_SECRET_NAME.match(k)}))
 
 
 class UrlError(ValueError):
@@ -285,6 +301,7 @@ def secret_values(include_username: bool = False) -> list[str]:
     """The secret values known to this process (from the environment), longest first."""
     names = SECRET_ENV + (("TEST_USERNAME",) if include_username else ())
     names += tuple(k for k in os.environ if k.startswith(("QPILOT_SECRET_", "BLOWAI_SECRET_")))
+    names += extra_secret_names()
     vals = {os.environ.get(n, "") for n in names}
     try:
         worker_inputs = json.loads(os.environ.get("ANDROID_CONTRACT_INPUTS", "{}"))
@@ -373,7 +390,8 @@ def redact_json(data, values: list[str] | None = None, include_username: bool = 
 def clean_env(env: dict, keep_test_account: bool = False) -> dict:
     """A copy of the environment without API keys / tokens (and without the test account unless needed).
     Used for the generated tests and for apps started from a GitHub repo or folder."""
-    out = {k: v for k, v in env.items() if k not in API_KEY_ENV and
+    extra = set(extra_secret_names(env))
+    out = {k: v for k, v in env.items() if k not in API_KEY_ENV and k not in extra and
            not k.startswith(("QPILOT_SECRET_", "QPILOT_DB_", "BLOWAI_SECRET_", "BLOWAI_DB_"))}
     out.pop("ANDROID_CONTRACT_INPUTS", None)
     out.pop("TEST_ACCOUNTS", None)  # (the role tests use the saved logins of the roles - never their passwords)

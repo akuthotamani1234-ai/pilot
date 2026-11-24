@@ -53,9 +53,26 @@ ACTION = "requirements.analyze"
 REVIEW_ACTION = "requirements.review"
 APPROVAL_KIND = "requirement_suggestion"
 
-MARKER = re.compile(r"^\s*(?:\d{1,3}[.)]|[-*•]|\[[ xX]?\]|AC\s*\d{1,3}[:.)])\s+")
+# a list marker or an acceptance-criterion label at the start of a line: '1.', '-', '[ ]', 'AC1:', 'AC-2 -', 'AC 3.',
+# 'Acceptance criterion 4:', 'Criteria 5)'
+_AC_NUMBER = r"(?:AC|acceptance[\s_-]*criteri(?:on|a)|criteri(?:on|a))[\s_#-]*0*\d{1,3}\s*[:.)\-–]"
+MARKER = re.compile(r"^\s*(?:\d{1,3}[.)]|[-*•]|\[[ xX]?\]|" + _AC_NUMBER + r")\s+", re.I)
+AC_LABEL = re.compile(r"^\s*(?:[-*•]\s+|\d{1,3}[.)]\s+)?" + _AC_NUMBER + r"\s*\S", re.I)  # a criterion without heading
 GHERKIN = re.compile(r"^\s*(?:scenario(?: outline)?:|(?:given|when|then|and|but)\b)", re.I)
-AC_HEADING = re.compile(r"^\s*(?:#+\s*)?(acceptance criteria|acceptance|criteria|definition of done|"
+_AC_TITLE = (r"(?:acceptance[\s_-]*criteri(?:a|on)s?|acs?|acceptance tests?|definition of done|dod|"
+             r"conditions? of (?:satisfaction|acceptance)|success criteria|business rules|rules|criteria)")
+# a heading / label line that opens the acceptance criteria: '## Acceptance Criteria', 'AcceptanceCriteria:',
+# 'Acceptance Criteria (AC)', 'ACs', 'Definition of Done', 'Conditions of satisfaction' (an emoji after it is fine)
+AC_HEADING = re.compile(r"^\s*(?:#+\s*)?" + _AC_TITLE + r"\s*(?:\([^)]{0,30}\))?\s*[:\-–]?\s*[^\w\s]{0,3}\s*$", re.I)
+AC_INLINE = re.compile(r"^\s*(?:acceptance[\s_-]*criteri(?:a|on)s?|acs?)\s*:\s*(?P<rest>\S.*)$", re.I)
+# a label or heading that starts OTHER text: it ends the acceptance criteria (notes are never criteria)
+_OTHER = (r"(?:notes?|references?|links?|attachments?|out[ -]of[ -]scope|not in scope|non[- ]goals?|dependencies|"
+          r"assumptions?|open questions?|questions?|comments?|designs?|mock-?ups?|wireframes?|figma|"
+          r"technical (?:notes?|details?)|implementation(?: notes?| details?)?|background|context|description|"
+          r"user story|resources|see also|related(?: issues?| stories| links)?|sub-?tasks?|story points?|estimates?|"
+          r"test data|environment|screenshots?|additional (?:information|info|notes?|context)|faqs?|risks?)")
+STOP_LABEL = re.compile(r"^\s*(?:#+\s*)?" + _OTHER + r"\b(?:\s*\([^)]{0,30}\))?\s*(?::|[-–]\s|\s*$)", re.I)
+HEADING = re.compile(r"^\s*(?:#+\s*)?(acceptance criteria|acceptance|criteria|definition of done|"
                         r"business rules|rules)\s*:?\s*$", re.I)
 HEADING = re.compile(r"^\s*#+\s+\S")
 ONE_LINE_GWT = re.compile(r"^\s*given\s+(?P<given>.+?),?\s+when\s+(?P<when>.+?),?\s+then\s+(?P<then>.+?)\s*$",
@@ -95,32 +112,77 @@ MANUAL = re.compile(r"\b(manual(?:ly)?|visual(?:ly)? (?:check|inspect)|legal rev
 
 # ---------------------------------------------------------------- 1 extract
 
+def _strip(line: str) -> str:
+    """A line without its list marker and criterion label ('- AC1: x' -> 'x')."""
+    for _ in range(2):
+        line = MARKER.sub("", line)
+    return line.strip()
+
+
+def _until_other(lines: list[str]) -> list[str]:
+    """The lines before the first label / heading that starts other text (Notes:, References:, ...)."""
+    out = []
+    for ln in lines:
+        if STOP_LABEL.match(ln) and not AC_LABEL.match(ln):
+            break
+        out.append(ln)
+    return out
+
+
+def _labelled(lines: list[str]) -> list[str]:
+    """No acceptance-criteria heading: only the labelled criteria ('AC1: ...', 'AC-2 - ...') and their Given /
+    When / Then or indented continuation lines. Plain numbered lists without a heading are NOT taken: they are
+    as often steps to reproduce as criteria."""
+    out, open_item = [], False
+    for ln in lines:
+        if AC_LABEL.match(ln):
+            out.append(ln)
+            open_item = True
+        elif open_item and ln.strip() and not HEADING.match(ln) and not STOP_LABEL.match(ln) and (
+                GHERKIN.match(_strip(ln)) or ln.startswith("   ")):
+            out.append(ln)
+        else:
+            if open_item:
+                out.append("")
+            open_item = False
+    return out
+
+
 def _criterion_items(text: str, whole: bool) -> list[tuple[str, str]]:
     """(criterion text, quote) pairs from plain text. whole=True: the text IS acceptance criteria (the Jira field);
-    otherwise only the part under an 'Acceptance criteria' heading / label is read."""
+    otherwise the part under an 'Acceptance criteria' heading / label is read, and without such a heading only the
+    labelled criteria (AC1:, AC-2, ...). A 'Notes:' / 'References:' / other heading ends the criteria."""
     lines = [ln.rstrip() for ln in (text or "").splitlines()]
-    if not whole:
-        region, inside = [], False
+    if whole:
+        lines = _until_other(lines)
+    else:
+        region, inside, found = [], False, False
         for ln in lines:
-            if AC_HEADING.match(ln.replace("#", "").strip()) and (HEADING.match(ln) or ln.strip().endswith(":")
-                                                                   or AC_HEADING.match(ln)):
-                inside = True
+            if AC_HEADING.match(ln):
+                inside = found = True
                 continue
-            if inside and HEADING.match(ln):
-                break
+            inline = AC_INLINE.match(ln)
+            if inline and not AC_LABEL.match(ln):
+                inside = found = True
+                region.append(inline.group("rest"))
+                continue
+            if inside and (HEADING.match(ln) or (STOP_LABEL.match(ln) and not AC_LABEL.match(ln))):
+                inside = False
+                region.append("")
+                continue
             if inside:
                 region.append(ln)
-        lines = region
+        lines = region if found else _labelled(lines)
     items: list[list[str]] = []
     gherkin: list[str] | None = None
     for ln in lines:
         if not ln.strip():
             gherkin = None
             continue
-        body = MARKER.sub("", ln).strip()
+        body = _strip(ln)
         if GHERKIN.match(body):
             starts_new = gherkin is None or re.match(r"^\s*(scenario|given)\b", body, re.I) and any(
-                re.match(r"^\s*then\b", x.strip(), re.I) for x in gherkin)
+                re.match(r"^\s*then\b", _strip(x), re.I) for x in gherkin)
             if MARKER.match(ln) or starts_new:
                 gherkin = [ln]
                 items.append(gherkin)
@@ -135,7 +197,7 @@ def _criterion_items(text: str, whole: bool) -> list[tuple[str, str]]:
     out = []
     for group in items:
         quote = "\n".join(group).strip()
-        words = " ".join(MARKER.sub("", g).strip() for g in group)
+        words = " ".join(_strip(g) for g in group)
         words = re.sub(r"^\s*scenario(?: outline)?:\s*", "", words, flags=re.I).strip()
         if len(words) >= 3 and not HEADING.match(group[0]):
             out.append((words, quote))
@@ -219,7 +281,7 @@ def _from_page(source: SourceRef, content: dict) -> list[tuple[str, Citation]]:
                     found.append((words, Citation(source=source, locator=locator + " (Gherkin)", quote=quote[:2000])))
             elif kind in ("list_item", "task") or (kind == "paragraph" and (SHALL.search(text)
                                                                            or GHERKIN.match(text))):
-                words = MARKER.sub("", text).strip()
+                words = _strip(text)
                 if len(words) >= 3:
                     found.append((words, Citation(source=source, locator=locator, quote=text[:2000])))
     return found
@@ -233,7 +295,9 @@ def build_requirement(db, tenant_id: str, root_key: str) -> Requirement:
     src: SourceRef = root["source"]
     sources = [(src, root["content"], root["present"])]
     if src.kind == SourceKind.jira_issue:
-        req_id, kind, title = src.source_id, "story", src.title
+        jira_type = str(root["content"].get("type", "")).strip().lower()
+        kind = jira_type if jira_type in ("bug", "task", "epic") else "story"  # (Story, User Story, custom types)
+        req_id, title = src.source_id, src.title
         seen = {root_key}
         frontier = [link["to_key"] for link in store.links_from(db, tenant_id, root_key)
                     if link["relation"] == "specified_by"]
@@ -631,9 +695,14 @@ def review(db, tenant_id: str, requirement_id: str, suggestion_id: str, answer: 
     if target is None:
         raise LookupError(f"{suggestion_id} is not a suggestion of {requirement_id}")
     try:
-        row = approvals.decide_approval(target.approval_id, answer, tenant_id=tenant_id, path=approvals_db)
-    except PermissionError:
-        _audit(reviewer, False, tenant_id, REVIEW_ACTION, {"suggestion": suggestion_id, "why": "tenant"}, audit_db)
+        queued = approvals.get_approval(target.approval_id, tenant_id=tenant_id, path=approvals_db)
+        if not _approval_matches(queued, requirement_id, suggestion_id):
+            raise PermissionError("the approval record does not belong to this suggestion")
+        row = approvals.decide_approval(target.approval_id, answer, tenant_id=tenant_id, path=approvals_db,
+                                        decided_by=reviewer.strip())
+    except PermissionError as error:
+        _audit(reviewer, False, tenant_id, REVIEW_ACTION, {"suggestion": suggestion_id, "why": str(error)[:120]},
+               audit_db)
         raise
     decision = ReviewStatus.accepted if row["status"] == "accepted" else ReviewStatus.rejected
     updated = target.model_copy(update={"review": decision, "reviewer": reviewer.strip()})
@@ -668,3 +737,40 @@ def summary(analysis: Analysis) -> dict:
                         for s in analysis.suggestions],
     }
 
+
+def _approval_matches(row: dict, requirement_id: str, suggestion_id: str) -> bool:
+    """The queue row was created by analyze() for exactly this suggestion (not made up through another route)."""
+    if row.get("kind") != APPROVAL_KIND:
+        return False
+    try:
+        detail = json.loads(row.get("detail") or "{}")
+    except ValueError:
+        return False
+    return detail.get("requirement") == requirement_id and detail.get("suggestion") == suggestion_id
+
+
+def review_approval(db, approval_id: str, answer: str, reviewer: str, *, tenant_id: str | None = None,
+                    approvals_db=None, audit_db=None) -> ScenarioSuggestion:
+    """Decide a requirement suggestion by its approval-queue id (what the approvals API receives): the queue AND
+    the stored analysis change together. tenant_id=None (Studio login off) uses the row's own tenant."""
+    from .. import approvals
+    row = approvals.get_approval(approval_id, tenant_id=tenant_id, path=approvals_db)
+    if row.get("kind") != APPROVAL_KIND:
+        raise ValueError("not a requirement suggestion")
+    try:
+        detail = json.loads(row.get("detail") or "{}")
+    except ValueError:
+        raise PermissionError("the approval record has no requirement reference") from None
+    requirement_id, suggestion_id = str(detail.get("requirement", "")), str(detail.get("suggestion", ""))
+    if not (requirement_id and suggestion_id):
+        raise PermissionError("the approval record has no requirement reference")
+    tenant = str(row.get("tenant_id") or "")
+    analysis = store.get_analysis(db, tenant, requirement_id) if tenant else None
+    target = next((s for s in (analysis.suggestions if analysis else []) if s.id == suggestion_id), None)
+    if target is None or target.approval_id != approval_id:
+        # (a row that analyze() did not create, or one replaced by a newer analysis)
+        _audit(reviewer or "unknown", False, tenant, REVIEW_ACTION,
+               {"approval": approval_id, "why": "no matching suggestion"}, audit_db)
+        raise PermissionError("this approval is not linked to a current requirement suggestion")
+    return review(db, tenant, requirement_id, suggestion_id, answer, reviewer, approvals_db=approvals_db,
+                  audit_db=audit_db)

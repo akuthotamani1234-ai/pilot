@@ -36,7 +36,7 @@ def db(tmp_path):
 
 def conn(product="confluence", tenant="t1", cid=None):
     return Connection(id=cid or ("conf-main" if product == "confluence" else "jira-main"), tenant_id=tenant,
-                      product=product, site_url=f"https://{HOST}", email=EMAIL, token_ref="JIRA_API_TOKEN")
+                      product=product, site_url=f"https://{HOST}", email=EMAIL, token_ref="JIRA_READ_API_TOKEN")
 
 
 def client(mock, connection=None, **kw):

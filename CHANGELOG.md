@@ -2,6 +2,25 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Requirements Intelligence, Milestone 1 (audit findings fixed)
+
+- Criteria: `AC1:` / `AC-2 -` / `Acceptance criterion 3:` lines without a heading; heading and custom-field variants
+  (`AcceptanceCriteria`, `Acceptance Criteria (AC)`, `ACs`, `Definition of Done`, inline `Acceptance Criteria: …`);
+  Notes / References / Out of scope and other labels end the criteria. A plain numbered list without a heading is
+  still not taken.
+- Work-item types: `Connection.work_item_types` (default Story), discovery with counts, and a warning naming the
+  project's real types when an import finds nothing. `python -m backend.atlassian types` shows them.
+- Credentials: read connections use `JIRA_READ_API_TOKEN` / `CONFLUENCE_API_TOKEN`; `JIRA_API_TOKEN` (defect
+  creation, which writes) and other products' keys are refused. Every `JIRA_* / CONFLUENCE_* / ATLASSIAN_*` secret
+  name and every saved `token_ref` is redacted and kept from test workers. Validation errors never echo the input.
+- Writes: the Atlassian client refuses every non-read request; the command line warns when the older defect
+  creation is configured to write.
+- Reviews: deciding a requirement suggestion through `POST /api/approvals/{id}/decide` updates the stored analysis,
+  records the signed-in reviewer (`decided_by`), refuses shared tokens and other tenants; `POST /api/approvals` refuses
+  `requirement_suggestion`; a queue row not created by analysis cannot decide a suggestion.
+- New read-only command line: `check`, `connect`, `projects`, `types`, `sync`, `show`, `analyze`, `spaces`,
+  `sync-space`. Documentation inconsistencies from the audit corrected. *84 new tests, local mock only.*
+
 ## 2026-11-23 - Fixed the five baseline test failures
 
 - Discovery finds header search boxes (kept as `search_fields`), numbers iframe forms after the page's own (no more

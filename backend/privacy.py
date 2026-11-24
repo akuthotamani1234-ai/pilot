@@ -128,11 +128,18 @@ def apply_worker_policy(env: dict, provider: str | None = None, expected_mode: s
                                env.get("OLLAMA_URL", "http://localhost:11434"), policy.mode)
     env["LLM_PROVIDER"] = selected
     env["BLOWAI_PRIVACY_MODE"] = policy.mode
+    # Test workers never read Jira / Confluence requirements: the read-only Atlassian credentials (and any custom
+    # token_ref name) are blanked in every mode. JIRA_API_TOKEN stays in cloud mode: the older opt-in defect
+    # creation runs in the worker.
+    from .safety import extra_secret_names
+    for key in extra_secret_names(env) + ("JIRA_READ_API_TOKEN", "CONFLUENCE_API_TOKEN"):
+        if key != "JIRA_API_TOKEN":
+            env[key] = ""
     if policy.mode == "local":
         # Explicit blanks prevent the child .env loader from restoring these credentials.
         for key in ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY",
                     "SLACK_WEBHOOK_URL", "JIRA_URL", "JIRA_EMAIL", "JIRA_API_TOKEN", "JIRA_PROJECT",
-                    "CONFLUENCE_API_TOKEN"):
+                    "CONFLUENCE_API_TOKEN", "JIRA_READ_API_TOKEN"):
             env[key] = ""
     return public_policy(policy)
 

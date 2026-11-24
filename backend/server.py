@@ -3169,13 +3169,39 @@ def create_approval(
     scope = _approval_scope(authorization, x_qa_token)
     if isinstance(scope, JSONResponse):
         return scope
-    from backend.approvals import create
+    from backend.approvals import INTERNAL_KINDS, create
+    if (req.kind or "").strip().lower() in INTERNAL_KINDS:
+        _audit("approval_create_refused", kind=(req.kind or "")[:40])
+        raise HTTPException(400, "This kind is created only by Qpilot itself (requirement analysis).")
     try:
         row = create(req.kind, req.subject, detail=req.detail or "", tenant_id=scope or "")
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     _audit("approval_create", approval=row["id"], kind=row["kind"])
     return row
+
+
+def _decide_requirement_suggestion(approval_id: str, answer: str, scope, authorization, x_qa_token):
+    """A requirement suggestion: the signed-in reviewer decides, and the stored analysis changes with the queue."""
+    from backend.atlassian import analysis, store
+    from backend.dashboard_auth import authorize, reviewer_identity
+    reviewer = reviewer_identity(authorize(authorization, x_qa_token=x_qa_token, action="review.write"))
+    if not reviewer:
+        raise HTTPException(403, "Requirement suggestions are reviewed by a named, signed-in person "
+                                 "(principal or OIDC login); a shared token cannot sign a review.")
+    db = store.connect()
+    try:
+        suggestion = analysis.review_approval(db, approval_id, answer, reviewer, tenant_id=scope)
+    except PermissionError as e:
+        raise HTTPException(403, str(e)) from e
+    except (KeyError, LookupError) as e:
+        raise HTTPException(404, "Approval not found.") from e
+    finally:
+        db.close()
+    _audit("approval_decide", approval=approval_id, status=suggestion.review.value, kind="requirement_suggestion")
+    from backend.approvals import get_approval
+    return {**get_approval(approval_id), "requirement_id": suggestion.requirement_id,
+            "suggestion_id": suggestion.id, "reviewer": suggestion.reviewer}
 
 
 class DecideApproval(BaseModel):
@@ -3193,7 +3219,15 @@ def decide_approval_api(
     scope = _approval_scope(authorization, x_qa_token)
     if isinstance(scope, JSONResponse):
         return scope
-    from backend.approvals import decide_approval
+    from backend.approvals import NAMED_REVIEW_KINDS, decide_approval, get_approval
+    try:
+        kind = get_approval(approval_id, tenant_id=scope)["kind"]
+    except PermissionError as e:
+        raise HTTPException(403, "tenant isolation") from e
+    except KeyError as e:
+        raise HTTPException(404, "Approval not found.") from e
+    if kind in NAMED_REVIEW_KINDS:
+        return _decide_requirement_suggestion(approval_id, req.answer, scope, authorization, x_qa_token)
     try:
         row = decide_approval(approval_id, req.answer, tenant_id=scope)
     except PermissionError as e:

@@ -59,15 +59,17 @@ def _check(connection: Connection, client: Client, tenant_id: str, product: Prod
 
 
 def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, project: str,
-              issue_types=jira.STORY_TYPES, extra: str = "", actor: str = "system", full: bool = False,
+              issue_types=None, extra: str = "", actor: str = "system", full: bool = False,
               page_size: int = jira.PAGE_SIZE, max_pages: int | None = None, audit_db=None,
               now: datetime | None = None) -> dict:
     _check(connection, client, tenant_id, Product.jira, actor, audit_db, ACTION)
+    issue_types = list(issue_types) if issue_types else list(connection.work_item_types)
     scope = "jql:" + jira.build_jql(project, issue_types, extra)
     cursor = store.load_cursor(db, tenant_id, connection.id, scope)
     started = now or datetime.now(UTC)
     result = {"scope": scope, "status": "", "new": 0, "changed": 0, "unchanged": 0, "reappeared": 0,
-              "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": ""}
+              "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": "",
+              "work_item_types": issue_types, "warnings": []}
 
     resuming = bool(cursor.next_page_token and cursor.active_query and cursor.status != SyncStatus.complete
                     and not full)
@@ -141,8 +143,25 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
                                            "failed_items": []})
     store.save_cursor(db, cursor)
     result.update(status=cursor.status.value, failed_items=failed)
+    stored = sum(result[k] for k in ("new", "changed", "unchanged", "reappeared"))
+    if full_scan and not result["resumed"] and stored == 0:
+        result["warnings"].append(zero_result_warning(client, project, issue_types, extra))
     _audit(actor, True, tenant_id, {"connection": connection.id, **_summary(result)}, audit_db)
     return result
+
+
+def zero_result_warning(client: Client, project: str, issue_types: list[str], extra: str = "") -> str:
+    """Why an import found nothing: which work-item types the project really has, and how many of each."""
+    asked = ", ".join(issue_types)
+    text = f"0 work items imported from {project} (types: {asked}{'; filter: ' + extra if extra else ''})."
+    try:
+        counts = [c for c in jira.type_counts(client, project) if c["count"]]
+    except (AtlassianError, ValueError) as error:
+        return text + f" The project's work-item types could not be read ({str(error)[:120]})."
+    if not counts:
+        return text + f" {project} has no work items this account can see (or the project key is wrong)."
+    found = ", ".join(f"{c['name']} ({c['count']})" for c in counts)
+    return text + f" {project} has: {found}. Choose those types to import them."
 
 
 def _summary(result: dict) -> dict:

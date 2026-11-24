@@ -16,7 +16,7 @@ STORY = ("As a shopper I want to log in.\nAcceptance criteria:\n"
 
 def conn(**kw):
     base = {"id": "jira-main", "tenant_id": "t1", "product": "jira", "site_url": "https://acme-test.atlassian.net",
-                "email": "qa@acme.test", "token_ref": "JIRA_API_TOKEN"}
+                "email": "qa@acme.test", "token_ref": "JIRA_READ_API_TOKEN"}
     return m.Connection(**{**base, **kw})
 
 
@@ -52,7 +52,7 @@ def test_a_connection_holds_the_secret_name_never_the_token():
     for bad in ("ATATT3xFfGF0abcdefghijklmnop", "jira_api_token", "a" * 45):
         with pytest.raises(ValidationError):
             conn(token_ref=bad)
-    assert conn().model_dump()["token_ref"] == "JIRA_API_TOKEN"
+    assert conn().model_dump()["token_ref"] == "JIRA_READ_API_TOKEN"
     assert not {"token", "api_token", "password"} & set(conn().model_dump())
 
 

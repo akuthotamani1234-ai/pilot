@@ -54,6 +54,12 @@ class MockJira:
     def __init__(self):
         self.issues: dict[str, dict] = {}
         self.projects = [{"id": "1", "key": "SHOP", "name": "Shop"}]
+        # work-item types of every project (GET /rest/api/3/project/{key})
+        self.types = [{"id": "10000", "name": "Epic", "subtask": False, "hierarchyLevel": 1},
+                      {"id": "10001", "name": "Story", "subtask": False, "hierarchyLevel": 0},
+                      {"id": "10002", "name": "Task", "subtask": False, "hierarchyLevel": 0},
+                      {"id": "10003", "name": "Bug", "subtask": False, "hierarchyLevel": 0},
+                      {"id": "10004", "name": "Subtask", "subtask": True, "hierarchyLevel": -1}]
         self.fields = [{"id": "summary", "name": "Summary", "custom": False},
                        {"id": "customfield_10045", "name": "Acceptance Criteria", "custom": True}]
         self.faults: list[dict] = []  # {"path": prefix, "status": 429, "headers": {...}, "body": "..."}
@@ -198,6 +204,17 @@ class MockJira:
                     values = mock.projects[start:start + size]
                     return self._send(200, {"values": values, "startAt": start, "maxResults": size,
                                             "total": len(mock.projects), "isLast": start + size >= len(mock.projects)})
+                if method == "GET" and path == "/rest/api/3/myself":
+                    return self._send(200, {"accountId": "5b10ac8d82e05b22cc7d4ef5", "displayName": "QA Reader",
+                                            "emailAddress": EMAIL, "active": True, "accountType": "atlassian"})
+                if method == "GET" and (m := re.fullmatch(r"/rest/api/3/project/([A-Z][A-Z0-9_]*)", path)):
+                    found = next((x for x in mock.projects if x["key"] == m.group(1)), None)
+                    if not found:
+                        return self._send(404, {"errorMessages": ["No project could be found with key "
+                                                                  f"'{m.group(1)}'."]})
+                    return self._send(200, {**found, "issueTypes": mock.types})
+                if method == "POST" and path == "/rest/api/3/search/approximate-count":
+                    return self._send(200, {"count": len(mock._matching(body.get("jql", "")))})
                 if method == "GET" and path == "/rest/api/3/field":
                     return self._send(200, raw=json.dumps(mock.fields).encode())
                 if method == "POST" and path == "/rest/api/3/search/jql":

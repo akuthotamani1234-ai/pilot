@@ -29,7 +29,7 @@ SPEC = ("<h1>Login</h1><p>Background text that is not a rule.</p>"
 
 def conn(product, tenant="t1", **kw):
     return Connection(id="jira-main" if product == "jira" else "conf-main", tenant_id=tenant, product=product,
-                      site_url=f"https://{HOST}", email="qa@acme.test", token_ref="JIRA_API_TOKEN", **kw)
+                      site_url=f"https://{HOST}", email="qa@acme.test", token_ref="JIRA_READ_API_TOKEN", **kw)
 
 
 @pytest.fixture
@@ -272,7 +272,7 @@ def test_ai_ideas_are_checked_and_never_change_the_criteria(db, paths, monkeypat
     assert from_ai["Wrong password message"].basis == Basis.explicit
     assert from_ai["Lockout after 7 characters"].basis == Basis.inferred  # ('30 minutes' is not in the source)
     assert from_ai["Delete the account with a short password"].destructive == "delete"
-    assert "qa@acme.test" not in ai.prompts[0] and "JIRA_API_TOKEN" not in ai.prompts[0]
+    assert "qa@acme.test" not in ai.prompts[0] and "JIRA_READ_API_TOKEN" not in ai.prompts[0]
 
 
 def test_local_privacy_mode_keeps_requirements_away_from_cloud_ai(db, paths, monkeypatch):

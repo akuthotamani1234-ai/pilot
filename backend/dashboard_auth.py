@@ -289,6 +289,24 @@ def authorize(authorization: str | None, *, x_qa_token: str | None = None,
         }
 
 
+def reviewer_identity(verdict: dict) -> str | None:
+    """Who made a decision, from an accepted authorize() verdict - never from the request body.
+
+    principal / oidc  the signed-in principal id
+    none              'local-user': Studio login is off (localhost, one person); recorded as such
+    bearer / webhook  None: a shared token is not a person, so it cannot sign a named review
+    """
+    if not verdict.get("ok"):
+        return None
+    mode = verdict.get("mode")
+    if mode == "none":
+        return "local-user"
+    if mode in ("principal", "oidc"):
+        who = str(verdict.get("principal_id") or "").strip()
+        return who or None
+    return None
+
+
 def snapshot() -> dict:
     mode = auth_mode()
     return {
