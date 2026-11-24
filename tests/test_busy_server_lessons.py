@@ -60,6 +60,51 @@ def test_the_crawl_tests_a_page_that_shows_while_one_file_never_comes(tmp_path, 
     assert "still_loading" in [x["id"] for x in limits_hit({"crawl": out["crawl"]}, tmp_path)]  # (said in the report)
 
 
+def test_a_slow_answer_to_a_timed_out_load_does_not_break_the_next_load():
+    """The checkout probe's handler of a load that timed out still waits for the slow server; its late error ('Route
+    is already handled') reached the next load - the crawl's retry of the same page - and failed it (or dropped the
+    start page: the run tested nothing). The next load opens."""
+    from playwright.sync_api import TimeoutError as PageTimeout, sync_playwright
+
+    from backend.payment_nav import navigate_for_crawl
+    release = threading.Event()
+
+    class Site(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/slow":
+                release.wait(3)  # (later than the load waits)
+            elif self.path == "/next":
+                time.sleep(1)  # (still opening when the late error arrives)
+            data = b"<title>Next</title><h1>Next</h1>"
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            except OSError:
+                pass
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            with pytest.raises(PageTimeout):
+                navigate_for_crawl(page, base + "/slow", timeout=1000)
+            response, blocked = navigate_for_crawl(page, base + "/next", timeout=15000)
+            assert response is not None and response.status == 200 and not blocked
+            assert page.title() == "Next"
+            browser.close()
+    finally:
+        release.set()
+        srv.shutdown()
+
+
 def _conftest_code(*names):
     """Constants / functions of templates/conftest.py (read, not imported: importing it would patch Playwright)."""
     import ast
