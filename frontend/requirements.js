@@ -76,7 +76,8 @@
     document.title = `Qpilot | ${$(`view-${view}`).dataset.title}`;
     banner("");
     ({ overview, integrations, import: wizardOpen, explorer, analysis: analysisView, reviews,
-      confluence: confluenceView, coverage: coverageView, history, settings: settingsView })[view]?.();
+      confluence: confluenceView, coverage: coverageView, history, settings: settingsView, builder,
+      execution: executionCenter, agents: liveView, evidence: evidenceView, traceability: traceabilityView })[view]?.();
   }
   window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
   document.querySelector(".rq-skip").addEventListener("click", (event) => {
@@ -122,10 +123,10 @@
       caps.import_requirements ? go("Import requirements", "read stories from Jira", "#import") : null,
       caps.analyze_requirements ? go("Analyze requirements", "criteria, gaps, conflicts", "#analysis") : null,
       caps.review_suggestions ? go("Review suggestions", "accept, correct or reject ideas", "#reviews") : null,
-      caps.generate_test_cases ? null : later("generate_test_cases", "Generate test cases"),
-      caps.run_selected_tests ? null : later("run_selected_tests", "Run selected tests"),
-      caps.run_impacted_tests ? null : later("run_impacted_tests", "Run impacted tests"),
-      caps.run_all_approved_tests ? null : later("run_all_approved_tests", "Run all approved tests")));
+      caps.generate_test_cases ? go("Generate test cases", "from accepted ideas", "#builder") : later("generate_test_cases", "Generate test cases"),
+      caps.run_selected_tests ? go("Run tests", "selected, impacted or all approved", "#execution") : later("run_selected_tests", "Run selected tests"),
+      caps.traceability ? go("View traceability", "story → test → real result", "#traceability") : later("traceability", "Traceability"),
+      caps.jira_write_back ? null : later("jira_write_back", "Jira write-back")));
   }
   const statusBadge = (s) => badge(s || "—", { complete: "ok", partial: "warn", failed: "bad", cancelled: "warn", running: "info" }[s] || "");
   function navCount(n) { const c = $("navReviews"); c.hidden = !n; c.textContent = n || ""; c.setAttribute("aria-label", `${n} waiting`); }
@@ -574,17 +575,51 @@
   function showTab(tab) {
     document.querySelectorAll(".rq-tabs [role=tab]").forEach((t) => { t.setAttribute("aria-selected", String(t.dataset.tab === tab)); t.tabIndex = t.dataset.tab === tab ? 0 : -1; });
     if (!D.data) return;
-    const upcoming = (phase, text) => $("dtBody").replaceChildren(
-      h("p", {}, badge(`Upcoming · Phase ${phase}`, "info")), h("p", { text }));
     D.tab = tab;
     $("dtBody").setAttribute("aria-labelledby", `dtTab-${tab}`);
     ({
       details: tabDetails, criteria: tabCriteria, analysis: tabAnalysis, versions: tabVersions, links: tabLinks,
-      tests: () => upcoming(4, "Executable tests will appear after requirement-to-test generation is available."),
-      results: () => upcoming(4, "Results will appear after requirement-linked execution is available."),
-      trace: () => upcoming(5, "Requirement-to-run and evidence relationships will appear with traceability."),
+      tests: tabTests, results: tabResults, trace: tabTrace,
       audit: tabAudit,
     })[tab]();
+  }
+  async function tabTests() {
+    const body = $("dtBody");
+    const req = D.data.requirement_id;
+    try {
+      const r = await api(`/test-cases?${new URLSearchParams({ requirement: req })}`);
+      body.replaceChildren(...kids(
+        h("div", { class: "rq-row" }, h("button", { class: "primary", type: "button", text: "Generate from accepted ideas", onclick: async () => {
+          try { await api(`/items/${encodeURIComponent(D.conn)}/${encodeURIComponent(D.key)}/test-cases`, { method: "POST" }); tabTests(); }
+          catch (err) { body.prepend(h("p", { class: "rq-issue", role: "alert", text: err.message })); }
+        } }), h("a", { href: "#builder", onclick: () => $("detail").close(), text: "Open the Test Case Builder" })),
+        r.test_cases.length ? h("ul", { class: "rq-audit" }, r.test_cases.map((c) => h("li", {}, h("b", { text: c.id }), caseBadge(c.status),
+          h("span", { text: `${c.criterion_ids.map((x) => x.split("#")[1]).join(", ")} · ${c.title}` }), resultBadge((c.latest_result || {}).status))))
+          : h("p", { class: "small", text: "No test cases yet. Accept test ideas in the Review Center, then generate them." })));
+    } catch (e) { body.replaceChildren(h("p", { text: e.message })); }
+  }
+  async function tabResults() {
+    const body = $("dtBody");
+    try {
+      const r = await api(`/test-cases?${new URLSearchParams({ requirement: D.data.requirement_id })}`);
+      const rows = [];
+      for (const c of r.test_cases) {
+        const d = await api(`/test-cases/${encodeURIComponent(c.id)}`);
+        d.results.forEach((x) => rows.push(h("li", {}, h("time", { text: when(x.at) }), h("b", { text: c.id }), resultBadge(x.status),
+          h("span", { text: x.actual || x.reason || "" }), ...evidenceLinks(x))));
+      }
+      body.replaceChildren(...kids(rows.length ? h("ul", { class: "rq-audit" }, rows) : h("p", { class: "small", text: "No test case of this requirement has run yet." })));
+    } catch (e) { body.replaceChildren(h("p", { text: e.message })); }
+  }
+  async function tabTrace() {
+    const body = $("dtBody");
+    try {
+      const r = await api(`/traceability?${new URLSearchParams({ q: D.data.requirement_id })}`);
+      const rows = r.rows.filter((x) => x.requirement === D.data.requirement_id);
+      body.replaceChildren(...kids(rows.length ? h("ul", { class: "rq-audit" }, rows.map((x) => h("li", {},
+        h("b", { text: x.criterion.split("#")[1] }), h("span", { text: x.criterion_text }), "→", h("span", { text: x.test_case || "no approved test" }),
+        x.result ? resultBadge(x.result) : null, badge(x.coverage)))) : h("p", { class: "small", text: "Analyse this requirement first." })));
+    } catch (e) { body.replaceChildren(h("p", { text: e.message })); }
   }
   async function tabAudit() {
     const body = $("dtBody");
@@ -707,6 +742,19 @@
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
     finally { box.removeAttribute("aria-busy"); }
   }
+  function nextActions(conn, key) {  // (after an acceptance: what to do next, one click each)
+    const out = h("p", { class: "small" });
+    $("rvNext").replaceChildren(h("div", { class: "lab-card rq-next" }, h("b", { text: `Accepted for ${key}. Next:` }),
+      h("div", { class: "rq-row" },
+        h("button", { class: "primary", type: "button", text: `Generate test cases for ${key}`, onclick: async () => {
+          out.textContent = "Generating…";
+          try {
+            const r = await api(`/items/${encodeURIComponent(conn)}/${encodeURIComponent(key)}/test-cases`, { method: "POST" });
+            out.textContent = `${plural(r.test_cases.length, "test case")} for ${key} (${r.created.length} new). Review and approve them in the Test Case Builder, then run them.`;
+          } catch (err) { out.textContent = err.message; }
+        } }),
+        h("a", { href: "#builder", text: "Test Case Builder" }), h("a", { href: "#execution", text: "Configure and run" })), out));
+  }
   function reviewCard(x, canReview) {
     const s = x.suggestion;
     const status = h("p", { class: "small", role: "status", "aria-live": "polite" });
@@ -714,6 +762,7 @@
       status.textContent = "Saving…";
       try {
         await api(`/items/${encodeURIComponent(x.connection_id)}/${encodeURIComponent(x.key)}/suggestions/${encodeURIComponent(s.id)}/review`, { method: "POST", body: edit ? { answer, edit } : { answer } });
+        if (answer === "yes") nextActions(x.connection_id, x.key);
         reviews();
       } catch (e) { status.textContent = e.message; }
     };
@@ -836,6 +885,7 @@
     } catch (error) { panel.textContent = error.message; }
   }
   async function coverageView() {
+    executedCoverage();
     const panel = $("rqCoverage");
     panel.textContent = "Loading coverage…";
     const label = (status) => status.replaceAll("_", " ");
@@ -865,6 +915,239 @@
       "Atlassian access": caps.read_only_atlassian ? "Read-only" : "Check server configuration",
     };
     $("rqSettings").replaceChildren(...Object.entries(values).flatMap(([name, text]) => [h("dt", { text: name }), h("dd", { text })]));
+  }
+
+  // ---------------------------------------------------------------- Phase 4: test cases, executions, evidence, trace
+  const X = { selected: new Set(), poll: null, current: "" };
+  const resultBadge = (s) => s ? badge(s, { Passed: "ok", Failed: "bad", Blocked: "bad", Flaky: "warn", "Not automated": "warn",
+    Skipped: "warn", "Not run": "", Cancelled: "warn" }[s] || "") : badge("not run yet");
+  const caseBadge = (s) => badge(s.replaceAll("_", " "), { approved: "ok", ready: "ok", stale: "warn", blocked: "bad",
+    awaiting_approval: "info", requires_review: "info" }[s] || "");
+  const runnable = (c) => ["approved", "ready"].includes(c.status);
+  const evidenceLinks = (r) => (r.evidence || []).map((e) => h("a", { href: `/runs/${encodeURIComponent(r.run_folder || "")}/${e.split("/").map(encodeURIComponent).join("/")}`,
+    target: "_blank", rel: "noopener", text: e.split("/").pop() }));
+
+  async function builder() {
+    try {
+      const reqs = await api("/items?kind=jira_issue&analysis=current&size=100");
+      $("genReq").replaceChildren(...kids(reqs.items.length ? reqs.items.map((r) => h("option", { value: `${r.connection_id}|${r.key}`, text: `${r.key} — ${r.summary}` }))
+        : [h("option", { value: "", text: "No analysed requirement yet" })]));
+    } catch (e) { banner(e.message); }
+    tcList();
+  }
+  $("genForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const [conn, key] = $("genReq").value.split("|");
+    if (!key) return;
+    $("genStatus").textContent = "Generating…";
+    try {
+      const r = await api(`/items/${encodeURIComponent(conn)}/${encodeURIComponent(key)}/test-cases`, { method: "POST" });
+      $("genStatus").textContent = r.created.length + r.updated.length
+        ? `${plural(r.created.length, "new test case")}, ${r.updated.length} updated, ${r.unchanged.length} unchanged${r.stale.length ? `, ${r.stale.length} now stale` : ""}.`
+        : r.unchanged.length ? `Up to date: ${plural(r.unchanged.length, "test case")} unchanged.` : "No accepted test ideas for this requirement yet — accept some in the Review Center first.";
+      tcList();
+    } catch (err) { $("genStatus").textContent = err.message; }
+  });
+  ["tcQ", "tcStatus"].forEach((id) => $(id).addEventListener(id === "tcQ" ? "input" : "change", () => tcList()));
+  $("tcForm").addEventListener("submit", (e) => e.preventDefault());
+  $("tcRun").addEventListener("click", () => { location.hash = "#execution"; });
+  async function tcList() {
+    const tbody = $("tcTable").tBodies[0];
+    try {
+      const r = await api(`/test-cases?${new URLSearchParams({ q: $("tcQ").value, status: $("tcStatus").value })}`);
+      S.cases = r.test_cases;
+      tbody.replaceChildren(...kids(r.test_cases.map((c) => h("tr", { class: c.status === "stale" ? "missing" : "" },
+        h("td", {}, h("input", { type: "checkbox", "aria-label": `Select ${c.id}`, checked: X.selected.has(c.id), disabled: !runnable(c),
+          onchange: (e) => { e.target.checked ? X.selected.add(c.id) : X.selected.delete(c.id); tcCount(); } })),
+        h("td", {}, h("button", { class: "rq-open", type: "button", text: c.id, "aria-label": `Open ${c.id}`, onclick: () => tcDetail(c.id) })),
+        h("td", { text: c.requirement_id }), h("td", { text: c.criterion_ids.map((x) => x.split("#")[1]).join(", ") }),
+        h("td", { text: c.title }), h("td", { text: c.kind }), h("td", {}, caseBadge(c.status)),
+        h("td", {}, resultBadge((c.latest_result || {}).status))))));
+      if (!r.test_cases.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 8, class: "rq-empty", text: "No test cases yet. Accept test ideas in the Review Center, then generate them here." }))));
+      tcCount();
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 8, class: "rq-empty", text: e.message })))); }
+  }
+  function tcCount() { $("tcRun").disabled = !X.selected.size; $("tcRun").textContent = X.selected.size ? `Run selected (${X.selected.size})` : "Run selected"; $("exSelCount").textContent = X.selected.size; }
+  $("tcAll").addEventListener("change", (e) => {
+    (S.cases || []).filter(runnable).forEach((c) => { e.target.checked ? X.selected.add(c.id) : X.selected.delete(c.id); });
+    tcList();
+  });
+  async function tcDetail(id) {
+    const d = await api(`/test-cases/${encodeURIComponent(id)}`);
+    const c = d.test_case;
+    $("dtKey").textContent = c.id; $("dtTitle").textContent = c.title;
+    $("dtMeta").replaceChildren(...kids(`${c.requirement_id} · ${c.kind} · version ${c.version} · `, caseBadge(c.status)));
+    const editable = c.status !== "stale";
+    const form = h("form", { class: "rq-review", onsubmit: async (e) => {
+      e.preventDefault();
+      try {
+        await api(`/test-cases/${encodeURIComponent(id)}`, { method: "PUT", body: { title: e.target.title.value,
+          steps: e.target.steps.value.split("\n").map((s) => s.trim()).filter(Boolean), expected: e.target.expected.value } });
+        tcDetail(id); tcList();
+      } catch (err) { banner(err.message); }
+    } }, h("label", {}, "Title", h("input", { name: "title", value: c.title, required: true, minlength: 3 })),
+      h("label", {}, "Steps (one per line)", h("textarea", { name: "steps", rows: 4, text: c.steps.join("\n") })),
+      h("label", {}, "Expected result", h("input", { name: "expected", value: c.expected })),
+      h("div", { class: "rq-row" }, h("button", { class: "secondary", type: "submit", text: "Save changes (needs approval again)" })));
+    $("dtBody").replaceChildren(...kids(
+      c.stale_reason ? h("div", { class: "rq-issue" }, h("b", { text: "Stale: " }), c.stale_reason, " — re-analyse the requirement, review it and generate again.") : null,
+      c.blocked_reason ? h("div", { class: "rq-issue conflict" }, h("b", { text: "Not automated: " }), c.blocked_reason) : null,
+      c.test_data_needs.length ? h("div", { class: "rq-issue" }, h("b", { text: "Needs test data: " }), c.test_data_needs.join("; "), " (entered in the Execution Center, never invented).") : null,
+      h("dl", { class: "rq-kv" }, h("dt", { text: "Requirement" }), h("dd", { text: `${c.requirement_id} — ${c.requirement_title}` }),
+        h("dt", { text: "Criteria" }), h("dd", { text: c.criterion_ids.join(", ") }), h("dt", { text: "Source" }),
+        h("dd", { text: `${c.source_id} version ${c.source_version}` }), h("dt", { text: "Approved idea" }),
+        h("dd", { text: `${c.suggestion_id} by ${c.reviewer || "—"}${c.edited_by ? ` (edited by ${c.edited_by})` : ""}` }),
+        h("dt", { text: "Expected basis" }), h("dd", { text: c.expected_basis === "explicit" ? "quoted from the requirement" : "inferred (not stated in the requirement)" })),
+      h("h3", { class: "rq-sub", text: "Preconditions" }), h("ul", { class: "rq-list" }, (c.preconditions.length ? c.preconditions : ["—"]).map((x) => h("li", { text: x }))),
+      h("h3", { class: "rq-sub", text: "Steps" }), h("ol", { class: "rq-list" }, c.steps.map((x) => h("li", { text: x }))),
+      h("h3", { class: "rq-sub", text: "Expected result" }), h("p", { text: c.expected }),
+      h("h3", { class: "rq-sub", text: "Checks" }), h("ul", { class: "rq-list" }, c.assertions.map((x) => h("li", { text: x }))),
+      h("h3", { class: "rq-sub", text: "Requirement evidence" }), c.evidence.map((ev) => h("blockquote", { class: "rq-quote", text: `${ev.source} v${ev.version} (${ev.locator}): ${ev.quote}` })),
+      c.status === "awaiting_approval" && S.caps.can_review ? h("div", { class: "rq-row" }, h("button", { class: "primary", type: "button", text: "Approve this version",
+        onclick: async () => { try { await api(`/test-cases/${encodeURIComponent(id)}/approve`, { method: "POST" }); tcDetail(id); tcList(); } catch (err) { banner(err.message); } } })) : null,
+      editable ? h("details", {}, h("summary", { text: "Edit test case" }), form) : null,
+      h("h3", { class: "rq-sub", text: `Results (${d.results.length})` }),
+      d.results.length ? h("ul", { class: "rq-audit" }, d.results.map((r) => h("li", {}, h("time", { text: when(r.at) }), resultBadge(r.status),
+        h("span", { text: r.actual || r.reason || "" }), ...evidenceLinks(r)))) : h("p", { class: "small", text: "Not run yet." }),
+      h("h3", { class: "rq-sub", text: "History" }), h("ul", { class: "rq-audit" }, d.history.map((x) => h("li", {}, h("time", { text: when(x.at) }), `v${x.version} — ${x.event}`)))));
+    document.querySelectorAll(".rq-tabs").forEach((t) => { t.hidden = true; });
+    if (!$("detail").open) $("detail").showModal();
+    $("detail").addEventListener("close", () => document.querySelectorAll(".rq-tabs").forEach((t) => { t.hidden = false; }), { once: true });
+  }
+
+  // -- execution center
+  async function executionCenter() {
+    tcCount();
+    exList();
+  }
+  $("exForm2").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const strategy = document.querySelector("input[name=exStrategy]:checked").value;
+    const mode = document.querySelector("input[name=exScope]:checked").value;
+    const scope = { selected: { test_case_ids: [...X.selected] }, requirements: { requirements: list($("exReqs").value).map((x) => x.toUpperCase()) },
+      all_approved: { all_approved: true }, failed: { failed: true }, impacted: { impacted: true }, regression: { regression: true },
+      epic: { epic: $("exEpic").value.trim().toUpperCase() } }[mode];
+    const target = { type: $("xcApp").value, url: $("exUrl").value.trim(), authorized: $("exAuth").checked, environment: $("exEnv").value,
+      test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
+      api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
+      show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked };
+    $("exPass").value = ""; $("exKey").value = "";  // (sent once, never kept in the page)
+    $("xcStatus").textContent = "Starting the test run…";
+    try {
+      const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
+      const ex = r.execution;
+      $("xcStatus").textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`;
+      X.current = ex.id; exList(); exDetail(ex.id);
+    } catch (err) { $("xcStatus").textContent = err.message; }
+  });
+  async function exList() {
+    const tbody = $("exList").tBodies[0];
+    try {
+      const r = await api("/executions?limit=30");
+      tbody.replaceChildren(...kids(r.executions.map((ex) => h("tr", {},
+        h("td", {}, h("button", { class: "rq-open", type: "button", text: ex.id, onclick: () => exDetail(ex.id) })),
+        h("td", { text: ex.strategy }), h("td", { text: ex.case_ids.length }), h("td", {}, statusBadge({ finished: "complete", running: "running", queued: "running", stopped: "cancelled", failed: "failed" }[ex.status] || ex.status)),
+        h("td", { text: Object.entries(ex.counts || {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—" }),
+        h("td", { text: when(ex.created_at) }), h("td", { text: ex.actor })))));
+      if (!r.executions.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 7, class: "rq-empty", text: "No executions yet." }))));
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 7, class: "rq-empty", text: e.message })))); }
+  }
+  async function exDetail(id) {
+    clearTimeout(X.poll);
+    X.current = id;
+    const box = $("exDetail");
+    try {
+      const d = await api(`/executions/${encodeURIComponent(id)}`);
+      const ex = d.execution, live = d.live || {};
+      const running = ["running", "queued"].includes(ex.status);
+      box.replaceChildren(...kids(h("section", { class: "lab-card" },
+        h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.strategy}` }),
+        h("p", { class: "small" }, `${ex.target.url} · started ${when(ex.created_at)} by ${ex.actor} · `, statusBadge(running ? "running" : ex.status === "finished" ? "complete" : ex.status),
+          live.run ? h("span", {}, " · ", h("a", { href: `/runs/${encodeURIComponent(live.run)}/report.html`, target: "_blank", rel: "noopener", text: "full Qpilot report" })) : null),
+        running ? h("div", {}, h("div", { class: "rq-progress", role: "progressbar", "aria-valuetext": live.current || "running" }, h("span")),
+          h("p", { role: "status", "aria-live": "polite", text: live.current ? `Now: ${live.current}` : "Running…" }),
+          h("button", { class: "secondary", type: "button", text: "Cancel", onclick: async () => { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); exDetail(id); } })) : null,
+        ex.excluded && ex.excluded.length ? h("div", { class: "rq-issue" }, h("b", { text: "Not run: " }), ex.excluded.map((x) => `${x.id} (${x.reason})`).join("; ")) : null,
+        d.results.length ? h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" }, h("caption", { class: "rq-sr", text: "Results" }),
+          h("thead", {}, h("tr", {}, ["Test case", "Result", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
+          h("tbody", {}, d.results.map((r) => h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: r.test_case_id, onclick: () => tcDetail(r.test_case_id) })),
+            h("td", {}, resultBadge(r.status)), h("td", { text: r.actual || r.reason || "" }), h("td", {}, ...evidenceLinks(r))))))) : null,
+        ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — in the full Qpilot report.` }) : null)));
+      if (running) X.poll = setTimeout(() => { if (location.hash === "#execution" || location.hash === "#agents") { exDetail(id); liveView(); } }, 3000);
+      else exList();
+    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
+  }
+
+  // -- live execution, evidence, traceability
+  async function liveView() {
+    const box = $("liveBox");
+    try {
+      const r = await api("/executions?limit=10");
+      const ex = r.executions.find((x) => ["running", "queued"].includes(x.status));
+      if (!ex) { box.replaceChildren(...kids(h("p", { class: "small", text: "No requirement execution is running." }), h("a", { href: "#execution", text: "Start one in the Execution Center" }))); return; }
+      const d = await api(`/executions/${encodeURIComponent(ex.id)}`);
+      const live = d.live || {};
+      box.replaceChildren(...kids(h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.case_ids.join(", ")}` }),
+        h("p", { role: "status", "aria-live": "polite", text: live.current ? `Now: ${live.current}` : "Starting…" }),
+        h("dl", { class: "rq-kv" }, h("dt", { text: "Pages found" }), h("dd", { text: live.pages ?? "—" }), h("dt", { text: "Test cases designed" }), h("dd", { text: live.cases ?? "—" }),
+          h("dt", { text: "Elapsed" }), h("dd", { text: live.elapsed != null ? `${live.elapsed} s` : "—" })),
+        h("h3", { class: "rq-sub", text: "Latest events from the run" }), h("pre", { class: "rq-desc", text: (live.lines || []).slice(-25).map((l) => (typeof l === "string" ? l : l.text || JSON.stringify(l))).join("\n") || "—" })));
+      clearTimeout(X.poll);
+      X.poll = setTimeout(() => { if (location.hash === "#agents") liveView(); }, 3000);
+    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
+  }
+  async function evidenceView() {
+    const box = $("evBox");
+    try {
+      const r = await api("/executions?limit=20");
+      const blocks = [];
+      for (const ex of r.executions.filter((x) => x.status !== "running" && x.status !== "queued").slice(0, 10)) {
+        const d = await api(`/executions/${encodeURIComponent(ex.id)}`);
+        blocks.push(h("section", { class: "lab-card" }, h("h2", { class: "rq-sub", text: `${ex.id} · ${when(ex.created_at)}` }),
+          d.results.length ? h("ul", { class: "rq-audit" }, d.results.map((x) => h("li", {}, resultBadge(x.status), h("b", { text: x.test_case_id }),
+            h("span", { text: x.actual || x.reason || "" }), ...evidenceLinks(x),
+            x.run_folder ? h("a", { href: `/runs/${encodeURIComponent(x.run_folder)}/report.html`, target: "_blank", rel: "noopener", text: "report" }) : null))) : h("p", { class: "small", text: "No results." })));
+      }
+      box.replaceChildren(...kids(blocks.length ? blocks : h("p", { class: "small", text: "No finished requirement executions yet." })));
+    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
+  }
+  let trRows = [];
+  async function traceabilityView() {
+    const tbody = $("trTable").tBodies[0];
+    try {
+      const r = await api(`/traceability?${new URLSearchParams({ q: $("trQ").value, coverage: $("trCov").value })}`);
+      trRows = r.rows;
+      tbody.replaceChildren(...kids(r.rows.map((x) => h("tr", {}, h("td", { text: `${x.requirement} — ${x.summary}` }),
+        h("td", { text: `${x.criterion.split("#")[1]}: ${x.criterion_text}` }), h("td", { text: `${x.source} v${x.source_version} · ${x.locator}` }),
+        h("td", {}, x.test_case ? h("button", { class: "rq-open", type: "button", text: x.test_case, onclick: () => tcDetail(x.test_case) }) : "—"),
+        h("td", {}, x.test_status ? caseBadge(x.test_status) : "—"), h("td", {}, x.result ? resultBadge(x.result) : "—"),
+        h("td", { text: when(x.last_run) }), h("td", {}, ...evidenceLinks({ evidence: x.evidence, run_folder: x.run_folder })),
+        h("td", {}, badge(x.coverage, { passed: "ok", failed: "bad", blocked: "bad", stale: "warn", planned: "info" }[x.coverage] || ""))))));
+      if (!r.rows.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 9, class: "rq-empty", text: "Nothing to trace yet: analyse requirements first." }))));
+    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 9, class: "rq-empty", text: e.message })))); }
+  }
+  $("trForm").addEventListener("submit", (e) => e.preventDefault());
+  $("trQ").addEventListener("input", () => traceabilityView());
+  $("trCov").addEventListener("change", () => traceabilityView());
+  $("trExport").addEventListener("click", () => {
+    const cols = ["requirement", "summary", "criterion", "criterion_text", "source", "source_version", "test_case", "test_status", "result", "last_run", "coverage"];
+    const cell = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const csv = [cols.join(","), ...trRows.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n");
+    const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: "traceability.csv" });
+    document.body.append(a); a.click(); a.remove();
+  });
+  async function executedCoverage() {
+    const box = $("rqExecCoverage");
+    try {
+      const r = await api("/coverage/execution");
+      const c = r.coverage;
+      const tile = (n, label, kind = "") => h("div", { class: `rq-stat ${kind}` }, h("b", { text: n }), h("span", { text: label }));
+      box.replaceChildren(...kids(h("div", { class: "rq-stats" }, tile(c.requirements, "requirements"), tile(c.with_approved_scenarios, "with approved ideas"),
+        tile(c.with_test_cases, "with test cases (planned)"), tile(c.executed, "executed"), tile(c.passed, "fully passed", "ok"),
+        tile(c.failed, "with a failure", c.failed ? "bad" : ""), tile(c.not_tested, "not tested"), tile(c.needs_revalidation, "need revalidation", c.needs_revalidation ? "warn" : "")),
+        h("p", { class: "small", text: c.basis }),
+        r.impacted.length ? h("div", { class: "rq-issue" }, h("b", { text: "Changed requirements: " }), r.impacted.map((x) => `${x.id} (${x.reason})`).join("; ")) : null));
+    } catch (e) { box.textContent = e.message; }
   }
 
   // ---------------------------------------------------------------- sync history + audit

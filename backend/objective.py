@@ -128,8 +128,10 @@ def update_instruction(run_dir, instruction_id: str, **fields) -> None:
 def start(run_dir, site_key: str, requirements: str = "", ai: bool = False) -> Objective:
     """Write objective.json for a new run (or keep a resumed one) and return the Objective."""
     from .my_tests import load
-    saved = load(site_key) if site_key else []
+    from .requirement_tests import load as requirement_tests, only
+    saved = [] if only() else (load(site_key) if site_key else [])  # (requirement-based: only the requirements)
     instructions = [{"id": t["id"], "text": t["text"]} for t in saved]
+    instructions += [{"id": t["id"], "text": t["text"]} for t in requirement_tests()]
     obj = Objective(instructions, requirements)
     data = read(run_dir)
     if not data:

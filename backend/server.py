@@ -326,6 +326,9 @@ class RunRequest(BaseModel):
     qa_contract: dict | None = None  # explicit expected behavior; secret references only
     contract_only: bool = False      # run only the approved contract flows; no built-in site suite
     review: bool = False              # review the test cases before the scripts are written (untick, add tests)
+    # approved Jira / Confluence scenarios for THIS run only (backend/requirement_tests.py; never saved per website)
+    requirement_tests: list[dict] | None = None
+    requirements_only: bool = False   # requirement-based testing: only those scenarios, no built-in site suite
 
 
 PROVIDERS = [  # shown in the UI, in this order; Ollama first = the secure default
@@ -3608,6 +3611,8 @@ def _launch_run(req: RunRequest, caller: str | None):
         if req.my_tests is not None:  # (the chat's box: what is in it becomes this website's own tests - main.py)
             env["QA_MY_TESTS_SET"], env["QA_MY_TESTS"] = "1", req.my_tests[:12000]
         env["QA_OBJECTIVE_FOCUS"] = "1" if req.objective_focus else "0"
+        env["QA_REQUIREMENT_TESTS"] = json.dumps(req.requirement_tests or [])[:60000]
+        env["QA_REQUIREMENTS_ONLY"] = "1" if req.requirements_only and req.requirement_tests else "0"
         if req.review:
             env["REVIEW"] = "on"
         if req.page_timeout_s:

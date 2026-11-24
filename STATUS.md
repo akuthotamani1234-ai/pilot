@@ -9,7 +9,15 @@ historical `FINAL_*` / phase checklist sprawl.
 real discovery bug in `payment_nav.py`). Non-slow suite without `.env`: **2430 passed, 0 failed, 28 skipped** (all
 skips: Postgres / Redis / MinIO / the optional `mcp` package not present here, or Windows-only).
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–3
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–4 (web) + Milestones 1–3
+
+**Phase 4 (requirements → execution, websites):** accepted ideas become versioned test cases (Test Case Builder:
+generate, edit, approve, stale detection); the Execution Center runs them through the existing Qpilot run
+(requirement-based, hybrid or autonomous; selected / requirements / all approved / failed / impacted / regression /
+epic scopes; cancel); results per case with evidence; traceability matrix with CSV export; executed coverage kept
+apart from planned. One real end-to-end run (mock Jira QPL-2, local SauceDemo-like site, OpenAI): TC-QPL-2-1 Passed
+with real assertions, TC-QPL-2-2 Not automated. **Not done:** Android requirement runs, defect intelligence, Jira
+write-back (off), live Jira / SauceDemo acceptance (waits for authorization and credentials).
 
 **Milestone 4 (prepared, not run live):** opt-in live read-only acceptance test for the QPL project
 (`tests/test_live_jira_acceptance.py`), rehearsed against the mock. It waits for the Atlassian token to be configured

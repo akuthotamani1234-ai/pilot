@@ -344,8 +344,10 @@ def wait_job(api, job, headers=H):
 
 def test_local_studio_end_to_end_from_connection_to_review(api, mock):
     caps = api.get("/api/requirements/capabilities").json()
-    assert caps["capabilities"]["import_requirements"] and not caps["capabilities"]["generate_test_cases"]
-    assert caps["coming"]["run_selected_tests"].startswith("Phase 4") and caps["actor"] == "local-user"
+    assert caps["capabilities"]["import_requirements"] and caps["capabilities"]["generate_test_cases"]
+    assert caps["capabilities"]["run_selected_tests"] and caps["capabilities"]["traceability"]
+    assert not caps["capabilities"]["jira_write_back"] and "jira_write_back" in caps["coming"]
+    assert "run_selected_tests" not in caps["coming"] and caps["actor"] == "local-user"
     saved = api.post("/api/requirements/connections", headers=H, json=CONN)
     assert saved.status_code == 200 and saved.json()["token_ref"] == "JIRA_READ_API_TOKEN"
     assert saved.json()["credential"]["configured"] is False

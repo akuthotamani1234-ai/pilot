@@ -17,15 +17,18 @@ come with later phases, and /capabilities says which actions exist today.
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi import Header, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .atlassian import analysis as an, confluence, credentials, jira, store, sync
+from .atlassian import analysis as an, bridge, confluence, credentials, jira, store, sync
 from .atlassian.client import AtlassianError, Client
 from .atlassian.models import (
     DEFAULT_TOKEN_REF,
@@ -47,12 +50,10 @@ MAX_JOBS = 200
 # Which workspace actions exist in this build. Later phases switch theirs on; the Studio shows the rest as coming.
 CAPABILITIES = {
     "import_requirements": True, "analyze_requirements": True, "review_suggestions": True,
-    "generate_test_cases": False, "run_selected_tests": False, "run_impacted_tests": False,
-    "run_all_approved_tests": False, "traceability": False, "jira_write_back": False,
+    "generate_test_cases": True, "run_selected_tests": True, "run_impacted_tests": True,
+    "run_all_approved_tests": True, "traceability": True, "jira_write_back": False,
 }
-COMING = {"generate_test_cases": "Phase 4 (requirements to test cases)", "run_selected_tests": "Phase 4",
-          "run_impacted_tests": "Phase 4", "run_all_approved_tests": "Phase 4",
-          "traceability": "Phase 5", "jira_write_back": "Phase 5 (off by default, every write approved)"}
+COMING = {"jira_write_back": "Phase 5 (off by default, every write approved)"}
 
 
 # ---------------------------------------------------------------- who is asking
@@ -245,6 +246,118 @@ class SuggestionEdit(BaseModel):
 class ReviewBody(BaseModel):
     answer: str = Field(pattern=r"^(?i:yes|no|accept|accepted|approve|approved|reject|rejected)$")
     edit: SuggestionEdit | None = None  # accept with the reviewer's corrections (kept with the original)
+
+
+class CaseEdit(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=300)
+    preconditions: list[str] | None = Field(default=None, max_length=20)
+    steps: list[str] | None = Field(default=None, max_length=30)
+    expected: str | None = Field(default=None, max_length=1500)
+    assertions: list[str] | None = Field(default=None, max_length=20)
+
+
+class ExecutionScope(BaseModel):
+    test_case_ids: list[str] = Field(default_factory=list, max_length=200)
+    requirements: list[str] = Field(default_factory=list, max_length=200)  # Jira keys / conf-<page id>
+    all_approved: bool = False
+    impacted: bool = False   # test cases changed since they last ran (requirement source versions)
+    failed: bool = False     # test cases whose latest result failed or was blocked
+    regression: bool = False  # every test case that ran before
+    epic: str = Field(default="", max_length=40)  # stories whose parent is this epic
+    confluence_page: str = Field(default="", max_length=20)  # requirements specified by this page
+
+
+class ExecutionTarget(BaseModel):
+    type: str = Field(default="web", pattern=r"^(web)$")  # (Android requirement runs: a later milestone)
+    url: str = Field(min_length=4, max_length=2000)
+    authorized: bool = False   # "I own this application or have permission to test it"
+    environment: str = Field(default="test", pattern=r"^(test|staging)$")
+    test_username: str = Field(default="", max_length=200)
+    test_password: str = Field(default="", max_length=200)  # this run only; never stored, never returned
+    llm_provider: str = Field(default="", max_length=30)
+    llm_model: str = Field(default="", max_length=100)
+    api_key: str = Field(default="", max_length=400)  # this run only (as the Studio's run form); never stored
+    max_pages: int = Field(default=0, ge=0, le=5000)
+    page_timeout_s: int = Field(default=0, ge=0, le=300)
+    show_browser: bool = False
+    record_video: bool = False
+    thorough: bool = False
+
+    def public(self) -> dict:
+        return {k: v for k, v in self.model_dump().items() if k not in ("test_password", "api_key")} | {
+            "test_password": "[set]" if self.test_password else "", "api_key": "[set]" if self.api_key else ""}
+
+
+class ExecutionBody(BaseModel):
+    strategy: str = Field(pattern=r"^(requirements|autonomous|hybrid)$")
+    scope: ExecutionScope = Field(default_factory=ExecutionScope)
+    target: ExecutionTarget
+
+
+def _scope_cases(db, tenant: str, scope: ExecutionScope) -> list[str]:
+    """The test cases a scope names - only approved / ready ones are returned (stale and blocked ones are reported
+    by bridge.plan when they are named explicitly)."""
+    bridge.refresh(db, tenant)
+    cases = bridge.list_cases(db, tenant)
+    runnable = [c for c in cases if c["status"] in ("approved", "ready")]
+    chosen: list[str] = list(scope.test_case_ids)
+    if scope.requirements:
+        chosen += [c["id"] for c in runnable if c["requirement_id"] in scope.requirements]
+    if scope.all_approved:
+        chosen += [c["id"] for c in runnable]
+    if scope.failed:
+        chosen += [c["id"] for c in runnable if (c.get("latest_result") or {}).get("status") in ("Failed", "Blocked")]
+    if scope.regression:
+        chosen += [c["id"] for c in runnable if c.get("latest_result")]
+    if scope.impacted:  # (changed since they last ran: a newer test-case version than the one executed)
+        for c in runnable:
+            runs = bridge.case_results(db, tenant, c["id"])
+            if runs and all(r.get("case_version", 0) < c["version"] for r in runs):
+                chosen.append(c["id"])
+    if scope.epic:
+        reqs = {r["source"].source_id for r in store.list_sources(db, tenant)
+                if r["content"].get("parent") == scope.epic}
+        chosen += [c["id"] for c in runnable if c["requirement_id"] in reqs]
+    if scope.confluence_page:
+        reqs = {a.requirement.id for a in store.list_analyses(db, tenant)
+                if any(k.endswith(f":confluence_page:{scope.confluence_page}") for k in a.source_versions)}
+        chosen += [c["id"] for c in runnable if c["requirement_id"] in reqs]
+    return list(dict.fromkeys(chosen))
+
+
+def _settle_execution(db, tenant: str, ex: dict) -> dict:
+    """A running execution whose Qpilot run has ended: collect its real results now (idempotent)."""
+    if ex.get("status") not in ("running", "queued") or not str(ex.get("run_id", "")).isdigit():
+        return ex
+    from . import server
+    job = server.jobs.get(int(ex["run_id"]))
+    if job is None or job.get("status") == "running":
+        return ex
+    run_dir = server._plain_run_dir(str(job.get("run"))) if job.get("run") else None
+    if run_dir is None:
+        return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), job.get("status", "failed"))
+    return bridge.collect(db, tenant, ex["id"], run_dir, job.get("status", "done"))
+
+
+def _watch(tenant: str, execution_id: str, job_id: int) -> None:
+    """Collect the results when the run ends, even if nobody has the page open."""
+    def wait():
+        from . import server
+        while True:
+            job = server.jobs.get(job_id)
+            if job is None or job.get("status") != "running":
+                break
+            time.sleep(2)
+        db = bridge.connect()
+        try:
+            ex = bridge.get_execution(db, tenant, execution_id)
+            if ex:
+                _settle_execution(db, tenant, ex)
+        except Exception:
+            pass
+        finally:
+            db.close()
+    threading.Thread(target=wait, daemon=True, name=f"requirements-execution-{execution_id}").start()
 
 
 # ---------------------------------------------------------------- helpers for items
@@ -757,6 +870,209 @@ def register_requirements_api(app) -> None:
             db.close()
         can = _can_review(authorization, x_qa_token, ctx)
         return {"reviews": out, "total": len(out), "can_review": can, "reviewer": ctx["reviewer"] if can else None}
+
+    # -- Phase 4: test cases (approved scenarios -> executable tests)
+    @app.post("/api/requirements/items/{connection_id}/{source_id}/test-cases")
+    def generate_tests(connection_id: str, source_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        key = _root_key(connection_id, source_id)
+        db = bridge.connect()
+        try:
+            row = store.get_source(db, ctx["tenant"], key)
+            if not row:
+                raise HTTPException(404, "Not imported in your workspace.")
+            try:
+                out = bridge.generate(db, ctx["tenant"], _requirement_id(row["source"]), actor=ctx["actor"])
+            except LookupError as error:
+                raise HTTPException(409, safe_error(error) + " - analyse it and accept test ideas first") from None
+            except ValueError as error:
+                raise HTTPException(409, safe_error(error)) from None
+            out["test_cases"] = bridge.list_cases(db, ctx["tenant"], out["requirement"])
+            return out
+        finally:
+            db.close()
+
+    @app.get("/api/requirements/test-cases")
+    def test_cases(requirement: str = "", status: str = "", q: str = "", authorization: str | None = A,
+                   x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            bridge.refresh(db, ctx["tenant"])
+            rows = bridge.list_cases(db, ctx["tenant"], requirement, status)
+        finally:
+            db.close()
+        if q:
+            rows = [c for c in rows if q.lower() in (c["id"] + " " + c["title"] + " " + c["requirement_id"]).lower()]
+        return {"test_cases": rows, "total": len(rows), "statuses": bridge.STATUSES}
+
+    @app.get("/api/requirements/test-cases/{case_id}")
+    def test_case(case_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            c = bridge.get_case(db, ctx["tenant"], case_id)
+            if not c:
+                raise HTTPException(404, "No such test case in your workspace.")
+            return {"test_case": c, "history": bridge.case_history(db, ctx["tenant"], case_id),
+                    "results": bridge.case_results(db, ctx["tenant"], case_id)}
+        finally:
+            db.close()
+
+    @app.put("/api/requirements/test-cases/{case_id}")
+    def edit_test_case(case_id: str, body: CaseEdit, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        db = bridge.connect()
+        try:
+            try:
+                c = bridge.edit_case(db, ctx["tenant"], case_id, body.model_dump(), ctx["actor"])
+            except LookupError:
+                raise HTTPException(404, "No such test case in your workspace.") from None
+            except ValueError as error:
+                raise HTTPException(409, safe_error(error)) from None
+        finally:
+            db.close()
+        _audit(ctx, "test_case.edit", True, test_case=case_id)
+        return {"test_case": c}
+
+    @app.post("/api/requirements/test-cases/{case_id}/approve")
+    def approve_test_case(case_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "review.write")
+        if not ctx["reviewer"]:
+            raise HTTPException(403, "Test cases are approved by a named, signed-in person.")
+        db = bridge.connect()
+        try:
+            try:
+                c = bridge.approve_case(db, ctx["tenant"], case_id, ctx["reviewer"])
+            except LookupError:
+                raise HTTPException(404, "No such test case in your workspace.") from None
+            except ValueError as error:
+                raise HTTPException(409, safe_error(error)) from None
+        finally:
+            db.close()
+        _audit(ctx, "test_case.approve", True, test_case=case_id)
+        return {"test_case": c}
+
+    # -- Phase 4: executions (the EXISTING Qpilot run executes; results come from its files)
+    @app.post("/api/requirements/executions")
+    def start_execution(body: ExecutionBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        if not body.target.authorized:
+            raise HTTPException(400, "Confirm that you own the application or have permission to test it.")
+        db = bridge.connect()
+        try:
+            ids = _scope_cases(db, ctx["tenant"], body.scope)
+            if body.strategy != "autonomous" and not ids:
+                raise HTTPException(400, "No approved test case matches this selection. Generate test cases from "
+                                         "accepted ideas first.")
+            try:
+                planned = bridge.plan(db, ctx["tenant"], ids, body.strategy, body.target.public(), actor=ctx["actor"])
+            except (LookupError, ValueError) as error:
+                raise HTTPException(400, safe_error(error)) from None
+            ex = planned["execution"]
+            from . import server
+            t = body.target
+            req = server.RunRequest(
+                source=t.url, authorized=True, environment=t.environment, max_pages=t.max_pages,
+                show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
+                llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key or None,
+                test_username=t.test_username or None, test_password=t.test_password or None,
+                auth_mode="existing" if t.test_username and t.test_password else "auto",
+                page_timeout_s=t.page_timeout_s, requirement_tests=planned["requirement_tests"],
+                requirements_only=body.strategy == "requirements",
+                objective_focus=body.strategy == "requirements", fresh=False)
+            caller = ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None
+            try:
+                job = server._launch_run(req, caller)
+            except HTTPException as error:
+                with db:
+                    db.execute("UPDATE req_executions SET status = 'failed' WHERE tenant_id = ? AND id = ?",
+                               (ctx["tenant"], ex["id"]))
+                raise HTTPException(error.status_code, f"The test run could not start: {error.detail}") from None
+            if isinstance(job, JSONResponse):
+                raise HTTPException(job.status_code, "The test run could not start.")
+            bridge.attach_run(db, ctx["tenant"], ex["id"], str(job.get("id")))
+        finally:
+            db.close()
+        _watch(ctx["tenant"], ex["id"], int(job.get("id")))
+        _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy, cases=len(ex["case_ids"]),
+               target=body.target.url[:200])
+        return {"execution": {**ex, "status": "running", "run_id": str(job.get("id"))}, "job": job.get("id")}
+
+    @app.get("/api/requirements/executions")
+    def executions(limit: int = 50, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            out = []
+            for ex in bridge.list_executions(db, ctx["tenant"], limit):
+                out.append(_settle_execution(db, ctx["tenant"], ex))
+            return {"executions": out}
+        finally:
+            db.close()
+
+    @app.get("/api/requirements/executions/{execution_id}")
+    def execution(execution_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            ex = bridge.get_execution(db, ctx["tenant"], execution_id)
+            if not ex:
+                raise HTTPException(404, "No such execution in your workspace.")
+            ex = _settle_execution(db, ctx["tenant"], ex)
+            from . import server
+            job = server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
+            try:
+                live = server._public(job) if job else None
+            except (KeyError, TypeError, ValueError):  # (the live view is extra: results come from the run's files)
+                live = None
+            return {"execution": ex, "results": bridge.results(db, ctx["tenant"], execution_id),
+                    "live": {k: live.get(k) for k in ("status", "current", "stages", "run", "lines", "elapsed",
+                                                      "pages", "cases", "scripts", "report_ready", "live_pages")
+                             if k in live} if live else None}
+        finally:
+            db.close()
+
+    @app.post("/api/requirements/executions/{execution_id}/cancel")
+    def cancel_execution(execution_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        db = bridge.connect()
+        try:
+            ex = bridge.get_execution(db, ctx["tenant"], execution_id)
+        finally:
+            db.close()
+        if not ex:
+            raise HTTPException(404, "No such execution in your workspace.")
+        from . import server
+        job = server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
+        if not job or job.get("status") != "running":
+            return {"execution": execution_id, "cancelling": False}
+        server.stop_run(int(ex["run_id"]), authorization, x_qa_token)
+        _audit(ctx, "execution.cancel", True, execution=execution_id)
+        return {"execution": execution_id, "cancelling": True}
+
+    @app.get("/api/requirements/traceability")
+    def traceability(q: str = "", coverage: str = "", authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            rows = bridge.matrix(db, ctx["tenant"])
+        finally:
+            db.close()
+        if q:
+            rows = [r for r in rows if q.lower() in json.dumps(r).lower()]
+        if coverage:
+            rows = [r for r in rows if r["coverage"] == coverage]
+        return {"rows": rows, "total": len(rows)}
+
+    @app.get("/api/requirements/coverage/execution")
+    def execution_coverage(authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            return {"coverage": bridge.coverage(db, ctx["tenant"]), "impacted": bridge.impacted(db, ctx["tenant"])}
+        finally:
+            db.close()
 
     # -- overview, coverage, audit
     @app.get("/api/requirements/overview")

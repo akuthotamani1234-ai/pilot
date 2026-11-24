@@ -210,6 +210,7 @@
       <div class="rq-toolbar"><label for="rvStatus" class="rq-sr">Show</label><select id="rvStatus"><option value="needs_review">Waiting for review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="stale">Stale</option><option value="all">All</option></select>
         <label for="rvQ" class="rq-sr">Search</label><input id="rvQ" type="search" placeholder="Search ideas"></div>
       <p class="small" id="rvWho" role="status"></p>
+      <div id="rvNext" role="status" aria-live="polite"></div>
       <div id="rvList"></div>
     </section>
 
@@ -237,28 +238,81 @@
       <p class="small">Open a Jira requirement to run deterministic analysis or request AI-assisted ideas when the workspace policy permits it.</p><form class="rq-toolbar" id="analysisSearchForm" role="search"><label for="analysisSearch" class="rq-sr">Search requirements for analysis</label><input id="analysisSearch" type="search" placeholder="Search key or summary"><button type="submit" class="secondary">Search</button></form><div id="analysisItems" aria-live="polite"></div>
     </section>
     <section class="rq-view" id="view-builder" data-title="Test Case Builder" hidden>
-      <header class="rq-head"><h1>Test Case Builder</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Approved test ideas are available in the <a href="#reviews">Review Center</a>. Executable test generation and editing will become available when requirements are connected to the Studio engines.</p></div>
+      <header class="rq-head"><h1>Test Case Builder</h1><p class="small">Executable test cases made from the test ideas a person accepted. Each keeps its Jira story, acceptance criterion, source version and quoted requirement words. Qpilot designs the browser steps for each one from the real application when it runs.</p></header>
+      <div class="lab-card rq-gen">
+        <h2 class="rq-sub">Generate test cases</h2>
+        <form id="genForm" class="rq-inline"><label for="genReq">Analysed requirement<select id="genReq"></select></label><button class="primary" type="submit">Generate from accepted ideas</button></form>
+        <p class="small" id="genStatus" role="status" aria-live="polite"></p>
+      </div>
+      <form class="rq-toolbar" id="tcForm" role="search">
+        <label for="tcQ" class="rq-sr">Search test cases</label><input id="tcQ" type="search" placeholder="Search test case, title or requirement">
+        <label for="tcStatus" class="rq-sr">Status</label><select id="tcStatus"><option value="">Any status</option><option value="approved">Approved</option><option value="awaiting_approval">Waiting for approval</option><option value="stale">Stale (requirement changed)</option><option value="blocked">Blocked / manual</option></select>
+        <button class="primary" type="button" id="tcRun" disabled>Run selected</button>
+      </form>
+      <div class="rq-table-wrap"><table class="rq-table" id="tcTable"><caption class="rq-sr">Requirement test cases</caption>
+        <thead><tr><th scope="col"><input type="checkbox" id="tcAll" aria-label="Select all runnable test cases"></th><th scope="col">Test case</th><th scope="col">Requirement</th><th scope="col">Criteria</th><th scope="col">Title</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Latest result</th></tr></thead><tbody></tbody></table></div>
     </section>
     <section class="rq-view" id="view-execution" data-title="Execution Center" hidden>
-      <header class="rq-head"><h1>Execution Center</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Running selected or impacted requirements will become available with requirement-linked test execution. The <a href="/">Test Studio</a> supports existing website and Android runs.</p></div>
+      <header class="rq-head"><h1>Execution Center</h1><p class="small">Choose what to test and where. Qpilot opens the application in a real browser, finds the pages and controls, runs the steps and checks the expected results. Results come only from what really ran.</p></header>
+      <form class="lab-card rq-exec" id="exForm2">
+        <fieldset class="rq-radios" id="exStrategy"><legend>Testing strategy</legend>
+          <label><input type="radio" name="exStrategy" value="requirements" checked> <b>Requirement-based</b> <small>only the selected approved test cases; the rest of the application is not tested</small></label>
+          <label><input type="radio" name="exStrategy" value="hybrid"> <b>Hybrid</b> <small>the selected test cases first, then Qpilot explores the application; exploratory results are listed separately</small></label>
+          <label><input type="radio" name="exStrategy" value="autonomous"> <b>Autonomous</b> <small>Qpilot's own exploration of the application, without Jira requirements</small></label>
+        </fieldset>
+        <fieldset class="rq-checks" id="exScopeBox"><legend>What to run</legend>
+          <label><input type="radio" name="exScope" value="selected" checked> selected test cases (<span id="exSelCount">0</span>)</label>
+          <label><input type="radio" name="exScope" value="requirements"> these requirements</label>
+          <label><input type="radio" name="exScope" value="all_approved"> all approved test cases</label>
+          <label><input type="radio" name="exScope" value="failed"> failed or blocked again</label>
+          <label><input type="radio" name="exScope" value="impacted"> impacted by requirement changes</label>
+          <label><input type="radio" name="exScope" value="regression"> regression (everything that ran before)</label>
+          <label><input type="radio" name="exScope" value="epic"> an epic's stories</label>
+        </fieldset>
+        <div class="rq-filter-grid">
+          <label for="exReqs">Requirements (keys, comma separated)<input id="exReqs" placeholder="QPL-2, QPL-3"></label>
+          <label for="exEpic">Epic key<input id="exEpic" placeholder="QPL-1"></label>
+          <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android" disabled>Android app (next milestone)</option></select></label>
+          <label class="rq-wide" for="exUrl">Website address<input id="exUrl" type="url" placeholder="https://www.saucedemo.com/" required></label>
+          <label for="exUser">Test username<input id="exUser" autocomplete="off"></label>
+          <label for="exPass">Test password<input id="exPass" type="password" autocomplete="new-password"></label>
+          <label for="exAi">AI provider<select id="exAi"><option value="">As configured (.env)</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="ollama">Ollama (local)</option><option value="none">No AI</option></select></label>
+          <label for="exModel">AI model<input id="exModel" placeholder="e.g. gpt-4o-mini"></label>
+          <label for="exKey">AI key for this run<input id="exKey" type="password" autocomplete="new-password" placeholder="optional; never stored"></label>
+          <label for="exPages">Max pages to explore<input id="exPages" type="number" min="0" max="5000" value="0"></label>
+          <label for="exTimeout">Page timeout (s)<input id="exTimeout" type="number" min="0" max="300" value="0"></label>
+          <label for="exEnv">Environment<select id="exEnv"><option value="test">Test (nothing is sent or changed)</option><option value="staging">Staging</option></select></label>
+        </div>
+        <div class="rq-checks"><label><input type="checkbox" id="exShow"> show the browser</label><label><input type="checkbox" id="exVideo"> record video</label><label><input type="checkbox" id="exThorough"> thorough exploration</label></div>
+        <label class="rq-check rq-authorize"><input type="checkbox" id="exAuth" required> I own this application or have permission to test it</label>
+        <p class="small">Requirement tests need an AI to turn each test case into browser steps; without one they are reported as not automated, never as passed. Checkout, payment and deleting data are never performed in the test environment.</p>
+        <div class="rq-nav-buttons"><button class="primary" type="submit" id="exStart">Run tests</button></div>
+        <p class="small" id="xcStatus" role="status" aria-live="polite"></p>
+      </form>
+      <h2 class="rq-sub">Executions</h2>
+      <div class="rq-table-wrap"><table class="rq-table" id="exList"><caption class="rq-sr">Requirement executions</caption>
+        <thead><tr><th scope="col">Execution</th><th scope="col">Strategy</th><th scope="col">Test cases</th><th scope="col">Status</th><th scope="col">Results</th><th scope="col">Started</th><th scope="col">By</th></tr></thead><tbody></tbody></table></div>
+      <div id="exDetail"></div>
     </section>
     <section class="rq-view" id="view-agents" data-title="Live Agents" hidden>
-      <header class="rq-head"><h1>Live Agents</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 4</span><p>Use the <a href="/">Test Studio</a> to follow agents during existing Studio runs. This workspace will show assignments when requirement-linked runs are available.</p></div>
+      <header class="rq-head"><h1>Live execution</h1><p class="small">What the running requirement test is doing right now, from the run's own events.</p></header>
+      <div id="liveBox" class="lab-card"><p class="small">No requirement execution is running.</p></div>
     </section>
     <section class="rq-view" id="view-evidence" data-title="Test Evidence" hidden>
-      <header class="rq-head"><h1>Test Evidence</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phases 4–5</span><p>Requirement-linked screenshots, traces and device logs will become available with execution and traceability. Existing run evidence is available in the <a href="/">Test Studio</a>.</p></div>
+      <header class="rq-head"><h1>Test evidence</h1><p class="small">Screenshots, traces and the full report of each requirement test that really ran.</p></header>
+      <div id="evBox"></div>
     </section>
     <section class="rq-view" id="view-traceability" data-title="Traceability Matrix" hidden>
-      <header class="rq-head"><h1>Traceability Matrix</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><p>Requirements and source citations are available in the <a href="#explorer">Requirements Explorer</a>. Test, run, evidence and defect relationships require Phase 5 traceability.</p></div>
+      <header class="rq-head"><h1>Traceability matrix</h1><p class="small">Jira story → acceptance criterion → test case → latest real result → evidence.</p></header>
+      <form class="rq-toolbar" id="trForm" role="search"><label for="trQ" class="rq-sr">Search</label><input id="trQ" type="search" placeholder="Search requirement, criterion or test case">
+        <label for="trCov" class="rq-sr">Coverage</label><select id="trCov"><option value="">Any coverage</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="not automated">Not automated</option><option value="planned">Planned, not run yet</option><option value="no approved test">No approved test</option><option value="stale">Stale</option><option value="blocked">Blocked</option><option value="not automatable">Not automatable</option></select>
+        <button class="secondary" type="button" id="trExport">Export CSV</button></form>
+      <div class="rq-table-wrap"><table class="rq-table" id="trTable"><caption class="rq-sr">Requirement traceability</caption>
+        <thead><tr><th scope="col">Requirement</th><th scope="col">Criterion</th><th scope="col">Source</th><th scope="col">Test case</th><th scope="col">Test status</th><th scope="col">Latest result</th><th scope="col">Last run</th><th scope="col">Evidence</th><th scope="col">Coverage</th></tr></thead><tbody></tbody></table></div>
     </section>
     <section class="rq-view" id="view-coverage" data-title="Coverage and Release" hidden>
       <header class="rq-head"><h1>Coverage and Release</h1></header>
-      <h2 class="rq-sub">Approved coverage</h2><p class="small">Coverage reflects reviewed test ideas. Out-of-date source analyses are identified below.</p><div id="rqCoverage" aria-live="polite"></div><div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><h2 class="rq-sub">Executed coverage and release verdict</h2><p>These results require execution evidence linked to requirements.</p></div>
+      <h2 class="rq-sub">Approved coverage</h2><p class="small">Coverage reflects reviewed test ideas. Out-of-date source analyses are identified below.</p><div id="rqCoverage" aria-live="polite"></div><h2 class="rq-sub">Executed coverage</h2><p class="small">Counted only from test cases that really ran. Approved ideas and generated test cases are planned coverage, never executed coverage.</p><div id="rqExecCoverage" aria-live="polite"></div>
     </section>
     <section class="rq-view" id="view-writeback" data-title="Defects and Write-back" hidden>
       <header class="rq-head"><h1>Defects and Write-back</h1></header>

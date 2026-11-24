@@ -1,9 +1,11 @@
 # Requirements Intelligence: Jira Cloud + Confluence Cloud
 
 Status: **Phases 0–3 complete against a mock Atlassian site and a stub AI (read-only Jira and Confluence
-connectors, sync, story ↔ page links, requirement analysis).** They are tested only against a local mock server, and
-the AI part only with a stub. There is no live Atlassian or live-AI evidence. Nothing is wired into a test run yet
-(Phase 4). Nothing is written to Atlassian.
+connectors, sync, story ↔ page links, requirement analysis). Phase 4 (requirement → executable test case → a real
+Qpilot run → real results and traceability) is implemented for websites.** It was proven end to end once with a real
+Qpilot run and a real AI (OpenAI) against a local SauceDemo-like site and a mock Jira story QPL-2 (see "Phase 4" below).
+There is no live Atlassian evidence yet. Android requirement runs, defect intelligence and Jira write-back are not
+implemented. Nothing is written to Atlassian.
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
 become reviewed test cases. Those run on Qpilot's existing web (Playwright) and Android (Appium) engines. The results
@@ -343,7 +345,7 @@ tests.**
 
 | Route | Role action | Purpose |
 |---|---|---|
-| `GET capabilities` | run.read | Which workspace actions exist today; Phase 4–5 actions are `false` with the phase that brings them |
+| `GET capabilities` | run.read | Which workspace actions exist today; Phase 5 write-back is `false` with the phase that brings it |
 | `GET overview` | run.read | Connections, requirements, pages, missing, analysed / stale, criteria, open conflicts, issues, pending reviews, last import |
 | `GET / POST connections`, `DELETE connections/{id}` | run.read / tenant.manage | Connections (no token in them). Disconnect keeps imported requirements |
 | `PUT / DELETE connections/{id}/token` | tenant.manage | Write-only token; the answer says only whether one is set |
@@ -418,6 +420,74 @@ Rehearsal (no real site): `QPILOT_JIRA_REHEARSAL_URL=http://127.0.0.1:<mock port
 mock; its report is titled "REHEARSAL ... NOT live evidence" and kept in `runs/live_jira_rehearsal/`. Rehearsed on
 24 Nov 2026: passed. **No live run has been made yet; no live evidence exists.**
 
+## Phase 4: requirements to execution (implemented for websites)
+
+**Flow.** Accepted test ideas (Review Center) → `POST items/{conn}/{key}/test-cases` creates stored test cases
+`TC-<KEY>-<n>` → a person approves edited cases → `POST executions` starts a normal Qpilot run (the existing
+`server._launch_run`, Playwright engine, AI test design, self-healing, report) with those cases → the run's
+`test_cases.json` is read back → results per test case → traceability and executed coverage.
+
+**Test cases** (`backend/atlassian/bridge.py`, tables `req_test_cases`, `req_test_case_history`). Each carries the Jira
+key / Confluence page, the acceptance criteria ids, the source version, the requirement quotes it rests on, the idea it
+came from and who accepted it, preconditions, steps, expected result (quoted or "inferred"), checks and test data
+needs. A content fingerprint makes generation idempotent: generating again changes nothing; a changed idea makes a new
+version. Statuses: `ready`, `awaiting_approval` (edited by a person; needs a named reviewer's approval), `blocked`
+(needs test data that is not given, or would delete / pay / change data), `stale` (the requirement changed, the
+idea is no longer accepted, or the source disappeared). Only `ready` and approved cases run; rejected, unreviewed,
+stale and blocked ideas never run, and the execution says why each one was left out.
+
+**Run hook** (`backend/requirement_tests.py`, `backend/agents/test_design.py`). The bridge passes the cases to the run
+in `QA_REQUIREMENT_TESTS` (JSON; ids checked, at most 60). They are designed exactly like a person's own plain-English
+tests: the AI writes steps from what exploring really found. Without an AI, or when no working code can be written,
+the case is reported **Not automated** with the reason, never Passed. Imported text is data: destructive instructions
+are refused like a person's. Requirement cases are never saved into the website's own test list.
+
+**Strategies.** `requirements`: only the selected cases (`QA_REQUIREMENTS_ONLY=1`, the built-in suite is skipped and
+exploring focuses on them). `hybrid`: the selected cases first, then the normal autonomous suite; exploratory results
+are counted separately. `autonomous`: a normal Qpilot run, with no requirement cases.
+
+**Scopes.** Selected cases, named requirements, all approved, failed / blocked again, impacted (cases whose version
+changed since their last result), regression (everything that ran before), an epic's stories, a Confluence page.
+
+**Results** (tables `req_executions`, `req_results`): `Passed` only when the engine's own assertions passed; `Failed`,
+`Flaky`, `Blocked`, `Not automated`, `Not run`, `Cancelled` (stopped run). Each result keeps the test case version,
+the source version, the run folder, the actual result and the evidence files (screenshots, traces), linked from the UI.
+
+**API** (`/api/requirements/...`):
+
+| Route | Role action | Purpose |
+|---|---|---|
+| `POST items/{conn}/{key}/test-cases` | run.write | Generate / refresh test cases from accepted ideas (refused if the analysis is stale) |
+| `GET test-cases[?requirement=&status=&q=]`, `GET test-cases/{id}` | run.read | List; one case with results and version history |
+| `PUT test-cases/{id}` | run.write | Edit (new version, needs approval again) |
+| `POST test-cases/{id}/approve` | review.write | Approve an edited version (a named reviewer only) |
+| `POST executions` | run.write | Start: strategy, scope, target (`authorized: true` required; password and AI key are used for this run only and never stored or returned) |
+| `GET executions`, `GET executions/{id}`, `POST executions/{id}/cancel` | run.read / run.write | History; live progress and results; cancel |
+| `GET traceability[?q=&coverage=]` | run.read | Story → criterion → test case → run → result → evidence, one row per criterion |
+| `GET coverage/execution` | run.read | Planned, executed and passed kept separate, per requirement |
+
+**UI** (`/requirements`): Test Case Builder (generate, search, select, open, edit, approve), Execution Center
+(strategy, scope, target, login, AI provider / model / key, limits, browser / video / thorough options, permission
+checkbox, history, live progress, cancel, results with evidence), Live execution, Test evidence, Traceability (search,
+filter by coverage, CSV export), executed coverage, the requirement drawer's Test Cases / Execution Results /
+Traceability tabs, and next actions in the Review Center after an acceptance.
+
+**Evidence (24 Nov 2026).** A real end-to-end run: mock Jira QPL-2 "User Login Functionality" → import → analysis →
+two ideas accepted → TC-QPL-2-1 (valid login) and TC-QPL-2-2 (wrong password) → execution `requirements` strategy → a
+real Qpilot run (Chromium, OpenAI gpt-4o-mini) on a local SauceDemo-like site. **TC-QPL-2-1 Passed** with real
+assertions (logged in, URL `/inventory.html`, title "Swag Labs - Products", heading "Products" visible).
+TC-QPL-2-2 was reported **Not automated** (the AI could not write working code) - not Passed. That run exposed a
+mapping bug (an engine "Skipped / Not automated" case was counted as executed); it was fixed and a regression test added.
+
+Tests: `tests/test_requirements_execution.py` (17: the engine hook through the real test-design agent with a stub
+AI, generation, idempotency, staleness, rejected ideas, edits and approval, result mapping, stopped runs, tenants, API
+execution with a replaced launcher, no password leak, named-reviewer approval), and
+`tests/test_requirements_ui.py::test_builder_execution_results_and_traceability_in_chromium` (the Phase 4 screens in a
+real browser).
+
+**Not yet:** Android requirement runs (the target selector shows it as the next milestone); sprint and Confluence-only
+scopes beyond a page's linked stories; defect intelligence; Jira write-back (off; Phase 5, every write needs approval).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -426,7 +496,7 @@ mock; its report is titled "REHEARSAL ... NOT live evidence" and kept in `runs/l
 | 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume ✅ (mock only) |
 | 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance ✅ (mock only) |
 | 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works ✅ (mock + stub AI) |
-| 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results |
+| 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results ✅ web (real run, mock Jira); Android not yet |
 | 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval |
 | 6 | Studio workspace | UI tests on desktop and phone widths |
 | 7 | Full test matrix and live acceptance on a real test site | Real evidence, recorded in `STATUS.md` |
@@ -477,8 +547,7 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
   been evaluated live.
 * Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
   decisions follow content (fingerprint), not the number.
-* The workspace has no test-case builder, execution, traceability or write-back screens yet (Milestone 7,
-  after Phases 4–5). With Studio login on, the access token must be pasted again after a page reload. Suggestions are listed by `GET /api/approvals`
+* The workspace has no defect or write-back screens yet (Phase 5). With Studio login on, the access token must be pasted again after a page reload. Suggestions are listed by `GET /api/approvals`
   and decided by `POST /api/approvals/{id}/decide` (signed-in reviewer), or by `analysis.review` in Python.
 * Analyses are stored per tenant and work-item key: two Jira sites of one tenant with the same project key would
   share an analysis (not expected in practice; noted for multi-site tenants).
@@ -492,3 +561,7 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
 * Cloud APIs change: the plan uses `/rest/api/3/search/jql` (the older `/search` paging is being retired) and the
   Confluence v2 pages API. Both will be checked against the live site at acceptance.
 * `tenancy_store`/`rbac` are offline helpers. Hosted multi-tenant isolation is still a separate open item.
+* Requirement runs: websites only (Android: next milestone). An execution runs inside the Studio process; a Studio
+  restart during a run leaves it `running` until it is opened again (its run folder is then read).
+* A requirement test needs an AI to become browser steps; without one it is "Not automated". The AI's code is checked
+  by the engine's own assertions only.

@@ -333,8 +333,11 @@ types the login code itself. E-mail / SMS codes still need you in the Chrome win
   criteria, analysis and the review center. An analysis step then copies each acceptance criterion with its source,
   version and quote; finds ambiguous, incomplete, duplicate and conflicting criteria; and proposes positive,
   negative, boundary and security test ideas, each marked explicit (quoted) or inferred and approved by a person in
-  the approval queue. AI ideas are used only when the privacy settings allow it. Tested against a mock Atlassian
-  site and a stub AI only so far; setup, test instructions and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
+  the approval queue. AI ideas are used only when the privacy settings allow it. Accepted ideas become stored test
+  cases (Test Case Builder) that the **Execution Center** runs as a normal Qpilot website run - requirement-based,
+  hybrid or autonomous - with results per test case, evidence and a traceability matrix (story → criterion → test
+  case → run → result). Tested against a mock Atlassian site; one real run with a real AI is recorded. Setup, test
+  instructions and status are in `docs/REQUIREMENTS_INTELLIGENCE.md`.
 - `WEBHOOK_TOKEN`: a deploy script on this PC starts a run in the open UI with `POST http://127.0.0.1:8000/api/hooks/run`
   (header `X-QA-Token`, body `{"url": "https://..."}`).
 - `QPILOT_DASHBOARD_TOKEN` (optional): when set, `/api/approvals` requires `Authorization: Bearer <token>`.

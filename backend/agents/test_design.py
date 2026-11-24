@@ -2268,6 +2268,21 @@ def test_design_agent(state: QAState) -> QAState:
 
     # every page gets its own test cases - no fixed number: journeys across pages, every feature found, one focused
     # check per feature / control (each with its own result), the AI's extra journeys, then the site-wide checks
+    # requirement-based testing (approved Jira / Confluence scenarios, backend/requirement_tests.py): only those cases
+    from .. import requirement_tests
+    req_tests = requirement_tests.load()
+    if req_tests and requirement_tests.only():
+        req_cases = requirement_tests.label(
+            my_test_cases(opened_pages, req_tests, start=1, run_dir=state.get("run_dir")), req_tests)
+        cases = finalize_cases(req_cases, state)
+        summary = (f"{len(cases)} requirement-based test case(s) from approved Jira / Confluence scenarios - the "
+                   f"built-in site suite was not added (requirement-based testing)")
+        print(f"  [test-design] {summary}")
+        _link_registry(state, cases)
+        _write_cases(state["run_dir"], cases)
+        write_workbook(Path(state["run_dir"]), cases)
+        return {"test_cases": cases, "app_map": state["app_map"], "cases_left_out": 0,
+                "log": state.get("log", []) + [summary]}
     journeys = builtin_journeys(full, limit=40) if full else []
     feats = site_feature_cases(full)
     learned = learned_cases(full)  # every control whose effect exploring learned: it must do it again
@@ -2282,6 +2297,10 @@ def test_design_agent(state: QAState) -> QAState:
     from ..my_tests import load as load_my_tests  # your own tests in plain English (kept per website)
     mine = my_test_cases(opened_pages, load_my_tests(state.get("site_key") or ""), start=len(ai) + 1,
                          run_dir=state.get("run_dir"))
+    if req_tests:  # (hybrid testing: the approved requirement scenarios first, then everything exploring found)
+        mine = requirement_tests.label(
+            my_test_cases(opened_pages, req_tests, start=len(ai) + len(mine) + 1, run_dir=state.get("run_dir")),
+            req_tests) + mine
     if settings.requirements.strip() and not llm_enabled():
         print("  [test-design] your requirements text was not used: it needs an AI (this run uses the built-in rules)")
     small = small_checks(pages, data) if pages else []

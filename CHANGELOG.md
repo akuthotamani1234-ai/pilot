@@ -2,6 +2,23 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Requirements Intelligence, Phase 4 (requirements to execution, websites)
+
+- `backend/atlassian/bridge.py`: test cases from accepted ideas (`TC-<KEY>-<n>`, versioned, fingerprinted,
+  stale when the requirement changes), edits that need a named reviewer's approval, executions and results, the
+  traceability matrix and executed coverage (planned, executed and passed kept separate).
+- `backend/requirement_tests.py` + `test_design.py`: a run takes approved requirement test cases
+  (`QA_REQUIREMENT_TESTS`); requirement-only or hybrid strategy; a case without working steps is "Not automated",
+  never Passed.
+- API: test-case generate / list / edit / approve, executions start / list / live / cancel, `traceability`,
+  `coverage/execution`. Capabilities now report generate, run and traceability as available; write-back stays off.
+- Studio: Test Case Builder, Execution Center, Live execution, Test evidence, Traceability (CSV export), executed
+  coverage, the drawer's Test Cases / Execution Results / Traceability tabs, next actions in the Review Center.
+  Fixed duplicate element ids (`exType`, `exStatus`) between the explorer and the execution form.
+- Fixed: an engine "Skipped / Not automated" case was counted as executed.
+- Tests: `tests/test_requirements_execution.py` (17) and a Phase 4 browser test; three tests that checked the
+  old "Upcoming" placeholders now check the working screens.
+
 ## 2026-11-24 - Test pollution and a lost slow page fixed
 
 - Tests that load `backend/templates/conftest.py` in-process now use the `template_conftest` fixture

@@ -95,7 +95,11 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(page.locator("#stats")).to_contain_text("0requirements imported")
         expect(page.locator("#ovConnections")).to_contain_text("No site connected yet")
         expect(page.locator("#actions")).to_contain_text("Generate test cases")
-        expect(page.locator("#actions .rq-coming")).to_have_count(4)  # (Phase 4 actions: labelled, not buttons)
+        expect(page.locator("#actions .rq-coming")).to_have_count(1)  # (only Jira write-back is still to come)
+        expect(page.locator("#actions .rq-coming")).to_contain_text("Jira write-back")
+        expect(page.locator("#actions a[href='#builder']")).to_contain_text("Generate test cases")
+        expect(page.locator("#actions a[href='#execution']")).to_contain_text("Run tests")
+        expect(page.locator("#actions a[href='#traceability']")).to_contain_text("View traceability")
         assert page.locator("#actions button").count() == 0
         # integrations: connect, the token is not kept anywhere in the page
         connect_jira(page)
@@ -153,7 +157,9 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(drawer).to_contain_text("Missing requirements (0)")
         page.keyboard.press("ArrowRight")  # (arrow keys move between tabs)
         expect(page.get_by_role("tab", name="Test Cases")).to_have_attribute("aria-selected", "true")
-        expect(drawer).to_contain_text("Upcoming · Phase 4")
+        expect(drawer).to_contain_text("No test cases yet")
+        expect(drawer.get_by_role("button", name="Generate from accepted ideas")).to_be_visible()
+        expect(drawer).not_to_contain_text("Upcoming")
         page.get_by_role("tab", name="Version History").click()
         expect(page.get_by_role("tab", name="Version History")).to_have_attribute("aria-selected", "true")
         expect(drawer).to_contain_text("v1")
@@ -171,6 +177,11 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         cards.first.locator("input[name=title]").fill("Login is refused with a wrong password (edited)")
         cards.first.get_by_role("button", name="Accept with changes").click()
         expect(cards).to_have_count(before - 2)
+        nxt = page.locator("#rvNext")  # (next actions after an acceptance)
+        expect(nxt).to_contain_text("Accepted for QPL-2. Next:")
+        nxt.get_by_role("button", name="Generate test cases for QPL-2").click()
+        expect(nxt).to_contain_text("2 test cases for QPL-2 (2 new)")
+        expect(nxt.get_by_role("link", name="Configure and run")).to_have_attribute("href", "#execution")
         cards.first.get_by_role("button", name="Reject").click()
         expect(cards).to_have_count(before - 3)
         page.select_option("#rvStatus", "accepted")
@@ -272,8 +283,13 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
             expect(section.get_by_role("heading", level=1)).to_be_visible()
             expect(link).to_have_attribute("aria-current", "page")
             page.wait_for_load_state("networkidle")
-            if view in {"builder", "execution", "agents", "evidence", "traceability", "writeback"}:
+            if view == "writeback":
                 expect(section.get_by_text("Upcoming", exact=False)).to_be_visible()
+            if view in {"builder", "execution", "agents", "evidence", "traceability"}:
+                expect(section).not_to_contain_text("Upcoming")
+            if view == "execution":
+                expect(section.locator("#exAuth")).not_to_be_checked()
+                assert section.locator("#xcApp option[value=android]").get_attribute("disabled") is not None
             if view == "analysis":
                 section.get_by_role("button", name="QPL-2 — User Login Functionality").click()
                 expect(page.get_by_role("tab", name="AI Analysis")).to_have_attribute("aria-selected", "true")
@@ -447,4 +463,90 @@ def test_the_confluence_explorer_shows_spaces_headings_requirement_sections_and_
         expect(box).to_contain_text("Criteria taken from this page (1)")
         assert not errors, errors
     finally:
+        ctx.close()
+
+
+def test_builder_execution_results_and_traceability_in_chromium(browser, studio, monkeypatch, tmp_path):
+    """Phase 4 in the browser: accepted ideas -> generated test cases -> a run of the selected case -> its real
+    result (read from the run's test_cases.json) in the Execution Center, the traceability matrix and the drawer.
+    The run launcher is replaced (the real one starts main.py; the live end-to-end run covers it)."""
+    import json
+    from urllib.parse import quote
+
+    import httpx
+
+    from backend import server
+    h = {"X-Agentic-QA": "1"}
+    with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
+        assert c.post("/api/requirements/connections", json={
+            "id": "jira-main", "product": "jira", "site_url": "https://aimaniforall1234-1795449805793.atlassian.net",
+            "email": EMAIL}).status_code == 200
+        c.put("/api/requirements/connections/jira-main/token", json={"token": TOKEN})
+        job = c.post("/api/requirements/connections/jira-main/imports", json={"mode": "items", "keys": "QPL-2"}).json()
+        rapi.JOBS.wait(job["id"])
+        analysis = c.post("/api/requirements/items/jira-main/QPL-2/analyze", json={}).json()["analysis"]
+        for s in analysis["suggestions"][:2]:
+            c.post(f"/api/requirements/items/jira-main/QPL-2/suggestions/{quote(s['id'], safe='')}/review",
+                   json={"answer": "yes"})
+    launched = {}
+
+    def fake_launch(req, caller):
+        launched["req"] = req
+        server.jobs[5151] = {"id": 5151, "status": "running", "run": ""}
+        return {"id": 5151}
+    monkeypatch.setattr(server, "_launch_run", fake_launch)
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        page.goto(studio.url + "/requirements#builder")
+        page.locator("#genReq").select_option(index=0)
+        page.locator("#genForm button").click()
+        expect(page.locator("#genStatus")).to_contain_text("2 new test cases")
+        table = page.locator("#tcTable")
+        expect(table).to_contain_text("TC-QPL-2-1")
+        expect(table).to_contain_text("TC-QPL-2-2")
+        page.get_by_role("checkbox", name="Select TC-QPL-2-1").check()
+        expect(page.locator("#tcRun")).to_have_text("Run selected (1)")
+        page.locator("#tcRun").click()
+        expect(page.locator("#view-execution")).to_be_visible()
+        expect(page.locator("#exSelCount")).to_have_text("1")
+        page.fill("#exUrl", "https://www.saucedemo.com/")
+        page.fill("#exUser", "standard_user")
+        page.fill("#exPass", "secret_sauce")
+        page.locator("#exAuth").check()
+        page.locator("#exStart").click()
+        expect(page.locator("#xcStatus")).to_contain_text("Running 1 test case")
+        expect(page.locator("#exPass")).to_have_value("")  # (sent once, not kept in the page)
+        assert [t["tc"] for t in launched["req"].requirement_tests] == ["TC-QPL-2-1"]
+        assert launched["req"].requirements_only and launched["req"].test_password == "secret_sauce"
+        expect(page.locator("#exDetail")).to_contain_text("running")
+        assert "secret_sauce" not in page.content()
+        # the run finishes: its real result file is read, nothing is assumed
+        run = tmp_path / "runs" / "ui_run"
+        run.mkdir(parents=True)
+        (run / "test_cases.json").write_text(json.dumps([{
+            "requirement_test": "TC-QPL-2-1", "execution_status": "Passed", "check_count": 3,
+            "actual_result": "the dashboard opened", "evidence": ["screenshots/ok.png"]}]))
+        monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
+        server.jobs[5151].update(status="done", run="ui_run")
+        expect(page.locator("#exDetail")).to_contain_text("Passed", timeout=10000)
+        expect(page.locator("#exDetail")).to_contain_text("the dashboard opened")
+        page.goto(studio.url + "/requirements#traceability")
+        tr = page.locator("#trTable")
+        expect(tr).to_contain_text("TC-QPL-2-1")
+        expect(tr).to_contain_text("Passed")
+        # the requirement's drawer: its test cases, results and trace
+        page.goto(studio.url + "/requirements#analysis")
+        page.get_by_role("button", name="QPL-2 — User Login Functionality").click()
+        drawer = page.locator("#detail")
+        page.get_by_role("tab", name="Test Cases").click()
+        expect(drawer).to_contain_text("TC-QPL-2-1")
+        expect(drawer).to_contain_text("TC-QPL-2-2")
+        page.get_by_role("tab", name="Execution Results").click()
+        expect(drawer).to_contain_text("the dashboard opened")
+        page.get_by_role("tab", name="Traceability").click()
+        expect(drawer).to_contain_text("TC-QPL-2-1")
+        expect(drawer).not_to_contain_text("Upcoming")
+        assert not errors, errors
+    finally:
+        server.jobs.pop(5151, None)
         ctx.close()
