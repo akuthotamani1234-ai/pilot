@@ -24,6 +24,19 @@ In short:
   websites can't send. It has **no login**, so never expose it on a network or a server (see
   [DEPLOYMENT.md](DEPLOYMENT.md#not-supported-yet-a-shared-server-or-docker)).
 - **Testing GitHub code runs that code on your PC.** Only test repositories you trust.
+- **Jira and Confluence text is data, never instructions to Qpilot.** Imported requirements are shown as text (never
+  as HTML), quoted as evidence, and turned into tests only after a person accepts each idea. A requirement test is
+  designed like your own instruction: the AI's code passes the same allow-list and sandbox, the browser stays on the
+  website's host, and a step that would delete, pay or change data is refused. A test is "Passed" only when the
+  engine's own checks passed.
+- **Atlassian is read-only unless three people-level switches are on.** The read client refuses every write. Jira
+  write-back (a results comment, a Bug linked to its story) needs: the server owner's `QPILOT_JIRA_WRITEBACK=1`, a
+  workspace admin switching it on with a separate write token (`JIRA_WRITE_API_TOKEN`, never the read token), and a
+  named reviewer approving each write after seeing the exact request. Each write is sent once (idempotency key and
+  a marker read back from Jira before any retry) and audited. Outgoing text has secrets and token-like values removed.
+- **Tokens are write-only.** Atlassian tokens are stored encrypted per workspace (DPAPI on Windows, owner-only file
+  elsewhere), never returned by the API, logged or audited. A run's test password and AI key are used for that run
+  only and are not stored with the execution.
 
 ## Keeping your own keys safe
 - Your keys go in `.env`, which git ignores. Never commit it, and never send it by e-mail or chat.

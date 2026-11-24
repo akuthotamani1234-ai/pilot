@@ -233,3 +233,15 @@ def test_defect_records_are_per_tenant(api, ready):
         assert len(defects.list_defects(db, "local")) == 1
     finally:
         db.close()
+
+
+def test_outgoing_text_drops_credentials_and_long_file_names_do_not_break_a_proposal(api, ready):
+    leaked = "ATATT3xFfGF0" + "x" * 40
+    ready({"TC-QPL-2-1": {**FAIL, "actual_result": f"login failed; the page showed token {leaked}",
+                          "evidence": ["failure_screenshots/test_ai_flow_1_requirement_qpl_2_check_valid_login_opens_"
+                                       "the_products_page_attempt_1.png"]}})
+    did = _defects(api)["defects"][0]["id"]
+    r = api.client.post("/api/requirements/writeback/proposals", headers=api.H, json={"defect_id": did})
+    assert r.status_code == 200, r.text
+    text = json.dumps(r.json())
+    assert leaked not in text and "[removed]" in text and "test_ai_flow_1_requi" in text

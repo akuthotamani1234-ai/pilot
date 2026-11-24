@@ -23,7 +23,16 @@ import re
 from datetime import UTC, datetime
 
 from .. import approvals, audit_store
-from .models import ISSUE_KEY, Connection, OutboundWrite, WriteOperation, WriteStatus, idempotency_key
+from ..safety import redact
+from .models import (
+    ISSUE_KEY,
+    LOOKS_LIKE_SECRET,
+    Connection,
+    OutboundWrite,
+    WriteOperation,
+    WriteStatus,
+    idempotency_key,
+)
 
 SERVER_ENV = "QPILOT_JIRA_WRITEBACK"
 WRITE_TOKEN = "JIRA_WRITE_API_TOKEN"  # noqa: S105 (the NAME of the secret, not a secret)
@@ -130,6 +139,18 @@ def list_writes(db, tenant: str, status: str = "") -> list[dict]:
     return [json.loads(r["data"]) for r in db.execute(sql + " ORDER BY created_at DESC", args)]
 
 
+def _clean(text: str) -> str:
+    """Text that leaves for Jira: known secret values (the run's password, keys, tokens) and anything that looks like
+    a credential are removed. (Long file names are shortened, so they are not mistaken for one.)"""
+    text = redact(str(text or ""), include_username=False) or ""
+    return LOOKS_LIKE_SECRET.sub("[removed]", text)
+
+
+def _short(name: str) -> str:
+    name = str(name).replace("\\", "/").rsplit("/", 1)[-1]
+    return name if len(name) <= 36 else name[:20] + "…" + name[-12:]
+
+
 def _adf(text: str) -> dict:
     return {"type": "doc", "version": 1, "content": [
         {"type": "paragraph", "content": [{"type": "text", "text": line}]} if line else {"type": "paragraph"}
@@ -153,6 +174,7 @@ def request_body(w: dict) -> dict:
 def _propose(db, tenant: str, *, connection_id: str, operation: WriteOperation, target: str, payload: dict,
              actor: str, about: dict, audit_db=None) -> tuple[dict, bool]:
     ensure(db)
+    payload = {k: _clean(v) if isinstance(v, str) else v for k, v in payload.items()}
     key = idempotency_key(tenant, operation, target, payload)
     old = _by_key(db, tenant, key)
     if old:
@@ -230,7 +252,8 @@ def propose_defect(db, tenant: str, defect_id: str, actor: str, audit_db=None) -
         f"Expected: {d.get('expected', '')}", f"Actual: {d.get('actual', '')}",
         f"Seen {d.get('occurrences')} time(s), last in execution {d.get('last_execution')}; severity "
         f"{d.get('severity')}; classification: {d.get('failure_category') or 'not classified'}.",
-        f"Evidence (Qpilot run {d.get('run_folder')}): {', '.join(d.get('evidence', [])[:5]) or 'none'}"])
+        f"Evidence (Qpilot run {d.get('run_folder')}): "
+        f"{', '.join(_short(e) for e in d.get('evidence', [])[:5]) or 'none'}"])
     payload = {"summary": d["title"][:240], "description": desc[:30000], "issue_type": s["issue_type"],
                "links_to": d["requirement_id"], "severity": d.get("severity", "")}
     w, _ = _propose(db, tenant, connection_id=d.get("connection_id", ""), operation=WriteOperation.create_issue,

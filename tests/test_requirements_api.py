@@ -638,3 +638,27 @@ def test_the_requirements_page_is_served():
     r = TestClient(server.app, base_url="http://127.0.0.1:8000").get("/requirements")
     assert r.status_code == 200 and "Requirements Intelligence" not in r.text.split("<body")[0]
     assert 'src="/static/requirements.js"' in r.text
+
+
+def test_write_back_and_defect_routes_follow_roles(api, monkeypatch):
+    """Studio login on: a viewer reads only; approving needs a reviewer role; settings, the write token and sending
+    need a workspace admin. Checked before anything is looked up."""
+    monkeypatch.setenv("QPILOT_DASHBOARD_AUTH", "principal")
+    monkeypatch.delenv("QPILOT_JIRA_WRITEBACK", raising=False)
+    assert api.get("/api/requirements/defects", headers=as_("view-1")).status_code == 200
+    assert api.get("/api/requirements/writeback", headers=as_("view-1")).json()["can_review"] is False
+    for method, path, body in (("post", "/api/requirements/writeback/proposals", {"execution_id": "EX-1"}),
+                               ("post", "/api/requirements/writeback/WR-1/approve", None),
+                               ("post", "/api/requirements/defects/DF-1/dismiss", {"reason": "not a bug"})):
+        r = getattr(api, method)(path, headers=as_("view-1"), **({"json": body} if body else {}))
+        assert r.status_code == 403, (path, r.text)
+    for who in ("view-1", "op-1"):
+        for method, path, body in (("put", "/api/requirements/writeback/settings/jira-main", {"enabled": False}),
+                                   ("put", "/api/requirements/writeback/token", {"token": "x" * 30}),
+                                   ("delete", "/api/requirements/writeback/token", None),
+                                   ("post", "/api/requirements/writeback/WR-1/send", None)):
+            r = getattr(api, method)(path, headers=as_(who), **({"json": body} if body else {}))
+            assert r.status_code == 403, (who, path, r.text)
+    assert api.post("/api/requirements/writeback/WR-1/approve", headers=as_("op-1")).status_code == 404
+    assert api.post("/api/requirements/writeback/WR-1/send", headers=as_("admin-1")).status_code == 404
+    assert api.get("/api/requirements/writeback", headers=as_("admin-2")).json()["writes"] == []
