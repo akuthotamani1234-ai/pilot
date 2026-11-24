@@ -82,6 +82,9 @@ def validate_script(code: str, need_tests: bool = True) -> str | None:
                     (isinstance(node.value, ast.Attribute) and node.value.attr == "request")
                     or (isinstance(node.value, ast.Name) and node.value.id == "request")):
                 return f"Banned call: request.{node.attr}() (tests may only read, never send data)"
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and "[REDACTED]" in node.value:
+            return ("The test types a hidden value ('[REDACTED]' is a removed secret): take the test account's user "
+                    "name and password from the qa_login fixture (`user, password = qa_login`), never write them")
         if isinstance(node, ast.Name) and node.id in ("pytest_plugins", "__builtins__", "__loader__", "__spec__"):
             return f"Banned name: {node.id}"
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):

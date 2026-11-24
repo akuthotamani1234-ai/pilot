@@ -415,3 +415,13 @@ def test_calling_the_login_fixture_like_a_function_is_caught_before_the_test_run
     assert "fixture" in (validate_script(called) or "")
     assert "add qa_login to its parameters" in (validate_script(missing) or "")
     assert validate_script(right) is None
+
+
+def test_a_test_that_would_type_a_removed_secret_is_refused():
+    """Live SauceDemo run: the AI wrote the account name, secret masking turned it into '[REDACTED]', and the wrong-
+    password test typed that as the user name (it passed, but did not test the valid user). Now refused, so the
+    self-repair takes the account from qa_login."""
+    from backend.agents.script_generator import validate_script
+    code = ('def test_a(page):\n    page.locator("#user-name").fill("[REDACTED]")\n'
+            '    page.locator("#password").fill("wrong")\n')
+    assert "qa_login" in (validate_script(code) or "")
