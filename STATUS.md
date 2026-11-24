@@ -14,7 +14,8 @@ labels, dates, summary words, Jira-validated JQL that cannot escape its project)
 estimated total, nothing stored), results and history (criteria found, needs analysis, duration, last success); and
 the Studio API `/api/requirements/*` (25 routes) with login, roles, tenant isolation, write-only encrypted tokens
 (`.env` only for the local tenant), background imports with cancel, explorer, versions, analysis, signed reviews,
-coverage, overview and audit. 48 tests (`tests/test_requirements_api.py`), mock only. **No Studio screens yet
+coverage, overview and audit. 48 tests (`tests/test_requirements_api.py`), mock only. Verified (no `.env`, 24 Nov):
+non-slow suite **2415 passed, 0 failed, 29 skipped** (the known test-order skip); lint clean. **No Studio screens yet
 (Milestone 3); no test generation or runs from requirements (Phase 4); no live Atlassian evidence.**
 
 **Milestone 1 (audit findings fixed):** headingless `AC1:` / `AC-1` criteria, heading and field-name variants, notes and
