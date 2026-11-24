@@ -181,8 +181,20 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
 
     blocked = {"url": ""}
     hops = {"n": 0}
+    done = {"v": False}
 
     def handle(route):
+        # A handler can outlive its navigation: a slow server's answer to route.fetch comes after page.goto timed
+        # out, and the route was cancelled with that load. Its error ("Route is already handled") would surface in
+        # whatever the crawl calls next - the retry of the same page - and fail or drop it. Once this navigation
+        # is over, its handler's errors are ignored.
+        try:
+            _handle(route)
+        except Exception:
+            if not done["v"]:
+                raise
+
+    def _handle(route):
         req = route.request
         try:
             top = (req.resource_type == "document" and req.is_navigation_request()
@@ -262,6 +274,7 @@ def navigate_for_crawl(page, url: str, *, timeout: int, wait_until: str = "domco
             raise
         return response, blocked["url"]
     finally:
+        done["v"] = True
         try:
             page.unroute("**/*", handle)
         except Exception:

@@ -3,7 +3,12 @@ import importlib.util
 import json
 import zipfile
 
+import pytest
+
 from backend.blueprint_progress import progress
+
+# (loading the template conftest patches Playwright: put it back after each test)
+pytestmark = pytest.mark.usefixtures("restore_playwright")
 
 
 def _load(tmp_path, monkeypatch):
