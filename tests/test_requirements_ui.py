@@ -556,39 +556,8 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
 def test_defects_and_write_back_in_chromium_never_send_while_off(browser, studio, monkeypatch, tmp_path):
     """Phase 5 in the browser: a failed requirement test -> a defect -> a proposed Jira bug and a results comment,
     each with the exact request previewed, approved by the reviewer - and still NOT sent, because write-back is off."""
-    import json
-    from urllib.parse import quote
-
-    import httpx
-
     from backend import server
-    monkeypatch.delenv("QPILOT_JIRA_WRITEBACK", raising=False)
-    h = {"X-Agentic-QA": "1"}
-    with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
-        c.post("/api/requirements/connections", json={
-            "id": "jira-main", "product": "jira", "site_url": "https://aimaniforall1234-1795449805793.atlassian.net",
-            "email": EMAIL})
-        c.put("/api/requirements/connections/jira-main/token", json={"token": TOKEN})
-        job = c.post("/api/requirements/connections/jira-main/imports", json={"mode": "items", "keys": "QPL-2"}).json()
-        rapi.JOBS.wait(job["id"])
-        analysis = c.post("/api/requirements/items/jira-main/QPL-2/analyze", json={}).json()["analysis"]
-        for s in analysis["suggestions"][:2]:
-            c.post(f"/api/requirements/items/jira-main/QPL-2/suggestions/{quote(s['id'], safe='')}/review",
-                   json={"answer": "yes"})
-        c.post("/api/requirements/items/jira-main/QPL-2/test-cases")
-        monkeypatch.setattr(server, "_launch_run", lambda req, caller: (
-            server.jobs.__setitem__(5252, {"id": 5252, "status": "running", "run": ""}) or {"id": 5252}))
-        ex = c.post("/api/requirements/executions", json={
-            "strategy": "requirements", "scope": {"requirements": ["QPL-2"]},
-            "target": {"url": "https://www.saucedemo.com/", "authorized": True}}).json()["execution"]
-        run = tmp_path / "runs" / "ui_fail"
-        run.mkdir(parents=True)
-        (run / "test_cases.json").write_text(json.dumps([{
-            "requirement_test": "TC-QPL-2-1", "execution_status": "Failed", "actual_result": "the dashboard never opened",
-            "failure_category": "Application defect (potential website bug)", "confidence": "high"}]))
-        monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
-        server.jobs[5252].update(status="done", run="ui_fail")
-        assert c.get(f"/api/requirements/executions/{ex['id']}").json()["execution"]["status"] == "finished"
+    ex = _studio_with_a_failed_run(studio, monkeypatch, tmp_path)
     ctx, page, errors = open_page(browser, studio)
     try:
         page.goto(studio.url + "/requirements#execution")
@@ -624,4 +593,75 @@ def test_defects_and_write_back_in_chromium_never_send_while_off(browser, studio
         assert not errors, errors
     finally:
         server.jobs.pop(5252, None)
+        ctx.close()
+
+
+def _studio_with_a_failed_run(studio, monkeypatch, tmp_path) -> dict:
+    """QPL-2 imported, analysed, two ideas accepted, test cases generated, one execution whose run failed TC-QPL-2-1
+    (the run launcher is replaced; its result file is real JSON read by the bridge). Returns the execution."""
+    import json
+    from urllib.parse import quote
+
+    import httpx
+
+    from backend import server
+    monkeypatch.delenv("QPILOT_JIRA_WRITEBACK", raising=False)
+    h = {"X-Agentic-QA": "1"}
+    with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
+        c.post("/api/requirements/connections", json={
+            "id": "jira-main", "product": "jira", "site_url": "https://aimaniforall1234-1795449805793.atlassian.net",
+            "email": EMAIL})
+        c.put("/api/requirements/connections/jira-main/token", json={"token": TOKEN})
+        job = c.post("/api/requirements/connections/jira-main/imports", json={"mode": "items", "keys": "QPL-2"}).json()
+        rapi.JOBS.wait(job["id"])
+        analysis = c.post("/api/requirements/items/jira-main/QPL-2/analyze", json={}).json()["analysis"]
+        for s in analysis["suggestions"][:2]:
+            c.post(f"/api/requirements/items/jira-main/QPL-2/suggestions/{quote(s['id'], safe='')}/review",
+                   json={"answer": "yes"})
+        c.post("/api/requirements/items/jira-main/QPL-2/test-cases")
+        monkeypatch.setattr(server, "_launch_run", lambda req, caller: (
+            server.jobs.__setitem__(5252, {"id": 5252, "status": "running", "run": ""}) or {"id": 5252}))
+        ex = c.post("/api/requirements/executions", json={
+            "strategy": "requirements", "scope": {"requirements": ["QPL-2"]},
+            "target": {"url": "https://www.saucedemo.com/", "authorized": True}}).json()["execution"]
+        run = tmp_path / "runs" / "ui_fail"
+        run.mkdir(parents=True)
+        (run / "test_cases.json").write_text(json.dumps([{
+            "requirement_test": "TC-QPL-2-1", "execution_status": "Failed", "actual_result": "the dashboard never opened",
+            "failure_category": "Application defect (potential website bug)", "confidence": "high"}]))
+        monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
+        server.jobs[5252].update(status="done", run="ui_fail")
+        assert c.get(f"/api/requirements/executions/{ex['id']}").json()["execution"]["status"] == "finished"
+    return ex
+
+
+def test_filled_phase_4_and_5_screens_fit_a_phone_and_every_control_is_named(browser, studio, monkeypatch, tmp_path):
+    import os
+    _studio_with_a_failed_run(studio, monkeypatch, tmp_path)
+    shots = os.environ.get("QPILOT_UI_SCREENSHOTS")
+    ctx, page, errors = open_page(browser, studio, {"width": 390, "height": 844})
+    try:
+        for view in ("builder", "execution", "agents", "evidence", "traceability", "coverage", "writeback"):
+            page.goto(studio.url + f"/requirements#{view}")
+            page.wait_for_load_state("networkidle")
+            if view == "execution":
+                page.locator("#exList button.rq-open").first.click()
+                expect(page.locator("#exDetail")).to_contain_text("Failed")
+            if view == "writeback":
+                expect(page.locator("#dfTable")).to_contain_text("TC-QPL-2-1")
+                page.get_by_role("button", name="Propose Jira bug").click()
+                expect(page.locator("#wbWrites")).to_contain_text("new issue in QPL")
+            wide = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            assert wide <= 1, f"{view} scrolls sideways by {wide}px"
+            unnamed = page.evaluate("""() => [...document.querySelectorAll('main input, main select, main textarea, main button')]
+                .filter(el => el.offsetParent !== null)
+                .filter(el => !(el.labels && el.labels.length) && !el.getAttribute('aria-label') && !el.textContent.trim()
+                              && !el.getAttribute('aria-labelledby') && !el.title)
+                .map(el => el.outerHTML.slice(0, 80))""")
+            assert unnamed == [], f"{view}: {unnamed}"
+            if shots:
+                Path(shots).mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(Path(shots) / f"phone_{view}.png"), full_page=True)
+        assert not errors, errors
+    finally:
         ctx.close()
