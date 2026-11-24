@@ -670,3 +670,22 @@ def test_filled_phase_4_and_5_screens_fit_a_phone_and_every_control_is_named(bro
         assert not errors, errors
     finally:
         ctx.close()
+
+
+def test_an_older_cached_page_with_the_new_script_says_reload_instead_of_going_blank(browser, studio):
+    """Seen on a Mac: the browser kept the old /requirements page (older menu) and loaded the new script -> blank
+    main area. The script now detects the older page and tells the person to reload."""
+    import subprocess
+    old = subprocess.run(["git", "show", "581bb51:frontend/requirements.html"], check=False, capture_output=True, text=True,
+                         cwd=Path(__file__).resolve().parent.parent)
+    if old.returncode:
+        pytest.skip("the older page is not in this checkout's history")
+    ctx = browser.new_context()
+    page = ctx.new_page()
+    try:
+        page.route(studio.url + "/requirements", lambda route: route.fulfill(status=200, content_type="text/html",
+                                                                             body=old.stdout))
+        page.goto(studio.url + "/requirements#overview")
+        expect(page.get_by_role("alert").filter(has_text="older copy")).to_contain_text("Cmd+Shift+R")
+    finally:
+        ctx.close()

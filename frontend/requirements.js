@@ -5,6 +5,18 @@
    A Studio access token (only when Studio login is on) lives in this tab's memory only. */
 (() => {
   const $ = (id) => document.getElementById(id);
+  // A browser that kept an OLDER copy of this page would run this script against screens that are not there and show
+  // a blank page: say so instead (a hard reload fetches the current page).
+  if (!$("view-writeback") || !$("view-builder") || !$("exForm2")) {
+    const main = document.querySelector("main") || document.body;
+    const note = document.createElement("div");
+    note.className = "lab-card";
+    note.setAttribute("role", "alert");
+    note.textContent = "This page is an older copy kept by your browser. Reload it fully: Cmd+Shift+R (Mac) or " +
+      "Ctrl+Shift+R (Windows). If it stays like this, restart the Studio after git pull.";
+    main.prepend(note);
+    return;
+  }
   const S = { auth: "", caps: null, conns: [], wizard: { step: 1, types: [], selected: new Set(), keys: [], token: "", job: null },
               ex: { page: 1, size: 25, sort: "key" }, poll: null };
 
