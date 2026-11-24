@@ -157,12 +157,6 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
             selector = node.args[0].value
             if not isinstance(selector, str):
                 continue
-            bare = re.sub(r"\[[^\]]*\]|\"[^\"]*\"|'[^']*'|:has-text\([^)]*\)|:text\([^)]*\)", " ", selector)
-            classes = re.findall(r"\.([A-Za-z_][\w-]*)", bare)
-            unseen = [c for c in classes if c.casefold() not in evidence]
-            if unseen and pages:
-                return ("The selector was not observed: " + selector + " (class ." + unseen[0] +
-                        " is in no observed page) - use a selector from PAGES")
             if re.fullmatch(r"#[\w-]+", selector) and not any(selector in known for known in observed_selectors):
                 return "The selector was not observed: " + selector
             if re.search(r"(^|[\s>,])(?:table|thead|tbody|th)(?=[\s>.#\[:]|$)", selector) and not any(
@@ -174,6 +168,12 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
             if TOAST_WRAPPER.search(selector) and "text=" not in selector and "has-text" not in selector:
                 return ("Prefer the toast/alert message text and semantic severity "
                         "(error/ok via role=alert / status), not a brittle toast wrapper/icon selector")
+            bare = re.sub(r"\[[^\]]*\]|\"[^\"]*\"|'[^']*'|:has-text\([^)]*\)|:text\([^)]*\)", " ", selector)
+            classes = re.findall(r"\.([A-Za-z_][\w-]*)", bare)
+            unseen = [c for c in classes if c.casefold() not in evidence]
+            if unseen and pages:
+                return ("The selector was not observed: " + selector + " (class ." + unseen[0] +
+                        " is in no observed page) - use a selector from PAGES")
             if NATIVE_TABLE_ONLY.match(selector.strip()) and "role" not in selector:
                 # Allow only when a native table was observed; otherwise ask for role-based grid.
                 has_native = any((t.get("selector") or "").startswith("table") or t.get("native")
