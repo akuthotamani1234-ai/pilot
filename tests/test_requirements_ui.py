@@ -4,6 +4,7 @@ The real Studio server (uvicorn) runs on 127.0.0.1 with its stores in a temp fol
 Atlassian site (tests/atlassian_mock.py). Every number and row on the page comes from the backend - nothing is
 stubbed in the browser."""
 import os
+import re
 import socket
 import threading
 import time
@@ -198,6 +199,10 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(page.locator("#hsTable tbody tr")).to_have_count(1)
         expect(page.locator("#hsTable tbody tr").first).to_contain_text("items")
         expect(page.locator("#auditList")).to_contain_text("token.set")
+        page.goto(studio.url + "/requirements#history")  # (audit times are ISO text: shown as a date, never '—')
+        first_time = page.locator("#auditList time").first
+        expect(first_time).not_to_have_text("—")
+        expect(first_time).to_have_text(re.compile(r"\d{4}|\d{1,2}/\d{1,2}"))
         assert not errors, errors
         assert not [r for r in studio.mock.requests if r["method"] not in ("GET", "POST")]
     finally:

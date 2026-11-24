@@ -1261,7 +1261,7 @@
     } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
     try {
       const a = await api("/audit?limit=100");
-      $("auditList").replaceChildren(...kids(...(a.events.length ? a.events.map((e) => h("li", {}, h("time", { text: when(e.created_at ? e.created_at * 1000 : e.at) }),
+      $("auditList").replaceChildren(...kids(...(a.events.length ? a.events.map((e) => h("li", {}, h("time", { text: when(typeof e.created_at === "number" ? e.created_at * 1000 : (e.created_at || e.at)) }),
         h("b", { text: e.action.replace("requirements.", "") }), e.allowed ? null : badge("refused", "bad"), h("span", { class: "small", text: `${e.actor}` })))
         : [h("li", { class: "small", text: "No events yet." })])));
     } catch (e) { $("auditList").replaceChildren(...kids(h("li", { class: "small", text: e.status === 403 ? "The audit trail is for administrators." : e.message }))); }

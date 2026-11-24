@@ -4940,7 +4940,13 @@ def requirements_page():
     page = _studio_file("requirements.html")
     if page is None:
         raise HTTPException(404, "The Studio page is a link.")
-    return FileResponse(page)
+    html = page.read_text(encoding="utf-8")
+    for name in ("requirements.js", "requirements.css", "studio.css", "qpilot.css"):  # (never a stale build after a pull)
+        asset = _studio_file(name)
+        if asset is not None:
+            digest = hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
+            html = html.replace(f'"/static/{name}"', f'"/static/{name}?v={digest}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
 @app.get("/qa-lab")

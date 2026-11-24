@@ -3,6 +3,7 @@ history in backend/atlassian/sync.py, and the Studio API (backend/requirements_a
 tenants and token handling. Everything runs against tests/atlassian_mock.py on 127.0.0.1."""
 import json
 import os
+import re
 import stat
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -637,7 +638,8 @@ def test_the_requirements_page_is_served():
     from backend import server
     r = TestClient(server.app, base_url="http://127.0.0.1:8000").get("/requirements")
     assert r.status_code == 200 and "Requirements Intelligence" not in r.text.split("<body")[0]
-    assert 'src="/static/requirements.js"' in r.text
+    assert re.search(r'src="/static/requirements\.js\?v=[0-9a-f]{12}"', r.text)  # (versioned: never a stale build)
+    assert r.headers["cache-control"].startswith("no-store")
 
 
 def test_write_back_and_defect_routes_follow_roles(api, monkeypatch):
