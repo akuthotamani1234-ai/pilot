@@ -537,6 +537,29 @@ its marker and not repeated, only two kinds of write, tenant isolation) and
 switch is off). Attachments are not uploaded (evidence is referenced by file name). Results comments are not
 de-duplicated across different executions with identical results (each execution is its own comment).
 
+## Phase 8: live acceptance (SauceDemo done; live Jira waits for a read token)
+
+**Live website, 24 Nov 2026:** the real https://www.saucedemo.com/ (public demo account `standard_user`), requirement
+QPL-2 "User Login Functionality" from the mock Jira (the live Jira token was not provided), real Qpilot runs with
+OpenAI `gpt-4o-mini`, strategy requirement-based. Six runs; every failure was investigated and fixed at its cause:
+
+| Run | TC-QPL-2-1 valid login | TC-QPL-2-2 wrong password | Cause found → fix |
+|---|---|---|---|
+| 1 | Not automated | Not automated | AI invented a selector for the error that appears only after the steps; rejected by grounding → the requirement's quoted text is evidence, prompt rule (`c399d72`) |
+| 2 | Failed | Failed | `qa_login()` called like a function (NameError) → static check (`60e6c96`) |
+| 3 | Passed | Passed (weak) | the test typed the masked user name `[REDACTED]` → refused (`60088e7`) |
+| 4 | Not automated | Failed | the AI guessed the account → the instruction names the `qa_login` fixture (`7825c72`) |
+| 5 | **Passed** | **Passed** | - |
+| 6 | **Passed** | **Passed** | - |
+
+Runs 5 and 6 (`runs/www.saucedemo.com_20261124_152720`, `..._152831`): TC-QPL-2-1 logs in with the test account and
+asserts the title "Swag Labs" and the URL `/inventory.html`; TC-QPL-2-2 types the test account's user name with a wrong
+password and asserts the exact required message. No result was ever marked Passed without its assertions passing.
+The AI writes the code anew each run, so a cheaper model can still vary; a stronger model is more consistent.
+
+**Live Jira (QPL-2..QPL-6, sync, Confluence):** not run. It needs a read token for the site, which was not provided;
+the opt-in test `tests/test_live_jira_acceptance.py` is ready (see Milestone 4).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
