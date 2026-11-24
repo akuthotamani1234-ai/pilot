@@ -7,6 +7,10 @@ historical `FINAL_*` / phase checklist sprawl.
 
 ## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–3
 
+**Milestone 4 (prepared, not run live):** opt-in live read-only acceptance test for the QPL project
+(`tests/test_live_jira_acceptance.py`), rehearsed against the mock. It waits for the Atlassian token to be configured
+(environment Network secret, or `.env` on your own computer). **No live Jira evidence yet.**
+
 **Milestone 3 (Studio workspace, part A):** `/requirements` with Overview, Integrations (connection cards, write-only
 token, test, disconnect), Import wizard (connect → project → types & filters → preview with selection → import with
 progress / cancel / retry → analyze), Requirements explorer with detail drawer (criteria and citations, analysis,

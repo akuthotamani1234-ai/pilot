@@ -397,6 +397,27 @@ review, Jira text shown as text, targeted import by link, wrong-site link, refus
 controls and phone width, sign-in with Studio login, the Confluence explorer, and the Studio links. API additions
 (`GET /reviews`, review with `edit`, `can_review` from the role) in `tests/test_requirements_api.py` (52).
 
+## Milestone 4: live read-only Jira acceptance (prepared, NOT yet run on the real site)
+
+`tests/test_live_jira_acceptance.py` (opt-in: `QPILOT_LIVE_JIRA=1`, marker `live`) reads the QPL project on
+`https://aimaniforall1234-1795449805793.atlassian.net`: the account, the project, the **real** work-item types with
+counts (every type in use is imported, nothing assumed to be a Story), a preview (nothing stored), a full import, then
+for QPL-2..QPL-6 the key, type, status, summary (against the expected names), description, acceptance criteria with
+their locator and quote, and version 1; a second incremental and a targeted import must create no new version and no
+duplicate. Every request is recorded (method, host, path, status - never headers) and the test fails unless all were
+reads (GET or a read-only search POST) to that one site. Evidence: `runs/live_jira/<time>/report.md` and
+`report.json`. A site or credential that does not work is reported BLOCKED (skipped), never passed.
+
+How to run it:
+* Own computer: `JIRA_READ_API_TOKEN=<token>` in `.env` (leave `JIRA_PROJECT` empty), then
+  `QPILOT_LIVE_JIRA=1 QPILOT_JIRA_EMAIL=<account email> python -m pytest -m live tests/test_live_jira_acceptance.py -s`.
+* Claude cloud session: add a Network secret for the host (Basic: account email + API token) in the environment's
+  settings and start a new session; the proxy adds it to requests for that site only.
+
+Rehearsal (no real site): `QPILOT_JIRA_REHEARSAL_URL=http://127.0.0.1:<mock port>` points the same test at the local
+mock; its report is titled "REHEARSAL ... NOT live evidence" and kept in `runs/live_jira_rehearsal/`. Rehearsed on
+24 Nov 2026: passed. **No live run has been made yet; no live evidence exists.**
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
