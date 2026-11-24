@@ -8,6 +8,7 @@
   links             story <-> page and page -> page links, with how each was found
   analyses          the newest analysis of each requirement (criteria, issues, conflicts, suggestions, coverage)
   analysis_history  every analysis and every review decision, in order (nothing is overwritten without a trace)
+  sync_runs         every import / sync: mode, scope, status, counts, keys, warnings, duration, who started it
 
 Every function takes the tenant and filters by it: one tenant can never read or change another tenant's rows.
 Same pattern as backend/approvals.py (a linked database file is refused).
@@ -54,6 +55,10 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     tenant_id TEXT NOT NULL, requirement_id TEXT NOT NULL, analyzed_at TEXT NOT NULL, event TEXT NOT NULL,
     data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS sources_by_connection ON sources (tenant_id, connection_id, scope);
+CREATE TABLE IF NOT EXISTS sync_runs (
+    tenant_id TEXT NOT NULL, connection_id TEXT NOT NULL, mode TEXT NOT NULL, scope TEXT NOT NULL,
+    status TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT NOT NULL, actor TEXT NOT NULL, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS sync_runs_by_tenant ON sync_runs (tenant_id, connection_id, finished_at);
 """
 
 
@@ -280,3 +285,52 @@ def analysis_history(db: sqlite3.Connection, tenant_id: str, requirement_id: str
     rows = db.execute("SELECT analyzed_at, event FROM analysis_history WHERE tenant_id = ? AND requirement_id = ? "
                       "ORDER BY rowid", (_tenant(tenant_id), requirement_id))
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------- connections (removal)
+
+def delete_connection(db: sqlite3.Connection, tenant_id: str, connection_id: str) -> bool:
+    """Forget a connection. Imported sources, versions, analyses and history stay (traceability); a new
+    connection with the same id picks them up again."""
+    with db:
+        cur = db.execute("DELETE FROM connections WHERE tenant_id = ? AND id = ?", (_tenant(tenant_id), connection_id))
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------- sync history
+
+def record_sync_run(db: sqlite3.Connection, tenant_id: str, connection_id: str, mode: str, result: dict,
+                    actor: str) -> None:
+    data = json.dumps(result, default=str, sort_keys=True)
+    with db:
+        db.execute("INSERT INTO sync_runs (tenant_id, connection_id, mode, scope, status, started_at, finished_at, "
+                   "actor, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                   (_tenant(tenant_id), connection_id, mode, str(result.get("scope", ""))[:2000],
+                    str(result.get("status", "")), str(result.get("started_at", "")),
+                    str(result.get("finished_at", "")), actor[:200], data))
+
+
+def sync_runs(db: sqlite3.Connection, tenant_id: str, connection_id: str = "", limit: int = 50) -> list[dict]:
+    """Newest first."""
+    q, args = "SELECT * FROM sync_runs WHERE tenant_id = ?", [_tenant(tenant_id)]
+    if connection_id:
+        q += " AND connection_id = ?"
+        args.append(connection_id)
+    rows = db.execute(q + " ORDER BY rowid DESC LIMIT ?", [*args, max(1, min(500, int(limit)))]).fetchall()
+    return [{**{k: r[k] for k in r.keys() if k != "data"}, "result": json.loads(r["data"])} for r in rows]
+
+
+def last_success(db: sqlite3.Connection, tenant_id: str, connection_id: str, scope: str = "") -> str:
+    """When the newest complete sync of this connection (and scope, if given) finished, or ''."""
+    q = "SELECT finished_at FROM sync_runs WHERE tenant_id = ? AND connection_id = ? AND status = 'complete'"
+    args = [_tenant(tenant_id), connection_id]
+    if scope:
+        q += " AND scope = ?"
+        args.append(scope)
+    row = db.execute(q + " ORDER BY rowid DESC LIMIT 1", args).fetchone()
+    return row["finished_at"] if row else ""
+
+
+def list_analyses(db: sqlite3.Connection, tenant_id: str) -> list[Analysis]:
+    rows = db.execute("SELECT data FROM analyses WHERE tenant_id = ? ORDER BY requirement_id", (_tenant(tenant_id),))
+    return [Analysis.model_validate_json(r["data"]) for r in rows]

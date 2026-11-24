@@ -5,7 +5,17 @@ historical `FINAL_*` / phase checklist sprawl.
 
 **Last updated:** 2026-11-23
 
-## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestone 1
+## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–3 + Milestones 1–2
+
+**Milestone 2 (backend):** import modes - incremental (new / changed keys, affected requirements, resume, cancel),
+full (any work-item type, missing kept), targeted (keys or work-item links, optional sub-tasks / parent / linked items
+and linked pages, own scope that never disturbs the project's), filters (epic, sprint, status, priority, assignee,
+labels, dates, summary words, Jira-validated JQL that cannot escape its project), preview (new / updated / unchanged,
+estimated total, nothing stored), results and history (criteria found, needs analysis, duration, last success); and
+the Studio API `/api/requirements/*` (25 routes) with login, roles, tenant isolation, write-only encrypted tokens
+(`.env` only for the local tenant), background imports with cancel, explorer, versions, analysis, signed reviews,
+coverage, overview and audit. 48 tests (`tests/test_requirements_api.py`), mock only. **No Studio screens yet
+(Milestone 3); no test generation or runs from requirements (Phase 4); no live Atlassian evidence.**
 
 **Milestone 1 (audit findings fixed):** headingless `AC1:` / `AC-1` criteria, heading and field-name variants, notes and
 references never criteria; configurable work-item types (Story, Task, custom) with discovery and counts, and a warning

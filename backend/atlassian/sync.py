@@ -25,12 +25,14 @@ from __future__ import annotations
 
 import json
 import re
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from .. import audit_store
 from . import confluence, jira, store
 from .client import AtlassianError, Client
-from .models import PAGE_ID, Connection, Product, SourceKind, SyncStatus, parse_time
+from .models import ISSUE_KEY, PAGE_ID, Connection, ImportFilter, Product, SourceKind, SyncStatus, parse_time
 
 ACTION = "requirements.sync.jira"
 CONFLUENCE_ACTION = "requirements.sync.confluence"
@@ -61,7 +63,15 @@ def _check(connection: Connection, client: Client, tenant_id: str, product: Prod
 def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, project: str,
               issue_types=None, extra: str = "", actor: str = "system", full: bool = False,
               page_size: int = jira.PAGE_SIZE, max_pages: int | None = None, audit_db=None,
-              now: datetime | None = None) -> dict:
+              now: datetime | None = None, filters: ImportFilter | None = None,
+              should_stop: Callable[[], bool] | None = None, progress: Callable[[dict], None] | None = None) -> dict:
+    """filters: an ImportFilter (its project and types win; its other fields narrow the scope, which then has its
+    own cursor). should_stop: checked after every stored page - a stop leaves a resumable cursor (status
+    'cancelled'). progress: called with the running result after every page."""
+    if filters is not None:
+        project = filters.project
+        issue_types = filters.types or issue_types
+        extra = " AND ".join(x for x in (jira.filter_jql(filters), extra) if x)
     _check(connection, client, tenant_id, Product.jira, actor, audit_db, ACTION)
     issue_types = list(issue_types) if issue_types else list(connection.work_item_types)
     scope = "jql:" + jira.build_jql(project, issue_types, extra)
@@ -69,7 +79,8 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
     started = now or datetime.now(UTC)
     result = {"scope": scope, "status": "", "new": 0, "changed": 0, "unchanged": 0, "reappeared": 0,
               "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": "",
-              "work_item_types": issue_types, "warnings": []}
+              "work_item_types": issue_types, "warnings": [], "new_keys": [], "changed_keys": [], "mode":
+              "full" if full else "incremental"}
 
     resuming = bool(cursor.next_page_token and cursor.active_query and cursor.status != SyncStatus.complete
                     and not full)
@@ -109,6 +120,8 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
                     failed.append(f"{key or '?'}: {str(error)[:120]}")
                     continue
                 result[outcome] += 1
+                if outcome in ("new", "changed", "reappeared"):
+                    result["new_keys" if outcome == "new" else "changed_keys"].append(key)
                 seen.add(item["source"].key)
                 if key:
                     failed = [f for f in failed if not f.startswith(key + ":")]
@@ -117,8 +130,14 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
                                                "fetched": cursor.fetched + len(page["issues"]),
                                                "failed_items": failed[:200]})
             store.save_cursor(db, cursor)  # (after each stored page: a failure resumes from here)
+            if progress:
+                progress(dict(result, failed_items=list(failed)))
             if page["is_last"] or not token:
                 break
+            if should_stop and should_stop():
+                result.update(status="cancelled", failed_items=failed)
+                _audit(actor, True, tenant_id, {"connection": connection.id, **_summary(result)}, audit_db)
+                return result
             if max_pages is not None and result["pages"] >= max_pages:
                 result["status"] = SyncStatus.running.value
                 result["failed_items"] = failed
@@ -199,7 +218,8 @@ def sync_confluence_space(db, connection: Connection, client: Client, *, tenant_
     scope = f"space:{space_key}"
     started = now or datetime.now(UTC)
     result = {"scope": scope, "status": "", "new": 0, "changed": 0, "unchanged": 0, "reappeared": 0,
-              "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": "", "truncated": []}
+              "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": "", "truncated": [],
+              "new_keys": [], "changed_keys": [], "mode": "space"}
 
     def finish(cursor, status: SyncStatus, error: str = "", **update) -> dict:
         cursor = cursor.model_copy(update={"status": status, "last_error": error[:500], **update})
@@ -253,6 +273,8 @@ def sync_confluence_space(db, connection: Connection, client: Client, *, tenant_
                     failed.append(f"{page_id or '?'}: {str(error)[:120]}")
                     continue
                 result[outcome] += 1
+                if outcome in ("new", "changed", "reappeared"):
+                    result["new_keys" if outcome == "new" else "changed_keys"].append(page_id)
                 seen.add(key)
                 if content["truncated"]:
                     result["truncated"].append(key)
@@ -401,4 +423,214 @@ def link_story(db, jira_connection: Connection, jira_client: Client, conf_connec
         if walk["error"]:
             result["error"] = walk["error"]
             break
+    return result
+
+
+# ---------------------------------------------------------------- Milestone 2: targeted sync, preview, import runs
+
+MAX_RELATED = 50
+RELATED = ("subtasks", "parent", "linked")
+
+
+def _fields(client: Client) -> tuple[str, list[str]]:
+    ac_field = jira.acceptance_field(client)
+    return ac_field, jira.BASE_FIELDS + ([ac_field] if ac_field else [])
+
+
+def sync_items(db, connection: Connection, client: Client, *, tenant_id: str, keys: list[str],
+               include: tuple[str, ...] = (), actor: str = "system", audit_db=None, now: datetime | None = None,
+               should_stop: Callable[[], bool] | None = None, progress: Callable[[dict], None] | None = None) -> dict:
+    """Import exactly these work items (and, if asked, their sub-tasks, parent and linked work items, one step).
+
+    A targeted import never touches a project's cursor and never marks other work items missing: an item it stores
+    keeps the project scope it already had. A requested item Jira no longer shows is listed as inaccessible, and
+    marked missing only if it was imported before (it is the item that was asked for)."""
+    _check(connection, client, tenant_id, Product.jira, actor, audit_db, ACTION)
+    unknown = set(include) - set(RELATED)
+    if unknown:
+        raise ValueError(f"include can only name {', '.join(RELATED)}")
+    for k in keys:
+        if not ISSUE_KEY.match(k):
+            raise ValueError(f"not an issue key: {k!r}")
+    started = now or datetime.now(UTC)
+    scope = "items:" + ",".join(keys)[:1900]
+    result = {"scope": scope, "status": "", "new": 0, "changed": 0, "unchanged": 0, "reappeared": 0,
+              "failed_items": [], "pages": 0, "missing": [], "resumed": False, "error": "", "warnings": [],
+              "new_keys": [], "changed_keys": [], "mode": "items", "requested": list(keys), "inaccessible": [],
+              "related": [], "work_item_types": []}
+    try:
+        ac_field, fields = _fields(client)
+        queue = [(k, "") for k in keys]
+        done: set[str] = set()
+        while queue:
+            key, relation_from = queue.pop(0)
+            if key in done:
+                continue
+            done.add(key)
+            try:
+                issue = jira.get_issue(client, key, fields)
+            except AtlassianError as error:
+                if error.kind not in ("not_found", "forbidden"):
+                    raise
+                if not relation_from:
+                    result["inaccessible"].append(f"{key}: {error.kind}")
+                    if store.mark_source_missing(db, tenant_id, f"{connection.id}:jira_issue:{key}"):
+                        result["missing"].append(key)
+                continue
+            result["pages"] += 1
+            try:
+                item = jira.normalize(issue, connection, ac_field=ac_field, retrieved_at=started)
+                outcome, _ = store.upsert_source(db, item["source"], item["story"], scope="")
+            except (ValueError, TypeError, KeyError) as error:
+                result["failed_items"].append(f"{key}: {str(error)[:120]}")
+                continue
+            result[outcome] += 1
+            if outcome in ("new", "changed", "reappeared"):
+                result["new_keys" if outcome == "new" else "changed_keys"].append(key)
+            story_key = item["source"].key
+            if relation_from:
+                result["related"].append(f"{key} ({relation_from})")
+            else:  # (related work items of the REQUESTED ones only: one step, bounded)
+                story = item["story"]
+                more = []
+                if "parent" in include and story["parent"]:
+                    more.append((story["parent"], f"parent of {key}"))
+                if "linked" in include:
+                    more += [(x["key"], f"{x['type'] or 'linked'} {key}") for x in story["links"]]
+                if "subtasks" in include:
+                    page = jira.search(client, f"parent = {key} ORDER BY key ASC", ["summary"], "", MAX_RELATED)
+                    more += [(str(i.get("key", "")), f"sub-task of {key}") for i in page["issues"]
+                             if ISSUE_KEY.match(str(i.get("key", "")))]
+                for other, why in more:
+                    if len(done) + len(queue) >= len(keys) + MAX_RELATED:
+                        result["warnings"].append(f"related work items capped at {MAX_RELATED}")
+                        break
+                    store.save_link(db, tenant_id, story_key, f"{connection.id}:jira_issue:{other}",
+                                    "related", why[:120])
+                    queue.append((other, why))
+            if progress:
+                progress(dict(result))
+            if should_stop and should_stop():
+                result["status"] = "cancelled"
+                break
+    except AtlassianError as error:
+        result.update(status="failed", error=str(error)[:500])
+    if not result["status"]:
+        result["status"] = "partial" if result["failed_items"] or result["inaccessible"] else "complete"
+    _audit(actor, True, tenant_id, {"connection": connection.id, **_summary(result)}, audit_db)
+    return result
+
+
+def preview(db, connection: Connection, client: Client, *, tenant_id: str, filters: ImportFilter | None = None,
+            keys: list[str] | None = None, limit: int = 50, next_page_token: str = "", actor: str = "system",
+            audit_db=None) -> dict:
+    """What an import would read, before anything is stored: keys, summaries, types, statuses and, for each, whether
+    it is new, updated or unchanged against what is already imported. Nothing is written to the store."""
+    _check(connection, client, tenant_id, Product.jira, actor, audit_db, "requirements.preview")
+    limit = max(1, min(100, int(limit)))
+    ac_field, fields = _fields(client)
+    issues, token, total, query = [], "", None, ""
+    inaccessible = []
+    if keys:
+        for key in keys[:limit]:
+            try:
+                issues.append(jira.get_issue(client, key, fields))
+            except AtlassianError as error:
+                if error.kind not in ("not_found", "forbidden"):
+                    raise
+                inaccessible.append(f"{key}: {error.kind}")
+        total = len(issues)
+    else:
+        if filters is None:
+            raise ValueError("a preview needs filters (a project) or work-item keys")
+        types = filters.types or connection.work_item_types
+        query = jira.build_jql(filters.project, types, jira.filter_jql(filters))
+        page = jira.search(client, query, fields, next_page_token, limit)
+        issues, token = page["issues"], ("" if page["is_last"] else page["next_page_token"])
+        try:
+            total = jira.count(client, query.split(" ORDER BY ")[0])
+        except AtlassianError:
+            total = None  # (no estimate available: the list is still exact)
+    items = []
+    for issue in issues:
+        key = str(issue.get("key", "")) if isinstance(issue, dict) else ""
+        try:
+            n = jira.normalize(issue, connection, ac_field=ac_field)
+        except (ValueError, TypeError, KeyError) as error:
+            items.append({"key": key or "?", "state": "unreadable", "error": str(error)[:120]})
+            continue
+        stored = store.get_source(db, tenant_id, n["source"].key)
+        if not stored:
+            state = "new"
+        elif stored["source"].content_hash != n["source"].content_hash:
+            state = "updated"
+        else:
+            state = "unchanged" if stored["present"] else "reappeared"
+        s = n["story"]
+        items.append({"key": key, "summary": s["summary"], "type": s["type"], "status": s["status"],
+                      "priority": s["priority"], "updated": n["source"].updated.isoformat(), "state": state,
+                      "stored_version": stored["source"].version if stored else None})
+    counts = {st: sum(1 for i in items if i["state"] == st) for st in ("new", "updated", "unchanged", "reappeared")}
+    return {"jql": query, "estimated_total": total, "items": items, "counts": counts, "inaccessible": inaccessible,
+            "next_page_token": token}
+
+
+def affected_requirements(db, tenant_id: str, source_keys: list[str]) -> list[dict]:
+    """Requirements whose stored analysis no longer matches these changed sources (to re-analyse / re-review)."""
+    from . import analysis as an
+    out, seen = [], set()
+    for analysis in store.list_analyses(db, tenant_id):
+        if not set(analysis.source_versions) & set(source_keys):
+            continue
+        reasons = an.stale(db, tenant_id, analysis)
+        if reasons and analysis.requirement.id not in seen:
+            seen.add(analysis.requirement.id)
+            out.append({"requirement": analysis.requirement.id, "reasons": reasons})
+    return out
+
+
+def run_import(db, connection: Connection, client: Client, *, tenant_id: str, mode: str,
+               filters: ImportFilter | None = None, keys: list[str] | None = None, include: tuple[str, ...] = (),
+               space_key: str = "", full_space: bool = False, actor: str = "system", audit_db=None,
+               should_stop: Callable[[], bool] | None = None, progress: Callable[[dict], None] | None = None) -> dict:
+    """One import as people see it: incremental | full | items (Jira) or space (Confluence). Adds what was found
+    (criteria per new / updated work item), which analysed requirements are now out of date, how long it took and
+    the last successful sync, and keeps the run in the sync history. It never runs tests."""
+    from . import analysis as an
+    clock = time.monotonic()
+    started = datetime.now(UTC)
+    if mode in ("incremental", "full"):
+        if filters is None:
+            raise ValueError("a project import needs filters with a project")
+        result = sync_jira(db, connection, client, tenant_id=tenant_id, project=filters.project, filters=filters,
+                           actor=actor, full=mode == "full", audit_db=audit_db, should_stop=should_stop,
+                           progress=progress)
+    elif mode == "items":
+        if not keys:
+            raise ValueError("an items import needs work-item keys")
+        result = sync_items(db, connection, client, tenant_id=tenant_id, keys=keys, include=include, actor=actor,
+                            audit_db=audit_db, should_stop=should_stop, progress=progress)
+    elif mode == "space":
+        result = sync_confluence_space(db, connection, client, tenant_id=tenant_id, space_key=space_key, actor=actor,
+                                       audit_db=audit_db, full=full_space)
+    else:
+        raise ValueError("mode is incremental, full, items or space")
+    kind = "confluence_page" if mode == "space" else "jira_issue"
+    touched = [f"{connection.id}:{kind}:{k}" for k in result.get("new_keys", []) + result.get("changed_keys", [])]
+    criteria, needs_review = {}, []
+    for source_key in touched:
+        try:
+            req = an.build_requirement(db, tenant_id, source_key)
+        except (LookupError, ValueError):
+            continue
+        criteria[req.id] = len(req.criteria)
+        if store.get_analysis(db, tenant_id, req.id) is None or req.id in {
+                a["requirement"] for a in affected_requirements(db, tenant_id, [source_key])}:
+            needs_review.append(req.id)
+    finished = datetime.now(UTC)
+    result.update(mode=mode, started_at=started.isoformat(), finished_at=finished.isoformat(),
+                  duration_s=round(time.monotonic() - clock, 2), criteria_extracted=criteria,
+                  needs_analysis=needs_review, affected=affected_requirements(db, tenant_id, touched))
+    store.record_sync_run(db, tenant_id, connection.id, mode, result, actor)
+    result["last_success"] = store.last_success(db, tenant_id, connection.id)
     return result

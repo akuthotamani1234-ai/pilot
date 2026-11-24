@@ -23,7 +23,8 @@ import requests
 from ..safety import redact, register_secret_names
 from .models import LOOKS_LIKE_SECRET, Connection
 
-READ_POSTS = frozenset({"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count"})
+# Jira POST endpoints that only read: search, its count, and the JQL syntax check
+READ_POSTS = frozenset({"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count", "/rest/api/3/jql/parse"})
 RETRY_STATUS = frozenset({429, 502, 503, 504})
 MAX_BYTES = 10 * 1024 * 1024
 USER_AGENT = "Qpilot-RequirementsIntelligence/1"
@@ -95,11 +96,11 @@ class Client:
     def get(self, path: str, params: dict | None = None) -> dict:
         return self._request("GET", path, params=params)
 
-    def post_read(self, path: str, body: dict) -> dict:
+    def post_read(self, path: str, body: dict, params: dict | None = None) -> dict:
         """A read-only search POST (Jira's /search/jql takes its query in the body)."""
         if path not in READ_POSTS:
             raise AtlassianError("refused", f"POST {path} is not a read-only endpoint")
-        return self._request("POST", path, payload=body)
+        return self._request("POST", path, params=params, payload=body)
 
     def _request(self, method: str, path: str, params: dict | None = None, payload: dict | None = None) -> dict:
         # (a second lock behind get / post_read: nothing in this package can send a write through this client)

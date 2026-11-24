@@ -634,3 +634,87 @@ class Analysis(_Model):
             if not set(s.criterion_ids) <= known:
                 raise ValueError(f"{s.id} refers to a criterion that does not exist")
         return self
+
+
+# ---------------------------------------------------------------- Milestone 2: import filters
+
+DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ACCOUNT_ID = re.compile(r"^[A-Za-z0-9:_-]{5,128}$")
+
+
+class ImportFilter(_Model):
+    """What a Jira import (or its preview) reads. Every value is checked here and quoted when it becomes JQL, so a
+    filter can only narrow the project's work items - never widen them or reach another project."""
+    project: str = Field(pattern=r"^[A-Z][A-Z0-9_]{0,19}$")
+    types: list[str] = Field(default_factory=list, max_length=20)  # empty: the connection's work-item types
+    epic: str = ""                     # an epic's key: its child work items (parent = KEY)
+    sprint: str = ""                   # 'open' (active sprints), a sprint id, or a sprint name
+    statuses: list[str] = Field(default_factory=list, max_length=30)
+    priorities: list[str] = Field(default_factory=list, max_length=10)
+    assignee: str = ""                 # 'me', 'unassigned' or an Atlassian account id
+    labels: list[str] = Field(default_factory=list, max_length=30)
+    created_from: str = ""             # YYYY-MM-DD (inclusive)
+    created_to: str = ""
+    updated_from: str = ""
+    updated_to: str = ""
+    text: str = Field(default="", max_length=200)  # words in the summary (the work-item picker)
+    jql: str = Field(default="", max_length=2000)  # extra JQL, AND-ed with the rest; validated by Jira before use
+
+    @field_validator("types", "statuses", "priorities", "labels")
+    @classmethod
+    def plain_names(cls, v: list[str]) -> list[str]:
+        out = []
+        for name in v:
+            name = str(name or "").strip()
+            if not WORK_ITEM_TYPE.match(name):
+                raise ValueError(f"{name!r} is not a plain name")
+            if name not in out:
+                out.append(name)
+        return out
+
+    @field_validator("epic")
+    @classmethod
+    def epic_key(cls, v: str) -> str:
+        if v and not ISSUE_KEY.match(v):
+            raise ValueError("epic must be an issue key such as QPL-1")
+        return v
+
+    @field_validator("sprint")
+    @classmethod
+    def sprint_value(cls, v: str) -> str:
+        if v and not (v == "open" or v.isdigit() or WORK_ITEM_TYPE.match(v) and len(v) <= 100):
+            raise ValueError("sprint is 'open', a sprint id or a sprint name")
+        return v
+
+    @field_validator("assignee")
+    @classmethod
+    def assignee_value(cls, v: str) -> str:
+        if v and v not in ("me", "unassigned") and not ACCOUNT_ID.match(v):
+            raise ValueError("assignee is 'me', 'unassigned' or an Atlassian account id")
+        return v
+
+    @field_validator("created_from", "created_to", "updated_from", "updated_to")
+    @classmethod
+    def a_date(cls, v: str) -> str:
+        if v:
+            if not DATE.match(v):
+                raise ValueError("dates are YYYY-MM-DD")
+            datetime.strptime(v, "%Y-%m-%d")
+        return v
+
+    @field_validator("text")
+    @classmethod
+    def no_control(cls, v: str) -> str:
+        if re.search(r"[\x00-\x1f\x7f]", v):
+            raise ValueError("text has control characters")
+        return v.strip()
+
+    @field_validator("jql")
+    @classmethod
+    def extra_jql(cls, v: str) -> str:
+        v = re.sub(r"[\r\n]+", " ", v or "").strip()
+        if re.search(r"\border\s+by\b", v, re.I):
+            raise ValueError("the JQL filter cannot contain ORDER BY")
+        if re.search(r"\bproject\s*(?:!?=|~|\bin\b|\bnot\s+in\b|\bwas\b|\bchanged\b)", v, re.I):
+            raise ValueError("choose the project in the project field, not in the JQL filter")
+        return v

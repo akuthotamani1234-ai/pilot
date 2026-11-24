@@ -104,9 +104,8 @@ Package layout (✓ exists today; the rest is planned and does not exist yet):
    extraction is rules-only, and the run says so. Prompts include only the text that is needed, never the token,
    email or attachments.
 5. **Tenant isolation.** Every row has a `tenant_id`. Every query filters by it. A connection belongs to one
-   tenant. Today the only HTTP route that touches requirements is the approvals API (`/api/approvals`), which scopes
-   by the signed-in principal's tenant. The requirements routes (Milestone 2, not written yet) will check access with
-   `dashboard_auth.authorize` / `rbac.allow` the same way.
+   tenant. The requirements routes (`backend/requirements_api.py`) and the approvals API take the tenant and role
+   from `dashboard_auth.authorize` / `rbac` and filter every read and write by that tenant.
 6. **Audit.** Each sync, analysis, review decision and refused review is recorded with
    `audit_store.record_audit` (actor, action, allowed, tenant, detail with no secrets). Writes will be too (Phase 5).
 7. **No invented requirements.** Every criterion cites its source version. An AI suggestion is only a proposal.
@@ -316,6 +315,62 @@ classic token with the account email.
 
 Tests: `tests/test_atlassian_milestone1.py` (84).
 
+## Milestone 2: import modes and the Studio API (implemented, backend only)
+
+### Import modes (`backend/atlassian/sync.py`)
+
+| Mode | What it reads | Notes |
+|---|---|---|
+| `incremental` | Work items created or updated since the last complete sync of the same scope; the first time, everything | Unchanged items keep their version (content hash). Interrupted / cancelled syncs resume from the saved page token. The result lists `new_keys`, `changed_keys` and `affected` (analysed requirements now out of date, with the reason) |
+| `full` | Every work item of the project and filters | Any work-item type (Story, Task, Bug, Epic, Subtask, custom). Items Jira no longer returns are marked **missing**, never deleted, with their history kept |
+| `items` | Only the given keys or work-item links (`QPL-2`, `QPL-2, QPL-5`, `https://<site>/browse/QPL-2`, board links with `?selectedIssue=`) | One `GET /issue/{key}` each. Optional one step to `subtasks`, `parent`, `linked` items (max 50), and with a Confluence connection the pages the stories link to. **Never** touches a project cursor, never marks other items missing; an item it stores keeps its project scope. A requested item Jira no longer shows is reported inaccessible (and marked missing only if it was imported before) |
+| `space` | A Confluence space | As in Phase 2 |
+
+Filters (`models.ImportFilter`): project, types, epic (`parent = KEY`), sprint (`open`, id or name), statuses, priorities,
+assignee (`me`, `unassigned`, account id), labels, created / updated date ranges, summary words, and extra JQL. Every
+value is quoted; extra JQL may not contain `ORDER BY` or a project clause, must have balanced brackets and quotes (so it
+cannot step out of its parentheses), and is checked by Jira's read-only `POST /rest/api/3/jql/parse` before use. A
+filtered import has its own scope and cursor, so it never marks the rest of the project missing.
+
+Preview (`sync.preview`): keys, summaries, types, statuses, priority and **new / updated / unchanged / reappeared**
+against what is stored, an estimated total (Jira's approximate count), paging - and nothing is written.
+
+Each import (`sync.run_import`) adds: criteria found per new / updated work item, which need (re-)analysis, affected
+requirements, duration, and the last successful sync, and is kept in `sync_runs` (history). **Importing never runs
+tests.**
+
+### Studio API (`backend/requirements_api.py`, `/api/requirements/...`)
+
+| Route | Role action | Purpose |
+|---|---|---|
+| `GET capabilities` | run.read | Which workspace actions exist today; Phase 4–5 actions are `false` with the phase that brings them |
+| `GET overview` | run.read | Connections, requirements, pages, missing, analysed / stale, criteria, open conflicts, issues, pending reviews, last import |
+| `GET / POST connections`, `DELETE connections/{id}` | run.read / tenant.manage | Connections (no token in them). Disconnect keeps imported requirements |
+| `PUT / DELETE connections/{id}/token` | tenant.manage | Write-only token; the answer says only whether one is set |
+| `POST connections/{id}/test` | run.write | Account name and project / space count |
+| `GET connections/{id}/projects`, `.../projects/{key}/types`, `.../spaces` | run.read | Discovery, with per-type counts |
+| `POST connections/{id}/jql/validate`, `.../preview` | run.write / run.read | Jira's JQL check; import preview |
+| `POST connections/{id}/imports`, `GET imports[/{job}]`, `POST imports/{job}/cancel` | run.write / run.read | Background import with progress, cancel, history. One import per connection at a time (409) |
+| `GET items` | run.read | Search, filter (kind, type, status, priority, analysis state, connection, space, missing), sort, page |
+| `GET items/{conn}/{key}`, `.../versions` | run.read | Description, criteria with citations, sources, linked pages / stories, stale reasons, every version |
+| `POST items/{conn}/{key}/analyze`, `GET .../analysis` | run.write / run.read | Rules, or `ai: auto` when the privacy settings allow it |
+| `POST items/{conn}/{key}/suggestions/{id}/review` | review.write | Accept / reject; the reviewer is the signed-in person (URL-encode the id: it contains `#`) |
+| `GET coverage`, `GET audit` | run.read / audit.read | Per-criterion coverage; the requirements audit trail |
+
+Who and which tenant always come from `dashboard_auth.authorize`, never from the request. Studio login off: the
+`local` tenant, actor `local-user`. A shared bearer / webhook token works in the `local` tenant but cannot sign a review.
+Atlassian failures come back as `{kind, message, hint}` with no secret (an expired token is HTTP 424, so the Studio
+does not mistake it for its own login).
+
+**Tokens.** `PUT .../token` stores the token in `runs/.requirements-credentials.json`, encrypted with Windows DPAPI
+(on other systems the file is owner-only, `chmod 600`). Tokens are never returned, logged or put in the audit; values
+are added to redaction. A tenant uses its own stored token; the `.env` token is used **only** by the local tenant (and
+the command line), so with Studio login on no tenant can use the server owner's token.
+
+Tests: `tests/test_requirements_api.py` (48): filters, keys and links, every import mode, preview, history, and the API
+(end-to-end flow, roles, tenants, shared token, token secrecy, error answers, one import at a time, imports never start
+runs).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -375,8 +430,13 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
   been evaluated live.
 * Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
   decisions follow content (fingerprint), not the number.
-* There is no Studio screen or requirements API yet (Milestones 2–3). Suggestions are listed by `GET /api/approvals`
+* There is no Studio screen yet (Milestone 3); the API exists (Milestone 2). Suggestions are listed by `GET /api/approvals`
   and decided by `POST /api/approvals/{id}/decide` (signed-in reviewer), or by `analysis.review` in Python.
+* Analyses are stored per tenant and work-item key: two Jira sites of one tenant with the same project key would
+  share an analysis (not expected in practice; noted for multi-site tenants).
+* Import jobs run in the Studio process: a restart stops a running import (its cursor resumes it next time).
+* Jira's `parent = KEY` epic filter is used; very old company-managed projects that still need `"Epic Link"` are not
+  covered by the epic filter (use the JQL filter).
 * Plain numbered lists in a description without an acceptance-criteria heading or `AC` labels are not read as
   criteria; the analysis reports `missing_criteria` instead. Criteria written in other languages are not recognized.
 * The zero-result warning needs Jira's approximate-count endpoint; if it is unavailable the warning says the

@@ -10,7 +10,16 @@ import re
 from datetime import UTC, datetime, timedelta
 
 from .client import AtlassianError, Client
-from .models import ISSUE_KEY, WORK_ITEM_TYPE, Connection, SourceKind, SourceRef, content_hash, parse_time
+from .models import (
+    ISSUE_KEY,
+    WORK_ITEM_TYPE,
+    Connection,
+    ImportFilter,
+    SourceKind,
+    SourceRef,
+    content_hash,
+    parse_time,
+)
 
 PAGE_SIZE = 50
 STORY_TYPES = ("Story",)
@@ -34,6 +43,30 @@ def jql_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def balanced(jql: str) -> bool:
+    """Brackets balance and quotes close, outside quoted strings: an extra filter put in (...) cannot step out of
+    them (e.g. 'x) OR (project = OTHER') and widen the import beyond its project."""
+    depth, quote, escaped = 0, "", False
+    for ch in jql or "":
+        if quote:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0 and not quote
+
+
 def build_jql(project: str, issue_types=STORY_TYPES, extra: str = "", since: datetime | None = None,
               order: bool = True) -> str:
     """project = KEY AND issuetype in ("Story") [AND (extra)] [AND updated >= "..."] ORDER BY updated ASC, key ASC
@@ -50,11 +83,104 @@ def build_jql(project: str, issue_types=STORY_TYPES, extra: str = "", since: dat
     if extra:
         if re.search(r"\border\s+by\b", extra, re.I):
             raise ValueError("the extra filter cannot contain ORDER BY")
+        if not balanced(extra):
+            raise ValueError("the extra filter has unbalanced brackets or quotes")
         parts.append(f"({extra})")
     if since is not None:
         start = (since.astimezone(UTC) - OVERLAP).strftime("%Y/%m/%d %H:%M")
         parts.append(f'updated >= "{start}"')
     return " AND ".join(parts) + (" ORDER BY updated ASC, key ASC" if order else "")
+
+
+def filter_jql(f: ImportFilter) -> str:
+    """The narrowing part of an import's JQL (everything but project and types); every value quoted."""
+    def names(values):
+        return ", ".join(jql_string(v) for v in values)
+
+    def next_day(d: str) -> str:
+        return (datetime.strptime(d, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y/%m/%d")
+
+    parts = []
+    if f.epic:
+        parts.append(f"parent = {f.epic}")
+    if f.sprint == "open":
+        parts.append("sprint in openSprints()")
+    elif f.sprint.isdigit():
+        parts.append(f"sprint = {int(f.sprint)}")
+    elif f.sprint:
+        parts.append(f"sprint = {jql_string(f.sprint)}")
+    if f.statuses:
+        parts.append(f"status in ({names(f.statuses)})")
+    if f.priorities:
+        parts.append(f"priority in ({names(f.priorities)})")
+    if f.assignee == "me":
+        parts.append("assignee = currentUser()")
+    elif f.assignee == "unassigned":
+        parts.append("assignee is EMPTY")
+    elif f.assignee:
+        parts.append(f"assignee = {jql_string(f.assignee)}")
+    if f.labels:
+        parts.append(f"labels in ({names(f.labels)})")
+    for field, start, end in (("created", f.created_from, f.created_to), ("updated", f.updated_from, f.updated_to)):
+        if start:
+            parts.append(f'{field} >= "{start.replace("-", "/")}"')
+        if end:
+            parts.append(f'{field} < "{next_day(end)}"')
+    if f.text:
+        parts.append(f"summary ~ {jql_string(f.text)}")
+    if f.jql:
+        if not balanced(f.jql):
+            raise ValueError("the JQL filter has unbalanced brackets or quotes")
+        parts.append(f"({f.jql})")
+    return " AND ".join(parts)
+
+
+MAX_KEYS = 200
+_URL_KEY = re.compile(r"(?:/browse/|[?&]selectedIssue=|/issues/)([A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,9})\b")
+
+
+def parse_issue_refs(text: str, host: str) -> list[str]:
+    """Issue keys from what a person typed: 'QPL-2', 'QPL-2, QPL-5', or work-item links of THIS site
+    (https://<site>/browse/QPL-2, board links with ?selectedIssue=QPL-2, /issues/QPL-2). A link to another site is
+    refused, so a targeted import stays on its connection."""
+    from urllib.parse import unquote, urlparse
+    keys: list[str] = []
+    for token in re.split(r"[\s,;]+", (text or "").strip()):
+        if not token:
+            continue
+        if token.lower().startswith(("http://", "https://")):
+            url = urlparse(token)
+            if url.scheme != "https" or (url.hostname or "").lower() != host.lower():
+                raise ValueError(f"{token[:80]} is not a link to {host}")
+            found = _URL_KEY.findall(unquote(url.path + ("?" + url.query if url.query else "")))
+            if not found:
+                raise ValueError(f"no work-item key in {token[:80]}")
+            key = found[-1]
+        else:
+            key = token.upper()
+            if not ISSUE_KEY.match(key):
+                raise ValueError(f"{token[:40]!r} is not an issue key such as QPL-2")
+        if key not in keys:
+            keys.append(key)
+    if len(keys) > MAX_KEYS:
+        raise ValueError(f"at most {MAX_KEYS} work items at once")
+    return keys
+
+
+def keys_jql(keys: list[str]) -> str:
+    for k in keys:
+        if not ISSUE_KEY.match(k):
+            raise ValueError(f"not an issue key: {k!r}")
+    return f"key in ({', '.join(keys)}) ORDER BY key ASC"
+
+
+def validate_jql(client: Client, jql: str) -> list[str]:
+    """Jira's own check of a query (read-only POST /rest/api/3/jql/parse): [] when valid, else its messages."""
+    data = client.post_read("/rest/api/3/jql/parse", {"queries": [jql]}, params={"validation": "strict"})
+    queries = data.get("queries") or []
+    if not queries or not isinstance(queries[0], dict):
+        raise AtlassianError("invalid_response", "the JQL check gave no answer")
+    return [str(e)[:300] for e in queries[0].get("errors") or []]
 
 
 # ---------------------------------------------------------------- reads
@@ -134,6 +260,13 @@ def search(client: Client, jql: str, fields: list[str], next_page_token: str = "
         raise AtlassianError("invalid_response", "search answer has no issues list")
     token = page.get("nextPageToken") or ""
     return {"issues": issues, "next_page_token": token, "is_last": bool(page.get("isLast", not token))}
+
+
+def get_issue(client: Client, key: str, fields: list[str]) -> dict:
+    """One work item by key (GET /rest/api/3/issue/{key}); AtlassianError 'not_found' when it is gone or hidden."""
+    if not ISSUE_KEY.match(key or ""):
+        raise ValueError("not an issue key")
+    return client.get(f"/rest/api/3/issue/{key}", {"fields": ",".join(fields)})
 
 
 def remote_links(client: Client, key: str) -> list[dict]:

@@ -37,6 +37,14 @@ def register_secret_names(*names: str) -> None:
     _REGISTERED_SECRET_NAMES.update(n for n in names if isinstance(n, str) and n)
 
 
+_REGISTERED_SECRET_VALUES: set[str] = set()  # tokens entered in the Studio (never in the environment)
+
+
+def register_secret_values(*values: str) -> None:
+    """Redact these values too (a token stored through the Studio, which is not an environment variable)."""
+    _REGISTERED_SECRET_VALUES.update(v for v in values if isinstance(v, str) and len(v) >= 8)
+
+
 def extra_secret_names(env=None) -> tuple[str, ...]:
     """Registered secret names plus every Atlassian-style credential name present in the environment."""
     env = os.environ if env is None else env
@@ -302,7 +310,7 @@ def secret_values(include_username: bool = False) -> list[str]:
     names = SECRET_ENV + (("TEST_USERNAME",) if include_username else ())
     names += tuple(k for k in os.environ if k.startswith(("QPILOT_SECRET_", "BLOWAI_SECRET_")))
     names += extra_secret_names()
-    vals = {os.environ.get(n, "") for n in names}
+    vals = {os.environ.get(n, "") for n in names} | _REGISTERED_SECRET_VALUES
     try:
         worker_inputs = json.loads(os.environ.get("ANDROID_CONTRACT_INPUTS", "{}"))
         vals.update(value for value in worker_inputs.get("secrets", {}).values() if isinstance(value, str))

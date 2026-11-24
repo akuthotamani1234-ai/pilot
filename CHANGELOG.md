@@ -2,6 +2,21 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Requirements Intelligence, Milestone 2 (import modes and the Studio API)
+
+- Import modes: incremental (with `new_keys`, `changed_keys`, affected requirements, cancel and resume), full (any
+  work-item type; missing items kept), targeted by keys or work-item links (optional sub-tasks, parent, linked items
+  and linked Confluence pages; never changes a project's cursor or marks other items missing).
+- Filters: epic, sprint, status, priority, assignee, labels, created / updated dates, summary words and extra JQL
+  (quoted, bracket-balanced, no project clause, checked by Jira's read-only JQL parser).
+- Preview with new / updated / unchanged per item and an estimated total; import results with criteria found, needs
+  analysis, duration and last success; sync history (`sync_runs`).
+- `/api/requirements/*`: connections, write-only tokens (DPAPI-encrypted file; `.env` only for the local tenant),
+  connection test, projects, types with counts, spaces, JQL check, preview, background imports with progress and
+  cancel, history, requirements explorer, details, versions, analysis, signed reviews, coverage, overview, audit,
+  capabilities (Phase 4–5 actions reported as not available). Login, roles and tenant isolation on every route.
+- *48 new tests, local mock only.*
+
 ## 2026-11-24 - Requirements Intelligence, Milestone 1 (audit findings fixed)
 
 - Criteria: `AC1:` / `AC-2 -` / `Acceptance criterion 3:` lines without a heading; heading and custom-field variants

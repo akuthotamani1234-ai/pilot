@@ -156,12 +156,33 @@ class MockJira:
                 continue
             if names is not None and f["issuetype"]["name"] not in names:
                 continue
+            if not self._narrowed(issue, jql):
+                continue
             if since:
                 limit = datetime(*map(int, since.groups()), tzinfo=UTC)
                 if datetime.strptime(f["updated"], "%Y-%m-%dT%H:%M:%S.000+0000").replace(tzinfo=UTC) < limit:
                     continue
             out.append(issue)
         return sorted(out, key=lambda i: (i["fields"]["updated"], int(i["key"].split("-")[1])))
+
+    @staticmethod
+    def _narrowed(issue: dict, jql: str) -> bool:
+        """The filter clauses the importer builds: status / priority / labels in (...), parent =, key in (...)."""
+        f = issue["fields"]
+        for field, getter in (("status", lambda: f["status"]["name"]), ("priority", lambda: f["priority"]["name"])):
+            m = re.search(field + r" in \(([^)]*)\)", jql)
+            if m and getter() not in re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1)):
+                return False
+        m = re.search(r"labels in \(([^)]*)\)", jql)
+        if m and not set(f.get("labels") or []) & set(re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))):
+            return False
+        m = re.search(r"parent = ([A-Z][A-Z0-9_]*-\d+)", jql)
+        if m and (f.get("parent") or {}).get("key") != m.group(1):
+            return False
+        m = re.search(r"key in \(([^)]*)\)", jql)
+        if m and issue["key"] not in [x.strip() for x in m.group(1).split(",")]:
+            return False
+        return True
 
     def _handler(self):
         mock = self
@@ -213,6 +234,21 @@ class MockJira:
                         return self._send(404, {"errorMessages": ["No project could be found with key "
                                                                   f"'{m.group(1)}'."]})
                     return self._send(200, {**found, "issueTypes": mock.types})
+                if method == "GET" and (m := re.fullmatch(r"/rest/api/3/issue/([A-Z][A-Z0-9_]*-\d+)", path)):
+                    issue = mock.issues.get(m.group(1))
+                    if issue is None:
+                        return self._send(404, {"errorMessages": ["Issue does not exist or you do not have "
+                                                                  "permission to see it."]})
+                    wanted = set((query.get("fields") or "").split(",")) - {""}
+                    return self._send(200, {**issue, "fields": {k: v for k, v in issue["fields"].items()
+                                                                if not wanted or k in wanted}})
+                if method == "POST" and path == "/rest/api/3/jql/parse":
+                    out = []
+                    for q in body.get("queries") or []:
+                        errors = [] if q.count("(") == q.count(")") and "BAD" not in q else [
+                            "Error in the JQL Query: Expecting either 'OR' or 'AND' but got 'BAD'."]
+                        out.append({"query": q, "errors": errors})
+                    return self._send(200, {"queries": out})
                 if method == "POST" and path == "/rest/api/3/search/approximate-count":
                     return self._send(200, {"count": len(mock._matching(body.get("jql", "")))})
                 if method == "GET" and path == "/rest/api/3/field":

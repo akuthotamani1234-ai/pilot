@@ -5092,6 +5092,10 @@ register_mcp_api(app, jobs, lock, _run_dir, _read_json, mcp_presence, _mcp_visib
 register_privacy_api(app, jobs, lock, mcp_presence,
                      lambda: any(r.get("running") for r in rechecks.values()))
 
+from backend.requirements_api import register_requirements_api  # noqa: E402 - Jira / Confluence requirements
+
+register_requirements_api(app)
+
 from backend.mcp_prepared import register_prepared_api  # noqa: E402 - uses existing start handlers
 
 register_prepared_api(app, RunRequest, start_run, start_mobile_run, prepare_android_device,

@@ -24,7 +24,7 @@ import sys
 from collections.abc import Callable
 
 from ..safety import redact
-from . import analysis, confluence, jira, store, sync
+from . import analysis, confluence, credentials, jira, store, sync
 from .client import AtlassianError, Client
 from .models import DEFAULT_TOKEN_REF, ISSUE_KEY, Connection, Product, SourceKind, safe_error
 
@@ -94,7 +94,8 @@ def _connection_from_args(args, connection_id: str) -> Connection:
 
 
 def _client(args, connection: Connection) -> Client:
-    return Client(connection, base_url=args.base_url, max_retries=2, max_wait=30.0)
+    return Client(connection, secret=credentials.resolver(args.tenant, allow_env=True), base_url=args.base_url, max_retries=2,
+                  max_wait=30.0)
 
 
 def _test(client: Client, connection: Connection) -> dict:
