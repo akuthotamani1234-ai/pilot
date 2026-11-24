@@ -95,8 +95,8 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         expect(page.locator("#stats")).to_contain_text("0requirements imported")
         expect(page.locator("#ovConnections")).to_contain_text("No site connected yet")
         expect(page.locator("#actions")).to_contain_text("Generate test cases")
-        expect(page.locator("#actions .rq-coming")).to_have_count(1)  # (only Jira write-back is still to come)
-        expect(page.locator("#actions .rq-coming")).to_contain_text("Jira write-back")
+        expect(page.locator("#actions .rq-coming")).to_have_count(0)
+        expect(page.locator("#actions a[href='#writeback']")).to_contain_text("Jira writes are off")
         expect(page.locator("#actions a[href='#builder']")).to_contain_text("Generate test cases")
         expect(page.locator("#actions a[href='#execution']")).to_contain_text("Run tests")
         expect(page.locator("#actions a[href='#traceability']")).to_contain_text("View traceability")
@@ -284,8 +284,9 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
             expect(link).to_have_attribute("aria-current", "page")
             page.wait_for_load_state("networkidle")
             if view == "writeback":
-                expect(section.get_by_text("Upcoming", exact=False)).to_be_visible()
-            if view in {"builder", "execution", "agents", "evidence", "traceability"}:
+                expect(section.locator("#wbState")).to_contain_text("off (QPILOT_JIRA_WRITEBACK=1 not set)")
+                expect(section.locator("#wbState")).to_contain_text("not stored")
+            if view in {"builder", "execution", "agents", "evidence", "traceability", "writeback"}:
                 expect(section).not_to_contain_text("Upcoming")
             if view == "execution":
                 expect(section.locator("#exAuth")).not_to_be_checked()
@@ -549,4 +550,78 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         assert not errors, errors
     finally:
         server.jobs.pop(5151, None)
+        ctx.close()
+
+
+def test_defects_and_write_back_in_chromium_never_send_while_off(browser, studio, monkeypatch, tmp_path):
+    """Phase 5 in the browser: a failed requirement test -> a defect -> a proposed Jira bug and a results comment,
+    each with the exact request previewed, approved by the reviewer - and still NOT sent, because write-back is off."""
+    import json
+    from urllib.parse import quote
+
+    import httpx
+
+    from backend import server
+    monkeypatch.delenv("QPILOT_JIRA_WRITEBACK", raising=False)
+    h = {"X-Agentic-QA": "1"}
+    with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
+        c.post("/api/requirements/connections", json={
+            "id": "jira-main", "product": "jira", "site_url": "https://aimaniforall1234-1795449805793.atlassian.net",
+            "email": EMAIL})
+        c.put("/api/requirements/connections/jira-main/token", json={"token": TOKEN})
+        job = c.post("/api/requirements/connections/jira-main/imports", json={"mode": "items", "keys": "QPL-2"}).json()
+        rapi.JOBS.wait(job["id"])
+        analysis = c.post("/api/requirements/items/jira-main/QPL-2/analyze", json={}).json()["analysis"]
+        for s in analysis["suggestions"][:2]:
+            c.post(f"/api/requirements/items/jira-main/QPL-2/suggestions/{quote(s['id'], safe='')}/review",
+                   json={"answer": "yes"})
+        c.post("/api/requirements/items/jira-main/QPL-2/test-cases")
+        monkeypatch.setattr(server, "_launch_run", lambda req, caller: (
+            server.jobs.__setitem__(5252, {"id": 5252, "status": "running", "run": ""}) or {"id": 5252}))
+        ex = c.post("/api/requirements/executions", json={
+            "strategy": "requirements", "scope": {"requirements": ["QPL-2"]},
+            "target": {"url": "https://www.saucedemo.com/", "authorized": True}}).json()["execution"]
+        run = tmp_path / "runs" / "ui_fail"
+        run.mkdir(parents=True)
+        (run / "test_cases.json").write_text(json.dumps([{
+            "requirement_test": "TC-QPL-2-1", "execution_status": "Failed", "actual_result": "the dashboard never opened",
+            "failure_category": "Application defect (potential website bug)", "confidence": "high"}]))
+        monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
+        server.jobs[5252].update(status="done", run="ui_fail")
+        assert c.get(f"/api/requirements/executions/{ex['id']}").json()["execution"]["status"] == "finished"
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        page.goto(studio.url + "/requirements#execution")
+        page.get_by_role("button", name=ex["id"]).click()
+        page.get_by_role("button", name="Propose these results to Jira").click()
+        expect(page.locator("#view-writeback")).to_be_visible()
+        writes = page.locator("#wbWrites")
+        expect(writes).to_contain_text("comment on QPL-2")
+        expect(writes).to_contain_text("TC-QPL-2-1")
+        table = page.locator("#dfTable")
+        expect(table).to_contain_text("TC-QPL-2-1")
+        expect(table).to_contain_text("likely defect")
+        expect(table).to_contain_text("the dashboard never opened")
+        table.get_by_role("button", name="Propose Jira bug").click()
+        expect(writes).to_contain_text("new issue in QPL")
+        bug = writes.locator("article", has_text="new issue in QPL")
+        bug.get_by_text("Exact request that would be sent").click()
+        expect(bug).to_contain_text('"issuelinks"')
+        bug.get_by_role("button", name="Approve").click()
+        bug = writes.locator("article", has_text="new issue in QPL")
+        expect(bug).to_contain_text("approved by local-user")
+        send = bug.get_by_role("button", name="Send to Jira")
+        expect(send).to_be_disabled()
+        expect(bug).to_contain_text("the server owner has not allowed write-back")
+        expect(page.locator("#wbState input[name=enabled]")).to_be_disabled()
+        page.locator("#wbState input[name=wtoken]").fill("not-a-real-token-but-long-enough-1234567890")
+        page.get_by_role("button", name="Store write token").click()
+        expect(page.locator("#wbState")).to_contain_text("stored (studio)")
+        assert "not-a-real-token-but-long-enough" not in page.content()
+        writes_to_jira = [r for r in studio.mock.requests if r["method"] == "POST" and (
+            r["path"] == "/rest/api/3/issue" or r["path"].endswith("/comment"))]
+        assert writes_to_jira == []  # (nothing was written to Jira)
+        assert not errors, errors
+    finally:
+        server.jobs.pop(5252, None)
         ctx.close()

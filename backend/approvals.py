@@ -17,9 +17,9 @@ from .human_review import WAITING, decide
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = ROOT / "artifacts" / "approvals.sqlite"
 # Kinds that only Qpilot itself creates (never the public POST /api/approvals), each tied to a record elsewhere.
-INTERNAL_KINDS = frozenset({"requirement_suggestion"})
+INTERNAL_KINDS = frozenset({"requirement_suggestion", "jira_write"})
 # Kinds decided only by a named person (an authenticated reviewer, recorded in decided_by).
-NAMED_REVIEW_KINDS = frozenset({"requirement_suggestion"})
+NAMED_REVIEW_KINDS = frozenset({"requirement_suggestion", "jira_write"})
 
 
 def _connect(path: Path | None = None) -> sqlite3.Connection:

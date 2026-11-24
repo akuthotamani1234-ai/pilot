@@ -4,8 +4,9 @@ Status: **Phases 0–3 complete against a mock Atlassian site and a stub AI (rea
 connectors, sync, story ↔ page links, requirement analysis). Phase 4 (requirement → executable test case → a real
 Qpilot run → real results and traceability) is implemented for websites.** It was proven end to end once with a real
 Qpilot run and a real AI (OpenAI) against a local SauceDemo-like site and a mock Jira story QPL-2 (see "Phase 4" below).
-There is no live Atlassian evidence yet. Android requirement runs, defect intelligence and Jira write-back are not
-implemented. Nothing is written to Atlassian.
+There is no live Atlassian evidence yet. Phase 5 (defects; Jira write-back with approval, preview and idempotency)
+is implemented and tested against the mock only; write-back is off by default and has never written to a real
+Jira. Android requirement runs are not implemented.
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
 become reviewed test cases. Those run on Qpilot's existing web (Playwright) and Android (Appium) engines. The results
@@ -488,6 +489,54 @@ real browser).
 **Not yet:** Android requirement runs (the target selector shows it as the next milestone); sprint and Confluence-only
 scopes beyond a page's linked stories; defect intelligence; Jira write-back (off; Phase 5, every write needs approval).
 
+## Phase 5: defects and controlled Jira write-back (implemented; writes OFF, tested only against the mock)
+
+**Defect intelligence** (`backend/atlassian/defects.py`, table `req_defects`). Built only from stored real results.
+One defect per test case and failure signature (the actual result with numbers removed): the same failure in a later
+run is the same defect (occurrences, executions, latest evidence), never a duplicate. Triage comes from the engine's
+own failure analysis (`failure_category`, now kept on each result): `likely_defect` (application defect, expected
+result not met), `test_problem` (locator, test script, test data: fix the test), `environment` (network, timeout,
+authentication, third party), `needs_triage`. Lifecycle: `open` → `resolved` (a later run of the test case passed) →
+`reopened` (failed again; marked as a regression). `dismissed` needs a named person and a reason, and survives later
+refreshes. Flaky, Blocked, Not automated and Not run results are never defects. Traceability rows now end with the
+test case's defects (story → criterion → test case → run → result → evidence → defect → Jira issue).
+
+**Write-back** (`backend/atlassian/writeback.py`, tables `req_writes`, `req_writeback_settings`), built on the
+`OutboundWrite` contract and the approvals queue (kind `jira_write`, decided by a named person only):
+
+| Step | What happens |
+|---|---|
+| Propose | `results comment`: one comment per Jira story with each test case's real result; `defect`: one Bug (project from the settings or the story's project, issue type from the settings), linked to the story, with steps, expected, actual, evidence and classification. Only open, likely or untriaged defects. Nothing is sent |
+| Preview | The exact JSON that would be posted is stored with the proposal and shown in the UI |
+| Approve / reject | A named, signed-in reviewer; recorded in the approvals queue and the audit. The generic `/api/approvals/{id}/decide` refuses this kind (409) |
+| Send | Only when **all** hold: the server owner set `QPILOT_JIRA_WRITEBACK=1`; a workspace admin switched write-back on for the connection; a separate write token `JIRA_WRITE_API_TOKEN` is stored (the read token never writes); the write is approved. Otherwise 403 and nothing is sent |
+| Idempotency | The key is the hash of tenant, operation, target and content: the same proposal twice is one proposal; a sent write is never sent again. Each write carries a marker (comment text, issue label `qpilot-<key>`); before sending, and before any retry, Jira is read for it, so a write whose answer was lost is recorded, not repeated |
+| Audit | Proposal, decision, refusal, send and failure, never a token |
+
+`client.WriteClient` is the only code that can write, and only two things: `POST /rest/api/3/issue` and
+`POST /rest/api/3/issue/{key}/comment`. The read `Client` still refuses every write, even through its private
+method. A write is not retried after a network error or a 5xx (it may have arrived): the next attempt checks the
+marker first. Only 429 is retried.
+
+API: `GET defects`, `GET defects/{id}`, `POST defects/{id}/dismiss` (review.write); `GET writeback` (readiness per
+connection with the reasons sending is blocked, proposals), `PUT writeback/settings/{conn}` and
+`PUT / DELETE writeback/token` (tenant.manage), `POST writeback/proposals` (run.write), `GET writeback/{id}`,
+`POST writeback/{id}/approve | reject` (review.write), `POST writeback/{id}/send` (tenant.manage).
+`GET capabilities` reports `jira_write_back: true` only when the server owner allows it.
+
+UI: **Defects and Write-back** (defects with triage, severity, status, regression, occurrences and Jira key; propose a
+bug; dismiss with a reason; write-back readiness and settings; write token; proposals with the text, the exact
+request, approve / reject / send, and history). The Execution Center proposes an execution's results to Jira.
+
+Tests: `tests/test_requirements_writeback.py` (8: one defect per failure, resolve / reopen / regression, triage,
+dismissal, previews, idempotent proposals, every refusal, send once with the write token, a lost answer found by
+its marker and not repeated, only two kinds of write, tenant isolation) and
+`tests/test_requirements_ui.py::test_defects_and_write_back_in_chromium_never_send_while_off`.
+
+**Not done:** no write has been made to a real Jira (none is allowed without your explicit approval; the server
+switch is off). Attachments are not uploaded (evidence is referenced by file name). Results comments are not
+de-duplicated across different executions with identical results (each execution is its own comment).
+
 ## Phase plan and acceptance criteria
 
 | Phase | Delivers | Accepted when |
@@ -497,7 +546,7 @@ scopes beyond a page's linked stories; defect intelligence; Jira write-back (off
 | 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance ✅ (mock only) |
 | 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works ✅ (mock + stub AI) |
 | 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results ✅ web (real run, mock Jira); Android not yet |
-| 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval |
+| 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval ✅ (mock only; writes off) |
 | 6 | Studio workspace | UI tests on desktop and phone widths |
 | 7 | Full test matrix and live acceptance on a real test site | Real evidence, recorded in `STATUS.md` |
 
@@ -547,7 +596,7 @@ push them past the fixtures' 1-hour limit (seen once with `-n 6` on 4 CPUs; setu
   been evaluated live.
 * Re-analysis numbers criteria in reading order, so an inserted criterion renumbers the ones after it. Review
   decisions follow content (fingerprint), not the number.
-* The workspace has no defect or write-back screens yet (Phase 5). With Studio login on, the access token must be pasted again after a page reload. Suggestions are listed by `GET /api/approvals`
+* With Studio login on, the access token must be pasted again after a page reload. Suggestions are listed by `GET /api/approvals`
   and decided by `POST /api/approvals/{id}/decide` (signed-in reviewer), or by `analysis.review` in Python.
 * Analyses are stored per tenant and work-item key: two Jira sites of one tenant with the same project key would
   share an analysis (not expected in practice; noted for multi-site tenants).

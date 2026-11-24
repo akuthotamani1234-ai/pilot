@@ -1,4 +1,4 @@
-"""One read-only HTTP client for Atlassian Cloud (Jira, Confluence).
+"""The HTTP clients for Atlassian Cloud (Jira, Confluence): Client reads; WriteClient is the only way to write.
 
   auth        Basic: the connection's email + the token read from the secret NAMED by token_ref, at request time
               (the token is never kept on the client object's public fields, never logged, never in an error)
@@ -8,12 +8,18 @@
   redirects   never followed (a redirect to another host could carry the credential away)
   size        a response bigger than MAX_BYTES is refused
 Tests point base_url at a local mock server: only http(s)://127.0.0.1 / localhost is accepted for that.
+
+WriteClient (Phase 5 write-back) adds exactly two writes - create an issue, add a comment (WRITE_PATHS) - with its
+own token (a separate secret, never the read token). Only backend/atlassian/writeback.send uses it, and only for a
+write a named person approved, with write-back switched on by the server owner. A write is never retried after a
+network error or a 5xx (it may have arrived): writeback.send looks in Jira for its marker before it tries again.
 """
 from __future__ import annotations
 
 import email.utils
 import json
 import os
+import re
 import time
 from collections.abc import Callable
 from urllib.parse import urlparse
@@ -26,6 +32,8 @@ from .models import LOOKS_LIKE_SECRET, Connection
 # Jira POST endpoints that only read: search, its count, and the JQL syntax check
 READ_POSTS = frozenset({"/rest/api/3/search/jql", "/rest/api/3/search/approximate-count", "/rest/api/3/jql/parse"})
 RETRY_STATUS = frozenset({429, 502, 503, 504})
+# the only writes there are: create an issue, add a comment to an issue (WriteClient.post_write)
+WRITE_PATHS = (re.compile(r"/rest/api/3/issue"), re.compile(r"/rest/api/3/issue/[A-Z][A-Z0-9_]{0,19}-\d{1,9}/comment"))
 MAX_BYTES = 10 * 1024 * 1024
 USER_AGENT = "Qpilot-RequirementsIntelligence/1"
 
@@ -102,9 +110,13 @@ class Client:
             raise AtlassianError("refused", f"POST {path} is not a read-only endpoint")
         return self._request("POST", path, params=params, payload=body)
 
-    def _request(self, method: str, path: str, params: dict | None = None, payload: dict | None = None) -> dict:
+    def _request(self, method: str, path: str, params: dict | None = None, payload: dict | None = None,
+                 write: bool = False) -> dict:
         # (a second lock behind get / post_read: nothing in this package can send a write through this client)
-        if method != "GET" and not (method == "POST" and path in READ_POSTS):
+        if write:
+            if not (isinstance(self, WriteClient) and method == "POST" and any(p.fullmatch(path) for p in WRITE_PATHS)):
+                raise AtlassianError("refused", f"{method} {path} is not an allowed write")
+        elif method != "GET" and not (method == "POST" and path in READ_POSTS):
             raise AtlassianError("refused", f"{method} {path} would change Atlassian data: this client only reads")
         if not path.startswith("/") or "://" in path or ".." in path.split("/"):
             raise AtlassianError("refused", "path must be a site-relative API path")
@@ -119,11 +131,18 @@ class Client:
                                          allow_redirects=False, stream=True,
                                          headers={"Accept": "application/json", "User-Agent": USER_AGENT})
             except requests.RequestException as error:
+                if write:  # (it may have arrived: never sent again blindly)
+                    raise AtlassianError("network", "the write may or may not have reached Atlassian ("
+                                         + self._clean(type(error).__name__) + "); a retry checks Jira first") from None
                 if attempt > self.max_retries:
                     raise AtlassianError("network", self._clean(f"{type(error).__name__}: {error}")) from None
                 self.sleep(min(self.max_wait, self.backoff * 2 ** (attempt - 1)))
                 continue
             status = r.status_code
+            if write and status in RETRY_STATUS and status != 429:
+                r.close()
+                raise AtlassianError("server", f"HTTP {status}: the write may or may not have been applied; a retry "
+                                               "checks Jira first", status)
             if status in RETRY_STATUS:
                 wait = retry_after_seconds(r.headers.get("Retry-After"))
                 r.close()
@@ -184,3 +203,12 @@ class Client:
             if data.get("message"):
                 msgs.append(str(data["message"]))
         return self._clean("; ".join(msgs) or default)
+
+
+class WriteClient(Client):
+    """Writes to Jira - two kinds only (WRITE_PATHS). Its connection's token_ref names the WRITE secret."""
+
+    def post_write(self, path: str, body: dict) -> dict:
+        if not any(p.fullmatch(path) for p in WRITE_PATHS):
+            raise AtlassianError("refused", f"POST {path} is not an allowed write")
+        return self._request("POST", path, payload=body, write=True)

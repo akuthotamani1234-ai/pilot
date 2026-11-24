@@ -2,6 +2,19 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-24 - Requirements Intelligence, Phase 5 (defects and controlled Jira write-back)
+
+- `backend/atlassian/defects.py`: defect records from real requirement-test failures - one per test case and failure
+  signature, triaged from the engine's failure analysis, resolved / reopened (regression), dismissible with a reason.
+- `backend/atlassian/writeback.py`: proposals (results comment per story, Bug linked to its story) with the exact
+  request stored as a preview; approval by a named reviewer (`jira_write` approvals); sending only when the server
+  owner allows it (`QPILOT_JIRA_WRITEBACK=1`), the workspace switched it on and a separate `JIRA_WRITE_API_TOKEN` is
+  stored; idempotency key + marker read back from Jira before any send or retry; full audit.
+- `client.WriteClient`: the only writer, limited to creating an issue and adding a comment; no blind retries.
+- API routes for defects and write-back; Studio screen "Defects and Write-back"; traceability rows end with defects.
+- Tests: `tests/test_requirements_writeback.py` (8) and a browser test. Writes stay off; nothing was written to a
+  real Jira.
+
 ## 2026-11-24 - Requirements Intelligence, Phase 4 (requirements to execution, websites)
 
 - `backend/atlassian/bridge.py`: test cases from accepted ideas (`TC-<KEY>-<n>`, versioned, fingerprinted,

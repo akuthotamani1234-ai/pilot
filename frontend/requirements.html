@@ -315,8 +315,14 @@
       <h2 class="rq-sub">Approved coverage</h2><p class="small">Coverage reflects reviewed test ideas. Out-of-date source analyses are identified below.</p><div id="rqCoverage" aria-live="polite"></div><h2 class="rq-sub">Executed coverage</h2><p class="small">Counted only from test cases that really ran. Approved ideas and generated test cases are planned coverage, never executed coverage.</p><div id="rqExecCoverage" aria-live="polite"></div>
     </section>
     <section class="rq-view" id="view-writeback" data-title="Defects and Write-back" hidden>
-      <header class="rq-head"><h1>Defects and Write-back</h1></header>
-      <div class="lab-card"><span class="rq-badge info">Upcoming · Phase 5</span><p>Requirements Intelligence uses read-only connections. Defect proposals, approval and write history require the Phase 5 write-back workflow.</p><a href="#integrations">View integrations and legacy Jira configuration</a></div>
+      <header class="rq-head"><h1>Defects and Write-back</h1><p class="small">Failures of requirement tests become defect records (the same failure again is the same defect). Nothing is written to Jira unless the server owner allows it, a workspace admin switches it on with a separate write token, and a named person approves each write after seeing exactly what will be sent.</p></header>
+      <div class="lab-card" id="wbState" role="status" aria-live="polite"><p class="small">Loading…</p></div>
+      <h2 class="rq-sub">Defects</h2>
+      <form class="rq-toolbar" id="dfForm" role="search"><label for="dfStatus" class="rq-sr">Defect status</label><select id="dfStatus"><option value="">All defects</option><option value="open">Open</option><option value="reopened">Reopened</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option></select></form>
+      <div class="rq-table-wrap"><table class="rq-table" id="dfTable"><caption class="rq-sr">Defects found by requirement tests</caption>
+        <thead><tr><th scope="col">Defect</th><th scope="col">Requirement</th><th scope="col">Test case</th><th scope="col">Triage</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Seen</th><th scope="col">Jira</th><th scope="col">Actions</th></tr></thead><tbody></tbody></table></div>
+      <h2 class="rq-sub">Proposed Jira writes</h2>
+      <div id="wbWrites"></div>
     </section>
     <section class="rq-view" id="view-settings" data-title="Settings" hidden>
       <header class="rq-head"><h1>Settings</h1></header>

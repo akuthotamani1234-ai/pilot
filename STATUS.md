@@ -16,8 +16,14 @@ generate, edit, approve, stale detection); the Execution Center runs them throug
 (requirement-based, hybrid or autonomous; selected / requirements / all approved / failed / impacted / regression /
 epic scopes; cancel); results per case with evidence; traceability matrix with CSV export; executed coverage kept
 apart from planned. One real end-to-end run (mock Jira QPL-2, local SauceDemo-like site, OpenAI): TC-QPL-2-1 Passed
-with real assertions, TC-QPL-2-2 Not automated. **Not done:** Android requirement runs, defect intelligence, Jira
-write-back (off), live Jira / SauceDemo acceptance (waits for authorization and credentials).
+with real assertions, TC-QPL-2-2 Not automated.
+
+**Phase 5 (defects and controlled write-back):** defect records from real failures (deduplicated, triaged,
+resolved / reopened, dismissible with a reason), Jira write-back proposals (results comment, Bug linked to the
+story) with the exact request previewed, named-reviewer approval, idempotency markers and audit. Writes are OFF
+(`QPILOT_JIRA_WRITEBACK`, workspace switch and a separate write token all required); tested against the mock only.
+**Not done:** Android requirement runs; live Jira / SauceDemo acceptance (waits for authorization and credentials);
+no real Jira write has been made.
 
 **Milestone 4 (prepared, not run live):** opt-in live read-only acceptance test for the QPL project
 (`tests/test_live_jira_acceptance.py`), rehearsed against the mock. It waits for the Atlassian token to be configured

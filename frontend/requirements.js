@@ -77,7 +77,8 @@
     banner("");
     ({ overview, integrations, import: wizardOpen, explorer, analysis: analysisView, reviews,
       confluence: confluenceView, coverage: coverageView, history, settings: settingsView, builder,
-      execution: executionCenter, agents: liveView, evidence: evidenceView, traceability: traceabilityView })[view]?.();
+      execution: executionCenter, agents: liveView, evidence: evidenceView, traceability: traceabilityView,
+      writeback: writebackView })[view]?.();
   }
   window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
   document.querySelector(".rq-skip").addEventListener("click", (event) => {
@@ -126,7 +127,7 @@
       caps.generate_test_cases ? go("Generate test cases", "from accepted ideas", "#builder") : later("generate_test_cases", "Generate test cases"),
       caps.run_selected_tests ? go("Run tests", "selected, impacted or all approved", "#execution") : later("run_selected_tests", "Run selected tests"),
       caps.traceability ? go("View traceability", "story → test → real result", "#traceability") : later("traceability", "Traceability"),
-      caps.jira_write_back ? null : later("jira_write_back", "Jira write-back")));
+      caps.defects ? go("Defects and write-back", caps.jira_write_back ? "approve and send Jira updates" : "defects; Jira writes are off", "#writeback") : later("jira_write_back", "Jira write-back")));
   }
   const statusBadge = (s) => badge(s || "—", { complete: "ok", partial: "warn", failed: "bad", cancelled: "warn", running: "info" }[s] || "");
   function navCount(n) { const c = $("navReviews"); c.hidden = !n; c.textContent = n || ""; c.setAttribute("aria-label", `${n} waiting`); }
@@ -1015,6 +1016,96 @@
     $("detail").addEventListener("close", () => document.querySelectorAll(".rq-tabs").forEach((t) => { t.hidden = false; }), { once: true });
   }
 
+
+  // ---------------------------------------------------------------- defects and controlled write-back (Phase 5)
+  const WB = { canReview: false };
+  async function writebackView() {
+    try {
+      const s = await api("/writeback");
+      WB.canReview = s.can_review;
+      const conns = s.connections;
+      $("wbState").replaceChildren(...kids(
+        h("h2", { class: "rq-sub", text: "Jira write-back" }),
+        h("dl", { class: "rq-kv" },
+          h("dt", { text: "Server owner" }), h("dd", {}, s.server_allows ? badge("allows write-back", "ok") : badge(`off (${s.server_setting}=1 not set)`, "warn")),
+          h("dt", { text: "Write token" }), h("dd", {}, s.write_token.configured ? badge(`stored (${s.write_token.source})`, "ok") : badge("not stored", "warn"))),
+        conns.length ? conns.map((c) => h("form", { class: "rq-inline rq-wbset", "aria-label": `Write-back settings for ${c.connection_id}`, onsubmit: async (e) => {
+          e.preventDefault();
+          const out = e.target.querySelector("output");
+          try {
+            await api(`/writeback/settings/${encodeURIComponent(c.connection_id)}`, { method: "PUT", body: { enabled: e.target.enabled.checked, project_key: e.target.project.value.trim(), issue_type: e.target.itype.value.trim() || "Bug" } });
+            writebackView();
+          } catch (err) { out.textContent = err.message; }
+        } }, h("b", { text: `${c.connection_id} (${c.site_url})` }), " ", c.can_send ? badge("can send approved writes", "ok") : badge("sending blocked", "warn"),
+          h("label", { class: "rq-check" }, h("input", { type: "checkbox", name: "enabled", checked: c.enabled, disabled: !s.server_allows }), " write-back on"),
+          h("label", {}, "Project for defects", h("input", { name: "project", value: c.project_key, placeholder: "the story's project", size: 8 })),
+          h("label", {}, "Issue type", h("input", { name: "itype", value: c.issue_type, size: 8 })),
+          h("button", { class: "secondary", type: "submit", text: "Save" }), h("output", { class: "small", role: "alert" }),
+          c.blocked_because.length ? h("p", { class: "small", text: `Not sent because: ${c.blocked_because.join("; ")}.` }) : null))
+          : h("p", { class: "small" }, "No Jira connection yet. ", h("a", { href: "#integrations", text: "Connect Jira" }), "."),
+        h("form", { class: "rq-inline", "aria-label": "Jira write token", onsubmit: async (e) => {
+          e.preventDefault();
+          const out = e.target.querySelector("output");
+          try { await api("/writeback/token", { method: "PUT", body: { token: e.target.wtoken.value } }); e.target.wtoken.value = ""; writebackView(); }
+          catch (err) { e.target.wtoken.value = ""; out.textContent = err.message; }
+        } }, h("label", {}, "Write token (separate from the read token; never shown again)", h("input", { name: "wtoken", type: "password", autocomplete: "new-password", required: true })),
+          h("button", { class: "secondary", type: "submit", text: "Store write token" }), h("output", { class: "small", role: "alert" }))));
+      defectList();
+      writesList(s.writes, conns);
+    } catch (e) { $("wbState").replaceChildren(h("p", { class: "small", text: e.message })); }
+  }
+  $("dfStatus").addEventListener("change", () => defectList());
+  $("dfForm").addEventListener("submit", (e) => e.preventDefault());
+  async function defectList() {
+    const tbody = $("dfTable").tBodies[0];
+    try {
+      const r = await api(`/defects?${new URLSearchParams({ status: $("dfStatus").value })}`);
+      tbody.replaceChildren(...kids(r.defects.map((d) => h("tr", {},
+        h("td", {}, h("b", { text: d.id }), h("div", { class: "small", text: d.actual })),
+        h("td", { text: d.requirement_id }),
+        h("td", {}, h("button", { class: "rq-open", type: "button", text: d.test_case_id, onclick: () => tcDetail(d.test_case_id) })),
+        h("td", {}, badge(d.triage.replaceAll("_", " "), { likely_defect: "bad", needs_triage: "warn" }[d.triage] || "")),
+        h("td", { text: d.severity }),
+        h("td", {}, badge(d.status, { open: "bad", reopened: "bad", resolved: "ok" }[d.status] || ""), d.regression ? badge("regression", "warn") : null),
+        h("td", { text: `${plural(d.occurrences, "time")}, last ${when(d.last_seen)}` }),
+        h("td", { text: d.jira_issue || "—" }),
+        h("td", {}, ["open", "reopened"].includes(d.status) && !d.jira_issue && ["likely_defect", "needs_triage"].includes(d.triage)
+          ? h("button", { class: "secondary", type: "button", text: "Propose Jira bug", onclick: async (e) => {
+            try { await api("/writeback/proposals", { method: "POST", body: { defect_id: d.id } }); writebackView(); }
+            catch (err) { e.target.after(h("span", { class: "small", role: "alert", text: ` ${err.message}` })); }
+          } }) : null,
+          ["open", "reopened"].includes(d.status) && WB.canReview ? h("details", { class: "rq-dismiss" }, h("summary", { text: "Not a defect…" }),
+            h("form", { onsubmit: async (e) => {
+              e.preventDefault();
+              try { await api(`/defects/${encodeURIComponent(d.id)}/dismiss`, { method: "POST", body: { reason: e.target.reason.value } }); defectList(); }
+              catch (err) { e.target.querySelector("output").textContent = err.message; }
+            } }, h("label", {}, `Why is ${d.id} not a defect?`, h("input", { name: "reason", required: true, minlength: 3 })),
+              h("button", { class: "secondary", type: "submit", text: "Dismiss defect" }), h("output", { class: "small", role: "alert" }))) : null)))));
+      if (!r.defects.length) tbody.append(h("tr", {}, h("td", { colspan: 9, class: "rq-empty", text: "No defects. Failed requirement tests appear here." })));
+    } catch (e) { tbody.replaceChildren(h("tr", {}, h("td", { colspan: 9, class: "rq-empty", text: e.message }))); }
+  }
+  function writesList(writes, conns) {
+    const can = Object.fromEntries(conns.map((c) => [c.connection_id, c]));
+    $("wbWrites").replaceChildren(...kids(writes.length ? writes.map((w) => {
+      const c = can[w.connection_id] || { can_send: false, blocked_because: ["no such Jira connection"] };
+      const out = h("p", { class: "small", role: "status", "aria-live": "polite" });
+      const act = async (path) => { try { await api(`/writeback/${encodeURIComponent(w.id)}/${path}`, { method: "POST" }); writebackView(); } catch (err) { out.textContent = err.message; } };
+      return h("article", { class: "rq-review", "aria-label": `${w.id} ${w.operation} ${w.target}` },
+        h("h3", { text: `${w.id} — ${w.operation === "add_comment" ? "comment on" : "new issue in"} ${w.target}` }),
+        h("div", { class: "rq-row" }, badge(w.status, { proposed: "info", approved: "ok", sent: "ok", rejected: "", failed: "bad" }[w.status] || ""),
+          w.remote_id ? badge(`Jira: ${w.remote_id}`, "ok") : null, h("span", { class: "small", text: `proposed by ${w.created_by} ${when(w.created_at)}` })),
+        w.operation === "add_comment" ? h("pre", { class: "rq-pre", text: w.payload.text }) : h("div", {}, h("p", {}, h("b", { text: w.payload.summary })), h("pre", { class: "rq-pre", text: w.payload.description })),
+        h("details", {}, h("summary", { text: "Exact request that would be sent" }), h("pre", { class: "rq-pre", text: JSON.stringify(w.preview, null, 2) })),
+        w.last_error ? h("p", { class: "rq-issue", text: `Last attempt: ${w.last_error}` }) : null,
+        h("div", { class: "rq-row" },
+          w.status === "proposed" && WB.canReview ? h("button", { class: "primary", type: "button", text: "Approve", onclick: () => act("approve") }) : null,
+          w.status === "proposed" && WB.canReview ? h("button", { class: "secondary", type: "button", text: "Reject", onclick: () => act("reject") }) : null,
+          ["approved", "failed"].includes(w.status) ? h("button", { class: "primary", type: "button", text: w.status === "failed" ? "Retry sending" : "Send to Jira", disabled: !c.can_send,
+            title: c.can_send ? "" : c.blocked_because.join("; "), onclick: () => act("send") }) : null,
+          ["approved", "failed"].includes(w.status) && !c.can_send ? h("span", { class: "small", text: `Not sendable: ${c.blocked_because.join("; ")}.` }) : null),
+        h("ul", { class: "rq-audit" }, w.history.map((x) => h("li", {}, h("time", { text: when(x.at) }), x.event))), out);
+    }) : h("p", { class: "rq-empty", text: "No proposed writes. Propose results from an execution, or a bug from a defect." })));
+  }
   // -- execution center
   async function executionCenter() {
     tcCount();
@@ -1072,7 +1163,11 @@
           h("thead", {}, h("tr", {}, ["Test case", "Result", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
           h("tbody", {}, d.results.map((r) => h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: r.test_case_id, onclick: () => tcDetail(r.test_case_id) })),
             h("td", {}, resultBadge(r.status)), h("td", { text: r.actual || r.reason || "" }), h("td", {}, ...evidenceLinks(r))))))) : null,
-        ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — in the full Qpilot report.` }) : null)));
+        ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — in the full Qpilot report.` }) : null,
+        !running && d.results.length ? h("div", { class: "rq-row" }, h("button", { class: "secondary", type: "button", text: "Propose these results to Jira", onclick: async (e) => {
+          try { await api("/writeback/proposals", { method: "POST", body: { execution_id: id } }); location.hash = "#writeback"; }
+          catch (err) { e.target.after(h("span", { class: "small", role: "alert", text: ` ${err.message}` })); }
+        } }), h("span", { class: "small", text: "Only a proposal: you see exactly what would be written, and nothing is sent without approval." })) : null)));
       if (running) X.poll = setTimeout(() => { if (location.hash === "#execution" || location.hash === "#agents") { exDetail(id); liveView(); } }, 3000);
       else exList();
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }

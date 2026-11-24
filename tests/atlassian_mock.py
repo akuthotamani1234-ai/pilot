@@ -66,6 +66,9 @@ class MockJira:
         self.requests: list[dict] = []
         self.generation = 0  # page tokens of older generations are 'expired'
         self.remote_links: dict[str, list[dict]] = {}
+        self.comments: dict[str, list[dict]] = {}  # (Phase 5 write-back: written comments, per issue)
+        self.created: list[dict] = []  # (issues created through POST /rest/api/3/issue)
+        self.drop_write_answer = 0  # (n writes are applied but their answer is lost: a network failure)
         self.spaces = [{"id": "100", "key": "ENG", "name": "Engineering", "type": "global", "status": "current"}]
         self.pages: dict[str, dict] = {}
         self.forbidden: set[str] = set()  # page ids answered 403
@@ -148,6 +151,7 @@ class MockJira:
         project = re.search(r"project = ([A-Z][A-Z0-9_]*)", jql)
         since = re.search(r'updated >= "(\d{4})/(\d\d)/(\d\d) (\d\d):(\d\d)"', jql)
         types = re.search(r"issuetype in \(([^)]*)\)", jql)
+        label = re.search(r'labels = "([^"]+)"', jql)
         names = re.findall(r'"((?:[^"\\]|\\.)*)"', types.group(1)) if types else None
         out = []
         for issue in self.issues.values():
@@ -155,6 +159,8 @@ class MockJira:
             if project and f["project"]["key"] != project.group(1):
                 continue
             if names is not None and f["issuetype"]["name"] not in names:
+                continue
+            if label and label.group(1) not in (f.get("labels") or []):
                 continue
             if not self._narrowed(issue, jql):
                 continue
@@ -271,6 +277,40 @@ class MockJira:
                     if not data["isLast"]:
                         data["nextPageToken"] = base64.b64encode(f"{mock.generation}:{start + size}".encode()).decode()
                     return self._send(200, data)
+                if (m := re.fullmatch(r"/rest/api/3/issue/([A-Z][A-Z0-9_]*-\d+)/comment", path)) and method in (
+                        "GET", "POST"):
+                    if m.group(1) not in mock.issues:
+                        return self._send(404, {"errorMessages": ["Issue does not exist"]})
+                    found = mock.comments.setdefault(m.group(1), [])
+                    if method == "GET":
+                        return self._send(200, {"comments": found, "total": len(found), "startAt": 0})
+                    with mock.lock:
+                        comment = {"id": str(10000 + sum(len(v) for v in mock.comments.values())),
+                                   "body": body.get("body")}
+                        found.append(comment)
+                    if mock.drop_write_answer:
+                        mock.drop_write_answer -= 1
+                        self.close_connection = True
+                        return None
+                    return self._send(201, comment)
+                if method == "POST" and path == "/rest/api/3/issue":
+                    fields = body.get("fields") or {}
+                    project = (fields.get("project") or {}).get("key", "")
+                    if not any(x["key"] == project for x in mock.projects):
+                        return self._send(400, {"errors": {"project": "valid project is required"}})
+                    with mock.lock:
+                        n = 1 + max([int(k.split("-")[1]) for k in mock.issues if k.startswith(project + "-")] or [0])
+                        key = f"{project}-{n}"
+                        issue = story(key, fields.get("summary", ""), T0, "", "",
+                                      issuetype={"name": (fields.get("issuetype") or {}).get("name", "Bug")})
+                        issue["fields"]["labels"] = fields.get("labels") or []
+                        mock.issues[key] = issue
+                        mock.created.append({"key": key, "body": body})
+                    if mock.drop_write_answer:
+                        mock.drop_write_answer -= 1
+                        self.close_connection = True
+                        return None
+                    return self._send(201, {"id": str(20000 + n), "key": key})
                 return self._send(404, {"errorMessages": ["No such endpoint in the mock"]})
 
             def do_GET(self):

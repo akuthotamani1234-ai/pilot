@@ -3229,6 +3229,8 @@ def decide_approval_api(
         raise HTTPException(403, "tenant isolation") from e
     except KeyError as e:
         raise HTTPException(404, "Approval not found.") from e
+    if kind == "jira_write":  # (decided with its write proposal: /api/requirements/writeback/{id}/approve)
+        raise HTTPException(409, "A Jira write is approved in the Requirements workspace (Defects & write-back).")
     if kind in NAMED_REVIEW_KINDS:
         return _decide_requirement_suggestion(approval_id, req.answer, scope, authorization, x_qa_token)
     try:

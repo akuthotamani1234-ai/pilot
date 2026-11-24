@@ -51,9 +51,11 @@ MAX_JOBS = 200
 CAPABILITIES = {
     "import_requirements": True, "analyze_requirements": True, "review_suggestions": True,
     "generate_test_cases": True, "run_selected_tests": True, "run_impacted_tests": True,
-    "run_all_approved_tests": True, "traceability": True, "jira_write_back": False,
+    "run_all_approved_tests": True, "traceability": True, "defects": True, "writeback_proposals": True,
+    "jira_write_back": False,  # (True only when the server owner sets QPILOT_JIRA_WRITEBACK=1; see capabilities())
 }
-COMING = {"jira_write_back": "Phase 5 (off by default, every write approved)"}
+COMING = {"jira_write_back": "off: the server owner must allow it (QPILOT_JIRA_WRITEBACK=1), a workspace admin "
+                             "switches it on with a separate write token, and a named person approves every write"}
 
 
 # ---------------------------------------------------------------- who is asking
@@ -206,6 +208,21 @@ class ConnectionBody(BaseModel):
     token_ref: str = ""
     work_item_types: list[str] = Field(default_factory=lambda: ["Story"])
     classification: Classification = Classification.internal
+
+
+class DismissBody(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class ProposalBody(BaseModel):
+    execution_id: str = Field(default="", max_length=40)
+    defect_id: str = Field(default="", max_length=40)
+
+
+class WritebackSettingsBody(BaseModel):
+    enabled: bool = False
+    project_key: str = Field(default="", max_length=20)
+    issue_type: str = Field(default="Bug", max_length=40)
 
 
 class TokenBody(BaseModel):
@@ -419,8 +436,11 @@ def register_requirements_api(app) -> None:
     @app.get("/api/requirements/capabilities")
     def capabilities(authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")
-        return {"capabilities": CAPABILITIES, "coming": COMING, "tenant": ctx["tenant"], "actor": ctx["actor"],
-                "can_review": _can_review(authorization, x_qa_token, ctx), "read_only_atlassian": True}
+        from .atlassian import writeback
+        allowed = writeback.server_allows()
+        return {"capabilities": {**CAPABILITIES, "jira_write_back": allowed},
+                "coming": {} if allowed else COMING, "tenant": ctx["tenant"], "actor": ctx["actor"],
+                "can_review": _can_review(authorization, x_qa_token, ctx), "read_only_atlassian": not allowed}
 
     # -- connections
     @app.get("/api/requirements/connections")
@@ -1073,6 +1093,185 @@ def register_requirements_api(app) -> None:
             return {"coverage": bridge.coverage(db, ctx["tenant"]), "impacted": bridge.impacted(db, ctx["tenant"])}
         finally:
             db.close()
+
+    # -- defects and controlled Jira write-back (Phase 5)
+    from .atlassian import defects as dfx, writeback as wb
+
+    def _wb_db():
+        db = bridge.connect()
+        dfx.ensure(db)
+        wb.ensure(db)
+        return db
+
+    @app.get("/api/requirements/defects")
+    def list_defects(status: str = "", requirement: str = "", authorization: str | None = A,
+                     x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = _wb_db()
+        try:
+            rows = dfx.list_defects(db, ctx["tenant"], status, requirement)
+        finally:
+            db.close()
+        counts: dict[str, int] = {}
+        for d in rows:
+            counts[d["status"]] = counts.get(d["status"], 0) + 1
+        return {"defects": rows, "total": len(rows), "counts": counts}
+
+    @app.get("/api/requirements/defects/{defect_id}")
+    def get_defect(defect_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = _wb_db()
+        try:
+            dfx.refresh(db, ctx["tenant"])
+            d = dfx.get_defect(db, ctx["tenant"], defect_id)
+        finally:
+            db.close()
+        if not d:
+            raise HTTPException(404, "No such defect in your workspace.")
+        return {"defect": d}
+
+    @app.post("/api/requirements/defects/{defect_id}/dismiss")
+    def dismiss_defect(defect_id: str, body: DismissBody, authorization: str | None = A,
+                       x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "review.write")
+        if not ctx["reviewer"]:
+            raise HTTPException(403, "A defect is dismissed only by a named, signed-in person.")
+        db = _wb_db()
+        try:
+            d = dfx.dismiss(db, ctx["tenant"], defect_id, ctx["reviewer"], body.reason)
+        except LookupError:
+            raise HTTPException(404, "No such defect in your workspace.") from None
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        finally:
+            db.close()
+        _audit(ctx, "defect.dismiss", True, defect=defect_id)
+        return {"defect": d}
+
+    def _wb_state(db, ctx: dict) -> list[dict]:
+        token = credentials.status(ctx["tenant"], wb.WRITE_TOKEN)["configured"]
+        conns = [c for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
+        return [{**wb.readiness(db, ctx["tenant"], c.id, token), "site_url": c.site_url} for c in conns]
+
+    @app.get("/api/requirements/writeback")
+    def writeback_state(status: str = "", authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = _wb_db()
+        try:
+            return {"connections": _wb_state(db, ctx), "writes": wb.list_writes(db, ctx["tenant"], status),
+                    "server_allows": wb.server_allows(), "server_setting": wb.SERVER_ENV,
+                    "write_token": credentials.status(ctx["tenant"], wb.WRITE_TOKEN),
+                    "can_review": _can_review(authorization, x_qa_token, ctx)}
+        finally:
+            db.close()
+
+    @app.put("/api/requirements/writeback/settings/{connection_id}")
+    def writeback_settings(connection_id: str, body: WritebackSettingsBody, authorization: str | None = A,
+                           x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "tenant.manage")
+        db = _wb_db()
+        try:
+            _connection(db, ctx, connection_id, Product.jira)
+            s = wb.set_settings(db, ctx["tenant"], connection_id, enabled=body.enabled, project_key=body.project_key,
+                                issue_type=body.issue_type, actor=ctx["actor"])
+        except PermissionError as error:
+            raise HTTPException(403, str(error)) from None
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        finally:
+            db.close()
+        return {"settings": s}
+
+    @app.put("/api/requirements/writeback/token")
+    def put_write_token(body: TokenBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "tenant.manage")
+        try:
+            state = credentials.set_token(ctx["tenant"], wb.WRITE_TOKEN, body.token)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        _audit(ctx, "token.set", True, secret_name=wb.WRITE_TOKEN)
+        return {"credential": state}
+
+    @app.delete("/api/requirements/writeback/token")
+    def delete_write_token(authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "tenant.manage")
+        removed = credentials.delete_token(ctx["tenant"], wb.WRITE_TOKEN)
+        _audit(ctx, "token.delete", True, secret_name=wb.WRITE_TOKEN)
+        return {"removed": removed, "credential": credentials.status(ctx["tenant"], wb.WRITE_TOKEN)}
+
+    @app.post("/api/requirements/writeback/proposals")
+    def propose_write(body: ProposalBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.write")
+        if bool(body.execution_id) == bool(body.defect_id):
+            raise HTTPException(400, "Propose either an execution's results or one defect.")
+        db = _wb_db()
+        try:
+            if body.execution_id:
+                writes = wb.propose_results_comment(db, ctx["tenant"], body.execution_id, ctx["actor"])
+            else:
+                dfx.refresh(db, ctx["tenant"])
+                writes = [wb.propose_defect(db, ctx["tenant"], body.defect_id, ctx["actor"])]
+        except LookupError:
+            raise HTTPException(404, "Not found in your workspace.") from None
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+        finally:
+            db.close()
+        return {"writes": writes}
+
+    @app.get("/api/requirements/writeback/{write_id}")
+    def get_write(write_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = _wb_db()
+        try:
+            w = wb.get_write(db, ctx["tenant"], write_id)
+        finally:
+            db.close()
+        if not w:
+            raise HTTPException(404, "No such write in your workspace.")
+        return {"write": w}
+
+    def _decide_write(write_id: str, answer: str, authorization, x_qa_token) -> dict:
+        ctx = _context(authorization, x_qa_token, "review.write")
+        if not ctx["reviewer"]:
+            raise HTTPException(403, "A Jira write is approved only by a named, signed-in reviewer.")
+        db = _wb_db()
+        try:
+            fn = wb.approve if answer == "yes" else wb.reject
+            return {"write": fn(db, ctx["tenant"], write_id, ctx["reviewer"])}
+        except LookupError:
+            raise HTTPException(404, "No such write in your workspace.") from None
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+        except PermissionError as error:
+            raise HTTPException(403, str(error)) from None
+        finally:
+            db.close()
+
+    @app.post("/api/requirements/writeback/{write_id}/approve")
+    def approve_write(write_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        return _decide_write(write_id, "yes", authorization, x_qa_token)
+
+    @app.post("/api/requirements/writeback/{write_id}/reject")
+    def reject_write(write_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        return _decide_write(write_id, "no", authorization, x_qa_token)
+
+    @app.post("/api/requirements/writeback/{write_id}/send")
+    def send_write(write_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "tenant.manage")
+        db = _wb_db()
+        try:
+            w = wb.get_write(db, ctx["tenant"], write_id)
+            if not w:
+                raise HTTPException(404, "No such write in your workspace.")
+            conn = _connection(db, ctx, w["connection_id"], Product.jira)
+            w = wb.send(db, ctx["tenant"], write_id, ctx["actor"], connection=conn,
+                        secret=credentials.resolver(ctx["tenant"]), base_url=CLIENT_BASE_URL)
+        except PermissionError as error:
+            raise HTTPException(403, str(error)) from None
+        finally:
+            db.close()
+        return {"write": w}
 
     # -- overview, coverage, audit
     @app.get("/api/requirements/overview")

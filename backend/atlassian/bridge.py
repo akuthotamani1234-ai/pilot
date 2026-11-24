@@ -394,7 +394,9 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                       "reason": str(c.get("skip_reason") or "")[:500], "expected": str(c.get("expected") or "")[:1000],
                       "steps": c.get("steps") or [], "evidence": [str(e) for e in c.get("evidence") or []][:20],
                       "run_case": str(c.get("tc_id") or c.get("id") or ""), "checks": c.get("check_count"),
-                      "verification": c.get("verification"), "type": c.get("type")}
+                      "verification": c.get("verification"), "type": c.get("type"),
+                      "failure_category": str(c.get("failure_category") or "")[:120],
+                      "confidence": str(c.get("confidence") or "")[:20]}
         counts[status] = counts.get(status, 0) + 1
         result.update(execution_id=execution_id, test_case_id=cid, run_id=ex.get("run_id", ""), at=_now(),
                       case_version=(ex.get("case_versions") or {}).get(cid),
@@ -437,7 +439,10 @@ def case_results(db, tenant: str, case_id: str) -> list[dict]:
 
 def matrix(db, tenant: str) -> list[dict]:
     """One row per (requirement, criterion, test case) with the latest real result; criteria without tests too."""
+    from . import defects as dfx
     refresh(db, tenant)
+    dfx.refresh(db, tenant)
+    found = dfx.by_case(db, tenant)
     rows = []
     cases = list_cases(db, tenant)
     by_req: dict[str, list[dict]] = {}
@@ -455,6 +460,7 @@ def matrix(db, tenant: str) -> list[dict]:
                     "approval": a.coverage.get(crit.id).value if a.coverage.get(crit.id) else ""}
             if not tcs:
                 rows.append({**base, "test_case": "", "test_status": "", "result": "", "last_run": "", "evidence": [],
+                             "defects": [],
                              "coverage": "not automatable" if not crit.automatable else "no approved test"})
                 continue
             for c in tcs:
@@ -467,6 +473,8 @@ def matrix(db, tenant: str) -> list[dict]:
                              "result": r.get("status", ""), "last_run": r.get("at", ""), "run_id": r.get("run_id", ""),
                              "execution_id": r.get("execution_id", ""), "evidence": r.get("evidence", []),
                              "run_folder": r.get("run_folder", ""),
+                             "defects": [{"id": d["id"], "status": d["status"], "jira_issue": d.get("jira_issue", "")}
+                                         for d in found.get(c["id"], [])],
                              "coverage": coverage})
     return rows
 

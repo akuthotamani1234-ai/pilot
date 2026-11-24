@@ -150,3 +150,9 @@
 @media (min-width: 1000px) {
   .rq-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* Phase 5: defects and write-back */
+.rq-pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; overflow-x: auto; font-size: .85rem;
+  background: var(--rq-soft, rgba(127,127,127,.08)); padding: .6rem .75rem; border-radius: 6px; margin: .4rem 0; }
+.rq-wbset { flex-wrap: wrap; gap: .5rem; align-items: end; margin: .5rem 0; }
+.rq-wbset input[type=text], .rq-wbset input:not([type]) { max-width: 10rem; }
