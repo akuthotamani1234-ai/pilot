@@ -16,7 +16,11 @@ token, test, disconnect), Import wizard (connect → project → types & filters
 progress / cancel / retry → analyze), Requirements explorer with detail drawer (criteria and citations, analysis,
 versions, links), Review center (accept / edit / reject, signed reviewer, evidence), Confluence explorer and Sync
 history with audit. Phase 4–5 actions are shown as labelled "not available yet" notes. 9 browser tests against the real
-server and a mock site, plus 4 API tests. **Mock only; no live Atlassian evidence.**
+server and a mock site, plus 4 API tests. **Mock only; no live Atlassian evidence.** Verified (no `.env`, 24 Nov): non-slow
+suite 2424 passed, 1 failed, 32 skipped. The failure is the known timing test
+(`test_busy_server_lessons`, also failing ~1 in 6 on the previous `final`; 3/3 passed when re-run alone); the extra
+skips are the known test-order pollution from `test_trace_redact_link.py` (reproduced on demand; they pass when it
+does not run first). Requirements tests: 265 passed three times in a row; lint clean.
 
 **Milestone 2 (backend):** import modes - incremental (new / changed keys, affected requirements, resume, cancel),
 full (any work-item type, missing kept), targeted (keys or work-item links, optional sub-tasks / parent / linked items
