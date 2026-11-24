@@ -67,6 +67,10 @@ ADDITIONAL EVIDENCE REQUIREMENTS:
 - Assert message text only when observed evidence or owner requirements supply that text. Do not guess "incorrect",
   "required", "success" or a welcome message. Check a grounded state; use pytest.skip with a clear missing-evidence
   explanation when the expected result is unknown.
+- A message that the test case's expected result QUOTES (for example the error after a wrong password) appears only
+  after the steps, so it is not in PAGES. Check it with `expect(page.locator("body")).to_contain_text("<the quoted
+  words, exactly as the test case gives them>")` after the steps. Never invent a CSS selector (h3[data-test=...],
+  .error ...) for it.
 - Boxes: find a box by its "label" (the selector given for it). A box with "chrome": true is the website's menu or
   header (a sidebar 'Search'), never the form of the test. A box with "suggests": true is "type, then pick": type 1-3
   letters, wait for its [role=option] list and click an option - typed text alone is refused there.

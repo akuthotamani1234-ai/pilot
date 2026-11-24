@@ -2381,6 +2381,13 @@ def _table_for_ai(t: dict) -> dict:
                               "sample_rows": rows}.items() if v}
 
 
+def _requirement_evidence() -> str:
+    """What the owner REQUIRES: their written requirements + this run's approved requirement test cases (Jira /
+    Confluence, backend/requirement_tests.py) - the texts a test may expect although exploring has not seen them yet."""
+    from .. import requirement_tests
+    return " ".join([settings.requirements, *(t["text"] for t in requirement_tests.load())]).strip()
+
+
 def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     """The AI writes test_flows_ai.py for its large test cases (validated; one self-repair attempt)."""
     used = [pages[s] for s in dict.fromkeys(s for f in flows for s in f["pages"]) if s in pages]
@@ -2410,7 +2417,7 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
                                 agent="script_generator", page="site"))
 
     def problem(c: str) -> str | None:
-        err = validate_script(c) or grounding_problem(c, used, settings.requirements)
+        err = validate_script(c) or grounding_problem(c, used, _requirement_evidence())
         if "data-qa-approved" in c or "APPROVE_JS" in c:  # (only built-in tests may plan one protected click)
             err = err or "AI code may not mark a protected click as approved"
         gone = [f["id"] for f in flows if not re.search(rf"^\s*def test_{_ident(f['id'])}\(", c, re.M)]

@@ -194,7 +194,8 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
             "criterion_ids": list(s.criterion_ids), "suggestion_id": s.id, "suggestion_fingerprint": s.fingerprint,
             "approval_id": s.approval_id, "reviewer": s.reviewer or s.edited_by, "edited_by": s.edited_by,
             "kind": s.kind.value, "basis": s.basis.value, "origin": s.origin, "title": s.title,
-            "preconditions": [*(["Signed in with the test account"] if needs and needs[0].startswith("a test") else [])],
+            "preconditions": [*(["A test account (username and password) is available"]
+                                if needs and needs[0].startswith("a test") else [])],
             "steps": steps, "expected": expected, "expected_basis": s.basis.value,
             "assertions": [f"{c.id.split('#')[-1]}: {c.then or c.text}" for c in cited],
             "test_data_needs": needs, "evidence": quotes, "platform": "web",

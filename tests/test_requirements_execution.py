@@ -382,3 +382,24 @@ def test_a_skipped_not_automated_case_is_never_counted_as_executed(db, paths, tm
     assert done["counts"] == {"Not automated": 1}
     assert bridge.coverage(db, "t1")["executed"] == 0
     assert [r["coverage"] for r in bridge.matrix(db, "t1") if r["test_case"]] == ["not automated"]
+
+
+def test_a_message_quoted_by_an_approved_requirement_test_is_grounded_but_invented_selectors_are_not(monkeypatch):
+    """Live SauceDemo run: the wrong-password message appears only after the steps, so exploring never saw it. The
+    requirement's own quoted words are evidence; a CSS selector the explorer never saw still is not."""
+    from backend.agents import script_generator
+    from backend.ai_grounding import grounding_problem
+    pages = [{"slug": "login", "url": "https://shop.test/", "inputs": [{"selector": "#user-name"}],
+              "buttons": [{"selector": "#login-button", "text": "Login"}]}]
+    quoted = "Username and password do not match any user in this service"
+    by_text = f'def test_x(page):\n    expect(page.locator("body")).to_contain_text("{quoted}")\n'
+    invented = 'def test_x(page):\n    expect(page.locator("h3[data-test=\'error\']")).to_be_visible()\n'
+    monkeypatch.delenv(requirement_tests.ENV, raising=False)
+    assert quoted.casefold() not in script_generator._requirement_evidence().casefold()
+    monkeypatch.setenv(requirement_tests.ENV, json.dumps([{
+        "id": "rq_tc_qpl_2_2", "tc": "TC-QPL-2-2", "requirement": "QPL-2",
+        "text": f"Log in with a wrong password. Expected: the page shows '{quoted}'."}]))
+    evidence = script_generator._requirement_evidence()
+    assert quoted in evidence
+    assert grounding_problem(by_text, pages, evidence) is None
+    assert "was not observed" in (grounding_problem(invented, pages, evidence) or "")
