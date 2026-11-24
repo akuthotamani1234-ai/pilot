@@ -230,6 +230,9 @@ def _rule_classify(r: dict) -> tuple[str, str, str]:
                                 "The test ran without failing, but it checked nothing - a pass would prove nothing."), "high"
     if r.get("flaky"):
         return "flaky", "Failed first, passed on retry - timing or an unstable element.", "medium"
+    if re.search(r"Page\.goto: net::ERR_BLOCKED_BY_CLIENT", err):  # (the run's browser allows only the tested site)
+        return "test_defect", ("The test opened an address outside the tested website, which the run's browser "
+                               "refuses: the generated script is wrong, not the website."), "high"
     if BLOCK_PAGE.search(err):  # (its page snapshot shows the security software's block page)
         return "infrastructure", BLOCKED_WHY, "high"
     if "[rule-confirmed]" in err:  # (you answered in the review: not allowed -> a bug of the website)

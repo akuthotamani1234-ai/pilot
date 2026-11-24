@@ -17,6 +17,11 @@ STRICT RULES:
 - One function per test case, named exactly `test_<id>` (e.g. `test_flow_3`), taking `page` (plus `console_errors` /
   `qa_login` if needed). First line: a one-line docstring with the test title.
 - A test case with "guest": true must be decorated with `@pytest.mark.guest` (it then starts NOT logged in).
+- To read every listed item IN THE ORDER SHOWN (sorting, "every product shows its name and price"), use the page's
+  `item_cards.selector`: `cards = page.locator("<item_cards.selector>")`, then for each card in `cards.all()` read
+  `card.inner_text()` (its lines hold the name, and a price like "$29.99" - take it with re.search). Never read
+  items by their fixed ids for an order check: ids do not move when the list is sorted. After choosing a sort
+  option, read the cards again.
 - Each test goes to its first page with `page.goto("<url>")` (use the full url from PAGES), then follows the steps,
   moving between pages by clicking like a user (or page.goto for the next page's url).
 - Check the RESULT of every step, not only that it can be clicked: after a search assert the matching item is

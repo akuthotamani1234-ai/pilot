@@ -20,6 +20,7 @@ from ..form_targets import FORM_TARGET_HELPER
 from ..llm import LLMError, ask_llm, extract_code, load_prompt
 from ..navigation import OPEN_PATH_HELPER, opener_path
 from ..observe import PICTURES_JS, REGION_JS
+from ..page_status import page_testable
 from ..state import QAState
 from .discovery import ITEMS_JS, MAIN_TEXT_JS
 from .test_design import _observed, features, lean, on_screen, safe_buttons
@@ -2399,9 +2400,16 @@ def _requirement_evidence() -> str:
     return " ".join([settings.requirements, *(t["text"] for t in requirement_tests.load())]).strip()
 
 
+def script_pages(app_map: list[dict]) -> dict[str, dict]:
+    """The pages tests may be written for, by slug (page_status.page_testable: also a proven client-rendered 404)."""
+    return {p["slug"]: p for p in app_map if page_testable(p)}
+
+
 def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     """The AI writes test_flows_ai.py for its large test cases (validated; one self-repair attempt)."""
     used = [pages[s] for s in dict.fromkeys(s for f in flows for s in f["pages"]) if s in pages]
+    if not used:  # (without a single explored page the AI can only invent addresses and selectors)
+        raise LLMError("no explored page is available for these test cases, so no test code was asked for")
     data = json.dumps([{"page": p["slug"], "url": p["url"], "logged_in": bool(p.get("auth")),
                         "title": p.get("title"), "document_title": p.get("title"),
                         "headings": p.get("headings", []),
@@ -2420,6 +2428,10 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
                         "links": [{"text": l["text"], "href": l["href"], "selector": l.get("selector")} for l in p.get("links", [])
                                   if not l.get("external")][:20],
                         "items_listed": (p.get("itemNames") or [])[:8], "observed": _observed(p),
+                        **({"item_cards": {"selector": (p.get("itemLinks") or {})["selector"],
+                                           "count": (p.get("itemLinks") or {}).get("count"),
+                                           "example_text": str(((p.get("itemLinks") or {}).get("cards") or [""])[0])[:200]}}
+                           if (p.get("itemLinks") or {}).get("selector") else {}),
                         **({"on_screen": on_screen(p)} if p.get("seen") else {})} for p in used],
                       indent=1)
     cases = json.dumps([{k: f[k] for k in ("id", "title", "guest", "pages", "test_data", "steps", "expected")}
@@ -2432,7 +2444,12 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
         if "data-qa-approved" in c or "APPROVE_JS" in c:  # (only built-in tests may plan one protected click)
             err = err or "AI code may not mark a protected click as approved"
         gone = [f["id"] for f in flows if not re.search(rf"^\s*def test_{_ident(f['id'])}\(", c, re.M)]
-        return err or (f"missing test functions: {', '.join(gone)}" if gone else None)
+        # a case that needs the logged-in state must not be marked guest (it would start logged out)
+        wrong_guest = [f["id"] for f in flows if not f.get("guest") and re.search(
+            rf"@pytest\.mark\.guest[^\n]*\n(?:\s*@[^\n]*\n)*\s*def test_{_ident(f['id'])}\(", c)]
+        return err or (f"missing test functions: {', '.join(gone)}" if gone else None) or (
+            f"{', '.join(wrong_guest)} must run logged in (\"guest\": false): remove @pytest.mark.guest"
+            if wrong_guest else None)
 
     err = problem(code)
     if err:  # one self-repair attempt
@@ -3058,7 +3075,9 @@ def script_generator_agent(state: QAState) -> QAState:
     shutil.copy(template, out_dir / "conftest.py")  # fixtures + the runtime sandbox
     shutil.copy(ini, out_dir / "pytest.ini")
 
-    pages = {p["slug"]: p for p in state["app_map"] if not p.get("error") and (p.get("status") or 0) < 400}
+    # the same rule as test design: a proven client-rendered 404 (a single-page app such as SauceDemo answers its
+    # inner pages with 404 and renders them) is a real page - without it the AI got no page at all
+    pages = script_pages(state["app_map"])
     cases = list(state["test_cases"])
     scripts, sources, rejected, notes = [], {}, [], []
 

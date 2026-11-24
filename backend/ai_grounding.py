@@ -9,6 +9,7 @@ Grounding rules (reusable — never site-specific hardcoding):
 """
 import ast
 import re
+from urllib.parse import urlparse
 
 # Common invented demo people — not evidence unless the page/contract actually lists them.
 INVENTED_PEOPLE = re.compile(
@@ -75,6 +76,10 @@ def _observed_selectors(pages: list[dict]) -> set[str]:
                         fsel = field.get("selector")
                         if isinstance(fsel, str) and fsel.strip():
                             out.add(fsel.strip())
+        cards = (page.get("itemLinks") or {}).get("selector")  # the listed items (product cards), in display order
+        if isinstance(cards, str) and cards.strip():
+            out.add(cards.strip())
+            out.add(re.split(r"\s*>\s*|\s+", cards.strip())[-1])  # (the card on its own: div.inventory_item)
         for t in page.get("tables") or []:
             for key in ("selector", "search", "page_size", "row_selector", "cell_selector"):
                 sel = t.get(key)
@@ -141,10 +146,23 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                     return ("Do not assume how many rows a search or list shows (to_have_count with a number). "
                             "Check that EVERY shown row contains the searched value (loop over rows.all()), or "
                             "that at least one row is shown - unsupported assertion, not a product defect")
+        if node.func.attr == "goto" and node.args and isinstance(node.args[0], ast.Constant) \
+                and isinstance(node.args[0].value, str) and pages:
+            host = urlparse(node.args[0].value).hostname
+            hosts = {urlparse(str(page.get(k) or "")).hostname for page in pages for k in ("url", "final_url")}
+            if host and host not in hosts:
+                return ("page.goto to a website that was not explored: " + node.args[0].value +
+                        " - use the full url of an observed page from PAGES")
         if node.func.attr == "locator" and node.args and isinstance(node.args[0], ast.Constant):
             selector = node.args[0].value
             if not isinstance(selector, str):
                 continue
+            bare = re.sub(r"\[[^\]]*\]|\"[^\"]*\"|'[^']*'|:has-text\([^)]*\)|:text\([^)]*\)", " ", selector)
+            classes = re.findall(r"\.([A-Za-z_][\w-]*)", bare)
+            unseen = [c for c in classes if c.casefold() not in evidence]
+            if unseen and pages:
+                return ("The selector was not observed: " + selector + " (class ." + unseen[0] +
+                        " is in no observed page) - use a selector from PAGES")
             if re.fullmatch(r"#[\w-]+", selector) and not any(selector in known for known in observed_selectors):
                 return "The selector was not observed: " + selector
             if re.search(r"(^|[\s>,])(?:table|thead|tbody|th)(?=[\s>.#\[:]|$)", selector) and not any(
