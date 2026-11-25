@@ -255,3 +255,10 @@
 a.primary.rq-action-link { background: #1d4ed8; color: #fff; }
 a.secondary.rq-action-link { border: 1px solid #d5deea; color: #1f2a3d; background: #fff; }
 .linklike { background: none; border: 0; color: #1d4ed8; text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+
+/* The Studio chat locks the page (html, body { overflow: hidden } in studio.css: its thread scrolls inside). This
+   page scrolls as a whole: without this the main area could not be scrolled at all (only the sidebar moved). */
+html:has(body.rq-workspace), body.rq-workspace { overflow: visible; overflow-x: hidden; height: auto; }
+.rq-conn-add { padding: 14px 18px; }
+.rq-conn-add > summary { cursor: pointer; font-weight: 600; color: #1d4ed8; }
+.rq-conn-add > .rq-conn { border: 0; box-shadow: none; padding: 12px 0 0; }

@@ -37,6 +37,9 @@ In short:
 - **Tokens are write-only.** Atlassian tokens are stored encrypted per workspace (DPAPI on Windows, owner-only file
   elsewhere), never returned by the API, logged or audited. A run's test password and AI key are used for that run
   only and are not stored with the execution.
+- **A token stays with its site.** Each Atlassian site has its own token slot, a stored token is bound to the site it
+  was saved for and is never handed out for another, and a connection moved to another site or account loses its
+  token (audited). A saved test account of a target website is reused only for that same address.
 
 ## Keeping your own keys safe
 - Your keys go in `.env`, which git ignores. Never commit it, and never send it by e-mail or chat.

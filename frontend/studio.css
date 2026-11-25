@@ -286,3 +286,5 @@ body[data-test-mode=android][data-setup-state=configure] .mobile-form{flex:1;min
 .android-raw-contract{margin:10px 0;padding:8px 10px;border:1px solid #e9eaf3;border-radius:9px}
 .android-raw-contract summary{font-size:10px;color:#667085;cursor:pointer}
 @media(max-width:640px){.android-run-mode{grid-template-columns:1fr}}
+/* pages laid out as .lab-shell (Accuracy lab, Jira workspace) scroll as a whole: only the chat locks html/body */
+html:has(body>.lab-shell),body:has(>.lab-shell){overflow:visible;overflow-x:hidden;height:auto}

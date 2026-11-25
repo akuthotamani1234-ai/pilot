@@ -526,7 +526,10 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         page.locator("#tcRun").click()
         expect(page.locator("#view-execution")).to_be_visible()
         expect(page.locator("#exSelCount")).to_have_text("1")
+        # (typed while the website lookup is still on its way: its late "not found" must not wipe the address)
         page.fill("#exUrl", "https://www.saucedemo.com/")
+        expect(page.locator("#tgBox")).not_to_contain_text("Looking for the website")
+        expect(page.locator("#exUrl")).to_have_value("https://www.saucedemo.com/")
         page.fill("#exUser", "standard_user")
         page.fill("#exPass", "secret_sauce")
         page.locator("#exAuth").check()
@@ -710,5 +713,80 @@ def test_an_older_cached_page_with_the_new_script_says_reload_instead_of_going_b
                                                                              body=old.stdout))
         page.goto(studio.url + "/requirements#overview")
         expect(page.get_by_role("alert").filter(has_text="older copy")).to_contain_text("Cmd+Shift+R")
+    finally:
+        ctx.close()
+
+
+def test_every_jira_page_and_the_lab_scroll_with_the_mouse_wheel(browser, studio):
+    """Seen in a recording (25 Nov 2026): no Jira page scrolled - studio.css locks html/body for the chat (its thread
+    scrolls inside) and the Jira page loads it too, so only the sidebar moved and the Save buttons were out of reach."""
+    connect_jira(open_page(browser, studio)[1])
+    ctx = browser.new_context(viewport={"width": 1280, "height": 727})
+    page = ctx.new_page()
+    try:
+        for path in ("/requirements#integrations", "/requirements#import", "/requirements#execution", "/qa-lab"):
+            page.goto(studio.url + path)
+            page.wait_for_load_state("networkidle")
+            tall = page.evaluate("document.documentElement.scrollHeight") > 727 + 50
+            assert tall, path  # (each of these pages is taller than the window)
+            page.mouse.move(700, 400)
+            page.mouse.wheel(0, 800)
+            page.wait_for_function("window.scrollY > 300")
+        page.goto(studio.url + "/")  # the chat keeps its own layout: the page itself does not scroll
+        assert page.evaluate("getComputedStyle(document.body).overflowY") == "hidden"
+    finally:
+        ctx.close()
+
+
+def test_another_jira_site_is_connected_with_its_own_token(browser, studio):
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        connect_jira(page)
+        page.goto(studio.url + "/requirements#integrations")
+        page.get_by_text("+ Connect another Jira site").click()
+        page.fill("#jiraSite-jira-2", "https://second-site.atlassian.net")
+        page.fill("#jiraEmail-jira-2", EMAIL)
+        page.fill("#jiraToken-jira-2", TOKEN)
+        page.locator("details.rq-conn-add button[type=submit]").click()
+        second = page.locator('.rq-conn[data-conn="jira-2"]')
+        expect(second).to_contain_text("token saved")
+        second.get_by_role("button", name="Test connection").click()
+        expect(second.locator("[role=status]")).to_contain_text("Connected as QA Reader")
+        expect(page.locator('.rq-conn[data-conn="jira-main"]')).to_contain_text("token saved")  # (untouched)
+        assert TOKEN not in page.content()
+        page.goto(studio.url + "/requirements#import")
+        expect(page.locator("#wConn option")).to_have_count(2)
+        # moving a connection to another site asks first and never reuses the old site's token
+        page.goto(studio.url + "/requirements#integrations")
+        page.once("dialog", lambda d: d.accept())
+        page.fill("#jiraSite", "https://third-site.atlassian.net")
+        page.locator('.rq-conn[data-conn="jira-main"] button[type=submit]').click()
+        main = page.locator('.rq-conn[data-conn="jira-main"]')
+        expect(main.locator("[role=status]")).to_contain_text("Paste the API token for this site")
+        expect(main).to_contain_text("no token")
+        assert not errors, errors
+    finally:
+        ctx.close()
+
+
+def test_a_late_website_lookup_never_wipes_the_address_being_typed(browser, studio):
+    """Flaky in CI and possible for a person: the Execution Center's website lookup answered 'not found' after the
+    address had been typed and cleared it, so Run Tests stopped with 'Target website not found'."""
+    ctx, page, errors = open_page(browser, studio)
+    held = []
+    try:
+        page.route("**/api/requirements/targets/resolve*", lambda route: held.append(route))
+        page.goto(studio.url + "/requirements#execution")
+        page.wait_for_function("document.querySelector('#exUrl') !== null")
+        for _ in range(50):
+            if held:
+                break
+            page.wait_for_timeout(100)
+        assert held, "the lookup was not sent"
+        page.fill("#exUrl", "https://www.saucedemo.com/")
+        held[0].continue_()  # (its answer: not found - it arrives after the typing)
+        expect(page.locator("#tgBox")).to_contain_text("Using the address you entered.")
+        expect(page.locator("#exUrl")).to_have_value("https://www.saucedemo.com/")
+        assert not errors, errors
     finally:
         ctx.close()

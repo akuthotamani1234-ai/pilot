@@ -68,8 +68,15 @@ def _key(tenant_id: str, name: str) -> str:
     return f"{tenant}|{name}"
 
 
-def set_token(tenant_id: str, name: str, value: str, *, path: Path | None = None) -> dict:
-    """Store (or replace) a tenant's token. Returns status only."""
+def site_of(url: str) -> str:
+    """The host a token belongs to ('' for none)."""
+    from urllib.parse import urlparse
+    return (urlparse((url or "").strip()).hostname or "").lower()
+
+
+def set_token(tenant_id: str, name: str, value: str, *, path: Path | None = None, site: str = "") -> dict:
+    """Store (or replace) a tenant's token. Returns status only. With site, the token is bound to that Atlassian
+    site: it is never handed out for another one (a connection whose address changes never sends it elsewhere)."""
     value = (value or "").strip()
     if len(value) < 8 or len(value) > 4000 or any(c.isspace() for c in value):
         raise ValueError("that does not look like an API token (no spaces, at least 8 characters)")
@@ -77,11 +84,12 @@ def set_token(tenant_id: str, name: str, value: str, *, path: Path | None = None
     stored, method = protect(value)
     with _lock:
         data = _load(path)
-        data[key] = {"value": stored, "protection": method, "updated_at": datetime.now(UTC).isoformat()}
+        data[key] = {"value": stored, "protection": method, "updated_at": datetime.now(UTC).isoformat(),
+                     **({"site": site_of(site)} if site_of(site) else {})}
         _save(data, path)
     register_secret_names(name)
     register_secret_values(value)
-    return status(tenant_id, name, path=path)
+    return status(tenant_id, name, path=path, site=site)
 
 
 def delete_token(tenant_id: str, name: str, *, path: Path | None = None) -> bool:
@@ -136,13 +144,15 @@ def delete_account(tenant_id: str, slot: str, *, path: Path | None = None) -> bo
     return found
 
 
-def _stored(tenant_id: str, name: str, path: Path | None) -> str:
+def _stored(tenant_id: str, name: str, path: Path | None, site: str = "") -> str:
     try:
         entry = _load(path).get(_key(tenant_id, name))
     except ValueError:
         return ""
     if not entry:
         return ""
+    if site and entry.get("site") and entry["site"] != site_of(site):
+        return ""  # (saved for another Atlassian site: never sent to this one)
     try:
         value = unprotect(entry["value"], entry.get("protection", "dpapi"))
     except (OSError, ValueError, KeyError):
@@ -151,13 +161,13 @@ def _stored(tenant_id: str, name: str, path: Path | None) -> str:
     return value
 
 
-def status(tenant_id: str, name: str, *, path: Path | None = None) -> dict:
+def status(tenant_id: str, name: str, *, path: Path | None = None, site: str = "") -> dict:
     """{'configured', 'source': 'studio' | 'environment' | '', 'protection', 'updated_at'} - never the token."""
     try:
         entry = _load(path).get(_key(tenant_id, name)) or {}
     except ValueError:
         entry = {}
-    if entry and _stored(tenant_id, name, path):
+    if entry and _stored(tenant_id, name, path, site):
         return {"configured": True, "source": "studio", "protection": entry.get("protection", ""),
                 "updated_at": entry.get("updated_at", "")}
     if tenant_id == LOCAL_TENANT and os.environ.get(name, "").strip():
@@ -165,14 +175,15 @@ def status(tenant_id: str, name: str, *, path: Path | None = None) -> dict:
     return {"configured": False, "source": "", "protection": "", "updated_at": ""}
 
 
-def resolver(tenant_id: str, *, path: Path | None = None, allow_env: bool | None = None) -> Callable[[str], str]:
+def resolver(tenant_id: str, *, path: Path | None = None, allow_env: bool | None = None,
+             site: str = "") -> Callable[[str], str]:
     """The secret function for client.Client(secret=...): the tenant's stored token, else the environment variable
     of that name - by default only for the local tenant. The command line (run by the machine's owner) passes
     allow_env=True."""
     env_ok = (tenant_id == LOCAL_TENANT) if allow_env is None else allow_env
 
     def secret(name: str) -> str:
-        value = _stored(tenant_id, name, path)
+        value = _stored(tenant_id, name, path, site)
         if not value and env_ok:
             value = os.environ.get(name, "").strip()
         return value

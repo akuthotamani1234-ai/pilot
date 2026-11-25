@@ -18,6 +18,7 @@ come with later phases, and /capabilities says which actions exist today.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 import uuid
@@ -116,7 +117,8 @@ def _connection(db, ctx: dict, connection_id: str, product: Product | None = Non
 
 
 def _client(ctx: dict, conn: Connection) -> Client:
-    return Client(conn, secret=credentials.resolver(ctx["tenant"]), base_url=CLIENT_BASE_URL, max_retries=3,
+    return Client(conn, secret=credentials.resolver(ctx["tenant"], site=conn.site_url), base_url=CLIENT_BASE_URL,
+                  max_retries=3,
                   max_wait=30.0)
 
 
@@ -137,7 +139,7 @@ def _atlassian_error(error: Exception) -> HTTPException:
 
 def _public(conn: Connection, tenant: str) -> dict:
     data = conn.model_dump(mode="json")
-    data["credential"] = credentials.status(tenant, conn.token_ref)
+    data["credential"] = credentials.status(tenant, conn.token_ref, site=conn.site_url)
     return data
 
 
@@ -489,20 +491,44 @@ def register_requirements_api(app) -> None:
     @app.post("/api/requirements/connections")
     def save_conn(body: ConnectionBody, authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "tenant.manage")
-        try:
-            conn = Connection(id=body.id, tenant_id=ctx["tenant"], product=body.product, site_url=body.site_url,
-                              email=body.email, token_ref=body.token_ref or DEFAULT_TOKEN_REF[body.product.value],
-                              work_item_types=body.work_item_types or ["Story"], classification=body.classification)
-        except ValueError as error:
-            _audit(ctx, "connection.save", False, connection=body.id, why=safe_error(error)[:200])
-            raise HTTPException(400, safe_error(error)) from None
         db = _db()
         try:
+            old = store.get_connection(db, ctx["tenant"], body.id)
+            others = [c for c in store.list_connections(db, ctx["tenant"]) if c.id != body.id]
+            moved = bool(old) and (credentials.site_of(old.site_url) != credentials.site_of(body.site_url)
+                                   or old.email.strip().lower() != body.email.strip().lower())
+            default = DEFAULT_TOKEN_REF[body.product.value]
+            # one token slot per site: a second site, or a connection moved to another site / account, gets its own
+            # (the shared default, and a token from .env under that name, stay with the site they were set up for)
+            own = f"{body.product.value.upper()}_{re.sub(r'[^A-Z0-9]', '_', body.id.upper())}_SITE_TOKEN"
+            if body.token_ref:
+                ref = body.token_ref
+            elif old and not moved:
+                ref = old.token_ref
+            elif moved or any(c.product == body.product and c.token_ref == default for c in others):
+                ref = own
+            else:
+                ref = default
+            try:
+                conn = Connection(id=body.id, tenant_id=ctx["tenant"], product=body.product, site_url=body.site_url,
+                                  email=body.email, token_ref=ref, work_item_types=body.work_item_types or ["Story"],
+                                  classification=body.classification)
+            except ValueError as error:
+                _audit(ctx, "connection.save", False, connection=body.id, why=safe_error(error)[:200])
+                raise HTTPException(400, safe_error(error)) from None
             store.save_connection(db, conn)
         finally:
             db.close()
-        _audit(ctx, "connection.save", True, connection=conn.id, site=conn.site_url, product=conn.product.value)
-        return _public(conn, ctx["tenant"])
+        cleared = False
+        if moved and not any(c.token_ref == old.token_ref for c in others):
+            cleared = credentials.delete_token(ctx["tenant"], old.token_ref)  # (its token was for the old site)
+        _audit(ctx, "connection.save", True, connection=conn.id, site=conn.site_url, product=conn.product.value,
+               site_changed=moved, token_cleared=cleared, secret_name=conn.token_ref)
+        out = _public(conn, ctx["tenant"])
+        if moved:
+            out["notice"] = ("The site or account changed, so the token saved for the old one is no longer used. "
+                             "Paste the API token for this site.")
+        return out
 
     @app.delete("/api/requirements/connections/{connection_id}")
     def delete_conn(connection_id: str, forget_token: bool = True, authorization: str | None = A,
@@ -528,7 +554,7 @@ def register_requirements_api(app) -> None:
         finally:
             db.close()
         try:
-            state = credentials.set_token(ctx["tenant"], conn.token_ref, body.token)
+            state = credentials.set_token(ctx["tenant"], conn.token_ref, body.token, site=conn.site_url)
         except ValueError as error:
             raise HTTPException(400, str(error)) from None
         _audit(ctx, "token.set", True, connection=connection_id, secret_name=conn.token_ref)
@@ -545,7 +571,7 @@ def register_requirements_api(app) -> None:
         removed = credentials.delete_token(ctx["tenant"], conn.token_ref)
         _audit(ctx, "token.delete", True, connection=connection_id)
         return {"connection_id": connection_id, "removed": removed,
-                "credential": credentials.status(ctx["tenant"], conn.token_ref)}
+                "credential": credentials.status(ctx["tenant"], conn.token_ref, site=conn.site_url)}
 
     @app.post("/api/requirements/connections/{connection_id}/test")
     def test_conn(connection_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -1131,7 +1157,7 @@ def register_requirements_api(app) -> None:
     # -- the guided workflow and the application under test
     def _connection_ready(db, ctx: dict) -> bool:
         conns = [c for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
-        return any(credentials.status(ctx["tenant"], c.token_ref)["configured"] for c in conns)
+        return any(credentials.status(ctx["tenant"], c.token_ref, site=c.site_url)["configured"] for c in conns)
 
     def _workflow_answer(db, ctx: dict, draft: dict) -> dict:
         return {"draft": draft, "state": workflow.state(db, ctx["tenant"], draft,
@@ -1420,7 +1446,8 @@ def register_requirements_api(app) -> None:
         jira_rows = [r for r in rows if r["source"].kind == SourceKind.jira_issue]
         return {
             "connections": [{"id": c.id, "product": c.product.value, "site_url": c.site_url,
-                             "credential": credentials.status(ctx["tenant"], c.token_ref)["configured"]}
+                             "credential": credentials.status(ctx["tenant"], c.token_ref,
+                                                              site=c.site_url)["configured"]}
                             for c in conns],
             "requirements": sum(1 for r in jira_rows if r["present"]),
             "pages": sum(1 for r in rows if r["source"].kind == SourceKind.confluence_page and r["present"]),

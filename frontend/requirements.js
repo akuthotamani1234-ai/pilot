@@ -177,30 +177,52 @@
       legacy.textContent = data.defect_creation_writes_to_jira
         ? `Note: the older defect creation is switched on in .env (JIRA_PROJECT=${data.defect_creation_project}). Test runs will create Bug issues there. The requirements connections below never write.` : "";
       const byProduct = (p) => S.conns.filter((c) => c.product === p);
-      box.replaceChildren(...kids(connCard("jira", byProduct("jira")[0]), connCard("confluence", byProduct("confluence")[0])));
+      const freeId = (p) => { const base = p === "jira" ? "jira" : "conf"; const used = new Set(S.conns.map((c) => c.id));
+        for (let n = 2; ; n += 1) if (!used.has(`${base}-${n}`)) return `${base}-${n}`; };
+      const cards = [];
+      for (const p of ["jira", "confluence"]) {
+        const mine = byProduct(p);
+        if (!mine.length) { cards.push(connCard(p, null)); continue; }
+        mine.forEach((c, n) => cards.push(connCard(p, c, n)));
+        // another site of the same product: its own card, its own token (never the first site's)
+        cards.push(h("details", { class: "lab-card rq-conn rq-conn-add" },
+          h("summary", { text: p === "jira" ? "+ Connect another Jira site" : "+ Connect another Confluence site" }),
+          connCard(p, null, mine.length, freeId(p))));
+      }
+      box.replaceChildren(...kids(...cards));
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
   }
-  function connCard(product, conn) {
-    const name = product === "jira" ? "Jira Cloud" : "Confluence Cloud";
-    const id = conn ? conn.id : (product === "jira" ? "jira-main" : "conf-main");
+  function connCard(product, conn, n = 0, newId = "") {
+    const name = newId ? (product === "jira" ? "Another Jira Cloud site" : "Another Confluence Cloud site")
+      : (product === "jira" ? "Jira Cloud" : "Confluence Cloud") + (conn && !conn.id.endsWith("-main") ? ` (${conn.id})` : "");
+    const id = conn ? conn.id : (newId || (product === "jira" ? "jira-main" : "conf-main"));
+    // (field ids follow the connection, never the card's position: the main one keeps jiraSite, jiraEmail ...)
+    const sfx = id === (product === "jira" ? "jira-main" : "conf-main") ? "" : `-${id}`;
     const status = h("p", { class: "small", role: "status", "aria-live": "polite" });
-    const site = h("input", { id: `${product}Site`, type: "url", required: true, placeholder: "https://your-site.atlassian.net", value: conn ? conn.site_url : "" });
-    const email = h("input", { id: `${product}Email`, type: "email", required: true, autocomplete: "off", value: conn ? conn.email : "" });
-    const types = h("input", { id: `${product}Types`, value: conn ? conn.work_item_types.join(", ") : "Story" });
+    const site = h("input", { id: `${product}Site${sfx}`, type: "url", required: true, placeholder: "https://your-site.atlassian.net", value: conn ? conn.site_url : "" });
+    const email = h("input", { id: `${product}Email${sfx}`, type: "email", required: true, autocomplete: "off", value: conn ? conn.email : "" });
+    const types = h("input", { id: `${product}Types${sfx}`, value: conn ? conn.work_item_types.join(", ") : "Story" });
     const cred = conn ? conn.credential : { configured: false };
     const credText = cred.configured ? (cred.source === "environment" ? "token from .env" : "token saved") : "no token";
-    const tokenInput = h("input", { id: `${product}Token`, type: "password", autocomplete: "new-password", placeholder: cred.configured ? "paste a new token to replace it" : "paste the API token" });
+    const tokenInput = h("input", { id: `${product}Token${sfx}`, type: "password", autocomplete: "new-password", placeholder: cred.configured ? "paste a new token to replace it" : "paste the API token" });
 
     const save = h("form", { onsubmit: async (e) => {
-      e.preventDefault(); status.textContent = "Saving…";
+      e.preventDefault();
+      const host = (u) => { try { return new URL(u).hostname.toLowerCase(); } catch (err) { return u; } };
+      const moved = conn && (host(conn.site_url) !== host(site.value.trim()) || conn.email.trim().toLowerCase() !== email.value.trim().toLowerCase());
+      if (moved && !tokenInput.value.trim() && !confirm(`Change ${conn.id} to ${site.value.trim()}? The token saved for ${host(conn.site_url)} will not be sent to the new site: paste the API token for the new site (now, or afterwards). To keep both sites, use “Connect another Jira site” instead.`)) return;
+      status.textContent = "Saving…";
       try {
-        await api("/connections", { method: "POST", body: { id, product, site_url: site.value.trim(), email: email.value.trim(),
+        const saved = await api("/connections", { method: "POST", body: { id, product, site_url: site.value.trim(), email: email.value.trim(),
           work_item_types: product === "jira" ? list(types.value) : ["Story"] } });
         const token = tokenInput.value.trim();
         tokenInput.value = "";  // (the token leaves the page now; it is never kept)
         if (token) await api(`/connections/${encodeURIComponent(id)}/token`, { method: "PUT", body: { token } });
-        status.textContent = "Saved. Use “Test connection” to check it.";
-        integrations();
+        status.textContent = token ? "Saved. Use “Test connection” to check it." : saved.notice || "Saved. Use “Test connection” to check it.";
+        await integrations();
+        const card = [...document.querySelectorAll(".rq-conn")].find((c) => c.dataset.conn === id);
+        const out = card && card.querySelector("[role=status]");
+        if (out) out.textContent = token ? "Saved with its token. Use “Test connection” to check it." : (saved.notice || "Saved. Paste the API token for this site, then use “Test connection”.");
       } catch (err) { tokenInput.value = ""; status.textContent = err.message; }
     } },
       h("label", { for: site.id }, "Site address", site),
@@ -244,7 +266,7 @@
         try { await api(`/connections/${encodeURIComponent(id)}`, { method: "DELETE" }); integrations(); } catch (err) { status.textContent = err.message; }
       } })) : null;
 
-    return h("section", { class: "lab-card rq-conn", "aria-label": name },
+    return h("section", { class: "lab-card rq-conn", "aria-label": name, "data-conn": id },
       h("h3", {}, name, conn ? badge("configured", "info") : badge("not connected"), badge("read-only", "info"),
         conn ? badge(credText, cred.configured ? "ok" : "warn") : null),
       conn ? h("p", { class: "small" }, `Last successful import: ${when(conn.last_success)}`) : null,
@@ -1553,9 +1575,15 @@
     const box = $("tgBox");
     const reqs = [...new Set([...draftReqs(), ...draftCases().map((c) => c.replace(/^TC-/, "").replace(/-\d+$/, ""))])];
     if ($("exUrl").value && WF.draft.target_url === $("exUrl").value) return;
+    const before = $("exUrl").value;
     try {
       const r = await api(`/targets/resolve?${new URLSearchParams({ requirements: reqs.join(","), environment: $("exEnv").value })}`);
       TG.projects = r.projects;
+      if ($("exUrl").value !== before) {  // (typed while the answer was on its way: the person's address wins)
+        box.replaceChildren(h("p", { class: "small", text: r.status === "not_found" ? "Using the address you entered." : `${r.message} Using the address you entered.` }));
+        accountUi();
+        return;
+      }
       const pick = (c) => {
         TG.cand = c; $("exUrl").value = c.url; TG.account = c.has_test_account;
         saveDraft({ target_url: c.url, target_source: c.sources[0] });

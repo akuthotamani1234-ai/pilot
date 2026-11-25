@@ -398,3 +398,40 @@ def test_the_observed_product_cards_are_given_to_the_ai_and_count_as_observed(mo
             "expected": "prices ascending"}
     gen._llm_flows([flow], gen.script_pages([page]))
     assert '"selector": "div.inventory_list > div.inventory_item"' in prompts[0] and "IN THE ORDER SHOWN" in prompts[0]
+
+
+# ================================================================ connecting another Jira site (25 Nov 2026)
+
+def test_a_second_jira_site_gets_its_own_token_and_a_moved_connection_never_sends_the_old_token(api):
+    """Every Jira connection used one token slot, and changing a connection's address kept its token: Qpilot would
+    have sent site A's API token to site B. A second site now has its own slot, a moved connection loses its token,
+    and a stored token is bound to the site it was saved for."""
+    from backend.atlassian import credentials
+    from tests.atlassian_mock import EMAIL, TOKEN
+    c, H = api.client, api.H
+    main = next(x for x in c.get("/api/requirements/connections", headers=H).json()["connections"]
+                if x["id"] == "jira-main")
+    assert main["token_ref"] == "JIRA_READ_API_TOKEN" and main["credential"]["configured"]
+    second = c.post("/api/requirements/connections", headers=H, json={
+        "id": "jira-2", "product": "jira", "site_url": "https://second-site.atlassian.net", "email": EMAIL}).json()
+    assert second["token_ref"] == "JIRA_JIRA_2_SITE_TOKEN" and not second["credential"]["configured"]
+    assert c.put("/api/requirements/connections/jira-2/token", headers=H, json={"token": TOKEN}).status_code == 200
+    assert c.post("/api/requirements/connections/jira-2/test", headers=H).status_code == 200
+    # the first site is untouched and keeps its own token
+    conns = {x["id"]: x for x in c.get("/api/requirements/connections", headers=H).json()["connections"]}
+    assert conns["jira-main"]["credential"]["configured"] and conns["jira-2"]["credential"]["configured"]
+    # moving jira-main to another site: its token is removed and never sent there
+    moved = c.post("/api/requirements/connections", headers=H, json={
+        "id": "jira-main", "product": "jira", "site_url": "https://third-site.atlassian.net", "email": EMAIL}).json()
+    assert "token saved for the old one is no longer used" in moved["notice"]
+    assert moved["token_ref"] != "JIRA_READ_API_TOKEN" and not moved["credential"]["configured"]
+    refused = c.post("/api/requirements/connections/jira-main/test", headers=H)
+    assert refused.status_code >= 400 and TOKEN not in refused.text
+    # a saved token is bound to its site
+    credentials.set_token("t9", "JIRA_READ_API_TOKEN", "a-token-for-site-a-1234", site="https://a.atlassian.net")
+    assert credentials.resolver("t9", site="https://a.atlassian.net")("JIRA_READ_API_TOKEN") == "a-token-for-site-a-1234"
+    assert credentials.resolver("t9", site="https://b.atlassian.net")("JIRA_READ_API_TOKEN") == ""
+    events = c.get("/api/requirements/audit", headers=H).json()["events"]
+    saves = [json.loads(e["detail"]) for e in events if e["action"] == "requirements.connection.save"]
+    assert any(d.get("site_changed") and d.get("token_cleared") for d in saves), saves
+    assert TOKEN not in json.dumps(events)

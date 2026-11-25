@@ -597,6 +597,11 @@ project and environment; the optional test account is kept in the owner-only cre
 returned. A run without typed credentials uses the saved account only for that same address; typed credentials win;
 another address never receives it. Jira tokens are never sent to the application under test.
 
+**Several Atlassian sites.** Integrations lists every connection and offers "Connect another Jira site". Each
+site has its own token slot; a token is bound to the site it was saved for, and a connection moved to another site or
+account loses its token (the page says so and asks for the new one), so a token is never sent to a site it was not
+saved for.
+
 **Specific scenarios.** Rule-based ideas name what they check with executable steps: "Verify sorting by Price (low to
 high)" → open the list, locate the sort control, select the option, read the prices, compare with ascending numeric
 order; listing, login and quoted-message criteria likewise. A negative idea is made only for a stated constraint

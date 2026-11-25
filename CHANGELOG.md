@@ -2,6 +2,19 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-25 - Pages scroll again; connect more than one Jira site safely
+
+- No Jira workspace page (and not the Accuracy lab) could be scrolled: `studio.css` locks `html, body` for the chat,
+  whose thread scrolls inside, and these pages load it too. Pages laid out as `.lab-shell` scroll as a whole again.
+- Integrations shows every Jira (and Confluence) connection and a "Connect another … site" card; the import wizard
+  offers each connection.
+- Security: all Jira connections shared one token slot, and changing a connection's address kept its token, so a
+  token saved for one Atlassian site could be sent to another. A second site gets its own slot
+  (`JIRA_<ID>_SITE_TOKEN`); a connection whose site or account changes loses its saved token (audited, the page
+  asks for the new one); and a stored token is bound to its site (`credentials.site_of`) and never handed out for
+  another.
+- The Execution Center's website lookup no longer clears an address typed while it was still answering.
+
 ## 2026-11-24 - Ported from branch claude/laughing-wright-yvr79d (74e5000)
 
 - Frame forms are numbered after the page's own by one tested helper (`renumber_frame_forms`), replacing the inline
