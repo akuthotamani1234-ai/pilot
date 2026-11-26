@@ -768,3 +768,82 @@ def impacted(db, tenant: str) -> list[dict]:
     refresh(db, tenant)
     return [{"id": c["id"], "requirement": c["requirement_id"], "reason": c.get("stale_reason", "")}
             for c in list_cases(db, tenant, status="stale")]
+
+
+def accountability(db, tenant: str) -> dict:
+    """One record per imported requirement - nothing selected disappears: its criteria and their approval, scenarios,
+    test cases, prerequisites, the engine of its last execution, each case's latest REAL outcome with evidence and the
+    reason when it did not pass, defects, blockers - and the coverage figures kept apart:
+      requirement coverage   criteria with at least one passed test / all criteria
+      automation coverage    test cases that ran (a real result) / test cases
+      execution coverage     test cases with any recorded outcome / test cases
+      pass rate              passed / ran"""
+    from . import defects as dfx, prerequisites as pq
+    refresh(db, tenant)
+    found = dfx.by_case(db, tenant)
+    edges = pq.edges(db, tenant)
+    engines: dict[str, str] = {}
+    for ex in reversed(list_executions(db, tenant, limit=200)):
+        kind = str((ex.get("target") or {}).get("type") or "web")
+        for cid in ex.get("case_ids") or []:
+            engines[cid] = {"web": "Playwright (browser)", "android": "Appium (Android)",
+                            "api": "REST API tests"}.get(kind, kind)
+    cases = list_cases(db, tenant)
+    by_req: dict[str, list[dict]] = {}
+    for c in cases:
+        by_req.setdefault(c["requirement_id"], []).append(c)
+    ran_states = ("Passed", "Failed", "Flaky", "Requires review")
+    rows, totals = [], {"criteria": 0, "criteria_passed": 0, "cases": 0, "ran": 0, "outcome": 0, "passed": 0}
+    for a in store.list_analyses(db, tenant):
+        req = a.requirement
+        mine = by_req.get(req.id, [])
+        crit_rows = []
+        for crit in req.criteria:
+            tcs = [c for c in mine if crit.id in c["criterion_ids"]]
+            passed = any((c.get("latest_result") or {}).get("status") == "Passed" for c in tcs)
+            crit_rows.append({"id": crit.id, "text": crit.text, "automatable": crit.automatable,
+                              "approval": a.coverage.get(crit.id).value if a.coverage.get(crit.id) else "",
+                              "test_cases": [c["id"] for c in tcs], "verified": passed})
+        case_rows = []
+        for c in mine:
+            r = c.get("latest_result") or {}
+            case_rows.append({
+                "id": c["id"], "title": c["title"], "status": c["status"], "kind": c.get("kind"),
+                "engine": engines.get(c["id"], ""),
+                "prerequisites": [e["requires_id"] for e in edges if e["case_id"] == c["id"]],
+                "outcome": r.get("status") or ("not run yet" if c["status"] in ("approved", "ready") else c["status"]),
+                "reason": r.get("reason") or c.get("blocked_reason") or "",
+                "checks": r.get("checks"), "evidence": (r.get("evidence") or [])[:5], "last_run": r.get("run_folder", ""),
+                "defects": [d.get("id") for d in found.get(c["id"], [])]})
+        blockers = sorted({x["reason"][:200] for x in case_rows
+                           if x["outcome"] in ("Blocked", "Not automated", "blocked") and x["reason"]})
+        ran = [x for x in case_rows if x["outcome"] in ran_states]
+        with_outcome = [x for x in case_rows if x["outcome"] not in ("not run yet", "approved", "draft",
+                                                                    "awaiting_approval")]
+        n_crit, n_crit_ok = len(crit_rows), sum(1 for x in crit_rows if x["verified"])
+        rows.append({
+            "requirement": req.id, "title": req.title, "kind": req.kind, "source": req.sources[0].source_id,
+            "source_version": a.source_versions.get(req.sources[0].key), "analysis_stale": bool(an.stale(db, tenant, a)),
+            "criteria": crit_rows,
+            "scenarios": {"total": len(a.suggestions),
+                          "approved": sum(1 for s in a.suggestions if s.review == ReviewStatus.accepted)},
+            "test_cases": case_rows, "blockers": blockers,
+            "requirement_coverage": round(100 * n_crit_ok / n_crit) if n_crit else 0,
+            "automation_coverage": round(100 * len(ran) / len(case_rows)) if case_rows else 0,
+            "execution_coverage": round(100 * len(with_outcome) / len(case_rows)) if case_rows else 0,
+            "pass_rate": round(100 * sum(1 for x in ran if x["outcome"] == "Passed") / len(ran)) if ran else None})
+        totals["criteria"] += n_crit
+        totals["criteria_passed"] += n_crit_ok
+        totals["cases"] += len(case_rows)
+        totals["ran"] += len(ran)
+        totals["outcome"] += len(with_outcome)
+        totals["passed"] += sum(1 for x in ran if x["outcome"] == "Passed")
+    summary = {
+        "requirements": len(rows),
+        "requirement_coverage": round(100 * totals["criteria_passed"] / totals["criteria"]) if totals["criteria"] else 0,
+        "automation_coverage": round(100 * totals["ran"] / totals["cases"]) if totals["cases"] else 0,
+        "execution_coverage": round(100 * totals["outcome"] / totals["cases"]) if totals["cases"] else 0,
+        "pass_rate": round(100 * totals["passed"] / totals["ran"]) if totals["ran"] else None,
+        "note": "Requirement coverage counts criteria with a PASSED test; a case that was not run, not automated or "
+                "blocked never counts as covered."}
+    return {"summary": summary, "requirements": rows}

@@ -1351,6 +1351,17 @@ def register_requirements_api(app) -> None:
         _audit(ctx, "dependencies.set", True, case=body.case_id, requires=body.requires_id, present=body.present)
         return graph
 
+    @app.get("/api/requirements/accountability")
+    def accountability(authorization: str | None = A, x_qa_token: str | None = Q):
+        """Every imported requirement with its criteria, cases, prerequisites, engine, latest outcomes, blockers and
+        the coverage figures kept apart (requirement / automation / execution coverage, pass rate)."""
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            return bridge.accountability(db, ctx["tenant"])
+        finally:
+            db.close()
+
     @app.get("/api/requirements/traceability")
     def traceability(q: str = "", coverage: str = "", authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")

@@ -4216,6 +4216,25 @@ def run_objective(
     return read(folder)
 
 
+@app.get("/api/inventory")
+def feature_inventory(
+    host: str,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """The application's feature inventory across runs (backend/inventory.py)."""
+    from backend import inventory
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host or ""):
+        raise HTTPException(400, "Give the application's host name, e.g. www.example.com")
+    inv = inventory.load(host)
+    return {"host": host, "summary": inv.get("summary") or {}, "runs": inv.get("runs") or [],
+            "features": sorted(inv.get("features", {}).values(), key=lambda f: (f.get("coverage") != "failed",
+                                                                                 f.get("coverage"), f.get("name") or ""))}
+
+
 class HelpBody(BaseModel):
     storage_state: dict | None = None  # Playwright storage state from the person's own browser (only its cookies)
     cookie_header: str = Field(default="", max_length=8000)

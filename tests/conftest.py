@@ -12,6 +12,8 @@ os.environ.update({
     "QA_LIVE_FRAMES": "false",
     # crawl tests count requests in a fixed order; the parallel control learners have their own tests
     "EXPLORE_WORKERS": "0",
+    # the applications' feature inventories (backend/inventory.py) of test runs never land in the repository
+    "QPILOT_INVENTORY_DIR": os.path.join(__import__("tempfile").gettempdir(), "qpilot-test-inventory"),
 })
 
 

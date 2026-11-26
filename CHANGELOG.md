@@ -2,6 +2,24 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 9: the feature inventory across runs and every requirement accounted for
+
+- `backend/inventory.py`: after each run's report, its feature registry is folded into the application's inventory
+  (`inventory/<host>.json`, or `QPILOT_INVENTORY_DIR`): every feature any run found, with level, kind, pages, first /
+  last seen, runs seen, the latest status and why, the last run that tested / verified it, a coverage class
+  (verified / failed / blocked / not tested / not reached) and the requirement test cases whose tests exercised it -
+  linked by evidence (the case's test, or its generated code using that feature's own selectors), never by guessing.
+  A feature not seen by the latest run is kept as "not reached". The summary carries the latest run's discovery limits
+  (sampled pages, pages not reached, permissions) and never claims that everything was found. `GET /api/inventory`.
+- `bridge.accountability` / `GET /api/requirements/accountability`: one record per imported requirement - criteria and
+  approval, scenarios, test cases with their prerequisites, the engine of their last execution, each case's latest
+  real outcome, reason, checks, evidence and defects, the blockers - with the figures kept apart: requirement coverage
+  (criteria with a PASSED test), automation coverage (cases that ran), execution coverage (cases with an outcome) and
+  pass rate. A case that did not run, was not automated or was blocked never counts as covered. The Traceability
+  Matrix shows the summary and each requirement's blockers.
+- Real check: the registries of two live SauceDemo runs -> 44 features (33 not tested with why, 7 blocked, 4 not
+  reached in the latest run), 11 linked to the Jira cases that exercised them.
+
 ## 2026-11-26 - Phase 6: bot protection, CAPTCHA, SSO / MFA - recognised, paused, resumed with your session
 
 - `backend/access_help.py`: recognises a bot-protection page (Cloudflare, Akamai, Imperva, DataDome, PerimeterX or a

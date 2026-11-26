@@ -90,3 +90,6 @@ yarn-error.log*
 
 # ephemeral validation scratch
 /.pytest-*/
+
+# the applications' feature inventories across runs (backend/inventory.py)
+inventory/

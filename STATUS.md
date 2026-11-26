@@ -24,7 +24,8 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Prerequisites across stories (Phase 1) | built and run live: graph from Jira links, declared preconditions, optional AI, manual; added to runs; Blocked naming the failed prerequisite; cycles reported | `atlassian/prerequisites.py`, `/api/requirements/dependencies` |
 | REST API tests (Phase 3) | built and run live (Petstore): OpenAPI import, real requests, status / schema / JSON / time checks, chains, method permissions, redacted evidence; Jira test cases -> AI-planned API tests from documented operations only -> per-case results | `api_testing.py`, `requirements_api._launch_api` |
 | Bot protection, CAPTCHA, SSO / MFA (Phase 6) | built: recognised (vendor), durable pause, resume with an authorized person's session (own-domain cookies only), Blocked with the blocker otherwise; headless logins pause too. Verified with a real browser against a local bot-check site; real protected / SSO / MFA app: BLOCKED | `access_help.py`, `/api/runs/{job}/pause`, `/api/runs/{job}/help` |
-| iOS, per-feature inventory | NOT built | - |
+| Feature inventory and requirement accountability (Phase 9) | built: inventory across runs per application (coverage class, why, linked requirements by evidence, discovery limits); per-requirement accountability with requirement / automation / execution coverage and pass rate kept apart | `inventory.py`, `bridge.accountability`, `/api/inventory`, `/api/requirements/accountability` |
+| iOS | NOT built | - |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").

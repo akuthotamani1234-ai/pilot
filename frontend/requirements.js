@@ -1413,6 +1413,12 @@
   let trRows = [];
   async function traceabilityView() {
     const tbody = $("trTable").tBodies[0];
+    api("/accountability").then((acc) => {  // (every requirement accounted for: the four figures kept apart)
+      const s = acc.summary, pct = (v) => (v == null ? "—" : `${v} %`);
+      $("trAccount").replaceChildren(h("p", { class: "small" },
+        h("b", { text: `${s.requirements} requirement(s)` }), ` · requirement coverage ${pct(s.requirement_coverage)} (criteria with a passed test) · automation coverage ${pct(s.automation_coverage)} (cases that ran) · execution coverage ${pct(s.execution_coverage)} (cases with an outcome) · pass rate ${pct(s.pass_rate)}`),
+        ...acc.requirements.filter((r) => r.blockers.length).map((r) => h("p", { class: "small rq-issue" }, h("b", { text: `${r.requirement}: ` }), r.blockers.join(" · "))));
+    }).catch(() => {});
     try {
       const r = await api(`/traceability?${new URLSearchParams({ q: $("trQ").value, coverage: $("trCov").value })}`);
       trRows = r.rows;

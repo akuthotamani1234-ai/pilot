@@ -926,6 +926,15 @@ def reporter_agent(state: QAState) -> QAState:
         registry.record_outcomes(reg, cases, state.get("crawl"), results, strength)
         registry.save(reg, run_dir)
         state = dict(state, feature_counts=reg["counts"])
+        try:  # (the application's inventory across runs: what this run found / tested, kept - backend/inventory.py)
+            from urllib.parse import urlparse
+
+            from .. import inventory
+            host = urlparse(str(state.get("url") or "")).hostname
+            if host:
+                inventory.merge(host, run_dir, reg)
+        except Exception as error:  # (the report never fails because of the inventory)
+            print(f"  [report] the feature inventory was not updated: {type(error).__name__}", flush=True)
     # ONE calculation of every number the report, the summary, the chat and Excel show - checked against each other
     from .. import metrics as metrics_mod
     m = metrics_mod.build(results, cases, reg, failures, state.get("crawl"), run_dir / "generated_tests")

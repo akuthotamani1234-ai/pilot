@@ -364,6 +364,7 @@
     </section>
     <section class="rq-view" id="view-traceability" data-title="Traceability Matrix" hidden>
       <header class="rq-head"><h1>Traceability matrix</h1><p class="small">Jira story → acceptance criterion → test case → latest real result → evidence.</p></header>
+      <div id="trAccount" class="rq-account" aria-live="polite"></div>
       <form class="rq-toolbar" id="trForm" role="search"><label for="trQ" class="rq-sr">Search</label><input id="trQ" type="search" placeholder="Search requirement, criterion or test case">
         <label for="trCov" class="rq-sr">Coverage</label><select id="trCov"><option value="">Any coverage</option><option value="passed">Passed</option><option value="failed">Failed</option><option value="not automated">Not automated</option><option value="planned">Planned, not run yet</option><option value="no approved test">No approved test</option><option value="stale">Stale</option><option value="blocked">Blocked</option><option value="not automatable">Not automatable</option></select>
         <button class="secondary" type="button" id="trExport">Export CSV</button></form>
