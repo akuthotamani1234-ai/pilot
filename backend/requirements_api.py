@@ -565,8 +565,8 @@ def _launch_api(t, tests: list[dict], case_ids: list[str], explore: bool = False
             for r in results:
                 say(f"[api] {r['status']}: {r['name']} {(r.get('reason') or '')[:160]}")
             (run_dir / "api_results.json").write_text(json.dumps(results, indent=1, default=str), encoding="utf-8")
-            (run_dir / "test_cases.json").write_text(json.dumps(api_testing.to_run_cases(results, why, case_ids),
-                                                                indent=1), encoding="utf-8")
+            records = api_testing.to_run_cases(results, why, case_ids) + api_testing.autonomous_records(results)
+            (run_dir / "test_cases.json").write_text(json.dumps(records, indent=1), encoding="utf-8")
         except Exception as error:  # (the run itself failed: said, and every case is collected as not run)
             status = "failed"
             say(f"[api] the API run failed: {type(error).__name__}: {str(error)[:300]}")

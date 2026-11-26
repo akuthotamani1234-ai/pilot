@@ -1418,7 +1418,7 @@
           h("thead", {}, h("tr", {}, ["Test case", "Result", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
           h("tbody", {}, d.results.map((r) => h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: r.test_case_id, onclick: () => tcDetail(r.test_case_id) })),
             h("td", {}, resultBadge(r.status)), h("td", { text: r.actual || r.reason || "" }), h("td", {}, ...evidenceLinks(r))))))) : null,
-        ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — in the full Qpilot report.` }) : null,
+        ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — details in the run's report / folder.` }) : null,
         !running && d.results.length ? h("div", { class: "rq-row" }, h("button", { class: "secondary", type: "button", text: "Propose these results to Jira", onclick: async (e) => {
           try { await api("/writeback/proposals", { method: "POST", body: { execution_id: id } }); location.hash = "#writeback"; }
           catch (err) { e.target.after(h("span", { class: "small", role: "alert", text: ` ${err.message}` })); }
@@ -1773,7 +1773,7 @@
     const strategy = document.querySelector("input[name=exStrategy]:checked").value;
     $("exSelCount").textContent = cases.length;
     $("xcSummary").replaceChildren(...kids(
-      strategy === "autonomous" ? h("p", { class: "small", text: "Autonomous testing: no Jira requirement is needed. Qpilot explores the website and tests what it finds." })
+      strategy === "autonomous" ? h("p", { class: "small", text: "Autonomous testing: no Jira requirement is needed. Qpilot explores the application (website, app or API) and tests what it finds." })
         : [h("span", { class: "small", text: "Requirements:" }), reqs.length ? reqs.map((k) => h("span", { class: "rq-chip", text: k })) : h("a", { href: "#explorer", text: "choose requirements" }),
           h("span", { class: "small", text: "Test cases:" }), cases.length ? cases.map((c) => h("span", { class: "rq-chip", text: c })) : h("a", { href: "#builder", text: "select test cases" }),
           cases.length ? h("span", { class: "small", text: `(${plural(cases.length, "test case")}; criteria: ${(S.caseCriteria || []).join(", ") || "—"})` }) : null]));

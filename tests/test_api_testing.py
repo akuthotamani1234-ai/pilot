@@ -243,3 +243,23 @@ def test_autonomous_api_tests_cover_schema_rules_negatives_boundaries_auth_and_v
         failed = [r for r in by_kind[k] if r["status"] == "Failed"]
         assert failed and all(r["category"].startswith("Validation defect") for r in failed), k
     assert "tkn-123456" not in json.dumps(bad)  # (the credential never reaches the evidence)
+
+
+def test_autonomous_api_tests_are_counted_as_their_own_records():
+    """Live Petstore (26 Nov): an autonomous API execution ran 10 tests but said 'no tests were automated' - only Jira
+    cases were written to the run's test_cases.json."""
+    from backend.api_testing import autonomous_records, to_run_cases
+    results = [{"name": "GET /a answers as documented", "case": "", "status": "Passed", "kind": "schema",
+                "method": "GET", "path": "/a", "checks": [1, 2]},
+               {"name": "GET /a refuses an invalid x", "case": "", "status": "Failed", "kind": "negative",
+                "category": "Validation defect (invalid input accepted)", "reason": "status 200, expected [400]",
+                "method": "GET", "path": "/a", "checks": [1]},
+               {"name": "case test", "case": "TC-1", "status": "Passed", "method": "GET", "path": "/b", "checks": [1]}]
+    recs = to_run_cases(results, {}, ["TC-1"]) + autonomous_records(results)
+    auto = [r for r in recs if r.get("origin") == "autonomous"]
+    assert [(r["tc_id"], r["execution_status"]) for r in auto] == [("API-AUTO-1", "Passed"), ("API-AUTO-2", "Failed")]
+    assert auto[1]["failure_category"].startswith("Validation defect") and "requirement_test" not in auto[0]
+    from backend.atlassian import bridge
+    ex = {"strategy": "autonomous", "case_ids": [], "status": "finished",
+          "exploratory": {"cases": 2, "passed": 1, "failed": 1, "not_run": 0}}
+    assert bridge.outcome_of(ex)["outcome"] == "completed_with_failures"

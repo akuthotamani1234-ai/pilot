@@ -328,8 +328,17 @@ adb shell pm list packages | grep -i <part-of-your-app-name>
    App package `com.your.app`, Start activity (optional), Appium server `http://127.0.0.1:4723` -> select cases ->
    Start.
 
-Expected: Live Execution shows the emulator screen; each Jira case maps to its own result (`[TC-...]` tagged);
-screenshots per step in `runs/<run>/`. A step the app does not support ends Not automated with the reason.
+Run it three times, once per strategy:
+
+| Strategy | Expected |
+|---|---|
+| Requirement-based | the app is explored (to find the screens), then ONLY the selected cases run; the report lists the engine's own checks as "not tested - requirement-based run" |
+| Hybrid | the selected cases first, then the engine's own checks (forms, safe taps, rotation / background / Back) and AI journeys |
+| Autonomous | no cases: the engine's own checks and AI journeys |
+
+Expected: Live Execution shows the device screen (each evidence screenshot, taken only when no typed value is on
+screen); each Jira case maps to its own result (`[TC-...]` tagged); screenshots per step in `runs/<run>/`. A step
+the app does not support ends Not automated with the reason.
 
 Troubleshooting: "device" / "package" problem before start -> the pre-run check names the missing field;
 `INSTALL_FAILED_*` -> uninstall the old build (`adb uninstall com.your.app`).
@@ -406,12 +415,26 @@ xcrun simctl install booted /path/to/YourApp.app
 Start Appium (if not already running): `appium --address 127.0.0.1 --port 4723`.
 
 Execution Center -> Application = **iOS app** -> Bundle id (`com.your.app`), App file (optional), Simulator / device
-UDID (optional), iOS version (optional), Appium server `http://127.0.0.1:4723` -> strategy **Requirement-based**
-(autonomous is refused on iOS; hybrid runs the selected cases only) -> Start.
+UDID (optional), iOS version (optional), Appium server `http://127.0.0.1:4723` -> choose a strategy -> Start.
 
-Expected: the pre-run check passes (it names any missing piece: macOS/Xcode, Appium, the app); each case is
-planned only over controls the real screen shows; `runs/ios_<bundle>_*/test_cases.json`, screenshots per case and
-`ios_contexts.json` (WebView switches of a hybrid app - its `WKWebView` must set `isInspectable = true` on iOS 16.4+).
+Every iOS run first **discovers** the app: from a fresh launch it taps each safe control of each screen it finds (at
+most 12 screens / 40 taps; it never taps anything that pays, orders, deletes, sends, shares, logs out or grants a
+permission), records each screen's controls and screenshot, and inspects each WebView in its own context.
+
+| Strategy | Expected |
+|---|---|
+| Requirement-based | the selected cases, planned by the AI over every discovered screen (each case starts from launch and walks to its screen) |
+| Autonomous | scenarios from discovery (each navigation proven by a control only the new screen shows; each WebView's content plus the native screen after switching back) and up to 8 AI-designed scenarios, refused if they name a control the app does not show or would tap something risky |
+| Hybrid | both |
+
+Expected: the pre-run check passes (it names any missing piece: macOS/Xcode, Appium, the app); Live Execution shows
+the simulator screen; `runs/ios_<bundle>_*/` holds `ios_screens.json` (screens, transitions, what was not tapped and
+why), `screens/S*.png`, `test_cases.json` (Jira cases by id; autonomous scenarios as `IOS-AUTO-*` / `IOS-AI-*`),
+screenshots per case and `ios_contexts.json` (every NATIVE_APP <-> WEBVIEW switch). A hybrid app's `WKWebView` must
+set `isInspectable = true` on iOS 16.4+; otherwise its web scenarios end Not automated with exactly that reason.
+
+To prove a real defect is reported: in a test build, break one behaviour a case checks (e.g. the cart badge) and
+run again - that case must be **Failed**, not Passed or Not automated.
 
 Real device: also give the Apple team id (WebDriverAgent signing) - see docs/IOS_SETUP.md.
 
@@ -424,8 +447,11 @@ data": tick POST / PUT / PATCH / DELETE only for a test API (none = read-only; D
 | Strategy | Expected |
 |---|---|
 | Requirement-based | each case becomes API requests with status / schema / value checks; a request the run may not send is Blocked (and checks after it in the same case are Blocked, not Failed) |
-| Hybrid | the cases plus read-only smoke tests of every documented GET that needs no unknown input |
-| Autonomous | the smoke tests only |
+| Hybrid | the cases plus the autonomous tests below |
+| Autonomous | tests derived from the specification only, each kind only where the document says what must happen: **schema** (each GET without unknown input: documented status + response schema), **business rule** (a list filtered by an enum parameter that is a field of its items returns only such items), **negative** (invalid enum value, malformed path id -> a documented 4xx), **boundary** (just outside a declared minimum / maximum), **auth** (no credential on a secured operation -> documented 401 / 403, when the run has a token), **validation** (a write without its required body fields -> a documented 4xx, only for methods you ticked) |
+
+An invalid input the API accepts (2xx) is reported as **Validation defect (invalid input accepted)**; any 5xx is a
+failure.
 
 Public practice target: `https://petstore3.swagger.io/api/v3/openapi.json` (shared sandbox: its data changes; the
 26 Nov live run found a real schema violation and a real HTTP 500 on `GET /store/inventory`).
@@ -514,10 +540,10 @@ Tick each line only when you saw it yourself. Record PASS / FAIL / BLOCKED with 
 | 8 | Prerequisite failure | dependent case Blocked (not Failed) | | |
 | 9 | Live Execution | agents + live browser frames + steps | | |
 | 10 | New Test / history / scroll / Next / Back | selections kept, history lists every execution | | |
-| 11 | Native APK on emulator | per-case outcomes, screenshots | | |
+| 11 | Native APK on emulator, all three strategies | requirement-based runs only the cases; hybrid / autonomous add the engine's checks | | |
 | 12 | Hybrid APK | NATIVE_APP <-> WEBVIEW switches recorded, both checked | | |
-| 13 | iOS simulator app | per-case outcomes; autonomous refused with reason | | |
-| 14 | REST API (your API) | requests + checks; secrets redacted | | |
+| 13 | iOS simulator app, all three strategies | discovery screens + per-case outcomes; autonomous scenarios run; a broken test build fails its case | | |
+| 14 | REST API (your API), all three strategies | per-case checks; autonomous schema / rule / negative / boundary tests; secrets redacted | | |
 | 15 | Payment sandbox (test card) | paid on sandbox, confirmation checked; real card refused | | |
 | 16 | Order history + status | order listed; status awaited or inconclusive | | |
 | 17 | Bot protection | paused with blocker; resumed after help, or Blocked | | |

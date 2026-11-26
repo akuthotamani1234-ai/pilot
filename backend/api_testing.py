@@ -592,3 +592,18 @@ def to_run_cases(results: list[dict], why: dict[str, str], case_ids: list[str]) 
                     "check_count": sum(len(r.get("checks") or []) for r in mine),
                     "evidence": [f"api_results.json#{r['name']}" for r in mine]})
     return out
+
+
+def autonomous_records(results: list[dict]) -> list[dict]:
+    """The autonomous API tests (no Jira case) as run records of their own (API-AUTO-n), so an autonomous / hybrid
+    execution counts what really ran: Passed / Failed (with the category) / Blocked with the reason."""
+    out = []
+    for n, r in enumerate([r for r in results if not r.get("case")], 1):
+        status = r.get("status") or "Not run"
+        out.append({"tc_id": f"API-AUTO-{n}", "title": r.get("name"), "origin": "autonomous", "kind": r.get("kind", ""),
+                    "execution_status": status if status in ("Passed", "Failed") else "Not run",
+                    "skip_reason": str(r.get("reason") or "")[:500] if status not in ("Passed", "Failed") else "",
+                    "actual_result": str(r.get("reason") or "all checks passed")[:2000],
+                    "failure_category": r.get("category") or "", "steps": [f"{r.get('method')} {r.get('path')}"],
+                    "check_count": len(r.get("checks") or []), "evidence": [f"api_results.json#{r.get('name')}"]})
+    return out
