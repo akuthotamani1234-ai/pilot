@@ -71,6 +71,8 @@ NEEDS = (("a test account (username and password)", re.compile(r"\b(log ?in|sign
 def connect(path=None):
     db = store.connect(path)
     db.executescript(SCHEMA)
+    from . import prerequisites
+    prerequisites.connect_schema(db)
     return db
 
 
@@ -310,6 +312,41 @@ def _ready(case: dict) -> str:
     return ""
 
 
+def plan_dependencies(db, tenant: str, use_ai: bool = False) -> dict:
+    """(Re)build the prerequisite graph of this workspace's test cases (prerequisites.py). Returns the graph."""
+    from . import prerequisites as pq
+    cases = [c for c in list_cases(db, tenant) if c["status"] != "stale"]
+    sources = {}
+    for c in cases:
+        if c["requirement_id"] not in sources:
+            row = store.get_source(db, tenant, c.get("source_key") or "")
+            sources[c["requirement_id"]] = {"content": row["content"]} if row else {}
+    found = pq.infer(cases, sources)
+    note = ""
+    if use_ai:
+        more, note = pq.ai_edges(cases)
+        known = {(e["case_id"], e["requires_id"]) for e in found}
+        found += [e for e in more if (e["case_id"], e["requires_id"]) not in known]
+    pq.save(db, tenant, found, replace=("link", "declared", "ai") if use_ai else ("link", "declared"))
+    return dependency_graph(db, tenant) | {"note": note}
+
+
+def dependency_graph(db, tenant: str) -> dict:
+    from . import prerequisites as pq
+    all_edges = pq.edges(db, tenant)
+    return {"edges": all_edges, "cycles": pq.cycles(all_edges)}
+
+
+def _with_prerequisites(text: str, prereqs: list[dict]) -> str:
+    """The dependent test does its prerequisites' steps first (its own browser state: tests stay isolated)."""
+    if not prereqs:
+        return text
+    first = " Then ".join(f"{p['title'].rstrip('.')}: " + "; ".join(s.rstrip(".") for s in p["steps"])
+                          for p in prereqs)
+    return (f"Prerequisite (do first; it sets up the state - it is not what this test checks): {first}. "
+            f"Then this test: {text}")[:2600]
+
+
 def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, actor: str = "system") -> dict:
     """Record an execution and return the instructions for the existing Qpilot run. Stale / unapproved / blocked
     cases are listed as not run (with the reason) and never handed to the run."""
@@ -327,14 +364,29 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
         (excluded.append({"id": cid, "reason": why}) if why else cases.append(c))
     if strategy != "autonomous" and not cases:
         raise ValueError("no selected test case can run: " + "; ".join(f"{x['id']} {x['reason']}" for x in excluded)[:400])
+    # prerequisites (prerequisites.py): added even when their requirement was not selected; cycles never followed
+    from . import prerequisites as pq
+    runnable = {c["id"] for c in list_cases(db, tenant) if not _ready(c) and not (
+        c.get("demo_checkout") and not target.get("demo_checkout"))}
+    graph = pq.closure([c["id"] for c in cases], pq.edges(db, tenant), runnable)
+    for pid in graph["added"]:
+        cases.append(get_case(db, tenant, pid))
+    by_id = {c["id"]: c for c in cases}
+    prerequisite_info = {"added": graph["added"], "requires": graph["requires"], "skipped": graph["skipped"],
+                         "cycles": graph["cycles"],
+                         "chains": {cid: pq.all_requirements_of(cid, graph["requires"]) for cid in by_id
+                                    if graph["requires"].get(cid)}}
     execution = {"id": "EX-" + uuid.uuid4().hex[:10], "tenant_id": tenant, "strategy": strategy,
                  "case_ids": [c["id"] for c in cases], "excluded": excluded, "actor": actor, "created_at": _now(),
                  "case_versions": {c["id"]: c["version"] for c in cases},
                  "source_versions": {c["id"]: c["source_version"] for c in cases},
                  "target": {k: v for k, v in target.items() if k not in ("test_password", "api_key")},
-                 "requirements": sorted({c["requirement_id"] for c in cases}), "status": "queued", "run_id": ""}
+                 "requirements": sorted({c["requirement_id"] for c in cases}), "status": "queued", "run_id": "",
+                 "prerequisites": prerequisite_info}
     tests = [] if strategy == "autonomous" else [
-        {"id": "rq_" + re.sub(r"[^a-z0-9_]", "_", c["id"].lower()), "text": instruction(c), "tc": c["id"],
+        {"id": "rq_" + re.sub(r"[^a-z0-9_]", "_", c["id"].lower()),
+         "text": _with_prerequisites(instruction(c), [by_id[p] for p in prerequisite_info["chains"].get(c["id"], [])]),
+         "tc": c["id"], "prerequisite_for": [d for d, ch in prerequisite_info["chains"].items() if c["id"] in ch],
          "requirement": c["requirement_id"], "criteria": c["criterion_ids"], "title": c["title"]} for c in cases]
     with db:
         db.execute("INSERT INTO req_executions (tenant_id, id, status, run_id, created_at, data) VALUES "
@@ -427,6 +479,7 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         if isinstance(c, dict) and c.get("requirement_test"):
             by_tc[c["requirement_test"]] = c
     counts: dict[str, int] = {}
+    stored: list[tuple[str, str, dict]] = []
     for cid in ex["case_ids"]:
         c = by_tc.get(cid)
         if c is None:
@@ -446,10 +499,27 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                       "verification": c.get("verification"), "type": c.get("type"),
                       "failure_category": str(c.get("failure_category") or "")[:120],
                       "confidence": str(c.get("confidence") or "")[:20]}
-        counts[status] = counts.get(status, 0) + 1
         result.update(execution_id=execution_id, test_case_id=cid, run_id=ex.get("run_id", ""), at=_now(),
                       case_version=(ex.get("case_versions") or {}).get(cid),
                       source_version=(ex.get("source_versions") or {}).get(cid), run_folder=Path(run_dir).name)
+        stored.append((cid, status, result))
+    # a test that did not pass while a prerequisite it needs really failed: Blocked, naming that prerequisite
+    pre = ex.get("prerequisites") or {}
+    final = {cid: status for cid, status, _ in stored}
+    for i, (cid, status, result) in enumerate(stored):
+        if (pre.get("added") or []) and cid in pre["added"]:
+            result["role"] = "prerequisite (added: needed by " + ", ".join(
+                d for d, ch in (pre.get("chains") or {}).items() if cid in ch) + ")"
+        if status == "Passed":
+            continue
+        failed = [p for p in (pre.get("chains") or {}).get(cid, []) if final.get(p) in ("Failed", "Blocked")]
+        if failed:
+            result.update(status="Blocked", own_status=status, blocked_by=failed[0],
+                          reason=f"Blocked: its prerequisite {failed[0]} did not pass ({final[failed[0]]}) - the state "
+                                 f"this test starts from could not be established; not a failure of what it tests")
+            stored[i] = (cid, "Blocked", result)
+    for cid, status, result in stored:
+        counts[status] = counts.get(status, 0) + 1
         with db:
             db.execute("INSERT OR REPLACE INTO req_results (tenant_id, execution_id, test_case_id, status, at, data) "
                        "VALUES (?, ?, ?, ?, ?, ?)", (tenant, execution_id, cid, status, result["at"],
@@ -489,7 +559,8 @@ def outcome_of(ex: dict) -> dict:
              "failed": counts.get("Failed", 0), "requires_review": counts.get("Requires review", 0),
              "blocked": counts.get("Blocked", 0),
              "not_automated": counts.get("Not automated", 0), "skipped": counts.get("Skipped", 0),
-             "not_run": counts.get("Not run", 0) + counts.get("Cancelled", 0)}
+             "not_run": counts.get("Not run", 0) + counts.get("Cancelled", 0),
+             "prerequisites_added": len((ex.get("prerequisites") or {}).get("added") or [])}
     status = ex.get("status")
     if status in ("running", "queued"):
         key = "running"

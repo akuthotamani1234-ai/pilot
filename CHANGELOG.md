@@ -2,6 +2,26 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Prerequisites between requirements: a persistent graph, added to runs automatically
+
+- `backend/atlassian/prerequisites.py`: which test case needs which other one first, stored per workspace
+  (`req_dependencies`). Sources: Jira issue links ("is blocked by", "depends on", "requires"), a case's declared
+  preconditions / "Given ..." matched to a positive case of another requirement that establishes that state (generic
+  word overlap - nothing website- or domain-specific), optionally the AI (batches of 30, only real case ids kept), and
+  a person's own additions / removals (kept over every inferred edge). Login is left to the engine. Cycles are
+  detected, reported and never followed.
+- `bridge.plan`: every prerequisite of a selected case is added to the run even when its story was not selected
+  (marked "prerequisite (added: needed by ...)"); the dependent test does the prerequisites' steps first itself, so
+  tests keep their own browser state and stay isolated; a prerequisite that cannot run is listed, not dropped.
+- `bridge.collect`: a test that did not pass while a prerequisite it needs Failed / was Blocked is Blocked, naming
+  that prerequisite (its own result is kept as `own_status`); a test that passed stays Passed.
+- API: `GET /api/requirements/dependencies`, `POST /api/requirements/dependencies/plan` (`use_ai`),
+  `PUT /api/requirements/dependencies`; the graph is rebuilt (links / preconditions) before every execution.
+  Execution Center says which prerequisites were added, which cannot run and which cycles were ignored.
+- Live (mock Jira text, QPL-5 "is blocked by" QPL-4, real www.saucedemo.com): only TC-QPL-5-1 selected -> TC-QPL-4-1
+  added automatically; TC-QPL-5-1 put a product in the cart itself and passed; the added TC-QPL-4-1 was "Not
+  automated" (the AI wrote a selector the page does not have - refused by the grounding check).
+
 ## 2026-11-26 - Tests from Jira / your own cases are rewritten from the real page they failed on
 
 - The AI writes a Jira / owner test before anyone has seen the pages it reaches after acting (a filled cart, a

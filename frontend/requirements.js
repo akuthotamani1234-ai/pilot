@@ -1266,7 +1266,11 @@
     try {
       const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
       const ex = r.execution;
-      out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`;
+      const pre = ex.prerequisites || {};
+      out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`
+        + ((pre.added || []).length ? ` Prerequisites added automatically: ${pre.added.join(", ")} (needed first by ${Object.keys(pre.chains || {}).join(", ")}).` : "")
+        + ((pre.skipped || []).length ? ` Prerequisites that cannot run: ${pre.skipped.map((x) => `${x.requires} for ${x.case}`).join("; ")}.` : "")
+        + ((pre.cycles || []).length ? ` Circular prerequisites ignored: ${pre.cycles.map((c) => c.join(" → ")).join("; ")}.` : "");
       S.presetScope = null; S.reportId = null; S.liveId = null;  // (the run just started is the one shown)
       await saveDraft({ execution_id: ex.id, target_url: url, strategy, step: "agents" });
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)

@@ -334,6 +334,17 @@ class UrlBody(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
 
 
+class DependencyPlanBody(BaseModel):
+    use_ai: bool = False  # also ask the AI (small batches; only real case ids are kept)
+
+
+class DependencyBody(BaseModel):
+    case_id: str = Field(min_length=3, max_length=80)
+    requires_id: str = Field(min_length=3, max_length=80)
+    present: bool = True  # False: remove (also hides an inferred edge from later plans)
+    reason: str = Field(default="", max_length=300)
+
+
 class ExecutionBody(BaseModel):
     strategy: str = Field(pattern=r"^(requirements|autonomous|hybrid)$")
     scope: ExecutionScope = Field(default_factory=ExecutionScope)
@@ -1079,6 +1090,7 @@ def register_requirements_api(app) -> None:
             if pre["needs_ai"] or body.target.llm_provider:  # (the AI checked is the AI the run gets)
                 body = body.model_copy(update={"target": body.target.model_copy(update={
                     "llm_provider": pre["ai"]["provider"], "llm_model": pre["ai"]["model"] or body.target.llm_model})})
+            bridge.plan_dependencies(db, ctx["tenant"])  # (the current links / preconditions; AI and manual kept)
             try:
                 planned = bridge.plan(db, ctx["tenant"], ids, body.strategy, body.target.public(), actor=ctx["actor"])
             except (LookupError, ValueError) as error:
@@ -1177,6 +1189,48 @@ def register_requirements_api(app) -> None:
         server.stop_run(int(ex["run_id"]), authorization, x_qa_token)
         _audit(ctx, "execution.cancel", True, execution=execution_id)
         return {"execution": execution_id, "cancelling": True}
+
+    # -- prerequisites between test cases (atlassian/prerequisites.py): the persistent graph a run follows
+    @app.get("/api/requirements/dependencies")
+    def dependencies(authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = bridge.connect()
+        try:
+            return bridge.dependency_graph(db, ctx["tenant"])
+        finally:
+            db.close()
+
+    @app.post("/api/requirements/dependencies/plan")
+    def plan_dependencies(body: DependencyPlanBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "review.write")
+        db = bridge.connect()
+        try:
+            graph = bridge.plan_dependencies(db, ctx["tenant"], use_ai=body.use_ai)
+        finally:
+            db.close()
+        _audit(ctx, "dependencies.plan", True, edges=len(graph["edges"]), cycles=len(graph["cycles"]),
+               ai=body.use_ai)
+        return graph
+
+    @app.put("/api/requirements/dependencies")
+    def set_dependency(body: DependencyBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        ctx = _context(authorization, x_qa_token, "review.write")
+        db = bridge.connect()
+        try:
+            for cid in (body.case_id, body.requires_id):
+                if not bridge.get_case(db, ctx["tenant"], cid):
+                    raise HTTPException(404, f"{cid} is not a test case of this workspace.")
+            try:
+                from .atlassian import prerequisites
+                prerequisites.set_manual(db, ctx["tenant"], body.case_id, body.requires_id, body.present,
+                                         body.reason)
+            except ValueError as error:
+                raise HTTPException(400, safe_error(error)) from None
+            graph = bridge.dependency_graph(db, ctx["tenant"])
+        finally:
+            db.close()
+        _audit(ctx, "dependencies.set", True, case=body.case_id, requires=body.requires_id, present=body.present)
+        return graph
 
     @app.get("/api/requirements/traceability")
     def traceability(q: str = "", coverage: str = "", authorization: str | None = A, x_qa_token: str | None = Q):

@@ -21,7 +21,8 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Tests on pages exploring never saw | rewritten from the real page they failed on (evidence repair, up to 3 rounds); no pass without the result the case quotes | `agents/self_healing.py` |
 | Web (Playwright), native Android (Appium) | built, live-verified | |
 | Hybrid Android WebView driving | partial: detected, not driven automatically | `qa_runtime.py`, `android.py` |
-| iOS, REST API test execution, payment sandboxes, order lifecycle, prerequisite chains across stories, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
+| Prerequisites across stories (Phase 1) | built and run live: graph from Jira links, declared preconditions, optional AI, manual; added to runs; Blocked naming the failed prerequisite; cycles reported | `atlassian/prerequisites.py`, `/api/requirements/dependencies` |
+| iOS, REST API test execution, payment sandboxes, order lifecycle, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").
