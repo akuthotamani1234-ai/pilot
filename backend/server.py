@@ -4154,6 +4154,36 @@ def run_objective(
     return read(folder)
 
 
+@app.get("/api/runs/{job_id}/live")
+def run_live_frames(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Which workers have a real live screen (live/<worker>.jpg) and when it last changed - so a viewer shows every
+    browser of the run (explorers, learners, test workers gw0..gwN) and reloads only a screen that changed."""
+    from backend.finalization import folder_is_linked
+    from backend.live_frames import LIVE_DIR
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    if not job.get("run"):
+        return {"frames": []}
+    folder = _run_dir(job["run"]) / LIVE_DIR
+    if not folder.is_dir() or folder_is_linked(folder):
+        return {"frames": []}
+    frames = []
+    for f in sorted(folder.glob("*.jpg")):
+        if f.is_symlink() or not f.is_file() or not re.fullmatch(r"[a-z0-9-]{1,40}", f.stem):
+            continue
+        frames.append({"worker": f.stem, "updated": f.stat().st_mtime_ns})
+    return {"frames": frames[:64]}
+
+
 @app.get("/api/runs/{job_id}/live/{worker}")
 def run_live_frame(
     job_id: int, worker: str,

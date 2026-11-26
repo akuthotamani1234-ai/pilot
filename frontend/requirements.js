@@ -1255,7 +1255,7 @@
       const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
       const ex = r.execution;
       out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`;
-      S.presetScope = null; S.reportId = null;
+      S.presetScope = null; S.reportId = null; S.liveId = null;  // (the run just started is the one shown)
       await saveDraft({ execution_id: ex.id, target_url: url, strategy, step: "agents" });
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)
     } catch (err) { fail(err.message); }
@@ -1644,13 +1644,17 @@
   // -- step 8: live execution (the run's real events, agents and screens; only the panels scroll)
   async function liveView() {
     await refreshWorkflow();
-    let id = WF.draft && WF.draft.execution_id;
-    if (!id) {
-      const r = await api("/executions?limit=10");
-      const run = r.executions.find((x) => ["running", "queued"].includes(x.status));
-      id = run ? run.id : "";
-    }
+    let recent = [];
+    try { recent = (await api("/executions?limit=20")).executions || []; } catch (e) { recent = []; }
+    const active = recent.filter((x) => ["running", "queued"].includes(x.status));
+    let id = (S.liveId && recent.some((x) => x.id === S.liveId) && S.liveId) || (WF.draft && WF.draft.execution_id) || "";
+    if (!id) id = active.length ? active[0].id : "";
     const box = $("liveBox");
+    // every other execution still running is one click away (another tab's run, a re-run started from Reports)
+    const others = active.filter((x) => x.id !== id);
+    $("liveOthers").replaceChildren(...kids(others.length ? h("p", { class: "small" }, "Also running: ",
+      ...others.map((x) => h("button", { type: "button", class: "linklike", text: `${x.id} (${x.case_ids.length} test case(s))`,
+        onclick: () => { S.liveId = x.id; liveView(); } }))) : null));
     if (!id) {
       $("liveCtrl").replaceChildren(h("button", { type: "button", class: "primary", "data-newtest": "", text: "+ New Test" }));
       box.replaceChildren(h("div", { class: "lab-card" }, h("p", { class: "small", text: "No test of this workflow is running." }), h("a", { href: "#execution", text: "Go to the Execution Center" })));
@@ -1729,12 +1733,17 @@
       $("lvAgents").replaceChildren(h("ul", { class: "rq-audit" }, (ag.agents || []).map((a) => h("li", {}, h("b", { text: a.name }),
         badge(a.status, { completed: "ok", running: "info", failed: "bad", skipped: "" }[a.status] || ""), a.detail ? h("span", { class: "small", text: a.detail }) : null))));
     } catch (e) { /* (no agents yet) */ }
-    const workers = running ? LV.workers.slice(-2) : LV.workers.slice(-1);
-    for (const w of workers) {
-      if (LV.shown[w] === LV.framed[w]) continue;  // (only a new frame is loaded)
-      LV.shown[w] = LV.framed[w];
+    // every browser of the run that saved a real screen (explorers, learners, test workers gw0..): a screen is
+    // reloaded only when its file changed; test workers come first
+    let frames = [];
+    try { frames = (await api(`/api/runs/${job}/live`)).frames || []; } catch (e) { frames = []; }
+    const rank = (w) => (/^gw\d+$/.test(w) ? 0 : /^explorer/.test(w) ? 1 : 2);
+    frames.sort((a, b) => rank(a.worker) - rank(b.worker) || a.worker.localeCompare(b.worker, undefined, { numeric: true }));
+    for (const { worker: w, updated } of frames) {
+      if (LV.shown[w] === updated) continue;
+      LV.shown[w] = updated;
       try {
-        const res = await fetch(`/api/runs/${job}/live/${encodeURIComponent(w)}?t=${Date.now()}`, { headers: { "X-Agentic-QA": "1", ...(S.auth ? { Authorization: `Bearer ${S.auth}` } : {}) } });
+        const res = await fetch(`/api/runs/${job}/live/${encodeURIComponent(w)}?v=${updated}`, { headers: { "X-Agentic-QA": "1", ...(S.auth ? { Authorization: `Bearer ${S.auth}` } : {}) } });
         if (!res.ok) continue;
         const url = URL.createObjectURL(await res.blob());
         if (LV.frames[w]) URL.revokeObjectURL(LV.frames[w].src);
@@ -1742,7 +1751,9 @@
           const img = h("img", { alt: `Live screen of ${w}` });
           LV.frames[w] = img;
           if ($("lvScreens").querySelector("p")) $("lvScreens").replaceChildren();
-          $("lvScreens").append(h("figure", {}, img, h("figcaption", { text: `${w} — the real browser of the run` })));
+          const fig = h("figure", { "data-worker": w }, img, h("figcaption", { text: `${w} — ${/^gw\d+$/.test(w) ? "test browser" : "exploring browser"} of the run` }));
+          const after = [...$("lvScreens").querySelectorAll("figure")].find((f) => rank(f.dataset.worker) > rank(w));
+          $("lvScreens").insertBefore(fig, after || null);
         }
         LV.frames[w].src = url;
       } catch (e) { /* (no screen yet) */ }

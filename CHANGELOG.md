@@ -2,6 +2,14 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Live Execution shows every browser and every running execution
+
+- The Live view followed only frames an event marked, and only the newest one or two browsers; test workers (`gw0`,
+  `gw3` of a real run) save their screen without such a mark, so they never appeared. A new route
+  `GET /api/runs/{job}/live` lists the run's real screens with their change time: every browser is shown (test
+  browsers first) and a screen is reloaded only when its file changed.
+- Another running execution (a re-run, another tab's run) is offered under "Also running" in the Live view.
+
 ## 2026-11-25 - Pages scroll again; connect more than one Jira site safely
 
 - No Jira workspace page (and not the Accuracy lab) could be scrolled: `studio.css` locks `html, body` for the chat,

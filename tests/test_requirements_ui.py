@@ -790,3 +790,70 @@ def test_a_late_website_lookup_never_wipes_the_address_being_typed(browser, stud
         assert not errors, errors
     finally:
         ctx.close()
+
+
+def test_live_execution_shows_every_browser_and_every_running_execution(browser, studio, monkeypatch, tmp_path):
+    """Reported: a live execution did not appear. The test workers gw0 / gw3 of a real run save their screen but no
+    event marks it, so the Live view (which only followed marked frames, and only the newest one or two) never showed
+    them; and a second running execution could not be reached from the view."""
+    import httpx
+
+    from backend import server
+    h = {"X-Agentic-QA": "1"}
+    jobs = iter([7101, 7102])
+
+    def launch(req, caller):
+        n = next(jobs)
+        server.jobs[n] = {"id": n, "status": "running", "run": f"live_{n}"}
+        return {"id": n}
+    monkeypatch.setattr(server, "_launch_run", launch)
+    shot_ctx = browser.new_context()
+    shot = shot_ctx.new_page()
+    shot.set_content("<body style='background:#2563eb'>screen</body>")
+    jpeg = shot.screenshot(type="jpeg")
+    shot_ctx.close()
+    for n, workers in ((7101, ["gw0", "gw3", "explorer-1"]), (7102, ["gw1"])):
+        live = tmp_path / "runs" / f"live_{n}" / "live"
+        live.mkdir(parents=True)
+        for w in workers:
+            (live / f"{w}.jpg").write_bytes(jpeg)
+    monkeypatch.setattr(server, "_plain_run_dir", lambda name: tmp_path / "runs" / name)
+    with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
+        c.post("/api/requirements/connections", json={
+            "id": "jira-main", "product": "jira", "site_url": "https://aimaniforall1234-1795449805793.atlassian.net",
+            "email": EMAIL})
+        c.put("/api/requirements/connections/jira-main/token", json={"token": TOKEN})
+        rapi.JOBS.wait(c.post("/api/requirements/connections/jira-main/imports",
+                              json={"mode": "items", "keys": "QPL-2"}).json()["id"])
+        analysis = c.post("/api/requirements/items/jira-main/QPL-2/analyze", json={}).json()["analysis"]
+        from urllib.parse import quote
+        for s in analysis["suggestions"][:2]:
+            c.post(f"/api/requirements/items/jira-main/QPL-2/suggestions/{quote(s['id'], safe='')}/review",
+                   json={"answer": "yes"})
+        c.post("/api/requirements/items/jira-main/QPL-2/test-cases")
+        body = {"strategy": "requirements", "scope": {"requirements": ["QPL-2"]},
+                "target": {"url": "https://www.saucedemo.com/", "authorized": True}}
+        first = c.post("/api/requirements/executions", json=body).json()["execution"]
+        second = c.post("/api/requirements/executions", json=body).json()["execution"]
+        assert {f["worker"] for f in c.get("/api/runs/7101/live").json()["frames"]} == {"gw0", "gw3", "explorer-1"}
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        page.goto(studio.url + "/requirements#agents")
+        others = page.locator("#liveOthers")
+        expect(others).to_contain_text("Also running")
+        shown = page.locator("#liveSub")
+        start = first["id"] if first["id"] in shown.inner_text() else second["id"]
+        other = second["id"] if start == first["id"] else first["id"]
+        others.get_by_role("button", name=re.compile(other)).click()
+        expect(shown).to_contain_text(other)
+        page.goto(studio.url + "/requirements#agents")
+        if first["id"] not in page.locator("#liveSub").inner_text():
+            page.locator("#liveOthers").get_by_role("button", name=re.compile(first["id"])).click()
+        expect(page.locator("#liveSub")).to_contain_text(first["id"])
+        figures = page.locator("#lvScreens figure")
+        expect(figures).to_have_count(3, timeout=10000)  # (every browser, without any event marking its frame)
+        assert figures.evaluate_all("fs => fs.map(f => f.dataset.worker)") == ["gw0", "gw3", "explorer-1"]
+        expect(figures.first).to_contain_text("test browser")
+        assert not errors, errors
+    finally:
+        ctx.close()
