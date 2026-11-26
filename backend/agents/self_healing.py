@@ -593,6 +593,10 @@ def evidence_check(old_code: str, new_code: str, test: str, case: dict, live: di
         " ".join(str(s) for s in case.get("steps") or [])
     stated = {(a or b).strip() for a, b in CASE_VALUES.findall(words) if (a or b).strip()}
     new_values = " ".join(_check_values(new_fn)).casefold()
+    from .script_generator import quoted_expectations
+    must = [q for q in quoted_expectations(case) if q.casefold() not in new_values]
+    if must:  # (the result the test case quotes is always checked - a pass without it would prove nothing)
+        return f"the rewrite does not check the expected result the test case quotes: {must[0]!r}"
     kept = [v for v in stated if v.casefold() in " ".join(_check_values(old_fn)).casefold()]
     lost = [v for v in kept if v.casefold() not in new_values]
     if lost:

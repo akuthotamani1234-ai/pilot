@@ -2453,6 +2453,12 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
         # a case that needs the logged-in state must not be marked guest (it would start logged out)
         wrong_guest = [f["id"] for f in flows if not f.get("guest") and re.search(
             rf"@pytest\.mark\.guest[^\n]*\n(?:\s*@[^\n]*\n)*\s*def test_{_ident(f['id'])}\(", c)]
+        # the owner's / Jira test must check the result its test case QUOTES - else it could pass without checking it
+        unchecked = [(f["id"], q) for f in flows if f.get("my_test") for q in quoted_expectations(f)
+                     if q.casefold() not in c.casefold()]
+        if unchecked:
+            err = err or (f"test_{_ident(unchecked[0][0])} must check the expected result its test case quotes: "
+                          f"expect(page.locator('body')).to_contain_text({unchecked[0][1]!r}) after the steps")
         return err or (f"missing test functions: {', '.join(gone)}" if gone else None) or (
             f"{', '.join(wrong_guest)} must run logged in (\"guest\": false): remove @pytest.mark.guest"
             if wrong_guest else None)
@@ -2476,14 +2482,29 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     return code
 
 
+QUOTED_EXPECTATION = re.compile(r"""['"“‘]([^'"”’\n]{3,160})['"”’]""")
+
+
+def quoted_expectations(case: dict) -> list[str]:
+    """The texts an owner's / Jira test case quotes as its expected result (from 'Expected:' / its expected field)."""
+    text = str(case.get("expected") or "")
+    instruction = str(case.get("instruction") or "")
+    if "Expected:" in instruction:
+        text += " " + instruction.split("Expected:", 1)[1].split("Check:", 1)[0]
+    if text.casefold().startswith("exploratory:"):
+        return []
+    return list(dict.fromkeys(q.strip() for q in QUOTED_EXPECTATION.findall(text) if q.strip()))
+
+
 # The last try for the owner's / Jira tests whose checks need a page exploring never reached: the test does every step
 # and checks only what is certain there; when it fails, self-healing rewrites it from the page it really reached
 # (self_healing.evidence_repair) - so the test runs instead of staying 'Not automated'.
 UNSEEN_PAGE_HINT = ("\nA page this test reaches AFTER its actions may be missing from OBSERVED PAGES (e.g. a step that "
                     "only appears after adding something or submitting a form). Do NOT check headings, labels or texts "
                     "of such a page: do every step and check only what is certain - the address changed, the control "
-                    "you click or fill is visible - plus every check on observed pages. Its exact texts are checked "
-                    "later, from the real page.\n")
+                    "you click or fill is visible - plus every check on observed pages - and at the END the expected "
+                    "result the test case QUOTES, with expect(page.locator('body')).to_contain_text('<the quoted words>')."
+                    " Its other texts are checked later, from the real page.\n")
 FLOW_BATCH = 5  # the AI writes its large test cases 5 at a time: one bad answer loses 5 journeys, not all 20
 
 

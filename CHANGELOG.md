@@ -18,6 +18,10 @@ All notable changes to Qpilot should be recorded here. Phase 0 added project sta
   elsewhere stays protected. Prompts no longer carry website-specific examples.
 - Live (mock Jira text of QPL-5 / QPL-13, www.saucedemo.com, gpt-4o-mini, demo shop ticked): passed went from 0-1 to
   4 of 7 real passes; healing_log.json of each run shows every rewrite, its evidence and its verdict.
+- No pass without the requirement's result: a test whose case QUOTES its expected result ("Thank you for your
+  order!") must check those words - code without the check is refused, and so is an evidence rewrite that drops it
+  (one live run had passed QPL-5-5 by checking only that the Finish button was visible). Next run: QPL-5-5 finished the
+  demo order and checked the message; 4 of 7 passed, 2 need review, 1 not automated (results vary per AI answer).
 
 ## 2026-11-26 - Jira checkout and cart tests run on real websites; only placing the order or paying is not done
 

@@ -193,3 +193,20 @@ def test_a_name_the_test_types_into_a_form_is_its_own_test_data_not_an_invented_
     clicked = typed.replace('page.get_by_placeholder("First Name").fill("John")',
                             'page.get_by_text("John Doe", exact=True).click()')
     assert grounding_problem(clicked, pages)
+
+
+def test_a_test_must_check_the_result_its_test_case_quotes_or_it_cannot_pass():
+    """Live 26 Nov 2026: 'Finishing the order shows "Thank you for your order!"' passed by checking only that the Finish
+    button was visible - a pass that did not check the requirement."""
+    from backend.agents.script_generator import quoted_expectations
+    from backend.agents.self_healing import evidence_check as check
+    case = dict(CASE, instruction="Verify the message 'Thank you for your order!' is shown. Steps: finish. "
+                                  "Expected: Finishing the order shows 'Thank you for your order!'.",
+                expected="Finishing the order shows 'Thank you for your order!'")
+    assert quoted_expectations(case) == ["Thank you for your order!"]
+    assert quoted_expectations(dict(case, expected="Exploratory: look at it", instruction="")) == []
+    old = OLD.replace('to_have_text("Cart, 1 items")', 'to_contain_text("Thank you for your order!")')
+    live = {"texts": [{"text": "Finish"}]}
+    no_result = old.replace('expect(page.get_by_role("button", name="Cart, empty")).to_contain_text("Thank you for your order!")',
+                            'expect(page.locator(\'[data-test="finish"]\')).to_be_visible()')
+    assert "quotes" in check(old, no_result, "test_ai_flow_1", case, live, "")
