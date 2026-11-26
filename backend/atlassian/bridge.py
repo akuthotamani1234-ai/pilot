@@ -529,9 +529,21 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         by_tc.setdefault(cid, dict(c, requirement_test=cid, tc_id=cid))
     counts: dict[str, int] = {}
     stored: list[tuple[str, str, dict]] = []
+    access = {}  # the application kept the tester out and nobody helped in time (access_help.py): why it stopped
+    pause_file = Path(run_dir) / "pause.json"
+    if pause_file.is_file() and not pause_file.is_symlink():
+        try:
+            access = json.loads(pause_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            access = {}
     for cid in ex["case_ids"]:
         c = by_tc.get(cid)
-        if c is None:
+        if c is None and access.get("state") == "timed_out":
+            result = {"status": "Blocked", "reason": f"Blocked: {access.get('message')} ({access.get('url')}) - "
+                                                     f"{access.get('help')}"[:500],
+                      "evidence": [], "actual": "", "run_case": "", "access_blocked": access.get("kind")}
+            status = "Blocked"
+        elif c is None:
             status = "Cancelled" if run_status in ("stopped", "cancelled") else "Not run"
             result = {"status": status, "reason": "the run ended before this test case was designed or executed"
                       if run_status in ("stopped", "cancelled") else "the run did not produce this test case",

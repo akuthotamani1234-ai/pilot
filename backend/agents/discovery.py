@@ -2698,6 +2698,31 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     routes["consent_closed"] = closed
                     print(f"  [discovery] closed a cookie banner with '{closed}' (the least consent it offered)")
                 entry["status"] = resp.status if resp else (200 if "#" in url else None)
+                # bot protection / CAPTCHA wall / rate limit / access denied: never a defect of the application, never
+                # bypassed - the run pauses for an authorized person's session, then goes on or says it is Blocked
+                try:
+                    from ..access_help import apply as _apply_help, detect as _detect_block, wait_for_help
+                    block = _detect_block(entry["status"], page.title(), page.inner_text("body")[:4000],
+                                          page.content()[:20000])
+                except Exception:
+                    block = None
+                if block and block["kind"] in ("access_denied", "rate_limited") and depth > 0:
+                    block = None  # (an inner page this account may not open: the permission check below says so)
+                if block:
+                    helped = wait_for_help(run_dir, block, url, settings.human_wait_s) if settings.human_wait_s \
+                        else None
+                    if helped:
+                        _apply_help(page.context, helped)
+                        resp, pay_to = _open(settings.page_timeout_ms)
+                        entry["status"] = resp.status if resp else entry["status"]
+                        block = _detect_block(entry["status"], page.title(), page.inner_text("body")[:4000],
+                                              page.content()[:20000])
+                    if block:
+                        used_slugs.discard(slug)
+                        skipped[url] = f"Blocked: {block['message']} - {block['help']}"
+                        routes.setdefault("access_blocked", []).append({"url": url, **block})
+                        print(f"  [discovery] Blocked: {url} - {block['message']}", flush=True)
+                        continue
                 entry["load_time_ms"] = int((time.time() - t0) * 1000)
                 entry["final_url"] = page.url
                 if resp is not None:
@@ -3048,6 +3073,18 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                     if tab is not None:
                         tab.close()
                     tab, res = log_in(contexts[True], url, form, name, account["password"], scope)
+                    if res["outcome"] in ("mfa_required", "captcha", "sso_redirect") and settings.headless \
+                            and settings.human_wait_s:
+                        # a headless run: an authorized person signs in in their own browser and gives this run that
+                        # session (access_help) - the tester never completes the code / CAPTCHA / SSO itself
+                        from ..access_help import _found, apply as _apply_help, wait_for_help
+                        helped = wait_for_help(run_dir, _found(res["outcome"]), url, settings.human_wait_s)
+                        if helped and _apply_help(contexts[True], helped):
+                            tab.goto(start_url, wait_until="domcontentloaded")
+                            if not tab.locator("input[type=password]").first.is_visible():
+                                res = dict(res, logged_in=True, outcome="logged_in_with_your_session",
+                                           evidence=res["evidence"] + ["signed in with the session an authorized "
+                                                                       "person gave this run"])
                     if res["outcome"] in ("mfa_required", "captcha") and not settings.headless and settings.human_wait_s:
                         # a person may complete the code / CAPTCHA in the visible window - the tester never does
                         what = "a CAPTCHA" if res["outcome"] == "captcha" else "a one-time code (2-step verification)"

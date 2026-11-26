@@ -1291,6 +1291,27 @@
     } catch (err) { fail(err.message); }
   });
   $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; $("xcApi").hidden = $("xcApp").value !== "api"; });
+  // the application keeps the tester out (bot check, CAPTCHA, SSO / MFA ...): the run is paused - an authorized person
+  // signs in / passes the check in their own browser and gives the run that session (only the site's own cookies)
+  async function livePause(job) {
+    let p;
+    try { p = await api(`/api/runs/${job}/pause`); } catch (_) { return; }
+    const box = $("livePause");
+    if (!p || !p.paused) { box.hidden = true; box.replaceChildren(); return; }
+    if (!box.hidden && box.dataset.since === String(p.since)) return;  // (already shown: keep what is typed)
+    box.dataset.since = String(p.since); box.hidden = false;
+    const area = h("textarea", { id: "helpState", rows: 4, placeholder: "Paste the session from your own browser: a Playwright storage state (JSON), or a Cookie header (name=value; …)" });
+    const out = h("p", { class: "small", role: "status" });
+    box.replaceChildren(h("div", { class: "rq-issue", role: "alert" },
+      h("b", { text: `Paused — ${p.message}` }), h("p", { class: "small", text: `${p.url} · waiting up to ${p.wait_s} s · nothing is bypassed. What helps: ${p.help}.` }),
+      h("label", { for: "helpState", class: "small", text: "Your session for this website" }), area,
+      h("button", { type: "button", class: "secondary", text: "Give the run my session", onclick: async () => {
+        const raw = area.value.trim(); let body;
+        try { body = raw.startsWith("{") ? { storage_state: JSON.parse(raw) } : { cookie_header: raw }; } catch (e) { out.textContent = "That is not valid JSON."; return; }
+        try { const r = await api(`/api/runs/${job}/help`, { method: "POST", body }); out.textContent = r.message; area.value = ""; } catch (err) { out.textContent = err.message; }
+      } }), out));
+  }
+
   // what the preflight found, each with the action that fixes it (the selection and the form stay as they are)
   function showProblems(problems) {
     const act = { ai: ["Choose an AI provider", () => $("exAi").focus()], choose_ai: ["Choose an AI provider", () => $("exAi").focus()],
@@ -1782,6 +1803,7 @@
       const ex = d.execution, live = d.live || {};
       const running = ["running", "queued"].includes(ex.status);
       LV.job = ex.run_id;
+      if (running && ex.run_id) livePause(ex.run_id);
       const counts = ex.counts || {};
       const t = ex.target || {}, ai = t.llm_provider ? `AI: ${t.llm_provider}${t.llm_model ? " " + t.llm_model : ""} · ` : "";
       $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${t.url || ""} · ${ai}`, outcomeBadge(ex),

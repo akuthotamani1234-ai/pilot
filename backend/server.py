@@ -4216,6 +4216,66 @@ def run_objective(
     return read(folder)
 
 
+class HelpBody(BaseModel):
+    storage_state: dict | None = None  # Playwright storage state from the person's own browser (only its cookies)
+    cookie_header: str = Field(default="", max_length=8000)
+
+
+@app.get("/api/runs/{job_id}/pause")
+def run_pause(
+    job_id: int,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """Is the run paused because the application keeps the tester out (bot check, CAPTCHA, SSO / MFA ...)?"""
+    from backend.access_help import PAUSE
+    caller = _signed_in_reader(authorization, x_qa_token)
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    d = _plain_run_dir(str(job.get("run") or ""))
+    f = d / PAUSE if d else None
+    if not f or not f.is_file() or f.is_symlink():
+        return {"paused": False}
+    data = json.loads(f.read_text(encoding="utf-8"))
+    return {"paused": data.get("state") == "waiting", **{k: data.get(k) for k in (
+        "kind", "vendor", "message", "help", "url", "since", "wait_s", "state", "how_to_help")}}
+
+
+@app.post("/api/runs/{job_id}/help")
+def run_help(
+    job_id: int,
+    body: HelpBody,
+    authorization: str | None = Header(default=None),
+    x_qa_token: str | None = Header(default=None, alias="X-QA-Token"),
+):
+    """An authorized person's session for a paused run (signed in / past the check in their own browser): only the
+    application's own cookies are kept, privately in the run; the run checks that access works, then resumes."""
+    from backend.access_help import accept_help
+    caller = _signed_in_reader(authorization, x_qa_token, "run.write")
+    if isinstance(caller, JSONResponse):
+        return caller
+    job = _job_or_404(job_id)
+    refused = _refuse_job(job, caller)
+    if refused is not None:
+        return refused
+    d = _plain_run_dir(str(job.get("run") or ""))
+    if d is None or job.get("status") != "running":
+        raise HTTPException(409, "This run is not running.")
+    pause = run_pause(job_id, authorization, x_qa_token)
+    if not pause.get("paused"):
+        raise HTTPException(409, "This run is not waiting for help.")
+    n = accept_help(d, str(job.get("source") or pause.get("url") or ""), body.storage_state, body.cookie_header)
+    if not n:
+        raise HTTPException(400, "No cookie of the application's own website was given - sign in in your own "
+                                 "browser on that website, then give its session.")
+    _audit("run_help", job=job_id, cookies=n)
+    return {"accepted_cookies": n, "message": "Thank you - the run checks the access and goes on."}
+
+
 @app.get("/api/runs/{job_id}/live")
 def run_live_frames(
     job_id: int,

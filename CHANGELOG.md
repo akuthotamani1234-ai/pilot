@@ -2,6 +2,25 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 6: bot protection, CAPTCHA, SSO / MFA - recognised, paused, resumed with your session
+
+- `backend/access_help.py`: recognises a bot-protection page (Cloudflare, Akamai, Imperva, DataDome, PerimeterX or a
+  generic "checking your browser"), a CAPTCHA wall, HTTP 429 and an "access denied" 403 - never reported as a defect
+  of the application, never solved, hidden from or tricked. The run pauses durably (`runs/<run>/pause.json`: what,
+  where, since when, what helps) for the human-wait time (`HUMAN_WAIT_S`, default 180 s).
+- An authorized person signs in / passes the check in their own browser and gives the run that session:
+  `POST /api/runs/{job}/help` (a Playwright storage state or a Cookie header; only cookies of the application's own
+  domain are kept, privately in the run). The run applies it, checks the page really opens, and goes on - the same
+  run, its browser state, selected requirements and finished steps kept. `GET /api/runs/{job}/pause` and a banner in
+  Live Execution show the pause with a form for the session.
+- Headless logins that stop at a one-time code, a CAPTCHA or an SSO redirect now pause the same way (a visible
+  window still lets the person complete it there); with the person's session the login is verified, not assumed.
+- Nobody helped in time: that page is skipped as Blocked with the blocker and what would help; Jira test cases the
+  run never reached are Blocked with that reason. Inner pages an account may not open stay "needs other permissions"
+  (they do not pause the run).
+- Verified with a real browser against a local site behind a bot check: refused without the session, opened with it.
+  Live validation on a real protected site / SSO / MFA application: BLOCKED (none available here).
+
 ## 2026-11-26 - Phase 3: REST API tests (real requests, real checks), from Jira test cases
 
 - `backend/api_testing.py` (api_inventory.py only records a website's calls; this EXECUTES API tests): OpenAPI 3 /
