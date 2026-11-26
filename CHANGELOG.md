@@ -2,6 +2,32 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Jira checkout and cart tests run on real websites; only placing the order or paying is not done
+
+- Reported: QPL-5 (Checkout) and QPL-13 (cart badge) ended "Not automated: Not possible: The page where this applies
+  is missing / The badge feature is missing", with no browser activity. Reproduced with the same work items on
+  www.saucedemo.com: (1) criteria without Given/When got the literal first step "Open the page where this applies";
+  (2) the AI was told to answer "Not possible" whenever exploring had not seen a page or control - but a cart badge,
+  a filled cart or the checkout steps only appear after using the site; (3) most other checkout cases were blocked
+  before the run because "checkout" / "removing" counted as destroying data.
+- Test design (`backend/llm/prompts/my_tests.txt`): states reached by using the website are not missing - the AI
+  plans the steps that lead there; "Not possible" only when the website clearly cannot do it. The first step of a
+  criterion without Given/When says to get there (log in, go through the pages and actions that lead there).
+- Checkout (`backend/templates/conftest.py` CHECKOUT_FLOW, only for the owner's / Jira tests): the cart, the
+  Checkout button, the checkout pages and their forms and the order overview are tested on any authorized website;
+  the button that places the order or pays (Finish, Place order, Pay now, Confirm order ...) is never pressed
+  - the test is Blocked at that step with the reason. Payment pages / providers, deleting and logging out stay
+  protected in every mode; built-in tests and the crawler are unchanged.
+- "Demo shop - allow placing the order" (Execution Center, requirement-based runs only): for a demo / test shop with
+  no real order or payment, test cases may also finish the demo order - through the engine's existing permission
+  (staging + `ALLOW_ACTIONS=pay` + test payments, this run only). Without it such a case is listed as not run, with
+  the reason. Taking an item out of the test's own cart is no longer treated as destroying data.
+- A requirement-based run no longer also runs the built-in site-wide checks (`test_site.py`, `test_all_links.py`);
+  they belong to autonomous / hybrid runs (the Agents panel showed "25 tests, 12 failed" next to 3/3 passed).
+- A Jira test case is not asked about again in the engine's staging review (it was reviewed in the workspace).
+- "... is not shown" is a security rule only for passwords, tokens, card numbers and personal data (a cart badge
+  that is not shown is not).
+
 ## 2026-11-26 - Jira executions no longer run without an AI and call it "Complete"
 
 - Root cause of "Not automated: your own tests need an AI ... choose an AI in the chat" (reproduced): the Execution

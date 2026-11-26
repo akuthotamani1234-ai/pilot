@@ -949,6 +949,33 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
           icon, e.tagName.toLowerCase(), e.getAttribute('role') || '', f ? 'in_form' : '', action, clicked].map(s => s.trim().slice(0, 180)); }"""
 
 
+# The checkout of a shop, for the tests written from the owner's / Jira test cases (AI_FILES): "form" (the default) =
+# the cart -> checkout pages and their forms may be used, but the step that places the order or pays is never clicked;
+# "demo" = a demo shop the owner confirmed for this run (staging + test payments): the demo order may be finished too.
+# Payment providers / payment pages, deleting and logging out stay protected in every mode; built-in tests unchanged.
+CHECKOUT_FLOW = (os.environ.get("QA_CHECKOUT_FLOW") or "form").lower()
+CHECKOUT_WORDS = re.compile(r"(?:proceed to |go to |continue to )?check[\s-]?out", re.I)
+# the button that places the order / pays (on a checkout page: 'Finish', 'Place order', 'Confirm order', 'Pay now')
+ORDER_SUBMIT = re.compile(r"^\s*(?:finish|complete|confirm|submit|place|pay|buy)\b(?:\s+(?:my |the |your )?"
+                          r"(?:order|purchase|payment|now|checkout))?\s*[.!]?\s*$|place (?:my |the |your )?order|"
+                          r"complete (?:the )?(?:order|purchase)|confirm (?:the )?(?:order|purchase|payment)|"
+                          r"\bpay\b|\bbuy now\b", re.I)
+
+
+def _checkout_open() -> str:
+    """'' = checkout is protected here; 'form' / 'demo' = this test may use the checkout (see CHECKOUT_FLOW)."""
+    return CHECKOUT_FLOW if CHECKOUT_FLOW in ("form", "demo") and getattr(Locator, "_qa_strict", False) else ""
+
+
+def _payment_target_any(raw: str) -> bool:
+    """A checkout / payment page, whatever the mode (for the order-submit rule on a checkout page)."""
+    return bool(re.search(r"(?:^|/|[=#])(?:check-?outs?|payments?|place-?orders?|order|cart)\b", raw or "", re.I))
+
+
+def _pay_bits() -> str:
+    return r"payments?|place-?orders?|buy-now|paypal" + ("" if _checkout_open() else r"|check-?outs?")
+
+
 def _payment_target(raw: str) -> bool:
     """True when this address is checkout or payment, including a page the browser already opened.
 
@@ -956,10 +983,11 @@ def _payment_target(raw: str) -> bool:
     (index.php?rt=checkout/checkout or checkout/confirm) does not.
     """
     from urllib.parse import unquote
+    pay_bits = globals().get("_pay_bits", lambda: r"check-?outs?|payments?|place-?orders?|buy-now|paypal")()
     text = raw or ""
     path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
     if re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
-        r"(?:^|/)(?:check-?outs?|payments?|place-?orders?|buy-now|paypal)(?:\.[a-z0-9]+)?(?:/|$)",
+        r"(?:^|/)(?:" + pay_bits + r")(?:\.[a-z0-9]+)?(?:/|$)",
         path, re.I):
         return True
     query = text.split("?", 1)[1].split("#", 1)[0] if "?" in text else ""
@@ -970,7 +998,7 @@ def _payment_target(raw: str) -> bool:
         if not re.fullmatch(r"rt|route|r|controller|ctrl|action|act|task|cmd|do|page|step|view|screen", key, re.I):
             continue
         bits = [bit for bit in re.split(r"[/.]", unquote(value).replace("_", "-")) if bit]
-        if not bits or not any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+        if not bits or not any(re.fullmatch(pay_bits, bit, re.I)
                                for bit in bits):
             continue
         cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
@@ -983,7 +1011,7 @@ def _payment_target(raw: str) -> bool:
             route = route[1:]
         if route.startswith("/"):
             bits = [bit for bit in re.split(r"[/.]", route.split("?", 1)[0].replace("_", "-")) if bit]
-            if bits and any(re.fullmatch(r"check-?outs?|payments?|place-?orders?|buy-now|paypal", bit, re.I)
+            if bits and any(re.fullmatch(pay_bits, bit, re.I)
                             for bit in bits):
                 cart = bool(re.fullmatch(r"cart|basket|bag|trolley", bits[-1], re.I)) and any(
                     re.fullmatch(r"check-?outs?", bit, re.I) for bit in bits[:-1])
@@ -993,6 +1021,9 @@ def _payment_target(raw: str) -> bool:
 
 
 def _risky(names: list) -> bool:
+    # ('Checkout' / 'Proceed to checkout' opens the checkout form: allowed for the owner's tests - CHECKOUT_FLOW)
+    if globals().get("_checkout_open", lambda: "")():
+        names = [n if i in (3, 8, 9) else CHECKOUT_WORDS.sub(" ", n or "") for i, n in enumerate(names)]
     shown = names[0]
     other = " ".join(names[1:8])
     both = f"{shown} {other}"
@@ -1081,6 +1112,9 @@ def _refuse_protected(loc) -> None:
         names = loc.first.evaluate(CONTROL_TEXT_JS, bool(getattr(Locator, "_qa_strict", False)), timeout=3000)
     except Exception:
         return  # not found (yet): the real call reports that
+    if names and globals().get("_checkout_open", lambda: "")() == "form" and _payment_target_any(landed) and ORDER_SUBMIT.search(names[0] or ""):
+        pytest.skip(f"Blocked: '{names[0][:60]}' places the order or pays - the checkout is tested up to this step; "
+                    "it is finished only on a demo shop you confirm for the run (no real payment)")
     if names and _risky(names):
         label = next((n for n in names if n), "control").splitlines()[0][:60]
         pytest.skip(f"Blocked: '{label}' is a protected action (it could pay, order, delete, send or log out) - "

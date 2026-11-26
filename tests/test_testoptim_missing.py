@@ -274,7 +274,7 @@ def test_your_own_tests_become_test_cases_and_are_never_dropped(monkeypatch):
              {"id": "MY-2", "text": "Add a product to the wishlist"}]
     monkeypatch.setattr(td, "llm_enabled", lambda: False)
     off = td.my_test_cases([HOME], tests, start=1)
-    assert [c["kind"] for c in off] == ["mine", "mine"] and "need an AI" in off[0]["skip_reason"]
+    assert [c["kind"] for c in off] == ["mine", "mine"] and "no AI was available" in off[0]["skip_reason"]
 
     answer = [td.AICase(title="Shop heading", steps=["Open the home page", "The heading 'Shop' is shown"], expected="Shop"),
               td.AICase(title="Wishlist", steps=["Not possible on this website", "there is no wishlist"],

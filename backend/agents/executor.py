@@ -24,7 +24,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .. import runctl
-from ..actions import REFERENCE_NAV, SAFE_TEXT, TEST_ACCOUNT, WRITE, protected_pattern
+from ..actions import REFERENCE_NAV, SAFE_TEXT, TEST_ACCOUNT, WRITE, allowed, protected_pattern
 from ..config import settings
 from ..safety import AD_HOSTS, TRACKER_SAID, clean_env, is_private_host, redact
 from ..state import QAState
@@ -227,6 +227,9 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
         # consequential action; test / staging: what ALLOW_ACTIONS does not allow)
         "QA_PROTECTED_RX": protected_pattern(), "QA_TEST_ACCOUNT_RX": TEST_ACCOUNT.pattern,
         "QA_ENVIRONMENT": settings.environment, "QA_RUN_ID": run_dir.name,
+        # the owner's / Jira tests may go through a shop's checkout form, never place the order or pay; on a demo shop
+        # the owner confirmed (staging + test payments) they may finish the demo order (conftest.py CHECKOUT_FLOW)
+        "QA_CHECKOUT_FLOW": "demo" if allowed("pay") else "form",
         "QA_SAFE_TEXT_RX": SAFE_TEXT.pattern, "QA_WRITE_RX": WRITE.pattern,
         "QA_REFERENCE_NAV_RX": REFERENCE_NAV.pattern,
         # a link that says where it goes is protected only by an address that changes data (the crawler's rule)

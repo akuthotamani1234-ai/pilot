@@ -1487,13 +1487,16 @@ AI_NEEDS = [  # (words in the case, the thing it needs, does a page have it? (pa
 ]
 
 
-def _invented(case: dict, pages: list[dict], kinds: list[set]) -> str:
-    """What the AI's test case needs but no page of the site has ('' = everything it uses is really there)."""
+def _invented(case: dict, pages: list[dict], kinds: list[set], owner_text: str = "") -> str:
+    """What the AI's test case needs but no page of the site has ('' = everything it uses is really there).
+    owner_text: the owner's own test - what it asks for by name (a checkout, a cart) is not invented by the AI; the
+    crawler may simply not have reached it (it appears after using the site), so the run checks it for real."""
     from ..ai_grounding import invented_record_problem
     text = " ".join([str(case.get("title", "")), str(case.get("expected", "")), str(case.get("test_data", ""))]
                     + [str(s) for s in case.get("steps", [])])
     for rx, what, has in AI_NEEDS:
-        if re.search(rx, text, re.I) and not any(has(p, k) for p, k in zip(pages, kinds)):
+        if re.search(rx, text, re.I) and not re.search(rx, owner_text, re.I) and not any(
+                has(p, k) for p, k in zip(pages, kinds)):
             return what
     # Invented demo people (John Doe, …) unless observed/seeded/required.
     people = invented_record_problem(text, pages, settings.requirements)
@@ -1646,6 +1649,21 @@ def ai_flows(pages: list[dict]) -> list[dict]:
 
 
 MY_TEST = "Your own test (plain English)"
+NO_CHECKOUT_RULE = ("- You MAY open the cart, press Checkout, fill in the checkout form and read the order overview. "
+                    "NEVER press the button\n  that places the order or pays (Finish, Place order, Pay ...), never "
+                    "confirm a booking, delete or log out - stop\n  before that button (you may check that it is "
+                    "shown), even when the owner's test says to do it.")
+# the same rule for the code (script_generator.txt); the conftest guard enforces it whatever the code says
+CODE_CHECKOUT_RULE = ("- You MAY open the cart, click Checkout, fill in the checkout form and read the order overview. "
+                      "NEVER click the button that\n  places the order or pays (Finish, Place order, Pay, Buy, Confirm "
+                      "order), delete or log out: stop the flow before it.")
+CODE_DEMO_CHECKOUT_RULE = ("- This is a DEMO shop the owner confirmed (no real payment): the checkout may be finished "
+                           "when the test case says so.\n  NEVER type real card or bank details, never delete, never "
+                           "log out.")
+# (only on a demo / test shop the owner confirmed for this run: staging with test payments - no real money moves)
+DEMO_CHECKOUT_RULE = ("- This is a DEMO shop the owner confirmed (no real payment): you MAY go through its checkout and "
+                      "finish the demo order\n  when the test asks for it. NEVER type real card or bank details, never "
+                      "delete anything and never log out.")
 
 
 def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None) -> list[dict]:
@@ -1675,8 +1693,11 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
                 "feature": "Your own tests", "element": "as written by you", "files": [], "tests": [],
                 "skip_reason": why}
     # a request to delete, pay or otherwise change data is never carried out from an instruction
-    risky = [t for t in tests if objective_mod.destructive(t["text"])]
-    refused = {t["id"]: kept(t, f"Blocked: '{objective_mod.destructive(t['text'])}' changes or destroys data - Qpilot "
+    from ..actions import allowed
+    demo = allowed("pay")  # (a demo shop the owner confirmed for this run: staging + test payments - no real payment)
+    risky = [t for t in tests if objective_mod.destructive(t["text"], demo_checkout=demo)]
+    refused = {t["id"]: kept(t, f"Blocked: '{objective_mod.destructive(t['text'], demo_checkout=demo)}' changes or "
+                                "destroys data - Qpilot "
                                 "does not do that from an instruction (only on a staging copy with explicit permission)")
                for t in risky}
     tests = [t for t in tests if t["id"] not in refused]
@@ -1689,7 +1710,8 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
         return list(refused.values())
     try:
         answer = ask_structured(load_prompt("my_tests").format(
-            n=len(tests), site=_site_summary(pages), tests="\n".join(f"{n}. {t['text']}" for n, t in
+            n=len(tests), site=_site_summary(pages), checkout_rule=DEMO_CHECKOUT_RULE if demo else NO_CHECKOUT_RULE,
+            tests="\n".join(f"{n}. {t['text']}" for n, t in
                                                                    enumerate(tests, start=1))),
             list[AICase], system=SYSTEM, agent="test_design", page="my tests")
     except (LLMError, json.JSONDecodeError, ValueError) as e:
@@ -1711,7 +1733,7 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
                 "not possible"):
             out.append(kept(t, f"Not automated: {str(c.get('expected') or c['steps'][-1])[:200]}"))
             continue
-        missing = _invented(c, pages, kinds)
+        missing = _invented(c, pages, kinds, owner_text=t["text"])
         if missing:
             out.append(kept(t, f"Not automated: the website has no {missing}"))
             continue

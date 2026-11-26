@@ -293,6 +293,9 @@ class ExecutionTarget(BaseModel):
     url: str = Field(min_length=4, max_length=2000)
     authorized: bool = False   # "I own this application or have permission to test it"
     environment: str = Field(default="test", pattern=r"^(test|staging)$")
+    # "This is a demo / test shop - no real payment": its checkout may be completed by the checkout test cases of a
+    # requirement-based run (the engine's existing staging + test-payment permission, for THIS run only)
+    demo_checkout: bool = False
     test_username: str = Field(default="", max_length=200)
     test_password: str = Field(default="", max_length=200)  # this run only; never stored, never returned
     llm_provider: str = Field(default="", max_length=30)
@@ -1044,7 +1047,7 @@ def register_requirements_api(app) -> None:
         return execution_preflight.check(
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
-            probe=PREFLIGHT_PROBE)
+            probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout)
 
     @app.post("/api/requirements/executions/preflight")
     def preflight_execution(body: ExecutionBody, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -1093,8 +1096,11 @@ def register_requirements_api(app) -> None:
                 user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
                 if user and pw:
                     t = t.model_copy(update={"test_username": user, "test_password": pw})
+            demo = t.demo_checkout and body.strategy == "requirements"
             req = server.RunRequest(
-                source=t.url, authorized=True, environment=t.environment, max_pages=t.max_pages,
+                source=t.url, authorized=True, environment="staging" if demo else t.environment,
+                writes_confirmed=demo, allow_actions="pay" if demo else None, test_payment=demo,
+                max_pages=t.max_pages,
                 show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
                 llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key or None,
                 test_username=t.test_username or None, test_password=t.test_password or None,

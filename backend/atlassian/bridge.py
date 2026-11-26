@@ -168,7 +168,7 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
     if reasons:
         raise ValueError("the requirement changed since it was analysed - analyse and review it again first: "
                          + "; ".join(reasons)[:300])
-    from ..objective import destructive
+    from ..objective import checkout_only, destructive
     root = analysis.requirement.sources[0]
     criteria = {c.id: c for c in analysis.requirement.criteria}
     existing = {c["suggestion_fingerprint"]: c for c in list_cases(db, tenant, requirement_id)}
@@ -190,8 +190,10 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
         blocked = []
         if not all(c.automatable for c in cited):
             blocked.append("; ".join(c.not_automatable_reason for c in cited if not c.automatable))
-        if destructive(words) or s.destructive:
-            blocked.append(f"changes or destroys data ('{destructive(words) or s.destructive}') - only on a staging "
+        risky = " ".join([s.destructive or "", words])
+        demo = checkout_only(risky)  # (a checkout: runs only on a demo shop the owner confirms for the run)
+        if destructive(risky) and not demo:
+            blocked.append(f"changes or destroys data ('{destructive(risky)}') - only on a staging "
                            "copy with explicit permission")
         steps = list(s.steps) or [f"Use the application as described: {cited[0].text}"]
         expected = s.expected_outcome or "; ".join(c.then or c.text for c in cited)
@@ -212,6 +214,7 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
             "priority": "high" if s.kind.value in ("positive", "security") else "medium",
             # a Jira Bug is checked for whether it still happens (reproduction / regression), never reported as a
             # new defect Qpilot found; a story / task / spec is a requirement
+            "demo_checkout": demo,
             "work_item": analysis.requirement.kind,
             "purpose": "reproduce the reported bug (regression check)" if analysis.requirement.kind == "bug"
             else "verify the requirement",
@@ -219,14 +222,17 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
         fp = _content_fp(case)
         old = existing.get(s.fingerprint)
         seen.add(s.fingerprint)
-        if old and old["fingerprint"] == fp and old["status"] != "stale":
+        status = "blocked" if blocked else "approved"
+        if old and old["fingerprint"] == fp and old["status"] != "stale" and (
+                old["status"] == status or old["status"] not in ("blocked", "approved")) and \
+                old.get("demo_checkout", "") == demo and old.get("blocked_reason", "") == case["blocked_reason"]:
             out["unchanged"].append(old["id"])
             continue
         n = int(old["id"].rsplit("-", 1)[-1]) if old else (max(used_numbers, default=0) + 1)
         used_numbers.append(n)
         case.update(id=f"TC-{requirement_id}-{n}", fingerprint=fp, version=(old["version"] + 1) if old else 1,
                     created_at=old.get("created_at", _now()) if old else _now(), approved_at=_now(),
-                    status="blocked" if blocked else "approved")
+                    status=status)
         _save(db, tenant, case, "regenerated (requirement or scenario changed)" if old else "generated from "
               f"approved scenario {s.id} (reviewed by {case['reviewer'] or 'unknown'})")
         out["updated" if old else "created"].append(case["id"])
@@ -315,7 +321,9 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
         c = get_case(db, tenant, cid)
         if not c:
             raise LookupError(f"{cid} is not a test case of this workspace")
-        why = _ready(c)
+        why = _ready(c) or ("it places an order, so it runs only on a demo shop you confirm (tick 'Demo shop - "
+                            "allow placing the order' in the Execution Center)"
+                            if c.get("demo_checkout") and not target.get("demo_checkout") else "")
         (excluded.append({"id": cid, "reason": why}) if why else cases.append(c))
     if strategy != "autonomous" and not cases:
         raise ValueError("no selected test case can run: " + "; ".join(f"{x['id']} {x['reason']}" for x in excluded)[:400])

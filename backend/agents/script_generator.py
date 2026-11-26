@@ -2438,7 +2438,11 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
                       indent=1)
     cases = json.dumps([{k: f[k] for k in ("id", "title", "guest", "pages", "test_data", "steps", "expected")}
                         for f in flows], indent=1)
-    code = extract_code(ask_llm(load_prompt("script_generator").format(pages=data, cases=cases), system=SYSTEM,
+    from ..actions import allowed
+    from .test_design import CODE_CHECKOUT_RULE, CODE_DEMO_CHECKOUT_RULE
+    rule = CODE_DEMO_CHECKOUT_RULE if allowed("pay") else CODE_CHECKOUT_RULE
+    code = extract_code(ask_llm(load_prompt("script_generator").format(pages=data, cases=cases, checkout_rule=rule),
+                                system=SYSTEM,
                                 agent="script_generator", page="site"))
 
     def problem(c: str) -> str | None:
@@ -3014,10 +3018,13 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
         else:
             save("test_checks.py", code, "template")
 
-    # 4) the 5 small checks: every page / every link / every input box
-    if pages:
+    # 4) the 5 small checks: every page / every link / every input box - not in a requirement-based run (only the
+    # approved requirement test cases run there; these site-wide checks belong to the autonomous / hybrid runs)
+    from .. import requirement_tests
+    site_wide = not requirement_tests.only()
+    if pages and site_wide:
         save("test_site.py", site_script(list(pages.values())), "template")
-    code, n_links = all_links_script(state["app_map"])
+    code, n_links = all_links_script(state["app_map"]) if site_wide else ("", 0)
     if n_links:
         save("test_all_links.py", code, "template")
     plugins = [c for c in cases if c.get("kind") == "plugin" and not c.get("blocked")]

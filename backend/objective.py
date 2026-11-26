@@ -28,7 +28,8 @@ when whether which with works admin as also all any field fields name names id i
 """.split())
 # a request that would change or destroy data: never done from an instruction (staging + explicit permission only)
 DESTRUCTIVE = re.compile(r"\b(delete|deleting|remove|removing|erase|purge|wipe|drop|terminate|deactivate|"
-                         r"pay|payment|purchase|buy|transfer|place (an )?order|checkout|reset (the )?password)\b", re.I)
+                         r"pay|payment|purchase|buy|transfer|place (an |the )?order|(?:finish|complete|confirm)(?:ing|s)? (?:the |an? )?order|"
+                         r"reset (the )?password)\b", re.I)
 
 
 def keywords(text: str) -> list[str]:
@@ -40,10 +41,33 @@ def keywords(text: str) -> list[str]:
     return out[:20]
 
 
-def destructive(text: str) -> str:
-    """The destructive words of an instruction ('' = none)."""
-    m = DESTRUCTIVE.search(text or "")
-    return m.group(0) if m else ""
+# Taking an item out of the test's OWN cart is as reversible as putting it in (actions.TEST_ACCOUNT) - not destructive.
+CART = re.compile(r"\b(cart|basket|bag|trolley)\b", re.I)
+# Going through a shop's checkout (cart, checkout form, overview) is tested anywhere - the tests stop before the step
+# that places the order (conftest.py CHECKOUT_FLOW). PLACING the order is done only on a demo / test shop the owner
+# confirms for the run (no real payment: actions.allowed('pay') on staging with test payments). Paying with real
+# details, transfers and deleting stay destructive.
+DEMO_CHECKOUT = re.compile(r"purchase|buy|place (an |the )?order|(?:finish|complete|confirm)(?:ing|s)? "
+                           r"(?:the |an? )?order", re.I)
+
+
+def destructive(text: str, demo_checkout: bool = False) -> str:
+    """The destructive words of an instruction ('' = none). demo_checkout: the run is on a demo shop the owner
+    confirmed (no real payment), so a checkout / order / purchase is not destructive there."""
+    for m in DESTRUCTIVE.finditer(text or ""):
+        word = m.group(0)
+        if word.lower() in ("remove", "removing") and CART.search(text):
+            continue
+        if demo_checkout and DEMO_CHECKOUT.fullmatch(word):
+            continue
+        return word
+    return ""
+
+
+def checkout_only(text: str) -> str:
+    """The checkout word when a demo checkout is the ONLY risky thing in the text ('' otherwise)."""
+    word = destructive(text)
+    return word if word and not destructive(text, demo_checkout=True) else ""
 
 
 class Objective:

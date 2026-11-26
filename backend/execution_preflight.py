@@ -112,7 +112,7 @@ def browser_probe(url: str, timeout_s: float = PROBE_TIMEOUT_S) -> dict:
 
 def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_type: str = "web",
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
-          probe=None) -> dict:
+          probe=None, demo_checkout: bool = False) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -138,6 +138,10 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
             check_target(url, resolve=False)
         except UrlError as error:
             problem("target", str(error), "enter_url")
+    if demo_checkout and strategy != "requirements":
+        problem("demo_checkout", "The demo checkout is only for requirement-based runs (the built-in website tests "
+                                 "would also send forms). Choose requirement-based testing, or untick the demo "
+                                 "checkout.", "choose_strategy")
     if not authorized:
         problem("authorization", "Confirm that you own the application or have permission to test it.",
                 "confirm_authorization")

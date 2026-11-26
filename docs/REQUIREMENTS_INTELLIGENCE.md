@@ -615,6 +615,35 @@ although QPL-2 was not selected; the preflight first refused it because the real
 account was given. An earlier QPL-3 run with AI-added ideas (`..._061309`) had 4 test mistakes, now "Requires review"
 and the duplicated / baseless AI ideas are filtered.
 
+**Cart and checkout on real websites (26 Nov 2026).** Reported: QPL-5 (Checkout) and QPL-13 (cart badge) ended "Not
+automated: Not possible: The page where this applies is missing / The badge feature is missing". Reproduced with the
+same work items on www.saucedemo.com: the AI was told "Not possible" whenever exploring had not seen a page or
+control - but a badge after adding an item, a filled cart and the checkout steps only appear after using the site;
+criteria without Given/When started with the literal step "Open the page where this applies"; and most checkout cases
+were blocked before the run ("checkout", "removing" counted as destroying data). Now:
+
+| What | Any authorized website | "Demo shop - allow placing the order" ticked |
+|---|---|---|
+| add to cart, open the cart, take your item out again | tested | tested |
+| Checkout button, checkout pages, their forms, the order overview | tested | tested |
+| the button that places the order (Finish, Place order, Confirm order ...) | never pressed: Blocked at that step | pressed (demo order) |
+| payment pages / payment providers, real card details | never | never |
+| delete data, log out | never | never |
+
+The rule is enforced in the generated tests' click guard (`templates/conftest.py` `CHECKOUT_FLOW`, only for the
+owner's / Jira tests; built-in tests and the crawler keep checkout closed), told to the AI (test design and code), and
+a test case that places an order is listed as not run, with the reason, unless the box is ticked. The demo option
+uses the engine's existing permission (staging + `ALLOW_ACTIONS=pay` + test payments, this run only) and is refused
+for autonomous / hybrid runs. A requirement-based run no longer also runs the built-in site-wide checks.
+
+Live evidence (mock Jira text of QPL-5 / QPL-13, real www.saucedemo.com, OpenAI gpt-4o-mini): before - 4 of 8 cases
+ran, QPL-13-1 passed, the 3 checkout cases were Blocked at "Checkout" (`runs/www.saucedemo.com_20261126_065656`);
+after - 6 of 7 cases ran through the cart into `checkout-step-one.html` (the order-placing case was listed as not run),
+and with the demo box all 7 were included (`..._070422`, `..._070714`). Several of those results were "Requires
+review": on screens exploring had not seen, the AI guessed a badge name, an address or used the criterion sentence as
+page text - honest test mistakes, not website failures. The instructions now forbid both; letting the AI see those
+screens while it writes the test is the next step.
+
 **Several Atlassian sites.** Integrations lists every connection and offers "Connect another Jira site". Each
 site has its own token slot; a token is bound to the site it was saved for, and a connection moved to another site or
 account loses its token (the page says so and asks for the new one), so a token is never sent to a site it was not

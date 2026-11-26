@@ -1253,7 +1253,7 @@
       test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
       api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
-      use_saved_account: true, save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
+      demo_checkout: $("exDemo").checked, use_saved_account: true, save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
     // preflight: the same checks the server enforces - nothing is created when the run could not test anything
     out.textContent = "Checking the AI, the browser and the website (the page is opened once)…";
     $("xcProblems").replaceChildren();
@@ -1279,7 +1279,8 @@
       start_ollama: ["Choose another AI", () => $("exAi").focus()], choose_model: ["Choose the model", () => $("exModel").focus()],
       enter_account: ["Enter the test account", () => { $("tgCreds").hidden = false; $("exUser").focus(); }],
       enter_url: ["Enter the website", () => $("exUrl").focus()], retry_or_change: ["Change the address", () => $("exUrl").focus()],
-      confirm_authorization: ["Confirm permission", () => $("exAuth").focus()], select_cases: ["Select test cases", () => { location.hash = "#builder"; }],
+      confirm_authorization: ["Confirm permission", () => $("exAuth").focus()],
+      choose_strategy: ["Choose the strategy", () => $("exDemo").focus()], select_cases: ["Select test cases", () => { location.hash = "#builder"; }],
       install_browser: ["How to install the browser", () => { location.href = "/#help"; }] };
     $("xcProblems").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Not started - this run could not test anything yet:" }),
       h("ul", { class: "rq-list" }, problems.map((p) => h("li", {}, p.message, " ",
@@ -1915,7 +1916,7 @@
     WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps;
     X.selected = new Set(start.test_case_ids || []); S.reportId = null; S.presetScope = null;
     Object.assign(LV, { id: "", job: null, cursor: "", workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
-    TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false;
+    TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false; $("exDemo").checked = false;
     $("tgCheckOut").textContent = ""; $("xcStatus").textContent = ""; $("exDetail").replaceChildren();
     $("newTest").close();
     banner(`New test started (${r.draft.id}). Earlier reports are kept in Reports.`, true);

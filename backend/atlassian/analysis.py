@@ -93,7 +93,8 @@ SECURITY = re.compile(r"\b(passwords?|passcodes?|pin|log ?in|sign ?in|sign ?up|l
 # a security rule stated by the criterion itself (a lockout, masking, a permission, an expiring session ...)
 SECURITY_RULE = re.compile(r"\b(lock(?:ed|s)?(?: out)?|lockout|(?:failed|wrong) attempts|attempts? (?:are|is) limited|"
                            r"masked|hidden characters|encrypt\w*|must not (?:show|reveal|display|expose)|"
-                           r"(?:not|never) (?:shown|revealed|displayed|exposed)|session (?:expires|times? out|timeout)|"
+                           r"(?:password|token|secret|card number|personal data|credentials?)\b[^.]{0,40}\b(?:not|never) (?:be )?"
+                           r"(?:shown|revealed|displayed|exposed)|session (?:expires|times? out|timeout)|"
                            r"unauthori[sz]ed|access (?:is )?denied|permission|only (?:an? )?(?:admin|administrator|owner)s?)\b",
                            re.I)
 NUMBER = re.compile(r"(?P<lim>at least|minimum(?: of)?|min\.?|no (?:fewer|less) than|more than|over|"
@@ -490,11 +491,16 @@ def specific_scenario(c: AcceptanceCriterion) -> tuple[str, list[str], str]:
                 steps, expected)
     if q:
         steps = [s for s in (f"Given {c.given}" if c.given else "", f"When {c.when}" if c.when else "") if s] \
-            or ["Open the page where this applies", f"Do what makes the message appear: {text}"]
+            or [_START, f"Do what makes the message appear: {text}"]
         return (f"Verify the message '{q['msg']}' is shown", steps + ["Read the message shown"], expected)
     steps = [s for s in (f"Given {c.given}" if c.given else "", f"When {c.when}" if c.when else "") if s] \
-        or ["Open the page where this applies", f"Use the feature as described: {text}"]
+        or [_START, f"Use the feature as described: {text}"]
     return (f"Verify: {text}", steps + [f"Check that {expected[0].lower() + expected[1:]}"], expected)
+
+
+# The first step when the criterion does not say where it starts: the run's AI finds the way from the pages it explored
+# (a page or state reached by using the site - a filled cart, a checkout step - is not "missing").
+_START = "Get to where this criterion applies (log in if needed and go through the pages and actions that lead there)"
 
 
 def constraint_violation(c: AcceptanceCriterion) -> tuple[str, list[str]] | None:
@@ -551,7 +557,7 @@ def rule_suggestions(requirement: Requirement, blocked: set[str]) -> list[dict]:
         if rule:  # (only a security rule the criterion states - never generic checks on every login criterion)
             out.append({"criterion": c, "kind": ScenarioKind.security,
                             "title": f"Verify the security rule: {c.text.strip().rstrip('.')}"[:300],
-                            "steps": [f"Given {c.given}" if c.given else "Open the page where this applies",
+                            "steps": [f"Given {c.given}" if c.given else _START,
                                       f"Do what the rule is about: {c.when or c.text}",
                                       f"Check that {(c.then or c.text)[0].lower() + (c.then or c.text)[1:]}"],
                             "expected_outcome": c.then or c.text, "basis": Basis.explicit,

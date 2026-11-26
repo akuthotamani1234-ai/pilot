@@ -18,13 +18,23 @@ THE OWNER'S TESTS (numbered, one test case each):
 - "expected": the result the owner asked for, in their words when they gave it; otherwise what "observed" or
   "on_screen" shows. Never invent exact messages, numbers or names the website was not seen to show: when neither the
   owner nor the evidence says it, start "expected" with "Exploratory:" and say what to look at.
-- When the WEBSITE has no page or control the test needs, do NOT invent one: return steps ["Not possible on this
-  website", "<what is missing>"] and expected "Not possible: <what is missing>".
-- NEVER complete a purchase, payment, booking confirmation, deletion or logout - stop before that button (you may check
-  that it is shown), even when the owner's test says to do it.
+- The crawler only sees pages as they first load. Pages and controls that appear only AFTER using the website (a
+  count or badge after adding something, a filled cart or list, the next step of a multi-step form, a confirmation
+  page, a message after submitting) are NOT missing: plan the steps that lead there from a page in WEBSITE, using
+  the controls it shows (e.g. add an item first, then open the page it leads to), and check the result there.
+- Only when the WEBSITE clearly cannot do what the test needs (e.g. it has no such area at all, or it is a
+  different kind of site) do NOT invent it: return steps ["Not possible on this website", "<what is missing>"] and
+  expected "Not possible: <what is missing>". Never answer "Not possible" only because a page was not crawled or a
+  step of the test is vague - plan from the owner's words instead.
+{checkout_rule}
 - "preconditions": what must be true before step 1 (e.g. "logged in", "on the Employee List page").
 - "assertions": each check the test makes, as "<what is checked> -> <expected result>" (e.g. "every result row's Name
   -> contains the typed name"). Only checks that the owner asked for or the evidence supports.
+- The owner's sentence describes BEHAVIOUR, it is not text on the page: check what a person would see happen (the
+  page that opens, a count or badge, a field marked as required, a message) - NEVER that the page shows the owner's
+  sentence itself. Only words the owner put in quotes, or that "observed" / "on_screen" show, are exact page text.
+  For a page or control the crawler did not see, describe it by what it is (e.g. "the checkout information form",
+  "the number on the cart icon") instead of guessing its exact name, address or label.
 - "unknowns": what cannot be checked reliably from the owner's words and the evidence (say why), instead of guessing.
 - "needs_clarification": "" normally. When the test is so vague that you would have to guess WHAT to test (e.g. "test
   the employee section"), put ONE short question to the owner here and still return your best bounded steps.

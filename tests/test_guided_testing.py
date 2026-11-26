@@ -83,7 +83,7 @@ def test_without_an_ai_instructions_stay_not_automated(tmp_path, monkeypatch):
     _start(tmp_path, monkeypatch, tests)
     monkeypatch.setattr(test_design, "llm_enabled", lambda: False)
     out = test_design.my_test_cases(PAGES, tests, 1, run_dir=tmp_path)
-    assert out[0]["skip_reason"].startswith("Not automated: your own tests need an AI")
+    assert out[0]["skip_reason"].startswith("Not automated: no AI was available")
 
 
 def test_outcomes_come_only_from_executed_tests(tmp_path, monkeypatch):

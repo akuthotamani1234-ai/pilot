@@ -3617,6 +3617,8 @@ def _launch_run(req: RunRequest, caller: str | None):
         env["QA_REQUIREMENTS_ONLY"] = "1" if req.requirements_only and req.requirement_tests else "0"
         if req.review:
             env["REVIEW"] = "on"
+        elif req.requirements_only and req.requirement_tests:
+            env["REVIEW"] = "off"  # (Jira test cases were reviewed and approved in the workspace: no second wait)
         if req.page_timeout_s:
             env["PAGE_TIMEOUT_MS"] = str(req.page_timeout_s * 1000)
         for key, val in {"LOGIN_URL": req.login_url, "LOGIN_USER_SELECTOR": req.login_user_selector,
