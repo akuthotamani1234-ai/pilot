@@ -954,6 +954,9 @@ CONTROL_TEXT_JS = """(e, strict) => { if (!strict && e.getAttribute('data-qa-app
 # "demo" = a demo shop the owner confirmed for this run (staging + test payments): the demo order may be finished too.
 # Payment providers / payment pages, deleting and logging out stay protected in every mode; built-in tests unchanged.
 CHECKOUT_FLOW = (os.environ.get("QA_CHECKOUT_FLOW") or "form").lower()
+# "sandbox": as "demo", and the declared provider's sandbox pages may be opened (QA_SANDBOX_HOSTS); a payment page of
+# any other host (a live provider) stays protected
+SANDBOX_HOSTS = {h for h in (os.environ.get("QA_SANDBOX_HOSTS") or "").split(",") if h}
 CHECKOUT_WORDS = re.compile(r"(?:proceed to |go to |continue to )?check[\s-]?out", re.I)
 # the button that places the order / pays (on a checkout page: 'Finish', 'Place order', 'Confirm order', 'Pay now')
 ORDER_SUBMIT = re.compile(r"^\s*(?:finish|complete|confirm|submit|place|pay|buy)\b(?:\s+(?:my |the |your )?"
@@ -963,8 +966,9 @@ ORDER_SUBMIT = re.compile(r"^\s*(?:finish|complete|confirm|submit|place|pay|buy)
 
 
 def _checkout_open() -> str:
-    """'' = checkout is protected here; 'form' / 'demo' = this test may use the checkout (see CHECKOUT_FLOW)."""
-    return CHECKOUT_FLOW if CHECKOUT_FLOW in ("form", "demo") and getattr(Locator, "_qa_strict", False) else ""
+    """'' = checkout is protected here; 'form' / 'demo' / 'sandbox' = this test may use the checkout (CHECKOUT_FLOW)."""
+    return CHECKOUT_FLOW if CHECKOUT_FLOW in ("form", "demo", "sandbox") and getattr(Locator, "_qa_strict", False) \
+        else ""
 
 
 # The page as it is now: its controls (how a person and a locator name them) and its short visible texts (badges,
@@ -1029,6 +1033,14 @@ def _payment_target(raw: str) -> bool:
     from urllib.parse import unquote
     pay_bits = globals().get("_pay_bits", lambda: r"check-?outs?|payments?|place-?orders?|buy-now|paypal")()
     text = raw or ""
+    if globals().get("_checkout_open", lambda: "")() == "sandbox":
+        # the declared sandbox: the application's own checkout / payment pages and that provider's sandbox pages
+        # open; a payment provider's LIVE page (any other provider host) stays protected
+        host = (urlparse(text).hostname or "").lower() if "://" in text else ""
+        return bool(host) and host not in globals().get("SANDBOX_HOSTS", set()) and bool(re.search(
+            r"(^|\.)(paypal\.com|stripe\.com|braintreegateway\.com|adyen\.com|razorpay\.com|checkout\.com|"
+            r"squareup\.com|klarna\.com|payu\w*\.\w+|paytm\.com|mollie\.com|worldpay\.com|authorize\.net)$",
+            host))
     path = text.split("?", 1)[0].split("#", 1)[0].replace("%2E", ".").replace("%2e", ".").replace("_", "-")
     if re.search(r"(?:^|//|@)(?:[\w.-]+\.)?paypal\.com(?:[:/]|$)", text, re.I) or re.search(
         r"(?:^|/)(?:" + pay_bits + r")(?:\.[a-z0-9]+)?(?:/|$)",
@@ -1285,6 +1297,51 @@ if not getattr(Locator, "_qa_guarded", False):
     for _n in ("press", "dispatch_event"):  # Enter / Space on a button, or a click event sent by code
         setattr(Locator, _n, _guarded(getattr(Locator, _n), key_arg=True))
         setattr(Page, _n, _page_guarded(getattr(Page, _n), key_arg=True))
+
+# A card-like number may be typed only when this run pays in a declared payment sandbox AND the number is one of that
+# sandbox's official test numbers (backend/payment_sandbox.py) - a real card can never be typed by a test.
+SANDBOX_CARDS = {c for c in (os.environ.get("QA_SANDBOX_CARDS") or "").split(",") if c}
+# the payment providers' PUBLISHED test numbers (backend/payment_sandbox.py) - typing one checks a form's validation and
+# cannot pay: paying itself stays protected unless a sandbox is declared
+PUBLIC_TEST_CARDS = {"4111111111111111", "4242424242424242", "4000000000000002", "4000000000009995",
+                     "4000002500003155", "4000111111111115", "5555555555554444"}
+CARD_LIKE = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
+
+
+def _luhn(digits: str) -> bool:
+    total = 0
+    for i, ch in enumerate(reversed(digits)):
+        n = int(ch) * (2 if i % 2 else 1)
+        total += n - 9 if n > 9 else n
+    return total % 10 == 0
+
+
+def _refuse_card(value) -> None:
+    """A number that passes the card checksum (as every real card does) may be typed only when it is a published test
+    number or one of the declared sandbox's - never real payment details."""
+    for m in CARD_LIKE.finditer(str(value or "")):
+        digits = re.sub(r"\D", "", m.group(0))
+        if _luhn(digits) and digits not in SANDBOX_CARDS | PUBLIC_TEST_CARDS:
+            pytest.skip("Blocked: this looks like a real card number - a test types only the payment providers' "
+                        "official test numbers (in a declared payment sandbox), never real payment details")
+
+
+def _typing_guarded(method, page_level=False):
+    def wrapper(self, *args, **kwargs):
+        value = (args[1] if page_level and len(args) > 1 else args[0] if args and not page_level else
+                 kwargs.get("value") or kwargs.get("text") or "")
+        _refuse_card(value)
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
+if not getattr(Locator, "_qa_card_guarded", False):
+    Locator._qa_card_guarded = True  # patch only once
+    for _n in ("fill", "type", "press_sequentially"):
+        if hasattr(Locator, _n):
+            setattr(Locator, _n, _typing_guarded(getattr(Locator, _n)))
+        if hasattr(Page, _n):
+            setattr(Page, _n, _typing_guarded(getattr(Page, _n), page_level=True))
 
 if not getattr(Locator, "_qa_stepped", False):  # (around the guard: a refused click is Blocked, never a step)
     Locator._qa_stepped = True  # patch only once

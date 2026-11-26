@@ -1260,6 +1260,7 @@
       api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
       demo_checkout: $("exDemo").checked, use_saved_account: true,
+      payment_provider: $("exPayProvider").value, payment_sandbox_confirmed: $("exPayConfirm").checked,
       ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
         app_activity: $("exActivity").value.trim(), appium_url: $("exAppium").value.trim() } : {}), save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
     // preflight: the same checks the server enforces - nothing is created when the run could not test anything
@@ -1293,7 +1294,8 @@
       enter_account: ["Enter the test account", () => { $("tgCreds").hidden = false; $("exUser").focus(); }],
       enter_url: ["Enter the website", () => $("exUrl").focus()], retry_or_change: ["Change the address", () => $("exUrl").focus()],
       confirm_authorization: ["Confirm permission", () => $("exAuth").focus()],
-      enter_device: ["Enter the device", () => $("exDevice").focus()], enter_package: ["Enter the app package", () => $("exPackage").focus()],
+      enter_device: ["Enter the device", () => $("exDevice").focus()],
+      confirm_payment: ["Confirm the sandbox", () => $("exPayConfirm").focus()], choose_payment: ["Choose the sandbox", () => $("exPayProvider").focus()], enter_package: ["Enter the app package", () => $("exPackage").focus()],
       choose_strategy: ["Choose the strategy", () => $("exDemo").focus()], select_cases: ["Select test cases", () => { location.hash = "#builder"; }],
       install_browser: ["How to install the browser", () => { location.href = "/#help"; }] };
     $("xcProblems").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Not started - this run could not test anything yet:" }),
@@ -1936,7 +1938,7 @@
     WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps;
     X.selected = new Set(start.test_case_ids || []); S.reportId = null; S.presetScope = null;
     Object.assign(LV, { id: "", job: null, cursor: "", workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
-    TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false; $("exDemo").checked = false;
+    TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false; $("exDemo").checked = false; $("exPayProvider").value = ""; $("exPayConfirm").checked = false;
     $("tgCheckOut").textContent = ""; $("xcStatus").textContent = ""; $("exDetail").replaceChildren();
     $("newTest").close();
     banner(`New test started (${r.draft.id}). Earlier reports are kept in Reports.`, true);

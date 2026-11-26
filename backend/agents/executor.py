@@ -229,7 +229,10 @@ def _env(run_dir: Path, test_dir: Path, results_file: Path, shot_dir: Path, stat
         "QA_ENVIRONMENT": settings.environment, "QA_RUN_ID": run_dir.name,
         # the owner's / Jira tests may go through a shop's checkout form, never place the order or pay; on a demo shop
         # the owner confirmed (staging + test payments) they may finish the demo order (conftest.py CHECKOUT_FLOW)
-        "QA_CHECKOUT_FLOW": "demo" if allowed("pay") else "form",
+        "QA_CHECKOUT_FLOW": ("sandbox" if allowed("pay") and settings.payment_sandbox else
+                             "demo" if allowed("pay") else "form"),
+        # the declared payment sandbox: its pages, and its official test card numbers (the only ones a test may type)
+        **_sandbox_env(),
         "QA_SAFE_TEXT_RX": SAFE_TEXT.pattern, "QA_WRITE_RX": WRITE.pattern,
         "QA_REFERENCE_NAV_RX": REFERENCE_NAV.pattern,
         # a link that says where it goes is protected only by an address that changes data (the crawler's rule)
@@ -576,6 +579,13 @@ def _clean_up_again(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Pat
               "cleaning up again ...")
         _run_pytest(state, test_dir, run_dir / "cleanup_again.jsonl", shot_dir / "cleanup_again",
                     select=["test_cleanup.py"], headless=True)
+
+
+def _sandbox_env() -> dict:
+    from ..actions import allowed
+    from ..payment_sandbox import provider
+    p = provider(settings.payment_sandbox) if allowed("pay") else None
+    return {"QA_SANDBOX_HOSTS": ",".join(p["hosts"]) if p else "", "QA_SANDBOX_CARDS": ",".join(p["cards"]) if p else ""}
 
 
 def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path) -> QAState:

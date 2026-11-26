@@ -306,6 +306,7 @@ class RunRequest(BaseModel):
     writes_confirmed: bool = False
     allow_actions: str | None = None  # staging only: also delete, logout, password, pay (comma-separated)
     test_payment: bool = False       # staging + allow pay: the payment provider is in its test mode
+    payment_sandbox: str | None = None  # staging + test payment: the provider whose sandbox it pays in
     reuse_tests: bool = False        # run the tests of the last run again (regression) instead of writing new ones
     reuse_from_run: str | None = None  # prefer that run's generated_tests + test_cases.json
     record_video: bool = False       # save a video of the test browsers (runs/<run>/videos)
@@ -3667,6 +3668,7 @@ def _launch_run(req: RunRequest, caller: str | None):
         env["CONFIRM_WRITES"] = "1" if req.environment == "staging" and req.writes_confirmed else "0"
         env["ALLOW_ACTIONS"] = (req.allow_actions or "").replace(" ", "").lower() if req.environment == "staging" else ""
         env["TEST_PAYMENT"] = "1" if req.environment == "staging" and req.test_payment else "0"
+        env["QA_PAYMENT_SANDBOX"] = (req.payment_sandbox or "") if env["TEST_PAYMENT"] == "1" else ""
         env["RECORD_VIDEO"] = "true" if req.record_video else "false"  # (the tick in the chat decides)
         if req.my_tests is not None:  # (the chat's box: what is in it becomes this website's own tests - main.py)
             env["QA_MY_TESTS_SET"], env["QA_MY_TESTS"] = "1", req.my_tests[:12000]

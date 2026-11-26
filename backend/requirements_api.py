@@ -302,6 +302,10 @@ class ExecutionTarget(BaseModel):
     # "This is a demo / test shop - no real payment": its checkout may be completed by the checkout test cases of a
     # requirement-based run (the engine's existing staging + test-payment permission, for THIS run only)
     demo_checkout: bool = False
+    # "The application pays through this provider's sandbox / test mode" (backend/payment_sandbox.py): paying test
+    # cases run with the provider's official test instruments only; requirement-based runs only
+    payment_provider: str = Field(default="", pattern=r"^(|stripe|braintree|adyen|razorpay|paypal|cod)$")
+    payment_sandbox_confirmed: bool = False
     test_username: str = Field(default="", max_length=200)
     test_password: str = Field(default="", max_length=200)  # this run only; never stored, never returned
     llm_provider: str = Field(default="", max_length=30)
@@ -1091,7 +1095,8 @@ def register_requirements_api(app) -> None:
         return execution_preflight.check(
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
-            probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout, android={
+            probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout,
+            payment=(t.payment_provider, t.payment_sandbox_confirmed), android={
                 "mode": t.android_mode, "device_id": t.device_id, "package_name": t.package_name})
 
     @app.post("/api/requirements/executions/preflight")
@@ -1158,10 +1163,13 @@ def register_requirements_api(app) -> None:
                 _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy,
                        cases=len(ex["case_ids"]), target=f"android:{t.package_name or t.url}"[:200])
                 return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
-            demo = t.demo_checkout and body.strategy == "requirements"
+            sandbox = t.payment_provider if (t.payment_provider and t.payment_sandbox_confirmed
+                                             and body.strategy == "requirements") else ""
+            demo = (t.demo_checkout or bool(sandbox)) and body.strategy == "requirements"
             req = server.RunRequest(
                 source=t.url, authorized=True, environment="staging" if demo else t.environment,
                 writes_confirmed=demo, allow_actions="pay" if demo else None, test_payment=demo,
+                payment_sandbox=sandbox or None,
                 max_pages=t.max_pages,
                 show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
                 llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key or None,

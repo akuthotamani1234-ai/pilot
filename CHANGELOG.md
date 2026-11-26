@@ -2,6 +2,27 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 5: payment sandbox, order lifecycle, no selected case left out
+
+- `backend/payment_sandbox.py`: the payment providers' published TEST instruments and sandbox hosts (Stripe test
+  mode, Braintree sandbox, Adyen test, Razorpay test mode, PayPal sandbox with a buyer account as a secret, cash on
+  delivery). Execution Center "Payment sandbox": the provider the application's test mode uses + an explicit
+  confirmation that no real money can move (requirement-based runs). The run then pays: staging + `ALLOW_ACTIONS=pay`
+  + test payments + `QA_PAYMENT_SANDBOX`; the AI (test design and code) is given only that provider's official test
+  details; the generated tests may press the order / pay button and open that provider's sandbox pages, while a LIVE
+  provider's payment page stays protected.
+- Card guard in every generated test (`templates/conftest.py`): a number that passes the card checksum (as every real
+  card does) can be typed only when it is a published test number or the declared sandbox's - never real payment
+  details. Deleting, transferring and password resets stay blocked even in a sandbox.
+- A paying test case without a declared sandbox is listed AND recorded as Blocked, naming what it needs; every selected
+  case that could not run (stale, not approved, needs a demo shop / sandbox) now has a stored outcome and counts in
+  "selected".
+- Order status that changes later (fulfilment, a webhook, a back office): the `_await_status` helper in AI test files
+  reloads for a bounded time and reports "awaiting an external event" (inconclusive) when it does not come - never a
+  pass, never a failure on a status that has not happened yet.
+- Live validation BLOCKED: no application with a payment sandbox here. Needed: the application's staging URL with its
+  payment provider in sandbox / test mode, a test account, and (PayPal) a sandbox buyer account.
+
 ## 2026-11-26 - Phase 4: hybrid Android - automatic contexts, WebView diagnosis, Jira test cases on Android
 
 - `qa_runtime.AndroidContractAdapter`: a flow without context steps (what Jira / AI flows are) gets each step's

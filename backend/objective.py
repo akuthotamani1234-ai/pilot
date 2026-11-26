@@ -51,17 +51,32 @@ DEMO_CHECKOUT = re.compile(r"purchase|buy|place (an |the )?order|(?:finish|compl
                            r"(?:the |an? )?order", re.I)
 
 
-def destructive(text: str, demo_checkout: bool = False) -> str:
+# paying: only in a payment provider's sandbox the owner declared for the run (backend/payment_sandbox.py)
+SANDBOX_PAY = re.compile(r"pay|payment", re.I)
+
+
+def destructive(text: str, demo_checkout: bool = False, payment_sandbox: bool = False) -> str:
     """The destructive words of an instruction ('' = none). demo_checkout: the run is on a demo shop the owner
-    confirmed (no real payment), so a checkout / order / purchase is not destructive there."""
+    confirmed (no real payment), so a checkout / order / purchase is not destructive there. payment_sandbox: the run
+    pays in a provider's sandbox with official test instruments, so paying (and ordering) is not destructive there."""
     for m in DESTRUCTIVE.finditer(text or ""):
         word = m.group(0)
         if word.lower() in ("remove", "removing") and CART.search(text):
             continue
-        if demo_checkout and DEMO_CHECKOUT.fullmatch(word):
+        if (demo_checkout or payment_sandbox) and DEMO_CHECKOUT.fullmatch(word):
+            continue
+        if payment_sandbox and SANDBOX_PAY.fullmatch(word):
             continue
         return word
     return ""
+
+
+def needs_payment_sandbox(text: str) -> str:
+    """The paying word when a payment sandbox is the ONLY thing that would let this text run ('' otherwise)."""
+    if not destructive(text, demo_checkout=True):
+        return ""
+    word = destructive(text, demo_checkout=True)
+    return word if not destructive(text, demo_checkout=True, payment_sandbox=True) else ""
 
 
 def checkout_only(text: str) -> str:

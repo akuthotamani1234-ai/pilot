@@ -328,6 +328,10 @@
           <p class="small">Screenshots, traces of failures, logs and self-healing are always on. Parallel workers follow the Studio's settings.</p>
         </details>
         <label class="rq-check rq-authorize"><input type="checkbox" id="exAuth"> I own this application or have permission to test it</label>
+        <div class="rq-filter-grid">
+          <label for="exPayProvider">Payment sandbox<select id="exPayProvider"><option value="">None - test cases that pay are blocked</option><option value="stripe">Stripe (test mode)</option><option value="braintree">Braintree (sandbox)</option><option value="adyen">Adyen (test)</option><option value="razorpay">Razorpay (test mode)</option><option value="paypal">PayPal (sandbox)</option><option value="cod">Cash on delivery / invoice</option></select></label>
+          <label class="rq-check rq-wide"><input type="checkbox" id="exPayConfirm"> The application is connected to this provider's sandbox / test mode: no real money can move. Test cases that pay use only the provider's official test payment details (requirement-based runs).</label>
+        </div>
         <label class="rq-check"><input type="checkbox" id="exDemo"> Demo shop - allow placing the order: this is a demo or test shop where no real order or payment happens, so test cases may also finish the demo order (requirement-based runs only). Without this tick the checkout pages and forms are still tested, up to the step that places the order; payment, deleting data and logging out are never done</label>
         <p class="small">Before the run starts, Qpilot checks the AI, the browser and the website (it opens the page once to see whether it asks for a login). A run that could not automate anything is not started. The checkout is tested up to the step that places the order; real payments and deleting data are never performed.</p>
         <div id="xcProblems" aria-live="polite"></div>

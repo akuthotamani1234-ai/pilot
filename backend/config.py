@@ -165,6 +165,8 @@ class Settings:
     allow_actions: list = field(default_factory=lambda: [
         a.strip().lower() for a in os.getenv("ALLOW_ACTIONS", "").split(",") if a.strip()])
     test_payment: bool = os.getenv("TEST_PAYMENT", "0").lower() in ("1", "true", "yes")
+    # the payment provider whose sandbox / test mode this run pays in (backend/payment_sandbox.py); '' = none
+    payment_sandbox: str = os.getenv("QA_PAYMENT_SANDBOX", "").strip().lower()
     # staging on a host that does not look like a test copy: data is only changed after this second confirmation
     confirm_writes: bool = os.getenv("CONFIRM_WRITES", "0").lower() in ("1", "true", "yes")
     # Human review between test design and the scripts: auto = on staging, on = always, off = never

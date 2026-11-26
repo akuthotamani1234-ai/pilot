@@ -1649,6 +1649,11 @@ def ai_flows(pages: list[dict]) -> list[dict]:
 
 
 MY_TEST = "Your own test (plain English)"
+
+
+def sandbox_rule(name: str) -> str:
+    from ..payment_sandbox import prompt_rule
+    return prompt_rule(name)
 NO_CHECKOUT_RULE = ("- You MAY open the cart, press Checkout, fill in the checkout form and read the order overview. "
                     "NEVER press the button\n  that places the order or pays (Finish, Place order, Pay ...), never "
                     "confirm a booking, delete or log out - stop\n  before that button (you may check that it is "
@@ -1695,8 +1700,9 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
     # a request to delete, pay or otherwise change data is never carried out from an instruction
     from ..actions import allowed
     demo = allowed("pay")  # (a demo shop the owner confirmed for this run: staging + test payments - no real payment)
-    risky = [t for t in tests if objective_mod.destructive(t["text"], demo_checkout=demo)]
-    refused = {t["id"]: kept(t, f"Blocked: '{objective_mod.destructive(t['text'], demo_checkout=demo)}' changes or "
+    sandbox = demo and bool(settings.payment_sandbox)  # (it pays in a declared provider sandbox: test instruments only)
+    risky = [t for t in tests if objective_mod.destructive(t["text"], demo_checkout=demo, payment_sandbox=sandbox)]
+    refused = {t["id"]: kept(t, f"Blocked: '{objective_mod.destructive(t['text'], demo_checkout=demo, payment_sandbox=sandbox)}' changes or "
                                 "destroys data - Qpilot "
                                 "does not do that from an instruction (only on a staging copy with explicit permission)")
                for t in risky}
@@ -1710,7 +1716,9 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
         return list(refused.values())
     try:
         answer = ask_structured(load_prompt("my_tests").format(
-            n=len(tests), site=_site_summary(pages), checkout_rule=DEMO_CHECKOUT_RULE if demo else NO_CHECKOUT_RULE,
+            n=len(tests), site=_site_summary(pages),
+            checkout_rule=(DEMO_CHECKOUT_RULE + "\n" + sandbox_rule(settings.payment_sandbox) if sandbox else
+                           DEMO_CHECKOUT_RULE if demo else NO_CHECKOUT_RULE),
             tests="\n".join(f"{n}. {t['text']}" for n, t in
                                                                    enumerate(tests, start=1))),
             list[AICase], system=SYSTEM, agent="test_design", page="my tests")

@@ -112,7 +112,8 @@ def browser_probe(url: str, timeout_s: float = PROBE_TIMEOUT_S) -> dict:
 
 def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_type: str = "web",
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
-          probe=None, demo_checkout: bool = False, android: dict | None = None) -> dict:
+          probe=None, demo_checkout: bool = False, android: dict | None = None,
+          payment: tuple[str, bool] = ("", False)) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -153,6 +154,15 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
         problem("demo_checkout", "The demo checkout is only for requirement-based runs (the built-in website tests "
                                  "would also send forms). Choose requirement-based testing, or untick the demo "
                                  "checkout.", "choose_strategy")
+    if payment[0]:
+        from .payment_sandbox import provider
+        if not provider(payment[0]):
+            problem("payment", f"'{payment[0]}' is not a payment sandbox Qpilot knows.", "choose_payment")
+        elif not payment[1]:
+            problem("payment", "Confirm that the application is connected to the payment provider's sandbox / test "
+                               "mode (no real money can move) - your selection is kept.", "confirm_payment")
+        elif strategy != "requirements":
+            problem("payment", "A payment sandbox is only used by requirement-based runs.", "choose_strategy")
     if not authorized:
         problem("authorization", "Confirm that you own the application or have permission to test it.",
                 "confirm_authorization")

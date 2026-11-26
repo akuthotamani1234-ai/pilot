@@ -2441,6 +2441,9 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     from ..actions import allowed
     from .test_design import CODE_CHECKOUT_RULE, CODE_DEMO_CHECKOUT_RULE
     rule = CODE_DEMO_CHECKOUT_RULE if allowed("pay") else CODE_CHECKOUT_RULE
+    if allowed("pay") and settings.payment_sandbox:
+        from .test_design import sandbox_rule
+        rule += "\n" + sandbox_rule(settings.payment_sandbox)
     code = extract_code(ask_llm(load_prompt("script_generator").format(pages=data, cases=cases, checkout_rule=rule),
                                 system=SYSTEM,
                                 agent="script_generator", page="site"))
@@ -2601,6 +2604,31 @@ def _steady(code: str) -> str:
     return CONST_ASSERT.sub(lambda m: f"{m[1]}pass  # (was `assert True`: it checked nothing)", code)
 
 
+# A status that changes later (an order goes from 'Processing' to 'Shipped' when fulfilment runs): the page is read
+# again for a bounded time; when it never shows the expected status, the test is INCONCLUSIVE - 'awaiting an external
+# event', with what was shown - never passed and never failed on a status that simply has not happened yet.
+AWAIT_HELPER = '''
+def _await_status(page, locator, expected, timeout_s=120, every_s=10):
+    """Wait (bounded) for `locator` to show `expected`, reloading the page between reads."""
+    import time as _t
+    deadline, shown = _t.monotonic() + min(max(timeout_s, 5), 600), ""
+    while True:
+        try:
+            shown = locator.inner_text(timeout=5000).strip()
+        except Exception:
+            shown = ""
+        if expected.casefold() in shown.casefold():
+            assert expected.casefold() in shown.casefold()
+            return shown
+        if _t.monotonic() >= deadline:
+            print(f"[qa-inconclusive] awaiting an external event: '{expected}' was not shown within {timeout_s} s "
+                  f"(shown: '{shown[:80]}')")
+            return shown
+        page.wait_for_timeout(int(every_s * 1000))
+        page.reload()
+'''
+
+
 def _with_said(code: str) -> str:
     """Add the `_said(page)` helper (what the website said, also in alert boxes) right after the file's imports. An
     own `_said` the AI wrote is replaced: it looked for the messages it EXPECTED ('text=Product added'), so it could
@@ -2618,7 +2646,8 @@ def _with_said(code: str) -> str:
         elif not (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)):  # (a module docstring)
             break
     lines = code.split("\n")
-    return "\n".join(lines[:last] + [SAID_HELPER] + lines[last:])
+    extra = [AWAIT_HELPER] if "_await_status(" in code and "def _await_status" not in code else []
+    return "\n".join(lines[:last] + [SAID_HELPER] + extra + lines[last:])
 
 
 def data_script(page: dict, cases: list[dict]) -> str:

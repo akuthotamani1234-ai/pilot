@@ -58,6 +58,10 @@ STRICT RULES:
 - Wait for results with expect(...) (it auto-waits); `page.wait_for_timeout` at most 2000 ms.
 - Never import os, subprocess, sys, shutil, socket; never read/write files; no time.sleep.
 {checkout_rule}
+- A status that changes LATER, by the application itself (an order's status after fulfilment, a payment confirmed by a
+  webhook, an approval done by a back office): check it with the helper `_await_status(page, <locator>, "<status>",
+  timeout_s=120)` - it is already defined, do NOT define it; it reloads the page for a bounded time and reports
+  "awaiting an external event" when the status does not come. Never assume a status changes at once.
 - A page the steps reach that is NOT in PAGES (it appears only after using the site: the cart with an item, a
   checkout step, a badge or a message after an action): find its controls as a person sees them
   (`page.get_by_role("button", name="Continue")`, `page.get_by_placeholder("First Name")`, `page.get_by_label(...)`)

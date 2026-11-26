@@ -170,7 +170,7 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
     if reasons:
         raise ValueError("the requirement changed since it was analysed - analyse and review it again first: "
                          + "; ".join(reasons)[:300])
-    from ..objective import checkout_only, destructive
+    from ..objective import checkout_only, destructive, needs_payment_sandbox
     root = analysis.requirement.sources[0]
     criteria = {c.id: c for c in analysis.requirement.criteria}
     existing = {c["suggestion_fingerprint"]: c for c in list_cases(db, tenant, requirement_id)}
@@ -194,7 +194,8 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
             blocked.append("; ".join(c.not_automatable_reason for c in cited if not c.automatable))
         risky = " ".join([s.destructive or "", words])
         demo = checkout_only(risky)  # (a checkout: runs only on a demo shop the owner confirms for the run)
-        if destructive(risky) and not demo:
+        sandbox = needs_payment_sandbox(risky)  # (it pays: runs only with a payment sandbox declared for the run)
+        if destructive(risky) and not demo and not sandbox:
             blocked.append(f"changes or destroys data ('{destructive(risky)}') - only on a staging "
                            "copy with explicit permission")
         steps = list(s.steps) or [f"Use the application as described: {cited[0].text}"]
@@ -217,6 +218,7 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
             # a Jira Bug is checked for whether it still happens (reproduction / regression), never reported as a
             # new defect Qpilot found; a story / task / spec is a requirement
             "demo_checkout": demo,
+            "payment_sandbox": sandbox,
             "work_item": analysis.requirement.kind,
             "purpose": "reproduce the reported bug (regression check)" if analysis.requirement.kind == "bug"
             else "verify the requirement",
@@ -227,7 +229,8 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
         status = "blocked" if blocked else "approved"
         if old and old["fingerprint"] == fp and old["status"] != "stale" and (
                 old["status"] == status or old["status"] not in ("blocked", "approved")) and \
-                old.get("demo_checkout", "") == demo and old.get("blocked_reason", "") == case["blocked_reason"]:
+                old.get("demo_checkout", "") == demo and old.get("payment_sandbox", "") == sandbox and \
+                old.get("blocked_reason", "") == case["blocked_reason"]:
             out["unchanged"].append(old["id"])
             continue
         n = int(old["id"].rsplit("-", 1)[-1]) if old else (max(used_numbers, default=0) + 1)
@@ -358,16 +361,22 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
         c = get_case(db, tenant, cid)
         if not c:
             raise LookupError(f"{cid} is not a test case of this workspace")
-        why = _ready(c) or ("it places an order, so it runs only on a demo shop you confirm (tick 'Demo shop - "
-                            "allow placing the order' in the Execution Center)"
-                            if c.get("demo_checkout") and not target.get("demo_checkout") else "")
+        why = _ready(c) or (
+            f"Blocked: it pays ('{c['payment_sandbox']}'), so it runs only with a payment sandbox declared for the run "
+            "(Execution Center -> Payment sandbox: the provider whose sandbox / test mode the application uses, and "
+            "its official test instruments) - real payment details are never used"
+            if c.get("payment_sandbox") and not target.get("payment_provider") else
+            "Blocked: it places an order, so it runs only on a demo shop you confirm (tick 'Demo shop - allow placing "
+            "the order' in the Execution Center) or with a payment sandbox"
+            if c.get("demo_checkout") and not (target.get("demo_checkout") or target.get("payment_provider")) else "")
         (excluded.append({"id": cid, "reason": why}) if why else cases.append(c))
     if strategy != "autonomous" and not cases:
         raise ValueError("no selected test case can run: " + "; ".join(f"{x['id']} {x['reason']}" for x in excluded)[:400])
     # prerequisites (prerequisites.py): added even when their requirement was not selected; cycles never followed
     from . import prerequisites as pq
     runnable = {c["id"] for c in list_cases(db, tenant) if not _ready(c) and not (
-        c.get("demo_checkout") and not target.get("demo_checkout"))}
+        c.get("demo_checkout") and not (target.get("demo_checkout") or target.get("payment_provider"))) and not (
+        c.get("payment_sandbox") and not target.get("payment_provider"))}
     graph = pq.closure([c["id"] for c in cases], pq.edges(db, tenant), runnable)
     for pid in graph["added"]:
         cases.append(get_case(db, tenant, pid))
@@ -558,6 +567,15 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                           reason=f"Blocked: its prerequisite {failed[0]} did not pass ({final[failed[0]]}) - the state "
                                  f"this test starts from could not be established; not a failure of what it tests")
             stored[i] = (cid, "Blocked", result)
+    # a selected case that could not run (it pays without a sandbox, it is stale, not approved ...) gets its outcome
+    # too - never silently left out
+    for x in ex.get("excluded") or []:
+        reason = str(x.get("reason") or "")
+        status = "Blocked" if reason.lower().startswith(("blocked", "it places", "it pays")) else "Not run"
+        stored.append((x["id"], status, {"status": status, "reason": reason[:500], "evidence": [], "actual": "",
+                                         "run_case": "", "excluded": True, "execution_id": execution_id,
+                                         "test_case_id": x["id"], "run_id": ex.get("run_id", ""), "at": _now(),
+                                         "run_folder": Path(run_dir).name}))
     for cid, status, result in stored:
         counts[status] = counts.get(status, 0) + 1
         with db:
@@ -593,7 +611,7 @@ def outcome_of(ex: dict) -> dict:
     """The execution's lifecycle (status) kept apart from what its tests showed. Counters come only from the stored
     results: an unautomated or not-run test is never 'executed', an approved one never 'passed'."""
     counts = ex.get("counts") or {}
-    selected = len(ex.get("case_ids") or [])
+    selected = len(ex.get("case_ids") or []) + len(ex.get("excluded") or [])
     executed = sum(counts.get(k, 0) for k in ("Passed", "Failed", "Flaky", "Requires review"))
     tally = {"selected": selected, "executed": executed, "passed": counts.get("Passed", 0) + counts.get("Flaky", 0),
              "failed": counts.get("Failed", 0), "requires_review": counts.get("Requires review", 0),
