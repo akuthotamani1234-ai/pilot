@@ -289,8 +289,14 @@ class ExecutionScope(BaseModel):
 
 
 class ExecutionTarget(BaseModel):
-    type: str = Field(default="web", pattern=r"^(web)$")  # (Android requirement runs: a later milestone)
-    url: str = Field(min_length=4, max_length=2000)
+    type: str = Field(default="web", pattern=r"^(web|android)$")
+    url: str = Field(default="", max_length=2000)  # (a website, or the start page of an Android Chrome run)
+    # Android (the existing Appium engine): the installed app of a device / emulator, or Android Chrome
+    android_mode: str = Field(default="installed", pattern=r"^(installed|web)$")
+    device_id: str = Field(default="", max_length=120)
+    package_name: str = Field(default="", max_length=200)
+    app_activity: str = Field(default="", max_length=300)
+    appium_url: str = Field(default="http://127.0.0.1:4723", max_length=300)
     authorized: bool = False   # "I own this application or have permission to test it"
     environment: str = Field(default="test", pattern=r"^(test|staging)$")
     # "This is a demo / test shop - no real payment": its checkout may be completed by the checkout test cases of a
@@ -398,6 +404,33 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
 
 def _with_outcome(ex: dict) -> dict:
     return {**ex, **bridge.outcome_of(ex)}
+
+
+def _launch_android(t, lines: list[str], authorization, x_qa_token) -> int:
+    """Start the EXISTING Android run (server.start_mobile_run) with the Jira test cases as the owner's tests - one
+    line each, tagged with its test-case id so its outcome maps back. Returns the job id."""
+    import asyncio
+    import inspect
+
+    from . import server
+    kw = {}
+    for name, p in inspect.signature(server.start_mobile_run).parameters.items():
+        d = p.default
+        kw[name] = None if d is inspect.Parameter.empty else getattr(d, "default", d)
+    has_account = bool(t.test_username and t.test_password)
+    kw.update(app_mode=t.android_mode, device_id=t.device_id, package_name=t.package_name,
+              start_url=t.url if t.android_mode == "web" else "", app_activity=t.app_activity,
+              appium_url=t.appium_url, authorized=True, requirements="\n".join(lines)[:12000],
+              interaction_testing=True, allow_rules_fallback=False, apk=None, privacy_mode=None,
+              llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key,
+              test_username=t.test_username, test_password=t.test_password,
+              account_mode="existing" if has_account else "legacy",
+              authorization=authorization, x_qa_token=x_qa_token)
+    kw = {k: v for k, v in kw.items() if type(v).__name__ not in ("PydanticUndefinedType",)}
+    result = asyncio.run(server.start_mobile_run(**kw))
+    if isinstance(result, JSONResponse):
+        raise HTTPException(result.status_code, "not allowed to start an Android run")
+    return int(result["id"])
 
 
 def _watch(tenant: str, execution_id: str, job_id: int) -> None:
@@ -1058,7 +1091,8 @@ def register_requirements_api(app) -> None:
         return execution_preflight.check(
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
-            probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout)
+            probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout, android={
+                "mode": t.android_mode, "device_id": t.device_id, "package_name": t.package_name})
 
     @app.post("/api/requirements/executions/preflight")
     def preflight_execution(body: ExecutionBody, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -1100,7 +1134,7 @@ def register_requirements_api(app) -> None:
             t = body.target
             projects = sorted({c.split("-", 1)[1].rsplit("-", 1)[0].split("-")[0] for c in ex.get("case_ids", [])
                                if c.startswith("TC-")} | ({t.project_key.upper()} if t.project_key else set()))
-            if t.save_target:
+            if t.save_target and t.url:
                 for p in projects:
                     workflow.save_target(db, ctx["tenant"], p, t.url, environment=t.environment, actor=ctx["actor"],
                                          username=t.test_username, password=t.test_password)
@@ -1108,6 +1142,22 @@ def register_requirements_api(app) -> None:
                 user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
                 if user and pw:
                     t = t.model_copy(update={"test_username": user, "test_password": pw})
+            if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
+                lines = [f"[{x['tc']}] {x['text']}" for x in planned["requirement_tests"]]
+                try:
+                    job = _launch_android(t, lines, authorization, x_qa_token)
+                except HTTPException as error:
+                    with db:
+                        db.execute("UPDATE req_executions SET status = 'failed' WHERE tenant_id = ? AND id = ?",
+                                   (ctx["tenant"], ex["id"]))
+                    raise HTTPException(error.status_code, f"The Android run could not start: {error.detail}") \
+                        from None
+                bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
+                db.close()
+                _watch(ctx["tenant"], ex["id"], int(job))
+                _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy,
+                       cases=len(ex["case_ids"]), target=f"android:{t.package_name or t.url}"[:200])
+                return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
             demo = t.demo_checkout and body.strategy == "requirements"
             req = server.RunRequest(
                 source=t.url, authorized=True, environment="staging" if demo else t.environment,

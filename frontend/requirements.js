@@ -1240,20 +1240,28 @@
       all_approved: { all_approved: true }, failed: { failed: true }, impacted: { impacted: true }, regression: { regression: true },
       epic: { epic: $("exEpic").value.trim().toUpperCase() } }[mode];
     const url = $("exUrl").value.trim();
+    const android = $("xcApp").value === "android", androidApp = android && $("exAndMode").value === "installed";
     if (strategy !== "autonomous" && mode === "selected" && !selected.length) return fail("No test case is selected. Select approved test cases in Test Cases first (or choose Autonomous).");
-    if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
+    if (androidApp) {  // (an installed app: no website address; Appium checks the device)
+      if (!$("exDevice").value.trim()) { $("exDevice").focus(); return fail("Choose the Android device or emulator (its id from 'adb devices')."); }
+      if (!$("exPackage").value.trim()) { $("exPackage").focus(); return fail("Enter the Android app's package name."); }
+    } else if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
     if (!/^https?:\/\/[^\s/]+/i.test(url)) { $("exUrl").focus(); return fail("Enter a full website address starting with http:// or https://"); }
     if (!$("exAuth").checked) { $("exAuth").focus(); return fail("Confirm that you own the application or have permission to test it."); }
-    out.textContent = "Checking the website…";
-    let reach;
-    try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
-    if (!reach || !reach.ok) return fail(`The website could not be used: ${reach ? reach.message : "no answer"} Your selection is kept: correct the address and run again.`);
+    if (!androidApp) {
+      out.textContent = "Checking the website…";
+      let reach;
+      try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
+      if (!reach || !reach.ok) return fail(`The website could not be used: ${reach ? reach.message : "no answer"} Your selection is kept: correct the address and run again.`);
+    }
     const projects = TG.projects || [];
     const target = { type: $("xcApp").value, url, authorized: true, environment: $("exEnv").value,
       test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
       api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
-      demo_checkout: $("exDemo").checked, use_saved_account: true, save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
+      demo_checkout: $("exDemo").checked, use_saved_account: true,
+      ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
+        app_activity: $("exActivity").value.trim(), appium_url: $("exAppium").value.trim() } : {}), save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
     // preflight: the same checks the server enforces - nothing is created when the run could not test anything
     out.textContent = "Checking the AI, the browser and the website (the page is opened once)…";
     $("xcProblems").replaceChildren();
@@ -1276,6 +1284,7 @@
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)
     } catch (err) { fail(err.message); }
   });
+  $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; });
   // what the preflight found, each with the action that fixes it (the selection and the form stay as they are)
   function showProblems(problems) {
     const act = { ai: ["Choose an AI provider", () => $("exAi").focus()], choose_ai: ["Choose an AI provider", () => $("exAi").focus()],
@@ -1284,6 +1293,7 @@
       enter_account: ["Enter the test account", () => { $("tgCreds").hidden = false; $("exUser").focus(); }],
       enter_url: ["Enter the website", () => $("exUrl").focus()], retry_or_change: ["Change the address", () => $("exUrl").focus()],
       confirm_authorization: ["Confirm permission", () => $("exAuth").focus()],
+      enter_device: ["Enter the device", () => $("exDevice").focus()], enter_package: ["Enter the app package", () => $("exPackage").focus()],
       choose_strategy: ["Choose the strategy", () => $("exDemo").focus()], select_cases: ["Select test cases", () => { location.hash = "#builder"; }],
       install_browser: ["How to install the browser", () => { location.href = "/#help"; }] };
     $("xcProblems").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Not started - this run could not test anything yet:" }),

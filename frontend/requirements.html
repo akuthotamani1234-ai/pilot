@@ -274,9 +274,17 @@
         <section class="rq-target" aria-labelledby="tgTitle"><h2 class="rq-sub" id="tgTitle">Application under test</h2>
           <div id="tgBox" role="status" aria-live="polite"><p class="small">Looking for the website of these requirements…</p></div>
           <div class="rq-filter-grid">
-            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android" disabled>Android app (Test studio)</option></select></label>
+            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android">Android app (device / emulator)</option></select></label>
             <label class="rq-wide" for="exUrl">Website address<input id="exUrl" type="url" placeholder="https://www.saucedemo.com/" autocomplete="url"></label>
             <label for="exEnv">Environment<select id="exEnv"><option value="test">Test (nothing is sent or changed)</option><option value="staging">Staging</option></select></label>
+          </div>
+          <div class="rq-filter-grid" id="xcAndroid" hidden>
+            <label for="exAndMode">On Android<select id="exAndMode"><option value="installed">The installed app (native / hybrid)</option><option value="web">The website in Android Chrome</option></select></label>
+            <label for="exDevice">Device id<input id="exDevice" placeholder="emulator-5554 (from adb devices)" autocomplete="off"></label>
+            <label for="exPackage">App package<input id="exPackage" placeholder="com.example.app" autocomplete="off"></label>
+            <label for="exActivity">Start activity (optional)<input id="exActivity" placeholder=".MainActivity" autocomplete="off"></label>
+            <label class="rq-wide" for="exAppium">Appium server<input id="exAppium" value="http://127.0.0.1:4723" autocomplete="off"></label>
+            <p class="small rq-wide">The test cases run on the device through Qpilot's Android engine (Appium): native screens and the app's own WebView, switched step by step. Each case's result comes from the engine's replayed journey.</p>
           </div>
           <div class="rq-row"><button type="button" class="secondary" id="tgCheck">Check website</button><span class="small" id="tgCheckOut" role="status" aria-live="polite"></span></div>
           <div id="tgAccount"></div>

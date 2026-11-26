@@ -462,6 +462,44 @@ def _prerequisite_failure(case: dict) -> bool:
     return not LOGIN_WORDS.search(subject)
 
 
+TAG = re.compile(r"\[(TC-[A-Za-z0-9_-]+)\]")
+
+
+def _android_results(run_dir: Path) -> dict[str, dict]:
+    """An Android run's outcome per Jira test case (its owner's-test line was tagged '[TC-...]'), from the engine's
+    own evidence (android_interaction.json): a kept journey replayed -> Passed; one that failed twice on its
+    assertions -> Failed; not automated / could not be tried / session lost -> said so. Nothing is assumed."""
+    f = Path(run_dir) / "android_interaction.json"
+    if not f.is_file() or f.is_symlink():
+        return {}
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for flow in data.get("flows") or []:
+        m = TAG.search(str(flow.get("title") or ""))
+        if not m:
+            continue
+        replay = str((flow.get("meta") or {}).get("discovery_replay") or "")
+        status = "Passed" if replay == "passed" else "Failed" if replay.startswith("failed twice") else \
+            "Requires review"
+        out[m.group(1)] = {"execution_status": status, "actual_result": replay or "the journey was kept",
+                           "steps": [str(s.get("action")) for s in flow.get("steps") or []][:40],
+                           "failure_category": "Assertion failure" if status == "Failed" else "",
+                           "skip_reason": "" if status != "Requires review" else
+                           f"Requires review: the journey's replay was '{replay or 'not run'}'"}
+    for item in data.get("tried") or []:
+        m = TAG.search(str(item.get("check") or ""))
+        if not m or m.group(1) in out:
+            continue
+        outcome, detail = str(item.get("outcome") or ""), str(item.get("detail") or "")
+        status = {"not automated": "Not automated", "incomplete": "Blocked"}.get(outcome, "Not automated")
+        out[m.group(1)] = {"execution_status": status, "actual_result": detail,
+                           "skip_reason": f"{status}: {detail or outcome}"[:500]}
+    return out
+
+
 def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str = "done") -> dict:
     """Read the REAL results of the finished run and record one result per requirement test case."""
     ex = get_execution(db, tenant, execution_id)
@@ -478,6 +516,8 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
     for c in run_cases if isinstance(run_cases, list) else []:
         if isinstance(c, dict) and c.get("requirement_test"):
             by_tc[c["requirement_test"]] = c
+    for cid, c in _android_results(run_dir).items():  # (an Android run: its own evidence, per tagged case)
+        by_tc.setdefault(cid, dict(c, requirement_test=cid, tc_id=cid))
     counts: dict[str, int] = {}
     stored: list[tuple[str, str, dict]] = []
     for cid in ex["case_ids"]:

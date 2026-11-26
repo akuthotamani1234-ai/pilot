@@ -112,7 +112,7 @@ def browser_probe(url: str, timeout_s: float = PROBE_TIMEOUT_S) -> dict:
 
 def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_type: str = "web",
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
-          probe=None, demo_checkout: bool = False) -> dict:
+          probe=None, demo_checkout: bool = False, android: dict | None = None) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -129,11 +129,22 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
         problem("ai", f"An AI provider is required to automate these {case_count} test case"
                       f"{'' if case_count == 1 else 's'}: {ai['reason']} Choose and configure an AI provider "
                       "below to continue - your selection is kept.", ai["recovery"] or "choose_ai")
-    if app_type != "web":
-        problem("app_type", "Requirement runs on Android are started from the Test studio for now.", "use_studio")
+    if app_type == "android":
+        a = android or {}
+        if not a.get("device_id"):
+            problem("device", "Choose the Android device or emulator to test on (its id from 'adb devices').",
+                    "enter_device")
+        if a.get("mode", "installed") == "installed" and not a.get("package_name"):
+            problem("package", "Enter the Android app's package name (e.g. com.example.app).", "enter_package")
+        if a.get("mode") == "web" and not url:
+            problem("target", "Enter the website address to open in Android Chrome.", "enter_url")
+    elif app_type != "web":
+        problem("app_type", f"'{app_type}' targets are not run from here.", "use_studio")
     if not url:
-        problem("target", "Target website not found. Please enter the website URL you want to test.", "enter_url")
-    else:
+        if app_type == "web":
+            problem("target", "Target website not found. Please enter the website URL you want to test.",
+                    "enter_url")
+    else:  # (every address - a website or an Android Chrome start page - is checked the same way)
         try:
             check_target(url, resolve=False)
         except UrlError as error:
@@ -146,7 +157,7 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
         problem("authorization", "Confirm that you own the application or have permission to test it.",
                 "confirm_authorization")
     browser = {"skipped": True}
-    if url and not any(p["code"] == "target" for p in problems) and app_type == "web":
+    if url and not any(p["code"] == "target" for p in problems) and app_type == "web":  # (Android: Appium checks)
         browser = (probe or browser_probe)(url)
         if not browser.get("browser"):
             problem("browser", f"The test browser is not available: {browser.get('error')}", "install_browser")

@@ -377,6 +377,13 @@ class AndroidContractAdapter:
         self.stop_path = Path(stop_path) if stop_path else None
         self.active = "webview" if config.get("app_mode") == "web" else "native"
         self.default_context = self.active
+        # A flow that switches contexts itself keeps that control (a CSS step in native UI is then an error, as
+        # before). A flow without any context step - what Jira / AI flows look like - gets the context chosen per
+        # step by its locator: CSS -> the app's own WebView, accessibility id / resource id / text / xpath -> native.
+        steps = [st for fl in (getattr(contract, "flows", None) or []) for st in fl.steps]
+        self.auto_context = bool(contract) and config.get("app_mode") != "web" and not any(
+            st.action == "context" for st in steps)
+        self.context_switches: list[dict] = []  # (evidence: every automatic switch, with why)
         from .android import interaction_blocker
         from .android_permissions import PermissionSession
 
@@ -464,12 +471,37 @@ class AndroidContractAdapter:
                 break
             time.sleep(0.25)
         if len(candidates) != 1:
-            raise RuntimeError("Exactly one debuggable WebView belonging to the selected app is required")
+            raise RuntimeError(self._webview_limitation(candidates))
         self.driver.switch_to.context(candidates[0])
         self.active = "webview"
         self._origin()
 
+    def _webview_limitation(self, candidates: list) -> str:
+        """Why the app's WebView cannot be driven - the exact limitation, never a guess."""
+        if len(candidates) > 1:
+            return (f"Several WebViews of the app are open ({', '.join(candidates[:4])}); the step cannot tell which "
+                    "one it means")
+        try:
+            self.driver.switch_to.context("NATIVE_APP")
+            has_webview = "android.webkit.WebView" in (self.driver.page_source or "")
+        except Exception:
+            has_webview = False
+        if has_webview:
+            return ("The app shows a WebView, but it is not debuggable, so its web content cannot be inspected: the "
+                    "test build must call WebView.setWebContentsDebuggingEnabled(true) (or be a debuggable build)")
+        return "No WebView of the selected app is open on this screen (its content here is native UI)"
+
+    def _auto_context(self, strategy: str) -> None:
+        if not self.auto_context:
+            return
+        want = "webview" if strategy == "css" else "native"
+        if want != self.active:
+            self.context(want)
+            self.context_switches.append({"to": want, "because": f"a {strategy} locator belongs to the {want} "
+                                                                 "context", "at": time.time()})
+
     def find(self, locator, optional=False):
+        self._auto_context(locator.strategy)
         self.guard()
         strategy = locator.strategy
         deadline = time.monotonic() + (0 if optional else 8)
@@ -540,6 +572,8 @@ class AndroidContractAdapter:
                 if time.monotonic() > deadline:
                     raise AssertionError("Expected browser title was not reached.")
                 time.sleep(.2)
+        if self.auto_context:
+            self._auto_context("accessibility_id")  # (a screen title is a native check: back to native first)
         assert self.active == "native", "Screen-title assertions require the native context."
         deadline = time.monotonic() + 5
         while True:
@@ -551,6 +585,8 @@ class AndroidContractAdapter:
 
     def assert_toast(self, expected, wait_s=2.5):
         """Read Android's live UI hierarchy for a short-lived Toast; element handles go stale too quickly."""
+        if self.auto_context:
+            self._auto_context("accessibility_id")
         if self.active != "native" or self.config.get("app_mode") == "web":
             raise ValueError("Android Toast assertions require native Android testing")
         from defusedxml import ElementTree

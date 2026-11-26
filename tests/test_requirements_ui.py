@@ -305,7 +305,11 @@ def test_all_workspace_destinations_and_screenshots(browser, studio):
                 expect(section).not_to_contain_text("Upcoming")
             if view == "execution":
                 expect(section.locator("#exAuth")).not_to_be_checked()
-                assert section.locator("#xcApp option[value=android]").get_attribute("disabled") is not None
+                assert section.locator("#xcApp option[value=android]").get_attribute("disabled") is None
+                expect(section.locator("#xcAndroid")).to_be_hidden()  # (Android: device fields only when chosen)
+                section.locator("#xcApp").select_option("android")
+                expect(section.locator("#exDevice")).to_be_visible()
+                section.locator("#xcApp").select_option("web")
             if view == "analysis":
                 section.get_by_role("button", name="QPL-2 — User Login Functionality").click()
                 expect(page.get_by_role("tab", name="AI Analysis")).to_have_attribute("aria-selected", "true")

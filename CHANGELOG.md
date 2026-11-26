@@ -2,6 +2,27 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 4: hybrid Android - automatic contexts, WebView diagnosis, Jira test cases on Android
+
+- `qa_runtime.AndroidContractAdapter`: a flow without context steps (what Jira / AI flows are) gets each step's
+  context from its locator - CSS -> the app's own WebView, accessibility id / resource id / text / xpath -> native UI -
+  switched automatically and recorded (`context_switches`); screen-title and toast checks return to native first. A
+  flow that switches contexts itself keeps the strict rule. A WebView that cannot be driven is reported exactly: not
+  debuggable (the test build must call `WebView.setWebContentsDebuggingEnabled(true)`), none open on this screen, or
+  several open.
+- Hybrid capabilities: a ChromeDriver folder (`tools/chromedriver` or `QPILOT_CHROMEDRIVER_DIR`) so Appium picks the
+  driver matching the WebView's Chrome; download only with `QPILOT_CHROMEDRIVER_AUTODOWNLOAD=1` (and the Appium
+  server's own permission); `ensureWebviewsHavePages`, `nativeWebScreenshot` (screenshots of the real device in a
+  WebView context); non-Windows driver names.
+- Jira executions on Android: target type "android" (installed app or Android Chrome, device id, package, activity,
+  Appium server); preflight asks for what is missing (no website probe for an installed app); the cases are handed to
+  the EXISTING Android run as the owner's tests, one line each tagged `[TC-...]`, AI required, no rules fallback; each
+  case's result comes from the engine's own evidence (`android_interaction.json`: replayed journey -> Passed, failed
+  twice -> Failed, not automated / session lost -> said so; no evidence -> Not run, never Passed).
+- Live validation BLOCKED: no Android device / emulator and no hybrid test build in this environment. Needed: an
+  Android device or emulator reachable by adb, Appium 2 with the UiAutomator2 driver, the app installed (a debuggable
+  test build for WebView content), and a ChromeDriver matching the WebView's Chrome (or auto-download allowed).
+
 ## 2026-11-26 - Phase 2: the application under test found from Jira and Confluence, by kind
 
 - Jira import also reads the custom fields whose names point to the application ("Environment", "Test URL",

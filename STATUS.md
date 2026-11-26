@@ -20,7 +20,7 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Checkout | owner / Jira tests go through cart and checkout forms on authorized sites; placing an order only with "Demo shop" ticked; payment never | `templates/conftest.py` CHECKOUT_FLOW |
 | Tests on pages exploring never saw | rewritten from the real page they failed on (evidence repair, up to 3 rounds); no pass without the result the case quotes | `agents/self_healing.py` |
 | Web (Playwright), native Android (Appium) | built, live-verified | |
-| Hybrid Android WebView driving | partial: detected, not driven automatically | `qa_runtime.py`, `android.py` |
+| Hybrid Android WebView (Phase 4) | built: automatic native / WebView context per step, exact WebView limitation, ChromeDriver folder / opt-in download; Jira executions run on Android through the existing engine with per-case results. Live: BLOCKED (no device / hybrid test build here) | `qa_runtime.py`, `android.py`, `requirements_api._launch_android`, `bridge._android_results` |
 | Prerequisites across stories (Phase 1) | built and run live: graph from Jira links, declared preconditions, optional AI, manual; added to runs; Blocked naming the failed prerequisite; cycles reported | `atlassian/prerequisites.py`, `/api/requirements/dependencies` |
 | iOS, REST API test execution, payment sandboxes, order lifecycle, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |

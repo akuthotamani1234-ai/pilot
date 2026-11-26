@@ -595,8 +595,8 @@ def _managed_web_chromedriver(config: dict) -> str | None:
     """Reuse an installed managed driver only when its major matches device Chrome."""
     from .finalization import folder_is_linked
     root = Path(__file__).resolve().parent.parent
-    candidates = [root / "tools" / "chromedriver" / "chromedriver.exe",
-                  root / "runs" / "android_verification_tools" / "chromedriver.exe"]
+    candidates = [root / "tools" / "chromedriver" / name for name in ("chromedriver.exe", "chromedriver")] + \
+                 [root / "runs" / "android_verification_tools" / name for name in ("chromedriver.exe", "chromedriver")]
     adb = _adb_path()
     owned = [path for path in candidates if not folder_is_linked(path) and path.is_file()]
     if not adb or not owned:
@@ -643,6 +643,18 @@ def build_capabilities(config: dict) -> dict:
         caps["appium:noReset"] = True
         caps["appium:chromeOptions"] = {"args": ["--no-first-run", "--no-default-browser-check", "--disable-fre"]}
         return caps
+    # a hybrid app's WebView: Appium picks the ChromeDriver matching the WebView's Chrome version from a folder of
+    # drivers (tools/chromedriver, or QPILOT_CHROMEDRIVER_DIR); downloading one is only allowed when the owner turns it
+    # on (QPILOT_CHROMEDRIVER_AUTODOWNLOAD=1 - the Appium server must also allow 'chromedriver_autodownload')
+    if "appium:chromedriverExecutable" not in caps:
+        folder = os.environ.get("QPILOT_CHROMEDRIVER_DIR") or str(Path(__file__).resolve().parent.parent / "tools"
+                                                                   / "chromedriver")
+        if Path(folder).is_dir():
+            caps["appium:chromedriverExecutableDir"] = str(Path(folder).resolve())
+        if os.environ.get("QPILOT_CHROMEDRIVER_AUTODOWNLOAD") == "1":
+            caps["appium:chromedriverAutodownload"] = True
+    caps["appium:ensureWebviewsHavePages"] = True  # (only WebViews that show a page are offered as contexts)
+    caps["appium:nativeWebScreenshot"] = True  # (a screenshot in a WebView context shows the real device screen)
     if config["app_mode"] == "apk":
         caps["appium:app"] = str(validate_apk(Path(config["apk_path"])))
         if config.get("account_mode") in {"existing", "create"}:
