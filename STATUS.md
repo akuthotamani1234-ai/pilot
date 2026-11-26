@@ -33,9 +33,11 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").
 
-**Test suite health (24 Nov):** the test-order pollution and the "flaky" busy-server test are fixed (the latter was a
-real discovery bug in `payment_nav.py`). Non-slow suite without `.env`: **2430 passed, 0 failed, 28 skipped** (all
-skips: Postgres / Redis / MinIO / the optional `mcp` package not present here, or Windows-only).
+**Test suite health (26 Nov, commit `41e2686`):** full suite without `.env`, 4 parallel workers: **2704 passed, 0
+failed, 48 skipped** (skips: opt-in live tests such as `QPILOT_LIVE_API=1`, and Postgres / Redis / MinIO / the optional
+`mcp` package / Windows-only tests not available here). The two failures of the run before it (`0660a50`) were found,
+reproduced and fixed: the test-isolation fixture replaced a registry other modules hold (now in place), and a test
+expectation that predated the exploratory `not_run` count.
 
 ## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–4 (web) + Milestones 1–3
 
