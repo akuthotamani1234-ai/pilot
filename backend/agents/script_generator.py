@@ -2470,6 +2470,9 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
         c2, swaps = snap_selectors(c, used)
         for was, now in swaps:
             print(f"  [script-gen] selector recovered from the page evidence: {was} -> {now}")
+        c2, fixes = fix_value_expects(c2)
+        for f in fixes:
+            print(f"  [script-gen] coding mistake repaired: {f}")
         return c2
 
     code = snapped(code)
@@ -2493,7 +2496,74 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     err = problem(code)
     if err:
         raise LLMError(f"the AI's test code failed the checks: {err}")
-    return code
+    return with_required_results(code, flows)
+
+
+def with_required_results(code: str, flows: list[dict]) -> str:
+    """QA_EXPECTS_test_<id> = [the result texts the case quotes]: the test's conftest marks a pass 'inconclusive' when
+    one of them was never checked while it ran (a check in a branch not taken, a helper never called)."""
+    lines = [f"QA_EXPECTS_test_{_ident(f['id'])} = {quoted_expectations(f)!r}" for f in flows
+             if f.get("my_test") and quoted_expectations(f)
+             and re.search(rf"^\s*def test_{_ident(f['id'])}\(", code, re.M)
+             and f"QA_EXPECTS_test_{_ident(f['id'])} =" not in code]
+    return code.rstrip("\n") + "\n\n\n" + "\n".join(lines) + "\n" if lines else code
+
+
+# expect() takes a locator or the page, never a value: AI code sometimes reads a text first
+# (`name = loc.inner_text()`) and then writes `expect(name).to_contain("x")`, which Playwright refuses (ValueError:
+# Unsupported type <str>) - the test then fails for a coding mistake instead of checking the app. The same check on the
+# value it already read is written as a plain assert (same meaning: the value must contain / equal the expected text),
+# so the check is still evaluated - never dropped.
+VALUE_READS = ("inner_text", "text_content", "input_value", "get_attribute", "title", "url", "all_inner_texts",
+               "all_text_contents", "count")
+VALUE_CHECKS = {"to_contain": "in", "to_contain_text": "in", "to_have_text": "==", "to_have_value": "==",
+                "to_equal": "==", "to_be": "==", "to_have_count": "==",
+                "not_to_contain": "not in", "not_to_contain_text": "not in", "not_to_have_text": "!=",
+                "not_to_have_value": "!=", "not_to_equal": "!="}
+_VALUE_EXPECT = re.compile(r"^(?P<ind>[ \t]*)expect\((?P<name>[A-Za-z_]\w*)\)\.(?P<how>\w+)\((?P<arg>.+)\)[ \t]*$")
+
+
+def fix_value_expects(code: str) -> tuple[str, list[str]]:
+    """Rewrite expect(<a value read from the page>).to_X(v) into the equivalent assert. Returns (code, fixes)."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code, []
+    values: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call) \
+                and isinstance(node.value.func, ast.Attribute) and node.value.func.attr in VALUE_READS:
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    values.add(t.id)
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute) and node.value.attr == "url":
+            values.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    if not values:
+        return code, []
+    fixes, out = [], []
+    for line in code.split("\n"):
+        m = _VALUE_EXPECT.match(line)
+        op = m and VALUE_CHECKS.get(m["how"])
+        if m and op and m["name"] in values:
+            try:
+                arg = ast.parse(m["arg"], mode="eval").body
+            except SyntaxError:
+                out.append(line)
+                continue
+            if isinstance(arg, ast.Tuple):  # (a second argument such as timeout= is not a value check)
+                out.append(line)
+                continue
+            name, v = m["name"], m["arg"].strip()
+            left = f"str({name}).strip()" if op in ("==", "!=") and m["how"] != "to_have_count" else name
+            right = f"str({v}).strip()" if left.startswith("str(") else v
+            if op in ("in", "not in"):
+                left, right = (f"str({v})", f"str({name})")
+            out.append(f"{m['ind']}assert {left} {op} {right}, \"expected %r {m['how'].replace('_', ' ')} %r\" % "
+                       f"({name}, {v})")
+            fixes.append(f"expect({name}).{m['how']}(...) -> assert on the value read")
+        else:
+            out.append(line)
+    return "\n".join(out), fixes
 
 
 QUOTED_EXPECTATION = re.compile(r"""['"“‘]([^'"”’\n]{3,160})['"”’]""")

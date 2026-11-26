@@ -367,7 +367,7 @@ def _running(item=None) -> None:
 def pytest_runtest_call(item):
     """Run the test body inside the sandbox, with a time limit."""
     me, done, lock = threading.get_ident(), threading.Event(), threading.Lock()
-    item._qa_checks, item._qa_steps, item._qa_t0 = 0, [], time.time()
+    item._qa_checks, item._qa_steps, item._qa_t0, item._qa_checked = 0, [], time.time(), []
     _CURRENT["item"] = item
     _running(item)
 
@@ -415,6 +415,33 @@ def pytest_make_collect_report(collector):
 _CURRENT: dict = {"item": None}
 
 
+def _checked(text) -> None:
+    """A check that PASSED, with the text it compared (for the required-result guard below)."""
+    item = _CURRENT["item"]
+    if item is not None and text:
+        item._qa_checked = getattr(item, "_qa_checked", []) + [str(text)[:2000]]
+
+
+class _RecordingAssertions:
+    """expect(x): each assertion method that returns without failing records the values it compared."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        attr = getattr(self._real, name)
+        if not callable(attr) or name.startswith("_"):
+            return attr
+
+        def call(*args, **kwargs):
+            out = attr(*args, **kwargs)
+            for v in list(args) + list(kwargs.values()):
+                for one in (v if isinstance(v, (list, tuple)) else [v]):
+                    _checked(getattr(one, "pattern", one) if not isinstance(one, (int, float)) else "")
+            return out
+        return call
+
+
 class _CountingExpect:
     """Playwright's expect(...), counting every check (expect.set_options etc. still work)."""
 
@@ -424,7 +451,7 @@ class _CountingExpect:
     def __call__(self, *args, **kwargs):
         if _CURRENT["item"] is not None:
             _CURRENT["item"]._qa_checks = getattr(_CURRENT["item"], "_qa_checks", 0) + 1
-        return self._real(*args, **kwargs)
+        return _RecordingAssertions(self._real(*args, **kwargs))
 
     def __getattr__(self, name):
         return getattr(self._real, name)
@@ -471,6 +498,8 @@ if not getattr(_pw.PageAssertions, "_qa_routes", False):
 
 def pytest_assertion_pass(item, lineno, orig, expl):
     item._qa_checks = getattr(item, "_qa_checks", 0) + 1
+    if _CURRENT["item"] is item:
+        _checked(f"{orig}\n{expl}")
     _step(f"Check: {re.sub(r'\s+', ' ', orig)[:90]}", True)
 
 
@@ -2159,6 +2188,14 @@ def _record(entry):
         f.write(json.dumps(entry) + "\n")
 
 
+def _required_results(item) -> list[str]:
+    """The expected results an owner's / Jira test case quotes: the generator writes them next to the test as
+    QA_EXPECTS_<test name> = [...] (a module constant, so a rewrite of the test function keeps them)."""
+    module = getattr(item, "module", None)
+    wanted = getattr(module, f"QA_EXPECTS_{getattr(item, 'originalname', None) or item.name}", None) if module else None
+    return [str(q) for q in wanted if str(q).strip()] if isinstance(wanted, (list, tuple)) else []
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield
@@ -2185,6 +2222,13 @@ def pytest_runtest_makereport(item, call):
             # nothing was checked: a pass would prove nothing
             entry["outcome"] = "inconclusive"
             entry["error"] = "The test ran without failing, but it did not check anything (no assert / expect ran)."
+        required = _required_results(item) if rep.when == "call" and rep.passed else []
+        missing = [q for q in required if not any(q.casefold() in c.casefold()
+                                                  for c in getattr(item, "_qa_checked", []))]
+        if missing:  # the result the test case quotes was never checked (e.g. its check sat in a branch not taken)
+            entry["outcome"] = "inconclusive"
+            entry["error"] = ("The test ran without failing, but the expected result its test case quotes was never "
+                              "checked: " + "; ".join(repr(q) for q in missing)[:400])
         if rep.passed and said("inconclusive"):  # the test could not establish the expected result: `_inconclusive()`
             entry["outcome"] = "inconclusive"
             entry["error"] = "Inconclusive: " + "; ".join(dict.fromkeys(said("inconclusive")))[:500]

@@ -301,6 +301,29 @@ def _dom(pages: list[dict], kind: str) -> set[str]:
     return {v.casefold() for p in pages for v in ((p.get("dom_tokens") or {}).get(kind) or [])}
 
 
+SNAP_PARTS = re.compile(r"""\[\s*([\w:-]+)\s*([*^$~|]?)=\s*["']?([^"'\]]+)["']?\s*\]|#([\w-]+)|\.([\w-]+)""")
+IDENTIFIER_ATTRS = {"id", "name", "data-test", "data-testid", "data-test-id", "data-qa", "data-cy"}
+
+
+def _snap_keys(selector: str) -> list[tuple[str, str]]:
+    """(kind, value) of each identifying part. An id, a test id or a name identify ONE control ("ident"); a class names
+    a GROUP ("class"); any other attribute only matches the same attribute. A partial match ('*=', '^=' ...) is
+    ("partial", ...): it never snaps - an exact selector would mean something narrower."""
+    keys = []
+    for attr, op, value, ident, cls in SNAP_PARTS.findall(selector or ""):
+        if ident:
+            keys.append(("ident", ident.lower()))
+        elif cls:
+            keys.append(("class", cls.lower()))
+        elif op:
+            keys.append(("partial", value.lower()))
+        elif attr.lower() == "class":
+            keys.append(("class", value.strip().lower()))
+        else:
+            keys.append(("ident" if attr.lower() in IDENTIFIER_ATTRS else f"attr:{attr.lower()}", value.strip().lower()))
+    return [k for k in keys if len(k[1]) >= 3]
+
+
 def snap_selectors(code: str, pages: list[dict]) -> tuple[str, list[tuple[str, str]]]:
     """Replace each unobserved CSS selector by the ONE observed selector with the same identifying value.
     Returns (code, [(was, now)])."""
@@ -309,10 +332,10 @@ def snap_selectors(code: str, pages: list[dict]) -> tuple[str, list[tuple[str, s
     except SyntaxError:
         return code, []
     observed = _observed_selectors(pages)
-    by_value: dict[str, set[str]] = {}
+    by_value: dict[tuple[str, str], set[str]] = {}
     for sel in observed:
-        for v in _ident_values(sel):
-            by_value.setdefault(v.lower(), set()).add(sel)
+        for key in _snap_keys(sel):
+            by_value.setdefault(key, set()).add(sel)
     swaps: list[tuple[str, str]] = []
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
@@ -327,10 +350,10 @@ def snap_selectors(code: str, pages: list[dict]) -> tuple[str, list[tuple[str, s
         # something a swap could change
         if re.search(r"[\s+>~,]", re.sub(r"\[[^\]]*\]", "", selector)):
             continue
-        values = _ident_values(selector)
-        if len(values) != 1:
+        keys = _snap_keys(selector)
+        if len(keys) != 1 or keys[0][0] == "partial":
             continue
-        candidates = by_value.get(values[0].lower(), set())
+        candidates = by_value.get(keys[0], set())
         if len(candidates) == 1:
             now = next(iter(candidates))
             if (selector, now) not in swaps:

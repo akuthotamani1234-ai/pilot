@@ -28,7 +28,7 @@ from pathlib import Path
 from ..human_review import proposal_fields
 from ..llm import LLMError, ask_llm, extract_code, llm_enabled, load_prompt
 from ..state import QAState
-from .script_generator import _ident, validate_script
+from .script_generator import _ident, fix_value_expects, validate_script
 from .test_design import lean
 
 SELECTOR_IN_ERROR = re.compile(r"""locator\((["'])(.+?)\1\)""")
@@ -150,6 +150,11 @@ def _payment_literals(code: str) -> set[str]:
     return found
 
 
+def _required_results(code: str) -> set[str]:
+    """The QA_EXPECTS_<test> = [...] constants (the results the owner's / Jira cases quote) - a repair keeps them."""
+    return set(re.findall(r"^QA_EXPECTS_\w+ = .*$", code, re.M))
+
+
 def _safe_repair(old_code: str, new_code: str, need_tests: bool = True) -> str | None:
     """Returns an error if the repaired code is not acceptable (need_tests=False: a steps_*.py module)."""
     err = validate_script(new_code, need_tests=need_tests)
@@ -157,6 +162,8 @@ def _safe_repair(old_code: str, new_code: str, need_tests: bool = True) -> str |
         return err
     if _payment_literals(new_code) - _payment_literals(old_code):
         return "the repair points a test at checkout or payment"
+    if _required_results(old_code) - _required_results(new_code):
+        return "the repair removes the expected result a test case quotes (QA_EXPECTS_...)"
     before, after = _assertion_profile(old_code), _assertion_profile(new_code)
     if set(before) - set(after):
         return f"test functions removed: {sorted(set(before) - set(after))}"
@@ -436,7 +443,8 @@ def self_healing_agent(state: QAState) -> QAState:
                 prompt = load_prompt("self_healing").format(
                     test=f["test"], error=err, code=before,
                     old_page=_page_brief(old_page), new_page=_page_brief(new_page))
-                candidate = extract_code(ask_llm(prompt, agent="self_healing", page=new_page["slug"], test=f["test"]))
+                candidate = fix_value_expects(extract_code(ask_llm(prompt, agent="self_healing", page=new_page["slug"],
+                                                                         test=f["test"])))[0]
                 if candidate.strip() == before.strip():
                     why_not = "AI says the element no longer exists"
                 else:
@@ -651,6 +659,7 @@ def evidence_repair(state: QAState, test_dir: Path, backup_dir: Path, rnd: int) 
             entry.update(status="could not heal", change=f"LLM failed: {e}")
             log.append(entry)
             continue
+        answer = fix_value_expects(answer)[0] if answer else answer
         new_span = _function_source(answer, f["test"]) if answer else None
         if not new_span:
             entry.update(status="could not heal", change="the AI did not return the test function")

@@ -32,6 +32,8 @@ STRICT RULES:
   Count with `expect(locator).to_have_count(n)` (it waits until the page updates) - never `assert locator.count() == n`
   right after a click or a search. to_have_count takes a NUMBER; "at least one" is `not_to_have_count(0)`.
   Never `assert True` or any check that cannot fail.
+  expect() takes a locator or the page, never a value: check a text with
+  `expect(locator).to_contain_text("...")`, not `x = locator.inner_text(); expect(x).to_contain(...)`.
 - A website whose addresses use "#/" (https://site.com/#/category/7): its home page is "https://site.com/#/".
 - Logging in with the RIGHT account: `user, password = qa_login` and type those (a "guest" test starts logged out).
   A wrong password may be made up; NEVER make up a "correct" password or user name.

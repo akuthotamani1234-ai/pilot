@@ -119,3 +119,19 @@ def _execution_preflight_stub(request, monkeypatch):
         "ready": True, "reason": "", "recovery": ""})
     monkeypatch.setattr(pre, "browser_probe", lambda url, timeout_s=25: {
         "ok": True, "browser": True, "login_form": False, "title": "", "final_url": url, "error": ""})
+
+
+# ---------------------------------------------------------------- one test's background run never blocks the next
+# backend.server keeps the runs in process-wide registries (jobs, rechecks). Under pytest-xdist one worker runs many
+# tests in a row; a run a previous test started in the background (still "running" when that test ended) made the next
+# test see "A test is already running" or a scheduled test wait. Each test starts with registries holding no running
+# entries from earlier tests (finished entries are kept); the earlier run's thread keeps updating its own old dict.
+
+@pytest.fixture(autouse=True)
+def _isolated_run_registry(monkeypatch):
+    import sys
+    server = sys.modules.get("backend.server")
+    if server is not None:
+        monkeypatch.setattr(server, "jobs", {k: v for k, v in server.jobs.items() if v.get("status") != "running"})
+        monkeypatch.setattr(server, "rechecks", {k: v for k, v in server.rechecks.items() if not v.get("running")})
+    yield
