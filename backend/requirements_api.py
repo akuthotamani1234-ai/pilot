@@ -361,6 +361,12 @@ class DependencyBody(BaseModel):
     reason: str = Field(default="", max_length=300)
 
 
+class ResumeBody(BaseModel):  # (what is never stored, given again to resume)
+    test_password: str | None = Field(default=None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=400)
+    api_token: str | None = Field(default=None, max_length=4000)
+
+
 class ExecutionBody(BaseModel):
     strategy: str = Field(pattern=r"^(requirements|autonomous|hybrid)$")
     scope: ExecutionScope = Field(default_factory=ExecutionScope)
@@ -399,11 +405,14 @@ def _scope_cases(db, tenant: str, scope: ExecutionScope) -> list[str]:
 
 
 def _settle_execution(db, tenant: str, ex: dict) -> dict:
-    """A running execution whose Qpilot run has ended: collect its real results now (idempotent)."""
+    """A running execution whose Qpilot run has ended: collect its real results now (idempotent). A batched execution
+    collects the batch, then starts the next one - or, after a Studio restart, is left 'interrupted' (resumable)."""
     if ex.get("status") not in ("running", "queued") or not str(ex.get("run_id", "")).isdigit():
         return ex
     from . import server
     job = server.jobs.get(int(ex["run_id"]))
+    if ex.get("batches"):
+        return _settle_batch(db, tenant, ex, job)
     if job is None or job.get("status") == "running":
         return ex
     run_dir = server._plain_run_dir(str(job.get("run"))) if job.get("run") else None
@@ -412,8 +421,100 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
     return bridge.collect(db, tenant, ex["id"], run_dir, job.get("status", "done"))
 
 
+_BATCH_LOCK = threading.Lock()
+
+
+def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
+    from . import server
+    from .atlassian import scheduler
+    with _BATCH_LOCK:
+        ex = bridge.get_execution(db, tenant, ex["id"]) or ex  # (one settling at a time: re-read under the lock)
+        if ex.get("status") not in ("running", "queued"):
+            return ex
+        current = next((b for b in ex["batches"] if b["status"] == "running"), None)
+        if job is None:  # (the Studio restarted: that batch's run is gone - resumable, never silently lost)
+            if current:
+                current["status"] = "interrupted"
+            ex["status"] = "interrupted"
+            bridge.save_execution(db, tenant, ex)
+            return ex
+        if job.get("status") == "running" or current is None:
+            return ex
+        run_dir = server._plain_run_dir(str(job.get("run"))) if job.get("run") else None
+        bridge.collect(db, tenant, ex["id"], run_dir or Path("/nonexistent"), job.get("status", "done"),
+                       only=current["case_ids"], final=False)
+        ex = bridge.get_execution(db, tenant, ex["id"])
+        current = next(b for b in ex["batches"] if b["n"] == current["n"])
+        current["status"] = "done" if job.get("status") == "done" else str(job.get("status") or "failed")
+        ex["cost"] = scheduler.cost_of([server._plain_run_dir(str(b["run_folder"])) or Path("/nonexistent")
+                                        for b in ex["batches"] if b.get("run_folder")]
+                                       + ([run_dir] if run_dir else []))
+        current["run_folder"] = run_dir.name if run_dir else ""
+        nxt = scheduler.next_batch(ex)
+        launch = _PENDING.get(ex["id"])
+        if nxt and launch and job.get("status") not in ("stopped", "cancelled"):
+            try:
+                new_job = _launch_for(launch, nxt["case_ids"])
+            except HTTPException as error:
+                nxt.update(status="failed", reason=str(error.detail)[:300])
+                ex["status"] = "interrupted"
+                bridge.save_execution(db, tenant, ex)
+                return ex
+            nxt.update(status="running", run_id=str(new_job))
+            ex["run_id"] = str(new_job)
+            bridge.save_execution(db, tenant, ex)
+            _watch(tenant, ex["id"], new_job)
+            return ex
+        if nxt:  # (cancelled, or no launch data after a restart: the rest waits for resume / is cancelled)
+            for b in ex["batches"]:
+                if b["status"] == "queued":
+                    b["status"] = "cancelled" if job.get("status") in ("stopped", "cancelled") else "queued"
+            ex["status"] = "cancelled" if job.get("status") in ("stopped", "cancelled") else "interrupted"
+            bridge.save_execution(db, tenant, ex)
+            _PENDING.pop(ex["id"], None)
+            return ex
+        _PENDING.pop(ex["id"], None)
+        bridge.save_execution(db, tenant, ex)
+        return bridge.collect(db, tenant, ex["id"], run_dir or Path("/nonexistent"), "done", only=[], final=True)
+
+
 def _with_outcome(ex: dict) -> dict:
     return {**ex, **bridge.outcome_of(ex)}
+
+
+_PENDING: dict[str, dict] = {}  # execution id -> what its next batches need (target with secrets): memory only
+
+
+def _launch_for(launch: dict, case_ids: list[str]) -> int:
+    """Start the existing engine for these test cases (a whole execution, or one batch). Returns the job id."""
+    from . import server
+    t, strategy = launch["target"], launch["strategy"]
+    tests = [launch["tests"][c] for c in case_ids if c in launch["tests"]]
+    if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
+        return _launch_api(t, tests, case_ids)
+    if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
+        try:
+            return _launch_android(t, [f"[{x['tc']}] {x['text']}" for x in tests], launch["authorization"],
+                                   launch["x_qa_token"])
+        except HTTPException as error:
+            raise HTTPException(error.status_code, f"(Android) {error.detail}") from None
+    sandbox = t.payment_provider if (t.payment_provider and t.payment_sandbox_confirmed
+                                     and strategy == "requirements") else ""
+    demo = (t.demo_checkout or bool(sandbox)) and strategy == "requirements"
+    req = server.RunRequest(
+        source=t.url, authorized=True, environment="staging" if demo else t.environment,
+        writes_confirmed=demo, allow_actions="pay" if demo else None, test_payment=demo,
+        payment_sandbox=sandbox or None, max_pages=t.max_pages,
+        show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
+        llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key or None,
+        test_username=t.test_username or None, test_password=t.test_password or None,
+        auth_mode="existing" if t.test_username and t.test_password else "auto",
+        page_timeout_s=t.page_timeout_s, requirement_tests=tests,
+        requirements_only=strategy == "requirements", objective_focus=strategy == "requirements", fresh=False)
+    job = server._launch_run(req, launch["caller"])
+    if isinstance(job, JSONResponse):
+        raise HTTPException(job.status_code, "not allowed")
+    return int(job.get("id"))
 
 
 def _launch_api(t, tests: list[dict], case_ids: list[str]) -> int:
@@ -1187,7 +1288,6 @@ def register_requirements_api(app) -> None:
             except (LookupError, ValueError) as error:
                 raise HTTPException(400, safe_error(error)) from None
             ex = planned["execution"]
-            from . import server
             t = body.target
             projects = sorted({c.split("-", 1)[1].rsplit("-", 1)[0].split("-")[0] for c in ex.get("case_ids", [])
                                if c.startswith("TC-")} | ({t.project_key.upper()} if t.project_key else set()))
@@ -1199,63 +1299,35 @@ def register_requirements_api(app) -> None:
                 user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
                 if user and pw:
                     t = t.model_copy(update={"test_username": user, "test_password": pw})
-            if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
-                job = _launch_api(t, planned["requirement_tests"], ex["case_ids"])
-                bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
-                db.close()
-                _watch(ctx["tenant"], ex["id"], int(job))
-                _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy,
-                       cases=len(ex["case_ids"]), target=f"api:{t.api_spec_url or t.url}"[:200],
-                       writes=sorted(t.api_allow))
-                return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
-            if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
-                lines = [f"[{x['tc']}] {x['text']}" for x in planned["requirement_tests"]]
-                try:
-                    job = _launch_android(t, lines, authorization, x_qa_token)
-                except HTTPException as error:
-                    with db:
-                        db.execute("UPDATE req_executions SET status = 'failed' WHERE tenant_id = ? AND id = ?",
-                                   (ctx["tenant"], ex["id"]))
-                    raise HTTPException(error.status_code, f"The Android run could not start: {error.detail}") \
-                        from None
-                bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
-                db.close()
-                _watch(ctx["tenant"], ex["id"], int(job))
-                _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy,
-                       cases=len(ex["case_ids"]), target=f"android:{t.package_name or t.url}"[:200])
-                return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
-            sandbox = t.payment_provider if (t.payment_provider and t.payment_sandbox_confirmed
-                                             and body.strategy == "requirements") else ""
-            demo = (t.demo_checkout or bool(sandbox)) and body.strategy == "requirements"
-            req = server.RunRequest(
-                source=t.url, authorized=True, environment="staging" if demo else t.environment,
-                writes_confirmed=demo, allow_actions="pay" if demo else None, test_payment=demo,
-                payment_sandbox=sandbox or None,
-                max_pages=t.max_pages,
-                show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
-                llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key or None,
-                test_username=t.test_username or None, test_password=t.test_password or None,
-                auth_mode="existing" if t.test_username and t.test_password else "auto",
-                page_timeout_s=t.page_timeout_s, requirement_tests=planned["requirement_tests"],
-                requirements_only=body.strategy == "requirements",
-                objective_focus=body.strategy == "requirements", fresh=False)
-            caller = ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None
+            # large executions run in batches, one after another (atlassian/scheduler.py)
+            from .atlassian import scheduler
+            launch = {"target": t, "strategy": body.strategy,
+                      "tests": {x["tc"]: x for x in planned["requirement_tests"]},
+                      "caller": ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None,
+                      "authorization": authorization, "x_qa_token": x_qa_token}
+            if body.strategy != "autonomous" and len(ex["case_ids"]) > scheduler.BATCH_SIZE:
+                cases_all = [c for c in (bridge.get_case(db, ctx["tenant"], cid) for cid in ex["case_ids"]) if c]
+                ex["batches"] = scheduler.plan_batches(ex["case_ids"], cases_all,
+                                                       (ex.get("prerequisites") or {}).get("chains") or {})
+            batch = scheduler.next_batch(ex)
             try:
-                job = server._launch_run(req, caller)
+                job = _launch_for(launch, batch["case_ids"] if batch else ex["case_ids"])
             except HTTPException as error:
-                with db:
-                    db.execute("UPDATE req_executions SET status = 'failed' WHERE tenant_id = ? AND id = ?",
-                               (ctx["tenant"], ex["id"]))
+                ex["status"] = "failed"
+                bridge.save_execution(db, ctx["tenant"], ex)
                 raise HTTPException(error.status_code, f"The test run could not start: {error.detail}") from None
-            if isinstance(job, JSONResponse):
-                raise HTTPException(job.status_code, "The test run could not start.")
-            bridge.attach_run(db, ctx["tenant"], ex["id"], str(job.get("id")))
+            if batch:
+                batch.update(status="running", run_id=str(job))
+                _PENDING[ex["id"]] = launch  # (in memory only: it may hold the typed password / keys)
+            bridge.save_execution(db, ctx["tenant"], ex)
+            bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
         finally:
             db.close()
-        _watch(ctx["tenant"], ex["id"], int(job.get("id")))
+        _watch(ctx["tenant"], ex["id"], int(job))
         _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy, cases=len(ex["case_ids"]),
-               target=body.target.url[:200])
-        return {"execution": {**ex, "status": "running", "run_id": str(job.get("id"))}, "job": job.get("id")}
+               target=(body.target.url or body.target.api_spec_url or body.target.package_name)[:200],
+               batches=len(ex.get("batches") or []))
+        return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
 
     @app.get("/api/requirements/executions")
     def executions(limit: int = 50, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -1308,6 +1380,43 @@ def register_requirements_api(app) -> None:
         server.stop_run(int(ex["run_id"]), authorization, x_qa_token)
         _audit(ctx, "execution.cancel", True, execution=execution_id)
         return {"execution": execution_id, "cancelling": True}
+
+    @app.post("/api/requirements/executions/{execution_id}/resume")
+    def resume_execution(execution_id: str, body: ResumeBody, authorization: str | None = A,
+                         x_qa_token: str | None = Q):
+        """Continue an interrupted batched execution with its first batch not done (the checkpoint). A typed password
+        or key is never stored, so it is given again here."""
+        from .atlassian import scheduler
+        ctx = _context(authorization, x_qa_token, "run.write")
+        db = bridge.connect()
+        try:
+            ex = bridge.get_execution(db, ctx["tenant"], execution_id)
+            if not ex:
+                raise HTTPException(404, "No such execution in your workspace.")
+            if ex.get("status") != "interrupted" or not scheduler.next_batch(ex):
+                raise HTTPException(409, "This execution has nothing to resume.")
+            stored = {k: v for k, v in (ex.get("target") or {}).items() if k in ExecutionTarget.model_fields
+                      and v not in ("[set]",)}
+            t = ExecutionTarget.model_validate({**stored, **body.model_dump(exclude_none=True)})
+            if t.use_saved_account and not (t.test_username and t.test_password):
+                user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
+                if user and pw:
+                    t = t.model_copy(update={"test_username": user, "test_password": pw})
+            launch = {"target": t, "strategy": ex["strategy"],
+                      "tests": {x["tc"]: x for x in bridge.tests_for_execution(db, ctx["tenant"], ex)},
+                      "caller": ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None,
+                      "authorization": authorization, "x_qa_token": x_qa_token}
+            nxt = scheduler.next_batch(ex)
+            job = _launch_for(launch, nxt["case_ids"])
+            nxt.update(status="running", run_id=str(job))
+            ex.update(status="running", run_id=str(job))
+            _PENDING[ex["id"]] = launch
+            bridge.save_execution(db, ctx["tenant"], ex)
+        finally:
+            db.close()
+        _watch(ctx["tenant"], execution_id, job)
+        _audit(ctx, "execution.resume", True, execution=execution_id, batch=nxt["n"])
+        return {"execution": execution_id, "batch": nxt["n"], "job": job}
 
     # -- prerequisites between test cases (atlassian/prerequisites.py): the persistent graph a run follows
     @app.get("/api/requirements/dependencies")

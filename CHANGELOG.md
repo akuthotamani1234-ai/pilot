@@ -2,6 +2,22 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 8: large executions in batches, checkpointed and resumable
+
+- `backend/atlassian/scheduler.py`: an execution with more than `QPILOT_BATCH_SIZE` (default 20) cases is split into
+  batches - a case and its prerequisite chain always in one batch (never cut), high priority first; the batches run one
+  after another through the existing engine (controlled concurrency, each AI prompt sees one batch); each batch's
+  results are collected as soon as it ends (incremental reporting); AI calls, tokens and cost are summed from each
+  batch run's `cost.json`.
+- Checkpoint and resume: every batch's state is stored (queued / running / done / failed / cancelled /
+  interrupted). A Studio restart leaves the running batch and the execution "interrupted" (its own outcome:
+  "Interrupted - resume it ..."); `POST /api/requirements/executions/{id}/resume` continues with the first batch not
+  done (a typed password / key is never stored: it is given again). Cancel stops the remaining batches.
+- `Execution Center -> Live`: "batch n of N"; an interrupted execution shows Resume.
+- Fixed on the way: in `bridge.collect` a local name shadowed the new `final` parameter (the prerequisite outcome
+  table), so a batch would have finished the whole execution.
+- The engine launch for web / Android / API is one function (`_launch_for`) used by start, the next batch and resume.
+
 ## 2026-11-26 - Phase 9: the feature inventory across runs and every requirement accounted for
 
 - `backend/inventory.py`: after each run's report, its feature registry is folded into the application's inventory

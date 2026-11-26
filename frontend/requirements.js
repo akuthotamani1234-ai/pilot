@@ -162,7 +162,7 @@
       caps.traceability ? go("View traceability", "story → test → real result", "#traceability") : later("traceability", "Traceability"),
       caps.defects ? go("Defects and write-back", caps.jira_write_back ? "approve and send Jira updates" : "defects; Jira writes are off", "#writeback") : later("jira_write_back", "Jira write-back")));
   }
-  const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", completed_with_unautomated: "warn",
+  const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", interrupted: "warn", completed_with_unautomated: "warn",
     completed_with_blocked: "warn", completed_with_review: "info", completed_with_failures: "bad", no_tests_automated: "bad", automation_failed: "bad" };
   const outcomeBadge = (ex) => badge(ex.outcome_text || ex.status, OUTCOME_KIND[ex.outcome] || "");
   const tallyText = (ex) => { const t = ex.tally; if (!t) return "";
@@ -1812,7 +1812,18 @@
       if (running && ex.run_id) livePause(ex.run_id);
       const counts = ex.counts || {};
       const t = ex.target || {}, ai = t.llm_provider ? `AI: ${t.llm_provider}${t.llm_model ? " " + t.llm_model : ""} · ` : "";
-      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${t.url || ""} · ${ai}`, outcomeBadge(ex),
+      const bs = ex.batches || [], bdone = bs.filter((b) => b.status === "done").length;
+      const batchText = bs.length ? `batch ${Math.min(bdone + 1, bs.length)} of ${bs.length} (${bdone} done) · ` : "";
+      if (ex.status === "interrupted") {
+        $("livePause").hidden = false;
+        $("livePause").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Interrupted — " }),
+          `${bdone} of ${bs.length} batches are done; the rest can go on from where it stopped. `,
+          h("label", { for: "resumePass", class: "small", text: "Test password (never stored)" }), h("input", { id: "resumePass", type: "password", autocomplete: "off" }),
+          h("button", { type: "button", class: "secondary", text: "Resume", onclick: async () => {
+            try { await api(`/executions/${encodeURIComponent(ex.id)}/resume`, { method: "POST", body: $("resumePass").value ? { test_password: $("resumePass").value } : {} }); $("resumePass").value = ""; } catch (err) { banner(err.message); }
+          } })));
+      }
+      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${t.url || t.api_spec_url || t.package_name || ""} · ${ai}${batchText}`, outcomeBadge(ex),
         live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : "",
         !running && ex.tally ? h("span", { class: "small", text: ` · ${tallyText(ex)}` }) : null));
       $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Requires review", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),

@@ -350,6 +350,29 @@ def _with_prerequisites(text: str, prereqs: list[dict]) -> str:
             f"Then this test: {text}")[:2600]
 
 
+def _tests_for(cases: list[dict], by_id: dict, prerequisite_info: dict) -> list[dict]:
+    """The plain-English tests handed to the engine (each with its prerequisites' steps first)."""
+    chains = prerequisite_info.get("chains") or {}
+    return [{"id": "rq_" + re.sub(r"[^a-z0-9_]", "_", c["id"].lower()),
+             "text": _with_prerequisites(instruction(c), [by_id[p] for p in chains.get(c["id"], []) if p in by_id]),
+             "tc": c["id"], "prerequisite_for": [d for d, ch in chains.items() if c["id"] in ch],
+             "requirement": c["requirement_id"], "criteria": c["criterion_ids"], "title": c["title"]} for c in cases]
+
+
+def tests_for_execution(db, tenant: str, ex: dict) -> list[dict]:
+    """The engine's tests of an execution again (a resumed batch: only ids are stored, never a password)."""
+    cases = [c for c in (get_case(db, tenant, cid) for cid in ex.get("case_ids") or []) if c]
+    return _tests_for(cases, {c["id"]: c for c in cases}, ex.get("prerequisites") or {})
+
+
+def save_execution(db, tenant: str, ex: dict) -> None:
+    data = {k: v for k, v in ex.items() if k not in ("outcome", "outcome_text", "tally", "automation_coverage",
+                                                     "pass_rate")}
+    with db:
+        db.execute("UPDATE req_executions SET status = ?, data = ? WHERE tenant_id = ? AND id = ?",
+                   (ex.get("status", "queued"), json.dumps(data), tenant, ex["id"]))
+
+
 def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, actor: str = "system") -> dict:
     """Record an execution and return the instructions for the existing Qpilot run. Stale / unapproved / blocked
     cases are listed as not run (with the reason) and never handed to the run."""
@@ -392,11 +415,7 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
                  "target": {k: v for k, v in target.items() if k not in ("test_password", "api_key")},
                  "requirements": sorted({c["requirement_id"] for c in cases}), "status": "queued", "run_id": "",
                  "prerequisites": prerequisite_info}
-    tests = [] if strategy == "autonomous" else [
-        {"id": "rq_" + re.sub(r"[^a-z0-9_]", "_", c["id"].lower()),
-         "text": _with_prerequisites(instruction(c), [by_id[p] for p in prerequisite_info["chains"].get(c["id"], [])]),
-         "tc": c["id"], "prerequisite_for": [d for d, ch in prerequisite_info["chains"].items() if c["id"] in ch],
-         "requirement": c["requirement_id"], "criteria": c["criterion_ids"], "title": c["title"]} for c in cases]
+    tests = [] if strategy == "autonomous" else _tests_for(cases, by_id, prerequisite_info)
     with db:
         db.execute("INSERT INTO req_executions (tenant_id, id, status, run_id, created_at, data) VALUES "
                    "(?, ?, ?, ?, ?, ?)", (tenant, execution["id"], "queued", "", execution["created_at"],
@@ -509,8 +528,10 @@ def _android_results(run_dir: Path) -> dict[str, dict]:
     return out
 
 
-def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str = "done") -> dict:
-    """Read the REAL results of the finished run and record one result per requirement test case."""
+def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str = "done",
+            only: list[str] | None = None, final: bool = True) -> dict:
+    """Read the REAL results of the finished run and record one result per requirement test case. only / final: one
+    batch of a large execution (scheduler.py) - its cases only, and the execution stays running until the last."""
     ex = get_execution(db, tenant, execution_id)
     if not ex:
         raise LookupError(execution_id)
@@ -536,7 +557,7 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
             access = json.loads(pause_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             access = {}
-    for cid in ex["case_ids"]:
+    for cid in (only if only is not None else ex["case_ids"]):
         c = by_tc.get(cid)
         if c is None and access.get("state") == "timed_out":
             result = {"status": "Blocked", "reason": f"Blocked: {access.get('message')} ({access.get('url')}) - "
@@ -566,22 +587,22 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         stored.append((cid, status, result))
     # a test that did not pass while a prerequisite it needs really failed: Blocked, naming that prerequisite
     pre = ex.get("prerequisites") or {}
-    final = {cid: status for cid, status, _ in stored}
+    outcome_of_case = {cid: status for cid, status, _ in stored}
     for i, (cid, status, result) in enumerate(stored):
         if (pre.get("added") or []) and cid in pre["added"]:
             result["role"] = "prerequisite (added: needed by " + ", ".join(
                 d for d, ch in (pre.get("chains") or {}).items() if cid in ch) + ")"
         if status == "Passed":
             continue
-        failed = [p for p in (pre.get("chains") or {}).get(cid, []) if final.get(p) in ("Failed", "Blocked")]
+        failed = [p for p in (pre.get("chains") or {}).get(cid, []) if outcome_of_case.get(p) in ("Failed", "Blocked")]
         if failed:
             result.update(status="Blocked", own_status=status, blocked_by=failed[0],
-                          reason=f"Blocked: its prerequisite {failed[0]} did not pass ({final[failed[0]]}) - the state "
+                          reason=f"Blocked: its prerequisite {failed[0]} did not pass ({outcome_of_case[failed[0]]}) - the state "
                                  f"this test starts from could not be established; not a failure of what it tests")
             stored[i] = (cid, "Blocked", result)
     # a selected case that could not run (it pays without a sandbox, it is stale, not approved ...) gets its outcome
     # too - never silently left out
-    for x in ex.get("excluded") or []:
+    for x in (ex.get("excluded") or []) if final else []:
         reason = str(x.get("reason") or "")
         status = "Blocked" if reason.lower().startswith(("blocked", "it places", "it pays")) else "Not run"
         stored.append((x["id"], status, {"status": status, "reason": reason[:500], "evidence": [], "actual": "",
@@ -589,13 +610,21 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                                          "test_case_id": x["id"], "run_id": ex.get("run_id", ""), "at": _now(),
                                          "run_folder": Path(run_dir).name}))
     for cid, status, result in stored:
-        counts[status] = counts.get(status, 0) + 1
         with db:
             db.execute("INSERT OR REPLACE INTO req_results (tenant_id, execution_id, test_case_id, status, at, data) "
                        "VALUES (?, ?, ?, ?, ?, ?)", (tenant, execution_id, cid, status, result["at"],
                                                      json.dumps(result, default=str)))
+    for row in db.execute("SELECT status FROM req_results WHERE tenant_id = ? AND execution_id = ?",
+                          (tenant, execution_id)):  # (every batch so far, and the excluded cases at the end)
+        counts[row["status"]] = counts.get(row["status"], 0) + 1
     exploratory = [c for c in run_cases if isinstance(c, dict) and not c.get("requirement_test")] \
         if isinstance(run_cases, list) else []
+    if not final:
+        ex["counts"] = counts
+        with db:
+            db.execute("UPDATE req_executions SET data = ? WHERE tenant_id = ? AND id = ?",
+                       (json.dumps(ex), tenant, execution_id))
+        return ex
     ex.update(status="finished" if run_status == "done" else run_status, finished_at=_now(), counts=counts,
               exploratory={"cases": len(exploratory),
                            "failed": sum(1 for c in exploratory if c.get("execution_status") == "Failed"),
@@ -609,6 +638,7 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
 OUTCOME_TEXT = {
     "running": "Running",
     "cancelled": "Cancelled",
+    "interrupted": "Interrupted - resume it to run the remaining batches",
     "automation_failed": "Execution unsuccessful - the test run itself failed",
     "no_tests_automated": "Execution unsuccessful - no tests were automated",
     "completed_with_failures": "Completed with failures",
@@ -636,6 +666,8 @@ def outcome_of(ex: dict) -> dict:
         key = "running"
     elif status in ("stopped", "cancelled"):
         key = "cancelled"
+    elif status == "interrupted":
+        key = "interrupted"
     elif status == "failed" and not executed:
         key = "automation_failed"
     elif selected and not executed:
