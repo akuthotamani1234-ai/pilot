@@ -3531,6 +3531,13 @@ def start_run(
     return _launch_run(req, caller if isinstance(caller, str) else None)
 
 
+def _has_owner_tests(req: RunRequest) -> bool:
+    """Does this run carry tests the AI must turn into steps (typed in the chat, or Jira / Confluence test cases)?"""
+    if req.discovery_only:  # (discovery only: no tests at all)
+        return False
+    return bool((req.my_tests or "").strip()) or bool(req.requirement_tests)
+
+
 def _launch_run(req: RunRequest, caller: str | None):
     """Start one test. The HTTP route has already checked the caller.
 
@@ -3539,11 +3546,26 @@ def _launch_run(req: RunRequest, caller: str | None):
     """
     from backend.agents.discovery import unwrap_link
     from backend.safety import API_KEY_ENV, safe_url_for_display
+    requested_ai = req.llm_provider or ""  # (before privacy: the AI the person chose, for an exact refusal reason)
     req.llm_provider = _privacy_provider(req.llm_provider, req.privacy_mode)
     source = unwrap_link(req.source.strip().strip('"'))  # Bing / Google result link -> the real website
     if not source:
         raise HTTPException(400, "Enter a website URL, GitHub link or project folder.")
     _validate(req, source)
+    # Your own tests / Jira test cases are turned into browser steps by the AI: a run that has them but no ready AI
+    # would end with every one 'Not automated' (privacy local-only + a cloud LLM_PROVIDER, LLM_PROVIDER=none, Ollama
+    # not running). It is refused before it starts, and such a run never falls back to rules.
+    if _has_owner_tests(req):
+        from backend import execution_preflight
+        ai = execution_preflight.ai_status(requested_ai if requested_ai != "none" else "", req.llm_model or "",
+                                           req.api_key or "")
+        if req.llm_provider == "none" and ai["ready"]:  # (explicitly 'no AI' / privacy turned it off for this run)
+            ai = dict(ai, ready=False, reason="No AI is selected for this run.")
+        if not ai["ready"]:
+            raise HTTPException(409, f"An AI provider is required to turn your own tests into browser steps: "
+                                     f"{ai['reason']} Choose an AI provider for this run (or allow cloud AI in "
+                                     "Privacy) - nothing was started.")
+        req.allow_rules_fallback = False
     if req.llm_provider == "ollama" and not req.allow_rules_fallback:
         from backend.config import settings as cfg
         try:

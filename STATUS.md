@@ -3,7 +3,28 @@
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 
-**Last updated:** 2026-11-23
+**Last updated:** 2026-11-26
+
+## Current state (26 Nov 2026) - read this first
+
+The milestone entries further down are HISTORY, each dated: an entry saying "no test generation or runs from
+requirements (Phase 4)" describes that day, not today. Today, on `final`:
+
+| Area | State | Where |
+|---|---|---|
+| Jira / Confluence import and analysis | built; tested against a mock Jira; live run on the owner's Jira not done here (no token) | `backend/atlassian/`, `requirements_api.py` |
+| Jira -> test cases -> run (Phase 4, web) | built and run live: approved ideas -> test cases -> `POST /api/requirements/executions` -> the existing engine (as "your own tests") | `atlassian/bridge.py`, `requirements_api.py:1062` |
+| AI before a run | Jira executions AND Studio runs with your own tests refuse to start without a ready AI (privacy local-only + cloud `LLM_PROVIDER`, `LLM_PROVIDER=none`, Ollama not running, "no AI" chosen); never a rules fallback for them | `execution_preflight.py`, `server._has_owner_tests` |
+| Outcomes and traceability per requirement | built: every case gets an outcome; `GET /api/requirements/traceability`, coverage, reports. The `TraceLink` model in `atlassian/models.py` is not what stores it (bridge tables do) | `atlassian/bridge.py` |
+| Target website from Jira | built: from saved project targets / previous executions; asks when not found; several -> choose | `requirements_api.py` targets routes |
+| Checkout | owner / Jira tests go through cart and checkout forms on authorized sites; placing an order only with "Demo shop" ticked; payment never | `templates/conftest.py` CHECKOUT_FLOW |
+| Tests on pages exploring never saw | rewritten from the real page they failed on (evidence repair, up to 3 rounds); no pass without the result the case quotes | `agents/self_healing.py` |
+| Web (Playwright), native Android (Appium) | built, live-verified | |
+| Hybrid Android WebView driving | partial: detected, not driven automatically | `qa_runtime.py`, `android.py` |
+| iOS, REST API test execution, payment sandboxes, order lifecycle, prerequisite chains across stories, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
+| Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
+
+Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").
 
 **Test suite health (24 Nov):** the test-order pollution and the "flaky" busy-server test are fixed (the latter was a
 real discovery bug in `payment_nav.py`). Non-slow suite without `.env`: **2430 passed, 0 failed, 28 skipped** (all

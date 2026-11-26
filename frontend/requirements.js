@@ -1757,7 +1757,8 @@
       const running = ["running", "queued"].includes(ex.status);
       LV.job = ex.run_id;
       const counts = ex.counts || {};
-      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${(ex.target || {}).url || ""} · `, outcomeBadge(ex),
+      const t = ex.target || {}, ai = t.llm_provider ? `AI: ${t.llm_provider}${t.llm_model ? " " + t.llm_model : ""} · ` : "";
+      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${t.url || ""} · ${ai}`, outcomeBadge(ex),
         live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : "",
         !running && ex.tally ? h("span", { class: "small", text: ` · ${tallyText(ex)}` }) : null));
       $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Requires review", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),

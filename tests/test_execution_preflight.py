@@ -185,3 +185,34 @@ def test_the_studio_says_which_code_it_runs():
     import subprocess
     head = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip()
     assert v["commit"] == head and v["started_at"]
+
+
+@pytest.mark.real_preflight
+@pytest.mark.parametrize("env, policy_mode, provider, why", [
+    ({"LLM_PROVIDER": "none"}, "cloud", "", "No AI is selected"),                         # .env LLM_PROVIDER=none
+    ({"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "sk-x"}, "local", "", "local-only"),     # cloud AI under local privacy
+    ({"LLM_PROVIDER": "ollama"}, "cloud", "ollama", "Ollama"),                           # Ollama not running
+    ({"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "sk-x"}, "cloud", "none", "No AI"),      # 'no AI' chosen for the run
+])
+def test_a_studio_run_with_your_own_tests_never_starts_without_an_ai(monkeypatch, tmp_path, env, policy_mode,
+                                                                     provider, why):
+    """The three ways a run used to start with no AI and end with every own test 'Not automated'."""
+    from backend import server
+    for k in ("LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(privacy, "POLICY_PATH", tmp_path / "privacy.json")
+    (tmp_path / "privacy.json").write_text(json.dumps({"mode": policy_mode, "cloud_consent": policy_mode == "cloud"}))
+    monkeypatch.setattr(server, "providers", lambda: {"providers": [
+        {"id": "ollama", "name": "Ollama (local)", "running": False, "installed": [],
+         "readiness_reason": "Ollama is not running"},
+        {"id": "openai", "name": "OpenAI", "has_key": True, "models": ["gpt-4o-mini"]}]})
+    started = []
+    monkeypatch.setattr(server, "_validate", lambda req, source: None)
+    req = server.RunRequest(source="https://shop.example/", authorized=True, llm_provider=provider or None,
+                            my_tests="Add a product to the cart and check the badge shows 1")
+    with pytest.raises(server.HTTPException) as refused:
+        started.append(server._launch_run(req, None))
+    assert refused.value.status_code == 409 and "AI provider is required" in refused.value.detail
+    assert why.lower() in refused.value.detail.lower() and not started
