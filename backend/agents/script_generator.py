@@ -2520,7 +2520,8 @@ VALUE_CHECKS = {"to_contain": "in", "to_contain_text": "in", "to_have_text": "==
                 "to_equal": "==", "to_be": "==", "to_have_count": "==",
                 "not_to_contain": "not in", "not_to_contain_text": "not in", "not_to_have_text": "!=",
                 "not_to_have_value": "!=", "not_to_equal": "!="}
-_VALUE_EXPECT = re.compile(r"^(?P<ind>[ \t]*)expect\((?P<name>[A-Za-z_]\w*)\)\.(?P<how>\w+)\((?P<arg>.+)\)[ \t]*$")
+_VALUE_EXPECT = re.compile(r"^(?P<ind>[ \t]*)expect\((?P<name>[A-Za-z_].*?)\)\.(?P<how>(?:not_)?to_\w+)\((?P<arg>.+)\)[ \t]*$")
+_READ_CALL = re.compile(r"\.(?:" + "|".join(VALUE_READS) + r")\(\)$")
 
 
 def fix_value_expects(code: str) -> tuple[str, list[str]]:
@@ -2538,13 +2539,20 @@ def fix_value_expects(code: str) -> tuple[str, list[str]]:
                     values.add(t.id)
         if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute) and node.value.attr == "url":
             values.update(t.id for t in node.targets if isinstance(t, ast.Name))
-    if not values:
-        return code, []
-    fixes, out = [], []
+    fixes, out, need_re = [], [], False
     for line in code.split("\n"):
         m = _VALUE_EXPECT.match(line)
         op = m and VALUE_CHECKS.get(m["how"])
-        if m and op and m["name"] in values:
+        page_read = m and re.fullmatch(r"page\.(url|title\(\))", m["name"])
+        if m and op and page_read and op in ("in", "=="):  # (the page's address / title: keep Playwright's waiting)
+            v = m["arg"].strip()
+            what = "url" if m["name"] == "page.url" else "title"
+            want = f"re.compile(re.escape(str({v})))" if op == "in" else v
+            need_re = need_re or op == "in"
+            out.append(f"{m['ind']}expect(page).to_have_{what}({want})")
+            fixes.append(f"expect({m['name']}).{m['how']}(...) -> expect(page).to_have_{what}(...)")
+            continue
+        if m and op and (m["name"] in values or _READ_CALL.search(m["name"]) or page_read):
             try:
                 arg = ast.parse(m["arg"], mode="eval").body
             except SyntaxError:
@@ -2563,7 +2571,10 @@ def fix_value_expects(code: str) -> tuple[str, list[str]]:
             fixes.append(f"expect({name}).{m['how']}(...) -> assert on the value read")
         else:
             out.append(line)
-    return "\n".join(out), fixes
+    code = "\n".join(out)
+    if need_re and not re.search(r"^import re$", code, re.M):
+        code = "import re\n" + code
+    return code, fixes
 
 
 QUOTED_EXPECTATION = re.compile(r"""['"“‘]([^'"”’\n]{3,160})['"”’]""")

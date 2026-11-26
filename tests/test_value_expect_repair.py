@@ -54,3 +54,16 @@ def test_checks_on_values_become_equivalent_asserts_and_locator_checks_stay():
 def test_nothing_changes_without_a_value_read():
     code = 'def test_x(page):\n    expect(page.locator("a")).to_have_text("x")\n'
     assert fix_value_expects(code) == (code, [])
+
+
+def test_page_address_and_title_keep_playwrights_waiting_and_inline_reads_become_asserts():
+    """Live hybrid run (26 Nov): `expect(page.url).to_contain("/inventory.html")` failed with the same ValueError."""
+    code, fixes = fix_value_expects('from playwright.sync_api import expect\n\n\ndef test_x(page):\n'
+                                    '    expect(page.url).to_contain("/inventory.html")\n'
+                                    '    expect(page.title()).to_be("Swag Labs")\n'
+                                    '    expect(page.locator(".n").inner_text()).to_contain("Backpack")\n')
+    assert 'expect(page).to_have_url(re.compile(re.escape(str("/inventory.html"))))' in code
+    assert 'expect(page).to_have_title("Swag Labs")' in code
+    assert 'assert str("Backpack") in str(page.locator(".n").inner_text())' in code
+    assert code.startswith("import re\n") and len(fixes) == 3
+    ast.parse(code)
