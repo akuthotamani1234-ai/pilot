@@ -27,31 +27,54 @@ These are the honest columns used throughout this document:
 A capability is **not** fully validated because its unit tests pass. Only your live run (section 15) closes a Blocked
 item.
 
+### Strategies x application types (what was actually executed, 26 Nov 2026)
+
+"Routed" means the execution reached the right engine with the right cases and AI - it is NOT end-to-end execution.
+"Executed (fake)" means real engine code ran every step against a simulated app/driver. Only "Live" ran against a
+real application.
+
+| Application | Requirement-based | Hybrid | Autonomous |
+|---|---|---|---|
+| Website | **Live**: SauceDemo via the Jira route (mock Jira + OpenAI): TC-QPL-4-1 and TC-QPL-5-1 Passed | **Live**: SauceDemo via the Jira route: 52 exploratory cases ran (32 passed, 18 failed - the failures include real SauceDemo 404s and AI test mistakes); the 2 Jira cases ended Not automated (AI used a refused `text=` locator) and Requires review (test mistake confirmed on screen) | **Live** as standard Qpilot runs (SauceDemo, OrangeHRM); not re-run through the Jira route today |
+| REST API | **Live**: Petstore, 4 cases (3 passed, 1 failed on a real schema violation) | **Live**: Petstore, cases + spec-derived tests | **Live**: Petstore via the Jira route: 10 spec-derived tests (7 passed, 3 failed on real API problems) |
+| Native Android | Routed + executed (fake driver); only the selected cases run. Live **BLOCKED** (no device) | Routed + executed (fake driver). Live **BLOCKED** | Routed + executed (fake driver / fixture app). Live **BLOCKED** |
+| Hybrid Android | Routed; WebView context switching executed (fake driver). Live **BLOCKED** (no device, no hybrid test build) | same | same |
+| Native iOS | Routed + executed (stateful fake XCUITest app: discovery, plans over every screen, a real defect fails). Live **BLOCKED** (no Mac) | Routed + executed (fake): Jira cases + discovery scenarios | Routed + executed (fake): discovery, scenarios, AI scenarios validated. Live **BLOCKED** |
+| Hybrid iOS | WebView inspected in its own context and switched back (fake). Live **BLOCKED** | same | same |
+
+### Capabilities
+
 | Capability | Implemented | Unit | Integration | Live | Live status / what blocks it |
 |---|---|---|---|---|---|
 | Jira import, analysis, test-case generation, review | yes | yes | yes (mock Jira API) | **no** | Blocked: your real Jira token was not available |
-| Jira execution routes + chosen AI reaches the engine | yes | yes | yes (12 type x strategy combinations) | partly | Live with a mock Jira + real OpenAI + real SauceDemo; real Jira Blocked |
-| Automatic prerequisites (Jira links, preconditions) | yes | yes | yes | yes | Live: QPL-4 added for QPL-5 on SauceDemo, both Passed (26 Nov) |
-| Website testing (requirements / hybrid / autonomous) | yes | yes | yes | yes | Live on SauceDemo; your own website not yet |
-| Required result really checked before a Pass | yes | yes | yes (real Chromium + generated-test runtime) | yes | Live on SauceDemo |
-| Selector recovery (same control only) | yes | yes | yes | yes | Live on SauceDemo (TC-QPL-4-1) |
-| REST API testing (OpenAPI) | yes | yes | yes | yes | Live on the public Petstore API; your API not yet |
+| Jira execution routes + chosen AI reaches the engine | yes | yes | yes (12 type x strategy combinations) | partly | Live with a mock Jira + real OpenAI (web, API); real Jira Blocked |
+| Automatic prerequisites (Jira links, preconditions) | yes | yes | yes | yes | Live: QPL-4 added for QPL-5 on SauceDemo, both Passed |
+| Accurate outcome per selected case (defect / automation error / inconclusive / blocked prerequisite / not automated / not run kept apart) | yes | yes | yes (through the real collect path) | yes | Live runs show Passed, Requires review, Not automated and Blocked with reasons |
+| A pass needs the quoted expected result checked at runtime | yes | yes | yes (real Chromium + generated-test runtime) | yes | Live on SauceDemo |
+| Selector recovery (exact, same kind of identifier only) | yes | yes | yes | yes | Live on SauceDemo (TC-QPL-4-1) |
+| Self-healing cannot change what a test checks | yes | yes | yes | yes | Live: healing rounds on SauceDemo kept the stated values |
+| REST API testing (cases + autonomous schema / rule / negative / boundary / auth / validation) | yes | yes | yes | yes | Live on the public Petstore API; your API not yet |
 | Native Android (APK / installed package) | yes | yes | yes (fake Appium driver / fixture app) | **no** | Blocked: no device or emulator |
 | Hybrid Android (native + WebView) | yes | yes | yes (fake driver) | **no** | Blocked: no device and no hybrid test build |
-| iOS native + hybrid (XCUITest) | yes | yes | yes (fake driver) | **no** | Blocked: no Mac / Xcode / simulator |
+| iOS native + hybrid (XCUITest) | yes | yes | yes (stateful fake app) | **no** | Blocked: no Mac / Xcode / simulator |
 | Checkout up to the order button (any shop) | yes | yes | yes | yes | Live on SauceDemo |
 | Demo-shop order completion (owner confirmed) | yes | yes | yes | yes | Live on SauceDemo (demo shop) |
 | Payment in a provider sandbox (test cards only) | yes | yes | yes | **no** | Blocked: no application connected to a payment sandbox |
+| A paying case without a sandbox is Blocked and counted (never dropped) | yes | yes | yes | n/a | - |
 | Order confirmation | yes | yes | yes | yes | Live on SauceDemo ("Thank you for your order!") |
 | Order history / order status | yes | yes | partly | **no** | Blocked: needs a test shop with accounts, order history and status changes |
 | Bot protection detection, pause, help, resume | yes | yes | yes (real browser, local bot-check page) | **no** | Blocked: no real protected application |
 | SSO / MFA pause and resume | yes | yes | yes | **no** | Blocked: no SSO / MFA test application |
-| Multi-agent activity + live view | yes | yes | yes | yes | Live runs show discovery / learner / healer agents and live frames |
-| New Test, history, scrolling, Next / Back | yes | yes | yes (real Chromium UI tests) | partly | Exercised in the build environment's browser; not on your Mac |
+| Multi-agent activity + live view (browser frames; device screen for Android / iOS) | yes | yes | yes | web yes | Live web runs: 13 agents, explorers / learners / test workers with live frames; device frames Blocked with the devices |
+| New Test, history, scrolling, Next / Back; views show only their newest answer | yes | yes | yes (real Chromium UI tests, including out-of-order answers) | partly | Exercised in the build environment's browser; not on your Mac |
 | Feature inventory, accountability, traceability | yes | yes | yes | yes | Built from the real SauceDemo runs |
 | Batching, cancel, checkpoint, resume | yes | yes | yes | **no** | Blocked: no project with hundreds of real cases |
-| Credential security, privacy, authorization, tenants | yes | yes | yes | partly | Automated checks only; please re-check with your accounts |
+| Redaction (reports, logs, traces, generated code, AI prompts, API evidence) | yes | yes | yes | yes | Real SauceDemo run scanned incl. trace zips: the test password appears only in SauceDemo's own login page, which prints it |
+| Credential security, authorization, tenants | yes | yes | yes | partly | Automated checks only; please re-check with your accounts |
 
+Screenshots are pictures: Qpilot does not take a device screenshot while a typed value is on screen (Android, iOS)
+and password fields are masked by the browser, but anything else a page shows is in its screenshot - review
+screenshots before sharing them.
 ---
 
 ## 1. Install the tools (once)
