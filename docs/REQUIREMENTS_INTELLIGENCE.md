@@ -1,12 +1,13 @@
 # Requirements Intelligence: Jira Cloud + Confluence Cloud
 
-Status: **Phases 0–3 complete against a mock Atlassian site and a stub AI (read-only Jira and Confluence
-connectors, sync, story ↔ page links, requirement analysis). Phase 4 (requirement → executable test case → a real
-Qpilot run → real results and traceability) is implemented for websites.** It was proven end to end once with a real
-Qpilot run and a real AI (OpenAI) against a local SauceDemo-like site and a mock Jira story QPL-2 (see "Phase 4" below).
-There is no live Atlassian evidence yet. Phase 5 (defects; Jira write-back with approval, preview and idempotency)
-is implemented and tested against the mock only; write-back is off by default and has never written to a real
-Jira. Android requirement runs are not implemented.
+Status (26 Nov 2026, branch `final`): **implemented** - read-only Jira / Confluence connectors and sync, analysis,
+reviewed test cases, automatic prerequisites, and Jira executions on websites (Playwright), native and hybrid Android
+(Appium), iOS (Appium XCUITest) and REST APIs (OpenAPI), with requirement-based, hybrid and autonomous strategies
+(iOS: requirement-based; hybrid runs the cases only). **Live tested**: websites (SauceDemo, mock Jira + real OpenAI)
+and REST APIs (public Petstore). **Blocked live** (tested with fakes only): the owner's real Jira (no token),
+Android / hybrid Android (no device), iOS (no Mac), payment sandbox, SSO / MFA / bot-protected apps, large projects.
+Write-back to Jira (Phase 5) is off by default and has never written to a real Jira. Per-capability status:
+[LOCAL_ACCEPTANCE_TESTING.md](../LOCAL_ACCEPTANCE_TESTING.md) section 0; history below is dated.
 
 Goal: a Jira story and its linked Confluence pages become acceptance criteria with their sources cited. The criteria
 become reviewed test cases. Those run on Qpilot's existing web (Playwright) and Android (Appium) engines. The results
@@ -486,7 +487,7 @@ execution with a replaced launcher, no password leak, named-reviewer approval), 
 `tests/test_requirements_ui.py::test_builder_execution_results_and_traceability_in_chromium` (the Phase 4 screens in a
 real browser).
 
-**Not yet:** Android requirement runs (the target selector shows it as the next milestone); sprint and Confluence-only
+**Not yet (at that date; Android, iOS and API requirement runs were added on 26 Nov):** sprint and Confluence-only
 scopes beyond a page's linked stories; defect intelligence; Jira write-back (off; Phase 5, every write needs approval).
 
 ## Phase 5: defects and controlled Jira write-back (implemented; writes OFF, tested only against the mock)
@@ -696,7 +697,7 @@ scenarios) and `tests/test_requirements_ui.py` (the guided flow in Chromium, 15-
 | 1 | Jira client, project discovery, JQL paging, normalization, incremental resumable sync, store, audit | Mock-server contract tests for paging / 429 / 401 / partial failure / resume ✅ (mock only) |
 | 2 | Confluence pages, linked pages, attachments metadata, sections, versions | Mock tests for versions, changed content → stale, provenance ✅ (mock only) |
 | 3 | Criteria extraction, conflicts, AI proposals, review API | Nothing un-cited reaches a test; AI-off path works ✅ (mock + stub AI) |
-| 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results ✅ web (real run, mock Jira); Android not yet |
+| 4 | Accepted criteria into the existing web + Android pipelines | A fixture run produces cases carrying `requirement_id` and real results ✅ web (real run, mock Jira); Android / iOS / API runs built 26 Nov (fakes only for Android / iOS) |
 | 5 | Persistent trace links, approved writeback, defect ↔ story links, idempotency | Retry sends nothing twice; no write without approval ✅ (mock only; writes off) |
 | 6 | Studio workspace | UI tests on desktop and phone widths |
 | 7 | Full test matrix and live acceptance on a real test site | Real evidence, recorded in `STATUS.md` |

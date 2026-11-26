@@ -55,7 +55,7 @@ resolved / reopened, dismissible with a reason), Jira write-back proposals (resu
 story) with the exact request previewed, named-reviewer approval, idempotency markers and audit. Writes are OFF
 (`QPILOT_JIRA_WRITEBACK`, workspace switch and a separate write token all required); tested against the mock only.
 **Phase 8:** live SauceDemo acceptance passed (runs 5 and 6: both QPL-2 test cases Passed with real assertions, after
-four fixes found by earlier live runs). **Not done:** Android requirement runs; live Jira acceptance (no read token
+four fixes found by earlier live runs). **Not done (at that date):** Android requirement runs (built 26 Nov); live Jira acceptance (no read token
 provided); no real Jira write has been made.
 
 **Milestone 4 (prepared, not run live):** opt-in live read-only acceptance test for the QPL project

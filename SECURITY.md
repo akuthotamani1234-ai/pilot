@@ -11,8 +11,8 @@ Only the latest version on the `main` branch gets security fixes.
 
 ## What the tool protects
 In short:
-- **Only websites you may test.** Every run needs the confirmation "I own this website, or I have written permission
-  to test it". Only the website's own host is opened (plus `ALLOWED_HOSTS`); private networks and cloud metadata
+- **Only applications you may test.** Every run (website, API, Android, iOS) needs the confirmation "I own this
+  application, or I have written permission to test it". Only the website's own host is opened (plus `ALLOWED_HOSTS`); private networks and cloud metadata
   addresses are blocked. Logout / delete / pay are never clicked unless allowed on staging.
 - **AI-written code is checked and sandboxed.** An import allow-list before it runs, then its own process without API
   keys, with network and file guards, Windows memory and process limits and a time limit per test. This is not a

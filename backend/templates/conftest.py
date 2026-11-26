@@ -415,7 +415,7 @@ def pytest_make_collect_report(collector):
 _CURRENT: dict = {"item": None}
 
 
-def _checked(text) -> None:
+def _qa_record_check(text) -> None:
     """A check that PASSED, with the text it compared (for the required-result guard below)."""
     item = _CURRENT["item"]
     if item is not None and text:
@@ -437,7 +437,7 @@ class _RecordingAssertions:
             out = attr(*args, **kwargs)
             for v in list(args) + list(kwargs.values()):
                 for one in (v if isinstance(v, (list, tuple)) else [v]):
-                    _checked(getattr(one, "pattern", one) if not isinstance(one, (int, float)) else "")
+                    _qa_record_check(getattr(one, "pattern", one) if not isinstance(one, (int, float)) else "")
             return out
         return call
 
@@ -498,8 +498,9 @@ if not getattr(_pw.PageAssertions, "_qa_routes", False):
 
 def pytest_assertion_pass(item, lineno, orig, expl):
     item._qa_checks = getattr(item, "_qa_checks", 0) + 1
-    if _CURRENT["item"] is item:
-        _checked(f"{orig}\n{expl}")
+    current, checked = globals().get("_CURRENT"), globals().get("_qa_record_check")  # (tests may copy this hook alone)
+    if current is not None and checked is not None and current["item"] is item:
+        checked(f"{orig}\n{expl}")
     _step(f"Check: {re.sub(r'\s+', ' ', orig)[:90]}", True)
 
 
@@ -2222,7 +2223,8 @@ def pytest_runtest_makereport(item, call):
             # nothing was checked: a pass would prove nothing
             entry["outcome"] = "inconclusive"
             entry["error"] = "The test ran without failing, but it did not check anything (no assert / expect ran)."
-        required = _required_results(item) if rep.when == "call" and rep.passed else []
+        need = globals().get("_required_results")  # (tests may copy this hook alone)
+        required = need(item) if need and rep.when == "call" and rep.passed else []
         missing = [q for q in required if not any(q.casefold() in c.casefold()
                                                   for c in getattr(item, "_qa_checked", []))]
         if missing:  # the result the test case quotes was never checked (e.g. its check sat in a branch not taken)

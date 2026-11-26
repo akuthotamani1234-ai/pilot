@@ -1,4 +1,4 @@
-# Qpilot – AI website and Android tester
+# Qpilot – AI website, mobile and API tester
 
 Give it a **website URL**, a **GitHub link** or a **project folder**. It tests the website the way a QA tester would
 and ends with a plain-English report. A run has these steps:
@@ -49,7 +49,11 @@ For the team demonstration, follow [Local demonstration and verification](docs/l
 ## Key features
 - Web testing with Playwright (discovery, design, execution, healing, HTML/Excel reports)
 - Android / Appium testing (native APK, installed package, or website in Android Chrome)
-- Optional LLM providers (Ollama, OpenAI, Gemini, Anthropic) or **No AI / rules**
+- Jira workspace (`/requirements`): Jira / Confluence requirements -> reviewed test cases -> executions on websites,
+  native and hybrid Android, iOS (Appium XCUITest on a Mac) and REST APIs (OpenAPI), with automatic prerequisites,
+  per-case evidence and traceability. Jira / owner test cases need an AI (no rules fallback). What is live-verified
+  and what still needs your devices / accounts: [LOCAL_ACCEPTANCE_TESTING.md](LOCAL_ACCEPTANCE_TESTING.md)
+- Optional LLM providers (Ollama, OpenAI, Gemini, Anthropic) or **No AI / rules** (built-in website tests)
 - Release gates with plain-English verdicts; secrets redacted from logs and reports
 - Local-first privacy controls; optional Slack / Jira / GitHub integrations when configured
 
@@ -449,6 +453,8 @@ GitHub Actions runs the same checks on every push and Pull Request (`.github/wor
 
 ## 12. More documents
 - [STATUS.md](STATUS.md): what is implemented vs verified (single status page)
+- [LOCAL_ACCEPTANCE_TESTING.md](LOCAL_ACCEPTANCE_TESTING.md): step-by-step live acceptance on a MacBook (Jira, web, Android, hybrid, iOS, API, payment sandbox, SSO / MFA)
+- [docs/IOS_SETUP.md](docs/IOS_SETUP.md): what an iOS run needs
 - [ARCHITECTURE.md](ARCHITECTURE.md): directory rules, file-size limits, assistant guardrails
 - [DEPLOYMENT.md](DEPLOYMENT.md): install on another PC, update, what never to copy
 - [CONTRIBUTING.md](CONTRIBUTING.md): branching, Conventional Commits, PR checklist

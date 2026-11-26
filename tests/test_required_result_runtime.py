@@ -84,7 +84,8 @@ def test_a_pass_needs_the_quoted_result_checked_while_the_test_ran(tmp_path, sit
     shutil.copy(ROOT / "backend" / "templates" / "pytest.ini", tests / "pytest.ini")
     (tests / "test_flows_ai.py").write_text(code)
     results = tmp_path / "results.jsonl"
-    env = {**os.environ, "QA_RESULTS_FILE": str(results), "QA_RUN_DIR": str(tmp_path), "QA_BASE_URL": site,
+    env = {**{k: v for k, v in os.environ.items() if not k.startswith(("PYTEST_XDIST", "PYTEST_CURRENT"))},
+           "QA_RESULTS_FILE": str(results), "QA_RUN_DIR": str(tmp_path), "QA_BASE_URL": site,
            "QA_TARGET_LOCAL": "1", "QA_ALLOWED_HOSTS": "127.0.0.1", "QA_LIVE_FRAMES": "false", "QA_TRACES": "false",
            "QA_SCREENSHOT_DIR": str(tmp_path / "shots"), "PYTHONPATH": ""}
     subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:xdist", "."],
