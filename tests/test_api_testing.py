@@ -181,3 +181,65 @@ def test_a_check_after_a_blocked_write_is_blocked_not_a_failure():
     out = {c["tc_id"]: c for c in to_run_cases(results, {}, ["TC-1", "TC-2"])}
     assert out["TC-1"]["execution_status"] == "Blocked" and "Fluffy" in out["TC-1"]["skip_reason"]
     assert out["TC-2"]["execution_status"] == "Failed"  # (a failure before the blocked step is the API's)
+
+
+SPEC_OPS = [
+    {"id": "list", "method": "GET", "path": "/items", "summary": "", "secured": True, "body": None,
+     "params": [{"name": "status", "in": "query", "required": True, "schema": {"enum": ["open", "done"]},
+                 "example": None},
+                {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 1,
+                                                                                "maximum": 50}, "example": None}],
+     "responses": {"200": {"type": "array", "items": {"type": "object", "required": ["id", "status"],
+                                                      "properties": {"id": {"type": "integer"},
+                                                                     "status": {"type": "string"}}}},
+                   "400": {}, "401": {}}},
+    {"id": "one", "method": "GET", "path": "/items/{id}", "summary": "", "secured": False, "body": None,
+     "params": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}, "example": None}],
+     "responses": {"200": {}, "404": {}}},
+    {"id": "add", "method": "POST", "path": "/items", "summary": "", "secured": False,
+     "body": {"type": "object", "required": ["title"]}, "params": [], "responses": {"201": {}, "422": {}}},
+]
+
+
+def _client(buggy=False):
+    import httpx
+
+    def answer(req):
+        q = dict(req.url.params)
+        if req.url.path == "/items" and req.method == "GET":
+            if "Authorization" not in req.headers:
+                return httpx.Response(200 if buggy else 401, json={})
+            if q.get("status") not in ("open", "done"):
+                return httpx.Response(200 if buggy else 400, json={})
+            if "limit" in q and not 1 <= int(q["limit"]) <= 50:
+                return httpx.Response(400, json={})
+            rows = [{"id": 1, "status": "open"}, {"id": 2, "status": "done"}]
+            return httpx.Response(200, json=rows if buggy else [r for r in rows if r["status"] == q["status"]])
+        if req.url.path.startswith("/items/"):
+            return httpx.Response(404, json={})
+        if req.method == "POST":
+            return httpx.Response(201 if buggy else 422, json={})
+        return httpx.Response(500)
+    return httpx.Client(transport=httpx.MockTransport(answer))
+
+
+def test_autonomous_api_tests_cover_schema_rules_negatives_boundaries_auth_and_validation():
+    from backend import api_testing
+    tests = api_testing.explore_tests(SPEC_OPS, allow={"POST"}, authed=True)
+    kinds = {t.kind for t in tests}
+    assert kinds == {"schema", "business_rule", "negative", "boundary", "auth", "validation"}, kinds
+    assert not any(t.method == "POST" for t in api_testing.explore_tests(SPEC_OPS))  # (no write unless allowed)
+    good = api_testing.run("https://api.example", tests, auth={"type": "bearer", "token": "tkn-123456"},
+                           allow={"POST"}, ops=SPEC_OPS, client=_client(), allow_local=True)
+    assert [r["name"] for r in good if r["status"] != "Passed"] == []
+    bad = api_testing.run("https://api.example", tests, auth={"type": "bearer", "token": "tkn-123456"},
+                          allow={"POST"}, ops=SPEC_OPS, client=_client(buggy=True), allow_local=True)
+    by_kind = {}
+    for r in bad:
+        by_kind.setdefault(r["kind"], []).append(r)
+    assert all(r["status"] == "Failed" for r in by_kind["business_rule"])  # (the filter returns other items)
+    assert "item(s) have status" in by_kind["business_rule"][0]["reason"]
+    for k in ("negative", "auth", "validation"):
+        failed = [r for r in by_kind[k] if r["status"] == "Failed"]
+        assert failed and all(r["category"].startswith("Validation defect") for r in failed), k
+    assert "tkn-123456" not in json.dumps(bad)  # (the credential never reaches the evidence)

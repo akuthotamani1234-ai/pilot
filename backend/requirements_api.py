@@ -554,9 +554,13 @@ def _launch_api(t, tests: list[dict], case_ids: list[str], explore: bool = False
             planned, why = api_testing.tests_for_cases(cases, ops) if cases else ([], {})
             say(f"[api] {len(planned)} API test(s) planned for {len(cases)} test case(s)")
             if explore:
-                smoke = api_testing.smoke_tests(ops)
-                planned = planned + smoke
-                say(f"[api] {len(smoke)} read-only smoke test(s) over the documented API (autonomous)")
+                found = api_testing.explore_tests(ops, allow=set(t.api_allow), authed=bool(auth))
+                planned = planned + found
+                kinds = {}
+                for x in found:
+                    kinds[x.kind] = kinds.get(x.kind, 0) + 1
+                say(f"[api] {len(found)} autonomous API test(s) from the specification: "
+                    + ", ".join(f"{n} {k}" for k, n in sorted(kinds.items())))
             results = api_testing.run(base, planned, auth=auth, allow=set(t.api_allow), ops=ops)
             for r in results:
                 say(f"[api] {r['status']}: {r['name']} {(r.get('reason') or '')[:160]}")

@@ -38,7 +38,8 @@ CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 class Check(BaseModel):
     path: str = Field(default="", max_length=200)  # "" = the whole JSON answer; "items[0].name", "data.total"
     op: Literal["eq", "ne", "contains", "exists", "not_exists", "gte", "lte", "len_gte", "len_eq", "type",
-                "matches"] = "exists"
+                "matches", "all_eq"] = "exists"  # all_eq: every item of the array at path has value["field"] ==
+    # value["equals"] (a filter / business rule: "findByStatus?status=sold lists only sold pets")
     value: Any = None
 
 
@@ -57,6 +58,7 @@ class ApiTest(BaseModel):
     save: dict[str, str] = Field(default_factory=dict)  # {"pet_id": "id"} -> {{pet_id}} in later tests
     max_ms: int = Field(default=10000, ge=100, le=120000)
     case: str = Field(default="", max_length=80)  # the requirement test case it verifies
+    kind: str = Field(default="", max_length=30)  # schema / business_rule / negative / boundary / auth / validation
 
 
 # ---------------------------------------------------------------- the specification
@@ -164,6 +166,92 @@ def smoke_tests(ops: list[dict]) -> list[ApiTest]:
     return out
 
 
+FIELD_HINT = re.compile(r"[A-Za-z_][\w-]{0,40}")
+
+
+def _documented(op: dict, low: int, high: int) -> list[int]:
+    return sorted(int(c) for c in op["responses"] if c.isdigit() and low <= int(c) < high)
+
+
+def _item_schema(op: dict) -> dict:
+    ok = next((op["responses"][c] for c in op["responses"] if c.isdigit() and 200 <= int(c) < 300), {}) or {}
+    return ok.get("items") or {} if ok.get("type") == "array" else {}
+
+
+def explore_tests(ops: list[dict], allow: set[str] | None = None, authed: bool = False) -> list[ApiTest]:
+    """Autonomous API tests from the specification alone - each kind only where the document says what must
+    happen (nothing is guessed):
+      schema         each GET without unknown input -> its documented status and response schema (smoke_tests)
+      business_rule  a list filtered by an enum query parameter that is also a field of its items -> every item
+                     returned has that value (e.g. status=sold lists only sold items)
+      negative       an invalid enum value / a malformed path id -> one of the operation's DOCUMENTED 4xx answers
+      boundary       a value just outside a declared minimum / maximum -> a documented 4xx
+      auth           a secured operation without the run's credential -> a documented 401 / 403 (only when the
+                     run has a credential)
+      validation     a write without its required body fields -> a documented 4xx (only for methods this run allows
+                     to send; the API must refuse it, so nothing is created)
+    A 5xx is always a failure; an invalid input answered 2xx is a 'Validation defect'."""
+    allow = {m.upper() for m in (allow or set())}
+    out = [t.model_copy(update={"kind": "schema"}) for t in smoke_tests(ops)]
+    for op in ops:
+        bad = _documented(op, 400, 500)
+        path_params = [p for p in op["params"] if p["in"] == "path"]
+        if op["method"] == "GET":
+            item = _item_schema(op)
+            for p in op["params"]:
+                enum = p["schema"].get("enum") or (p["schema"].get("items") or {}).get("enum") or []
+                if p["in"] != "query" or not enum or path_params:
+                    continue
+                ok = _documented(op, 200, 300) or [200]
+                if p["name"] in (item.get("properties") or {}):
+                    for v in enum[:3]:
+                        out.append(ApiTest(name=f"GET {op['path']}?{p['name']}={v} lists only items with "
+                                                f"{p['name']} = {v}", path=op["path"], query={p["name"]: v},
+                                           expect_status=ok, kind="business_rule",
+                                           checks=[Check(path="", op="all_eq", value={"field": p["name"],
+                                                                                      "equals": v})]))
+                if bad:
+                    out.append(ApiTest(name=f"GET {op['path']} refuses an invalid {p['name']}", path=op["path"],
+                                       query={p["name"]: "qa-invalid-value"}, expect_status=bad, schema_check=False,
+                                       kind="negative"))
+        if op["method"] in ("GET", "DELETE") and path_params and bad and (op["method"] == "GET" or "DELETE" in allow):
+            for p in path_params:
+                t = p["schema"].get("type")
+                others = {q["name"]: q.get("example") for q in path_params if q is not p}
+                if t in ("integer", "number") and all(v is not None for v in others.values()) and op["method"] == "GET":
+                    out.append(ApiTest(name=f"GET {op['path']} refuses a {p['name']} that is not a number",
+                                       path=op["path"], path_params={p["name"]: "not-a-number", **others},
+                                       expect_status=bad, schema_check=False, kind="negative"))
+                    lo, hi = p["schema"].get("minimum"), p["schema"].get("maximum")
+                    for edge, why in ((lo - 1 if isinstance(lo, (int, float)) else None, f"below its minimum {lo}"),
+                                      (hi + 1 if isinstance(hi, (int, float)) else None, f"above its maximum {hi}")):
+                        if edge is not None:
+                            out.append(ApiTest(name=f"GET {op['path']} refuses {p['name']} {why}", path=op["path"],
+                                               path_params={p["name"]: edge, **others}, expect_status=bad,
+                                               schema_check=False, kind="boundary"))
+        for p in op["params"]:
+            lo, hi = p["schema"].get("minimum"), p["schema"].get("maximum")
+            if op["method"] != "GET" or p["in"] != "query" or not bad or path_params:
+                continue
+            for edge, why in ((lo - 1 if isinstance(lo, (int, float)) else None, f"below its minimum {lo}"),
+                              (hi + 1 if isinstance(hi, (int, float)) else None, f"above its maximum {hi}")):
+                if edge is not None:
+                    out.append(ApiTest(name=f"GET {op['path']} refuses {p['name']} {why}", path=op["path"],
+                                       query={p["name"]: edge}, expect_status=bad, schema_check=False,
+                                       kind="boundary"))
+        denied = [c for c in _documented(op, 400, 500) if c in (401, 403)]
+        if authed and op.get("secured") and denied and op["method"] == "GET" and not path_params:
+            out.append(ApiTest(name=f"GET {op['path']} refuses a request without credentials", path=op["path"],
+                               auth=False, expect_status=denied, schema_check=False, kind="auth"))
+        body = op.get("body") or {}
+        if op["method"] in allow and op["method"] in WRITE_METHODS and body.get("required") and bad \
+                and not path_params:
+            out.append(ApiTest(name=f"{op['method']} {op['path']} refuses a body without its required fields "
+                                    f"({', '.join(body['required'][:4])})", method=op["method"], path=op["path"],
+                               body={}, expect_status=bad, schema_check=False, kind="validation"))
+    return out
+
+
 def match_operation(method: str, path: str, ops: list[dict]) -> dict | None:
     """The documented operation a concrete request is ('/pet/7' -> 'GET /pet/{petId}'); a literal segment beats a
     parameter ('/pet/findByStatus' is not '/pet/{petId}')."""
@@ -242,7 +330,13 @@ def run_check(data, check: Check) -> tuple[bool, str]:
           "len_eq": hasattr(found, "__len__") and isinstance(v, int) and len(found) == v,
           "type": isinstance(found, TYPES.get(str(v), ())) and not (str(v) in ("integer", "number")
                                                                    and isinstance(found, bool)),
-          "matches": bool(re.search(str(v), str(found)))}[check.op]
+          "matches": bool(re.search(str(v), str(found))),
+          "all_eq": isinstance(found, list) and isinstance(v, dict) and all(
+              isinstance(x, dict) and x.get(v.get("field")) == v.get("equals") for x in found)}[check.op]
+    if check.op == "all_eq" and isinstance(found, list) and isinstance(v, dict) and not ok:
+        wrong = [x.get(v.get("field")) if isinstance(x, dict) else x for x in found
+                 if not (isinstance(x, dict) and x.get(v.get("field")) == v.get("equals"))]
+        return ok, f"{len(wrong)} of {len(found)} item(s) have {v.get('field')} = {json.dumps(wrong[:5])[:120]}"
     return ok, f"{check.path or '(answer)'} = {json.dumps(found)[:160]}"
 
 
@@ -299,7 +393,8 @@ def run(base: str, tests: list[ApiTest], *, auth: dict | None = None, allow: set
     results = []
     try:
         for t in tests:
-            res = {"name": t.name, "case": t.case, "method": t.method, "path": t.path, "checks": []}
+            res = {"name": t.name, "case": t.case, "method": t.method, "path": t.path, "checks": [],
+                   **({"kind": t.kind} if t.kind else {})}
             if t.method not in SAFE_METHODS and t.method not in allow:
                 res.update(status="Blocked", reason=(
                     f"Blocked: {t.method} changes data - it is sent only when this run allows {t.method} (a staging / "
@@ -377,8 +472,11 @@ def run(base: str, tests: list[ApiTest], *, auth: dict | None = None, allow: set
             # unless the documented schema check already found the API wrong; such a test needs review
             only_paths = failed and all("is missing" in f for f in failed if not f.startswith(("status ", "took ")))\
                 and not any(f.startswith(("status ", "took ", "$")) for f in failed)
+            accepted_bad = t.kind in ("negative", "boundary", "auth", "validation") and 200 <= r.status_code < 300
             res.update(status="Failed" if failed else "Passed", reason="; ".join(failed)[:600],
-                       category=("Test mistake" if only_paths else "API assertion failure") if failed else "")
+                       category=("Test mistake" if only_paths else
+                                 "Validation defect (invalid input accepted)" if accepted_bad else
+                                 "API assertion failure") if failed else "")
             results.append(res)
     finally:
         if own:
