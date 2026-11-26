@@ -197,6 +197,35 @@ def projects(client: Client) -> list[dict]:
         start += len(values)
 
 
+# custom fields that name the application under test ('Environment', 'Test URL', 'Application', 'APK', 'App package',
+# 'Bundle ID', 'API endpoint', 'Base URL', 'Repository'): their values are read as target candidates, never as criteria
+TARGET_FIELD_NAME = re.compile(r"\b(environment|env|url|urls|link|base[\s_-]*url|test[\s_-]*(site|url|env\w*)|"
+                               r"application|app|apk|package|bundle(?:[\s_-]*id)?|endpoint|api|openapi|swagger|"
+                               r"repo(?:sitory)?|host|domain|staging|sandbox)\b", re.I)
+
+
+def special_fields(client: Client) -> tuple[str, dict[str, str]]:
+    """(the acceptance-criteria field id, {field id: name} of the custom fields that name the application) - one call."""
+    data = client.get("/rest/api/3/field")
+    rows = [f for f in data.get("values", data if isinstance(data, list) else []) if isinstance(f, dict)]
+    found = [f for f in rows if f.get("custom") and AC_FIELD_NAME.search(str(f.get("name", "")))]
+    found.sort(key=lambda f: (not EXACT_AC_FIELD.match(str(f.get("name", ""))), str(f.get("id", ""))))
+    ac = str(found[0].get("id", "")) if found else ""
+    targets = {str(f["id"]): str(f.get("name", ""))[:80] for f in rows if f.get("custom") and f.get("id")
+               and str(f.get("id")) != ac and TARGET_FIELD_NAME.search(str(f.get("name", "")))}
+    return ac, dict(list(targets.items())[:20])
+
+
+def _field_text(value) -> str:
+    if isinstance(value, dict):
+        if value.get("type") == "doc":
+            return adf_to_text(value)
+        return str(value.get("value") or value.get("name") or value.get("url") or "")
+    if isinstance(value, list):
+        return " ".join(_field_text(v) for v in value)
+    return "" if value is None else str(value)
+
+
 def acceptance_field(client: Client) -> str:
     """The id of the custom field that holds acceptance criteria (e.g. customfield_10045), or ''. A field named
     exactly 'Acceptance Criteria' wins over the variants ('AcceptanceCriteria', 'AC', 'Definition of Done')."""
@@ -352,7 +381,8 @@ def adf_to_text(node) -> str:
 
 # ---------------------------------------------------------------- normalize
 
-def normalize(issue: dict, connection: Connection, *, ac_field: str = "", retrieved_at: datetime | None = None,
+def normalize(issue: dict, connection: Connection, *, ac_field: str = "", target_fields: dict | None = None,
+              retrieved_at: datetime | None = None,
               version: int = 1) -> dict:
     """One Jira issue -> {'source': SourceRef, 'story': {...plain fields...}, 'text': the hashed content}.
 
@@ -390,9 +420,14 @@ def normalize(issue: dict, connection: Connection, *, ac_field: str = "", retrie
         "parent": str((f.get("parent") or {}).get("key", "")),
         "created": parse_time(f["created"]).isoformat() if f.get("created") else "",
     }
+    app_fields = {name: _field_text(f.get(fid)).strip()[:500] for fid, name in (target_fields or {}).items()}
+    app_fields = {k: v for k, v in app_fields.items() if v}
+    if app_fields:  # (only then: a story without such fields keeps its content hash)
+        story["app_fields"] = app_fields
     text = "\n".join([story["summary"], story["type"], story["status"], " ".join(story["labels"]),
                       story["description"], story["acceptance_criteria"],
-                      " ".join(f"{x['type']}:{x['key']}" for x in story["links"])])
+                      " ".join(f"{x['type']}:{x['key']}" for x in story["links"])]
+                     + [f"{k}: {v}" for k, v in sorted(app_fields.items())])
     if not story["summary"]:
         raise ValueError(f"{key}: no summary")
     source = SourceRef(tenant_id=connection.tenant_id, connection_id=connection.id, kind=SourceKind.jira_issue,

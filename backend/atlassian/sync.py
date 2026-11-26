@@ -100,8 +100,8 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
     failed = list(cursor.failed_items)
     restarted = False
     try:
-        ac_field = jira.acceptance_field(client)
-        fields = jira.BASE_FIELDS + ([ac_field] if ac_field else [])
+        ac_field, target_fields = jira.special_fields(client)
+        fields = jira.BASE_FIELDS + ([ac_field] if ac_field else []) + list(target_fields)
         while True:
             try:
                 page = jira.search(client, query, fields, token, page_size)
@@ -114,7 +114,8 @@ def sync_jira(db, connection: Connection, client: Client, *, tenant_id: str, pro
             for issue in page["issues"]:
                 key = str(issue.get("key", "")) if isinstance(issue, dict) else ""
                 try:
-                    item = jira.normalize(issue, connection, ac_field=ac_field, retrieved_at=started)
+                    item = jira.normalize(issue, connection, ac_field=ac_field, target_fields=target_fields,
+                                          retrieved_at=started)
                     outcome, _ = store.upsert_source(db, item["source"], item["story"], scope=scope)
                 except (ValueError, TypeError, KeyError) as error:
                     failed.append(f"{key or '?'}: {str(error)[:120]}")
@@ -432,9 +433,10 @@ MAX_RELATED = 50
 RELATED = ("subtasks", "parent", "linked")
 
 
-def _fields(client: Client) -> tuple[str, list[str]]:
-    ac_field = jira.acceptance_field(client)
-    return ac_field, jira.BASE_FIELDS + ([ac_field] if ac_field else [])
+def _fields(client: Client) -> tuple[str, list[str], dict[str, str]]:
+    """(acceptance-criteria field, the fields to read, {target field id: name})"""
+    ac_field, targets = jira.special_fields(client)
+    return ac_field, jira.BASE_FIELDS + ([ac_field] if ac_field else []) + list(targets), targets
 
 
 def sync_items(db, connection: Connection, client: Client, *, tenant_id: str, keys: list[str],
@@ -459,7 +461,7 @@ def sync_items(db, connection: Connection, client: Client, *, tenant_id: str, ke
               "new_keys": [], "changed_keys": [], "mode": "items", "requested": list(keys), "inaccessible": [],
               "related": [], "work_item_types": []}
     try:
-        ac_field, fields = _fields(client)
+        ac_field, fields, target_fields = _fields(client)
         queue = [(k, "") for k in keys]
         done: set[str] = set()
         while queue:
@@ -479,7 +481,8 @@ def sync_items(db, connection: Connection, client: Client, *, tenant_id: str, ke
                 continue
             result["pages"] += 1
             try:
-                item = jira.normalize(issue, connection, ac_field=ac_field, retrieved_at=started)
+                item = jira.normalize(issue, connection, ac_field=ac_field, target_fields=target_fields,
+                                          retrieved_at=started)
                 outcome, _ = store.upsert_source(db, item["source"], item["story"], scope="")
             except (ValueError, TypeError, KeyError) as error:
                 result["failed_items"].append(f"{key}: {str(error)[:120]}")
@@ -528,7 +531,7 @@ def preview(db, connection: Connection, client: Client, *, tenant_id: str, filte
     it is new, updated or unchanged against what is already imported. Nothing is written to the store."""
     _check(connection, client, tenant_id, Product.jira, actor, audit_db, "requirements.preview")
     limit = max(1, min(100, int(limit)))
-    ac_field, fields = _fields(client)
+    ac_field, fields, target_fields = _fields(client)
     issues, token, total, query = [], "", None, ""
     inaccessible = []
     if keys:
@@ -555,7 +558,7 @@ def preview(db, connection: Connection, client: Client, *, tenant_id: str, filte
     for issue in issues:
         key = str(issue.get("key", "")) if isinstance(issue, dict) else ""
         try:
-            n = jira.normalize(issue, connection, ac_field=ac_field)
+            n = jira.normalize(issue, connection, ac_field=ac_field, target_fields=target_fields)
         except (ValueError, TypeError, KeyError) as error:
             items.append({"key": key or "?", "state": "unreadable", "error": str(error)[:120]})
             continue

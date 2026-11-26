@@ -209,15 +209,66 @@ def urls_in_text(text: str, exclude_hosts: set[str]) -> list[str]:
     return out[:10]
 
 
+# --- what kind of application a value names (the engine that tests it)
+API_PATH = re.compile(r"/(api|rest|graphql|v\d+)(/|$)|openapi|swagger|\.(json|ya?ml)$", re.I)
+REPO_HOST = re.compile(r"(^|\.)(github\.com|gitlab\.com|bitbucket\.org)$", re.I)
+PACKAGE = re.compile(r"\b((?:com|org|net|io|app|dev|co|in|uk|de|fr|br|me|ai)\.[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)\b")
+PACKAGE_WORDS = re.compile(r"\b(package|app ?id|application ?id|android|apk|play store)\b", re.I)
+BUNDLE_WORDS = re.compile(r"\b(bundle(?: ?id)?|ios|iphone|ipad|app store|xcode)\b", re.I)
+ENGINE = {"web": "Playwright (browser)", "api": "REST API tests", "openapi": "REST API tests (OpenAPI)",
+          "android_apk": "Appium (Android, install the APK)", "android_package": "Appium (Android, installed app)",
+          "ios_bundle": "Appium XCUITest (iOS)", "repository": "Qpilot project run (build and test the repository)"}
+
+
+def targets_in_text(text: str, exclude_hosts: set[str], explicit: bool = False) -> list[dict]:
+    """Application candidates in a text: [{value, kind}]. explicit=True: the text is an application field (an
+    'Environment' / 'App package' custom field), so repositories and bare package ids count too."""
+    out: list[dict] = []
+
+    def add(value: str, kind: str):
+        if value and all(c["value"] != value for c in out):
+            out.append({"value": value, "kind": kind})
+    for raw in URL.findall(text or ""):
+        url = raw.rstrip(".,;:!?\\")
+        p = urlparse(url)
+        host = (p.hostname or "").lower()
+        if not host or host in exclude_hosts or p.username or p.password:
+            continue
+        if REPO_HOST.search(host):
+            if explicit and len([x for x in (p.path or "").split("/") if x]) >= 2:
+                add(f"https://{host}/" + "/".join([x for x in p.path.split("/") if x][:2]), "repository")
+            continue
+        if (p.path or "").lower().endswith(".apk"):
+            add(url, "android_apk")
+            continue
+        if NOT_TARGETS.search(host) or NOT_TARGET_PATH.search(p.path or ""):
+            continue
+        if re.search(r"openapi|swagger", url, re.I) or (p.path or "").lower().endswith((".json", ".yaml", ".yml")):
+            add(url, "openapi")
+        elif API_PATH.search(p.path or ""):
+            add(url, "api")
+        else:
+            add(f"{p.scheme}://{p.netloc}/", "web")
+    plain = URL.sub(" ", text or "")
+    for line in plain.splitlines():
+        for m in PACKAGE.finditer(line):
+            before = line[max(0, m.start() - 40):m.start()]  # (the words right before the id say what it is)
+            if BUNDLE_WORDS.search(before):
+                add(m.group(1), "ios_bundle")
+            elif PACKAGE_WORDS.search(before) or explicit:
+                add(m.group(1), "android_package")
+    return out[:15]
+
+
 def resolve(db, tenant: str, requirement_ids: list[str], environment: str = "test") -> dict:
     """Candidates for the application under test of these requirements, each with where it came from."""
     from . import bridge, store
     projects = sorted({r.split("-")[0] for r in requirement_ids if re.fullmatch(r"[A-Z][A-Z0-9_]*-\d+", r)})
     found: dict[str, dict] = {}
 
-    def add(url: str, source: str, authorized: bool, project: str = ""):
+    def add(url: str, source: str, authorized: bool, project: str = "", kind: str = "web"):
         c = found.setdefault(url, {"url": url, "sources": [], "authorized": False, "has_test_account": False,
-                                   "project_key": project})
+                                   "project_key": project, "kind": kind, "engine": ENGINE.get(kind, kind)})
         c["sources"].append(source)
         c["authorized"] = c["authorized"] or authorized
         if project and not c["project_key"]:
@@ -234,17 +285,31 @@ def resolve(db, tenant: str, requirement_ids: list[str], environment: str = "tes
         if url and reqs & wanted and _target_ok(url) and url not in found:
             add(url, f"used by execution {ex['id']} ({', '.join(sorted(reqs & wanted))})", True,
                 sorted(reqs & wanted)[0].split("-")[0])
-    sites = {urlparse(c.site_url).hostname for c in store.list_connections(db, tenant)}
+    sites = {h for h in (urlparse(c.site_url).hostname for c in store.list_connections(db, tenant)) if h}
     for r in store.list_sources(db, tenant):
         src = r["source"]
-        rid = src.source_id if src.kind.value == "jira_issue" else f"conf-{src.source_id}"
-        if rid not in wanted:
-            continue
-        text = json.dumps(r["content"], default=str)
-        for url in urls_in_text(text, {h for h in sites if h}):
-            if url not in found:
-                add(url, f"written in {rid} (not yet confirmed)", False)
-    candidates = list(found.values())
+        content = r["content"] if isinstance(r["content"], dict) else {}
+        if src.kind.value == "jira_issue":
+            if src.source_id not in wanted:
+                continue
+            for name, value in (content.get("app_fields") or {}).items():  # (an application field: explicit)
+                for t in targets_in_text(str(value), sites, explicit=True):
+                    add(t["value"], f"Jira field '{name}' of {src.source_id} (not yet confirmed)", False,
+                        src.source_id.split("-")[0], t["kind"])
+            text = "\n".join(str(content.get(k) or "") for k in ("summary", "description", "acceptance_criteria"))
+            where = f"written in {src.source_id}"
+        else:  # a Confluence page that names one of these requirements (a linked specification)
+            text = json.dumps(content, default=str)
+            names = [w for w in wanted if re.search(rf"\b{re.escape(w)}\b", text)]
+            if f"conf-{src.source_id}" in wanted:
+                names.append(f"conf-{src.source_id}")
+            if not names:
+                continue
+            where = f"Confluence page '{src.title[:60]}' ({', '.join(sorted(names)[:3])})"
+        for t in targets_in_text(text, sites):
+            if t["value"] not in found:
+                add(t["value"], f"{where} (not yet confirmed)", False, "", t["kind"])
+    candidates = sorted(found.values(), key=lambda c: (not c["authorized"], c["kind"] != "web"))
     authorized = [c for c in candidates if c["authorized"]]
     status = ("found" if len(authorized) == 1 else "multiple" if len(authorized) > 1 or candidates
               else "not_found")

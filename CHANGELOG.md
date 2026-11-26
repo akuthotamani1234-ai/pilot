@@ -2,6 +2,22 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 2: the application under test found from Jira and Confluence, by kind
+
+- Jira import also reads the custom fields whose names point to the application ("Environment", "Test URL",
+  "Application", "APK", "App package", "Bundle ID", "API endpoint", "Repository" ...: `jira.special_fields`), stored
+  as `app_fields` only when they have a value (stories without them keep their content hash and version).
+- `workflow.targets_in_text` classifies what a value names: website, API endpoint, OpenAPI spec, Android APK,
+  Android package, iOS bundle, repository - with the engine that tests it. Jira / Confluence / documentation / media
+  addresses are never targets; a package / bundle id counts only with its own words ("package", "bundle id") or in an
+  application field; a repository only in an application field.
+- `workflow.resolve` reads, in order: the project's saved target, previous executions, the stories' application fields,
+  their summary / description / acceptance criteria, and Confluence pages that name the selected requirements. Every
+  candidate says where it came from; found ones are "not yet confirmed" until a person confirms permission.
+- Execution Center lists each candidate's kind and engine; choosing an app / API / repository explains that Jira
+  executions run in the browser today and how to test that target. No live Jira here (no token): verified against the
+  mock Jira.
+
 ## 2026-11-26 - Selector recovery: an imaginary selector no longer abandons a test
 
 - Phase 1's live run had TC-QPL-4-1 "Not automated": the AI wrote `[data-testid='shopping-cart-link']`, the page has

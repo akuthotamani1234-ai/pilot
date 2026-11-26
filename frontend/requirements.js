@@ -1655,6 +1655,11 @@
         return;
       }
       const pick = (c) => {
+        if (c.kind && c.kind !== "web") {  // (an app / API / repository: not a website for this browser run)
+          $("tgNote") && $("tgNote").remove();
+          box.append(h("p", { class: "rq-issue", id: "tgNote", role: "status", text: `${c.url} is ${c.kind === "api" || c.kind === "openapi" ? "an API" : c.kind === "repository" ? "a code repository" : "a mobile app"} — tested with ${c.engine}. Jira executions here run in the browser: enter the website address below, or start this target from the Test studio.` }));
+          return;
+        }
         TG.cand = c; $("exUrl").value = c.url; TG.account = c.has_test_account;
         saveDraft({ target_url: c.url, target_source: c.sources[0] });
         accountUi();
@@ -1671,7 +1676,7 @@
       } else if (r.status === "multiple") {
         box.replaceChildren(h("p", { class: "small", text: r.message }), h("div", { class: "rq-tg-cand", role: "radiogroup", "aria-label": "Possible websites" },
           r.candidates.map((c) => h("label", {}, h("input", { type: "radio", name: "tgPick", value: c.url, onchange: () => pick(c) }),
-            h("span", {}, h("b", { text: c.url }), h("br"), h("small", { text: c.sources.join("; ") + (c.authorized ? "" : " — not yet confirmed: confirm the permission below") }))))),
+            h("span", {}, h("b", { text: c.url }), c.kind && c.kind !== "web" ? h("span", { class: "small", text: ` · ${c.engine}` }) : null, h("br"), h("small", { text: c.sources.join("; ") + (c.authorized ? "" : " — not yet confirmed: confirm the permission below") }))))),
         h("p", { class: "small", text: "Or type another address below." }));
         $("exUrl").value = "";
       } else {
