@@ -2,6 +2,22 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Selector recovery: an imaginary selector no longer abandons a test
+
+- Phase 1's live run had TC-QPL-4-1 "Not automated": the AI wrote `[data-testid='shopping-cart-link']`, the page has
+  `[data-test="shopping-cart-link"]`. Now, before code is refused: (1) the crawler keeps each page's real DOM
+  vocabulary (`dom_tokens`: class names, ids, test ids from the HTML it saw); (2) a selector whose class / id / test id
+  is in a real page's DOM is grounded even when it is not a recorded control; (3) a SIMPLE selector naming a real
+  control by the wrong attribute is swapped for that control's observed selector (`ai_grounding.snap_selectors`;
+  compound selectors are never swapped); (4) the retry gets the list of real controls; (5) for Jira / owner tests a
+  last try reaches the page and checks what is certain; at run time evidence repair rewrites from the real page (up
+  to 3 rounds). Expected results and stated values are never changed; if nothing works the exact refusal is reported.
+- Evidence repair may drop a check of the old test only when that check's expected value was a guess (in neither the
+  test case nor a real page).
+- Live again (QPL-5 "is blocked by" QPL-4, only TC-QPL-5-1 selected): both cases now EXECUTE (was 1 Not automated);
+  TC-QPL-5-1 Passed; the added TC-QPL-4-1 went inventory -> cart through 3 rewrites and ended "Requires review" (its
+  code called expect() on a string - an AI coding error, reported, not passed).
+
 ## 2026-11-26 - Prerequisites between requirements: a persistent graph, added to runs automatically
 
 - `backend/atlassian/prerequisites.py`: which test case needs which other one first, stored per workspace

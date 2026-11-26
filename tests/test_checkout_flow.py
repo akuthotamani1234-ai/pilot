@@ -210,3 +210,41 @@ def test_a_test_must_check_the_result_its_test_case_quotes_or_it_cannot_pass():
     no_result = old.replace('expect(page.get_by_role("button", name="Cart, empty")).to_contain_text("Thank you for your order!")',
                             'expect(page.locator(\'[data-test="finish"]\')).to_be_visible()')
     assert "quotes" in check(old, no_result, "test_ai_flow_1", case, live, "")
+
+
+def test_an_imaginary_selector_naming_a_real_control_is_recovered_from_the_page_evidence():
+    """Live 26 Nov 2026 (TC-QPL-4-1): the AI wrote [data-testid='shopping-cart-link']; the page has
+    [data-test="shopping-cart-link"] - the test was given up although the element was known."""
+    from backend.ai_grounding import grounding_problem, snap_selectors
+    pages = [{"url": "https://shop.example/inventory.html", "title": "Products", "headings": [], "forms": [],
+              "behaviour": [], "inputs": [],
+              "links": [{"selector": '[data-test="shopping-cart-link"]', "text": ""}],
+              "buttons": [{"selector": "#add-to-cart-backpack", "text": "Add to cart"},
+                          {"selector": "#add-to-cart-bike-light", "text": "Add to cart"}]}]
+    code = ('def test_ai_flow_1(page):\n'
+            '    page.goto("https://shop.example/inventory.html")\n'
+            '    page.locator("[data-testid=\'shopping-cart-link\']").click()\n'
+            '    page.locator("button.add-to-cart").click()\n')
+    assert "not observed" in grounding_problem(code, pages)
+    fixed, swaps = snap_selectors(code, pages)
+    assert swaps == [("[data-testid='shopping-cart-link']", '[data-test="shopping-cart-link"]')]
+    assert '[data-test="shopping-cart-link"]' in fixed and "button.add-to-cart" in fixed  # (ambiguous: left as is)
+    assert "shopping-cart-link" not in (grounding_problem(fixed, pages) or "")
+    compound = code.replace("[data-testid=\'shopping-cart-link\']", "#add-to-cart-backpack + .price")
+    assert snap_selectors(compound, pages)[1] == []  # (a compound selector is never swapped: its meaning could change)
+
+
+def test_a_selector_from_the_real_dom_of_an_explored_page_is_grounded():
+    from backend.ai_grounding import dom_tokens, grounding_problem
+    html = ('<div class="inventory_item"><div class="inventory_item_price" data-test="inventory-item-price">$29.99'
+            '</div><button id="add-to-cart-backpack">Add</button></div>')
+    page = {"url": "https://shop.example/inventory.html", "title": "Products", "headings": [], "forms": [],
+            "behaviour": [], "inputs": [], "links": [], "buttons": [{"selector": "#add-to-cart-backpack"}]}
+    code = ('def test_ai_flow_1(page):\n'
+            '    page.goto("https://shop.example/inventory.html")\n'
+            '    assert page.locator("div.inventory_item_price").count() > 0\n'
+            '    assert page.locator(\'[data-test="inventory-item-price"]\').count() > 0\n')
+    assert "inventory_item_price" in (grounding_problem(code, [page]) or "")  # (not a recorded control)
+    assert grounding_problem(code, [dict(page, dom_tokens=dom_tokens(html))]) is None  # (but in the real DOM)
+    invented = code.replace("inventory_item_price", "price_tag_xyz")
+    assert grounding_problem(invented, [dict(page, dom_tokens=dom_tokens(html))])

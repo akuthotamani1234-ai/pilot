@@ -8,6 +8,7 @@ Grounding rules (reusable — never site-specific hardcoding):
   * failures here are exploratory/unsupported reasons — never confirmed product defects
 """
 import ast
+import json
 import re
 from urllib.parse import urlparse
 
@@ -165,7 +166,8 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
             selector = node.args[0].value
             if not isinstance(selector, str):
                 continue
-            if re.fullmatch(r"#[\w-]+", selector) and not any(selector in known for known in observed_selectors):
+            if re.fullmatch(r"#[\w-]+", selector) and not any(selector in known for known in observed_selectors) \
+                    and selector[1:].casefold() not in _dom(pages, "ids"):
                 return "The selector was not observed: " + selector
             if re.search(r"(^|[\s>,])(?:table|thead|tbody|th)(?=[\s>.#\[:]|$)", selector) and not any(
                     re.match(r"(?:table|thead|tbody|th)\b", known) for known in observed_selectors):
@@ -178,7 +180,7 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                         "(error/ok via role=alert / status), not a brittle toast wrapper/icon selector")
             bare = re.sub(r"\[[^\]]*\]|\"[^\"]*\"|'[^']*'|:has-text\([^)]*\)|:text\([^)]*\)", " ", selector)
             classes = re.findall(r"\.([A-Za-z_][\w-]*)", bare)
-            unseen = [c for c in classes if c.casefold() not in evidence]
+            unseen = [c for c in classes if c.casefold() not in evidence and c.casefold() not in _dom(pages, "classes")]
             if unseen and pages:
                 return ("The selector was not observed: " + selector + " (class ." + unseen[0] +
                         " is in no observed page) - use a selector from PAGES")
@@ -202,7 +204,10 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                     return ("Bare heading selectors are ambiguous and the document title is not a heading. "
                             "Use observed heading names or expect(page).to_have_title")
             # Long CSS ids/classes that look recorded but never appeared in observation — reject (hard).
-            if (observed_sels and selector.strip() not in observed_sels
+            in_dom = bool(_ident_values(selector)) and all(
+                v.casefold() in _dom(pages, "classes") | _dom(pages, "ids") | _dom(pages, "test_ids")
+                for v in _ident_values(selector))  # (every class / id / test id it names is in a real page's DOM)
+            if (observed_sels and selector.strip() not in observed_sels and not in_dom
                     and re.search(r"[#.\[]", selector) and len(selector.strip()) > 3
                     and not selector.strip().startswith(("text=", "xpath=", "internal:"))):
                 return (f"Selector {selector.strip()!r} was not observed on the page. "
@@ -256,3 +261,94 @@ def unsupported_reason(problem: str) -> str:
     if text.lower().startswith("unsupported"):
         return text
     return f"Unsupported (exploratory): {text}. Not reported as a product defect."
+
+
+# ---------------------------------------------------------------- selector recovery (before a test is given up)
+#
+# The AI often names a REAL element with the wrong attribute ('[data-testid="cart-link"]' where the page has
+# '[data-test="cart-link"]', '#cart-link' for '[data-test="cart-link"]'). Before the code is refused, every selector
+# the pages do not have is matched to the observed controls by its identifying value: exactly one observed selector
+# carrying the same value -> it is used instead. Only HOW an element is found changes; no check changes; a value that
+# matches nothing or several controls is left as it is (and the code is then refused / retried as before).
+SELECTOR_VALUES = re.compile(r"""\[\s*[\w:-]+\s*[*^$~|]?=\s*["']?([^"'\]]+)["']?\s*\]|#([\w-]+)|\.([\w-]+)""")
+ADDRESS_METHODS = {"locator", "query_selector", "query_selector_all", "wait_for_selector", "click", "fill", "check",
+                   "uncheck", "hover", "select_option", "is_visible", "text_content", "inner_text", "type", "press"}
+
+
+def _ident_values(selector: str) -> list[str]:
+    return [v for g in SELECTOR_VALUES.findall(selector or "") for v in g if v and len(v) >= 3]
+
+
+DOM_ATTR = re.compile(r"""\b(class|id|data-test|data-testid|data-qa|data-cy|name)\s*=\s*["']([^"']{1,200})["']""", re.I)
+
+
+def dom_tokens(html: str, limit: int = 3000) -> dict:
+    """The class names, ids and test ids a page's real DOM has (from the HTML the crawler saw) - so a selector built from
+    them is grounded in evidence even when the crawler did not list that element as a control."""
+    classes, ids, tests = set(), set(), set()
+    for attr, value in DOM_ATTR.findall(html or ""):
+        attr = attr.lower()
+        if attr == "class":
+            classes.update(v for v in value.split() if re.fullmatch(r"[A-Za-z_][\w-]*", v))
+        elif attr == "id":
+            ids.add(value.strip())
+        else:
+            tests.add(value.strip())
+    return {"classes": sorted(classes)[:limit], "ids": sorted(ids)[:limit], "test_ids": sorted(tests)[:limit]}
+
+
+def _dom(pages: list[dict], kind: str) -> set[str]:
+    return {v.casefold() for p in pages for v in ((p.get("dom_tokens") or {}).get(kind) or [])}
+
+
+def snap_selectors(code: str, pages: list[dict]) -> tuple[str, list[tuple[str, str]]]:
+    """Replace each unobserved CSS selector by the ONE observed selector with the same identifying value.
+    Returns (code, [(was, now)])."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code, []
+    observed = _observed_selectors(pages)
+    by_value: dict[str, set[str]] = {}
+    for sel in observed:
+        for v in _ident_values(sel):
+            by_value.setdefault(v.lower(), set()).add(sel)
+    swaps: list[tuple[str, str]] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ADDRESS_METHODS and node.args and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)):
+            continue
+        selector = node.args[0].value.strip()
+        if not selector or selector in observed or selector.startswith(("text=", "internal:", "xpath=", "//")) \
+                or not re.search(r"[#.\[]", selector) or ">>" in selector:
+            continue
+        # only a SIMPLE selector naming one element by one value: a compound one ('#a + .b', 'x > y', 'a, b') means
+        # something a swap could change
+        if re.search(r"[\s+>~,]", re.sub(r"\[[^\]]*\]", "", selector)):
+            continue
+        values = _ident_values(selector)
+        if len(values) != 1:
+            continue
+        candidates = by_value.get(values[0].lower(), set())
+        if len(candidates) == 1:
+            now = next(iter(candidates))
+            if (selector, now) not in swaps:
+                swaps.append((selector, now))
+    for was, now in swaps:
+        code = code.replace(repr(was), repr(now)).replace(json.dumps(was), json.dumps(now)) \
+            .replace(f"'{was}'", repr(now)).replace(f'"{was}"', json.dumps(now))
+    return code, swaps
+
+
+def observed_controls_hint(pages: list[dict], limit: int = 60) -> str:
+    """The real controls (selector + what a person sees), for a retry after an unobserved selector."""
+    rows = []
+    for page in pages:
+        for group in ("buttons", "inputs", "links"):
+            for el in page.get(group, []) or []:
+                sel = el.get("selector")
+                if isinstance(sel, str) and sel.strip():
+                    rows.append(f"{page.get('slug') or page.get('url')}: {sel.strip()}  "
+                                f"({group[:-1]}: {(el.get('text') or el.get('label') or el.get('name') or '')[:40]})")
+    return "\n".join(rows[:limit])

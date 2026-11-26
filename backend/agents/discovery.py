@@ -2806,6 +2806,11 @@ def discovery_agent(state: QAState, *, on_visit_start=None, on_inventory=None) -
                         write_text_unless_linked(html_dir, f"{slug}.html", page.content())
                 except Exception:
                     pass
+                try:  # the page's real DOM vocabulary (classes, ids, test ids): what a written selector may use
+                    from ..ai_grounding import dom_tokens
+                    entry["dom_tokens"] = dom_tokens(page.content())
+                except Exception:
+                    pass
                 from ..finalization import path_unless_linked
                 allowed_shot = path_unless_linked(shots, shot_path.name)
                 if allowed_shot is not None:

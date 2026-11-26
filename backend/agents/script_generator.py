@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from pprint import pformat
 
-from ..ai_grounding import grounding_problem, unsupported_reason
+from ..ai_grounding import grounding_problem, observed_controls_hint, snap_selectors, unsupported_reason
 from ..config import settings
 from ..excel import write_workbook
 from ..form_targets import FORM_TARGET_HELPER
@@ -2463,15 +2463,26 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
             f"{', '.join(wrong_guest)} must run logged in (\"guest\": false): remove @pytest.mark.guest"
             if wrong_guest else None)
 
+    def snapped(c: str) -> str:  # an unobserved selector naming a REAL control by its value -> that control's selector
+        c2, swaps = snap_selectors(c, used)
+        for was, now in swaps:
+            print(f"  [script-gen] selector recovered from the page evidence: {was} -> {now}")
+        return c2
+
+    code = snapped(code)
     err = problem(code)
-    if err:  # one self-repair attempt
-        code = extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + "\nOBSERVED PAGES (use only this evidence):\n" + data,
-                                    system=SYSTEM, agent="script_generator", page="site"))
+    if err:  # one self-repair attempt (with the real controls when a selector was the problem)
+        hint = ("\nREAL CONTROLS OF THE PAGES (use these selectors exactly):\n" + observed_controls_hint(used)
+                if "not observed" in err.lower() else "")
+        code = snapped(extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + hint
+                                            + "\nOBSERVED PAGES (use only this evidence):\n" + data,
+                                            system=SYSTEM, agent="script_generator", page="site")))
         err = problem(code)
     if err and any(f.get("my_test") for f in flows):  # the owner's / Jira tests: reach the page, check what is certain
-        code = extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + UNSEEN_PAGE_HINT
-                                    + "\nOBSERVED PAGES (use only this evidence):\n" + data,
-                                    system=SYSTEM, agent="script_generator", page="site"))
+        code = snapped(extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + UNSEEN_PAGE_HINT
+                                    + "\nREAL CONTROLS OF THE PAGES (use these selectors exactly):\n"
+                                    + observed_controls_hint(used) + "\nOBSERVED PAGES (use only this evidence):\n" + data,
+                                    system=SYSTEM, agent="script_generator", page="site")))
         err = problem(code)
     if err:
         raise LLMError(f"the AI's test code failed the checks: {err}")

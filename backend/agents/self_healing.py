@@ -580,7 +580,14 @@ def evidence_check(old_code: str, new_code: str, test: str, case: dict, live: di
             return f"{name} was changed too - only {test} may be rewritten"
     old_fn, new_fn = old_fns[test], new_fns[test]
     count = lambda fn: sum(1 for n in ast.walk(fn) if isinstance(n, ast.Assert) or _is_expect_check(n))  # noqa: E731
-    if count(new_fn) < count(old_fn) or count(new_fn) == 0:
+    words0 = " ".join(str(case.get(k) or "") for k in ("instruction", "title", "expected", "test_data")) + " " + \
+        " ".join(str(s) for s in case.get("steps") or [])
+    evidence0 = (words0 + " " + json.dumps(live) + " " + explored).casefold()
+    # a check of the old test whose expected value was a guess (neither in the test case nor on a real page) may go;
+    # every other check must stay (the stated values and the quoted result are checked again below)
+    guessed = sum(1 for n in ast.walk(old_fn) if (isinstance(n, ast.Assert) or _is_expect_check(n)) and any(
+        len(v.strip()) >= 2 and v.strip().casefold() not in evidence0 for v in _check_values(n)))
+    if count(new_fn) < count(old_fn) - guessed or count(new_fn) == 0:
         return "the rewrite checks less than before"
     src = ast.unparse(new_fn)
     if re.search(r"pytest\.(skip|xfail)|\btry\s*:|\bassert\s+True\b|if\s+False", src):
