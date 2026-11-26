@@ -187,3 +187,16 @@ def test_a_sign_up_error_keeps_its_text_masked_and_a_screenshot(monkeypatch, tmp
     assert "qa.x@example.com" not in said and "badly formatted" in said
     assert session.account_setup["status"] == "failed" and session.account_setup["screenshot"].endswith("sign-up_error.png")
     assert "badly formatted" in session.account_setup["detail"]
+
+
+def test_an_evidence_screenshot_is_also_the_live_device_frame(tmp_path):
+    from backend.android import capture_screenshot
+
+    class D:
+        current_context, current_package, page_source = "NATIVE_APP", "com.example.app", "<hierarchy/>"
+
+        def save_screenshot(self, p):
+            open(p, "wb").write(b"\x89PNG\r\n\x1a\nscreen")
+            return True
+    assert capture_screenshot(D(), tmp_path, "step_1", "com.example.app") == "screenshots/step_1.png"
+    assert (tmp_path / "live" / "device.jpg").read_bytes() == b"\x89PNG\r\n\x1a\nscreen"

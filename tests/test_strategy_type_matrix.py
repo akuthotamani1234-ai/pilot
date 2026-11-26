@@ -33,8 +33,8 @@ def routed(api, monkeypatch):
         "api", cases=sorted(ids), ai=t.llm_provider, explore=explore))
     monkeypatch.setattr(rapi, "_launch_ios", lambda t, tests, ids, strategy="": job(
         "ios", cases=sorted(ids), ai=t.llm_provider, strategy=strategy))
-    monkeypatch.setattr(rapi, "_launch_android", lambda t, texts, a, x: job(
-        "android", cases=sorted(s.split("]")[0][1:] for s in texts), ai=t.llm_provider))
+    monkeypatch.setattr(rapi, "_launch_android", lambda t, texts, a, x, only=False: job(
+        "android", cases=sorted(s.split("]")[0][1:] for s in texts), ai=t.llm_provider, only=only))
     monkeypatch.setattr(rapi.execution_preflight, "check", lambda **kw: {
         "ok": True, "problems": [], "needs_ai": True, "ai": {"provider": kw["llm_provider"] or "openai", "model": ""}})
     monkeypatch.setattr(rapi, "_watch", lambda *a, **k: None)
@@ -54,7 +54,7 @@ def test_each_type_and_strategy_reaches_its_engine_with_the_chosen_ai(routed, ki
     assert seen[0]["ai"] == "anthropic"  # (the AI chosen in the Execution Center reaches the engine)
     if strategy != "autonomous":
         assert seen[0]["cases"] == ["TC-QPL-2-1", "TC-QPL-2-2"]
-    if kind == "web":
+    if kind in ("web", "android"):
         assert seen[0]["only"] is (strategy == "requirements")  # (hybrid / autonomous also explore the site)
     if kind == "ios":
         assert seen[0]["strategy"] == strategy  # (the iOS engine discovers the app for autonomous / hybrid)

@@ -1939,10 +1939,19 @@ class Session:
         from .android_accounts import prepare_account
         prepare_account(self)
         stopped = self.yours_first(ask, requirements)
-        if stopped:
+        if stopped or self.only_yours(requirements):
             return stopped
         stopped = self.execute(self.plan())
         return self.journeys(ask, "", stopped)
+
+    def only_yours(self, requirements: str) -> bool:
+        """A requirement-based run (config requirements_only): after YOUR tests nothing else runs - the generic
+        checks and AI journeys are listed as not tested with that reason (never silently missing)."""
+        if not ((getattr(self.device, "config", None) or {}).get("requirements_only") and (requirements or "").strip()):
+            return False
+        self.cover("journey", "Generic checks and AI journeys", "not tested",
+                   "requirement-based run: only the selected test cases run")
+        return True
 
     def yours_first(self, ask, requirements: str) -> str:
         """YOUR tests first, before every generic check (Session and AppSession both call this): a run that runs out

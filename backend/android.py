@@ -972,6 +972,7 @@ def capture_screenshot(driver, run_dir: Path, name: str, package_name: str | Non
                     ".some(e => (e.innerText || '').trim());"):
                 return None
             if driver.save_screenshot(str(path)):
+                _live_frame(run_dir, path)
                 return path.relative_to(run_dir).as_posix()
             return None
         if package_name and driver.current_package != package_name:
@@ -984,10 +985,27 @@ def capture_screenshot(driver, run_dir: Path, name: str, package_name: str | Non
         ):
             return None
         if driver.save_screenshot(str(path)):
+            _live_frame(run_dir, path)
             return path.relative_to(run_dir).as_posix()
     except Exception:
         pass
     return None
+
+
+def _live_frame(run_dir: Path, shot: Path) -> None:
+    """The device screen just captured (after the privacy checks above) is also the run's live frame
+    (live/device.jpg: the Studio's Live Execution shows it; the frame endpoint sends PNG data with its real type)."""
+    from .finalization import folder_is_linked
+    folder = run_dir / "live"
+    try:
+        if folder_is_linked(run_dir) or (folder.exists() and folder_is_linked(folder)):
+            return
+        folder.mkdir(exist_ok=True)
+        tmp = folder / "device.tmp"
+        tmp.write_bytes(shot.read_bytes())
+        tmp.replace(folder / "device.jpg")
+    except OSError:
+        pass
 
 
 def _safe_text(node, kind: str) -> str:

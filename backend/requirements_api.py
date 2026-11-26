@@ -499,7 +499,7 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
         try:
             return _launch_android(t, [f"[{x['tc']}] {x['text']}" for x in tests], launch["authorization"],
-                                   launch["x_qa_token"])
+                                   launch["x_qa_token"], only=strategy == "requirements")
         except HTTPException as error:
             raise HTTPException(error.status_code, f"(Android) {error.detail}") from None
     sandbox = t.payment_provider if (t.payment_provider and t.payment_sandbox_confirmed
@@ -657,9 +657,11 @@ def run_ios(driver, run_dir: Path, bundle_id: str, tests: list[dict], strategy: 
     return records
 
 
-def _launch_android(t, lines: list[str], authorization, x_qa_token) -> int:
+def _launch_android(t, lines: list[str], authorization, x_qa_token, only: bool = False) -> int:
     """Start the EXISTING Android run (server.start_mobile_run) with the Jira test cases as the owner's tests - one
-    line each, tagged with its test-case id so its outcome maps back. Returns the job id."""
+    line each, tagged with its test-case id so its outcome maps back. only (requirement-based): the app is still
+    discovered (to plan the cases), then only the cases run; hybrid / autonomous also run the engine's own checks.
+    Returns the job id."""
     import asyncio
     import inspect
 
@@ -672,6 +674,7 @@ def _launch_android(t, lines: list[str], authorization, x_qa_token) -> int:
     kw.update(app_mode=t.android_mode, device_id=t.device_id, package_name=t.package_name,
               start_url=t.url if t.android_mode == "web" else "", app_activity=t.app_activity,
               appium_url=t.appium_url, authorized=True, requirements="\n".join(lines)[:12000],
+              requirements_only=only and bool(lines),
               interaction_testing=True, allow_rules_fallback=False, apk=None, privacy_mode=None,
               llm_provider=t.llm_provider or None, llm_model=t.llm_model or None, api_key=t.api_key,
               test_username=t.test_username, test_password=t.test_password,

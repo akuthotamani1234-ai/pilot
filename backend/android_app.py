@@ -532,7 +532,7 @@ class AppSession(Session):
         from .android_accounts import prepare_account
         prepare_account(self)
         stopped = self.yours_first(ask, requirements)  # (the same as Session.run: your tests before anything else)
-        if stopped:
+        if stopped or self.only_yours(requirements):
             return stopped
         stopped = self.execute(self.plan())
         return self.journeys(ask, "", stopped)

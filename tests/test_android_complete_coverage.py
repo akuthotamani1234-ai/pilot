@@ -201,3 +201,21 @@ def test_a_test_build_starts_logged_out(monkeypatch):
     assert not start_logged_out(driver, {"app_mode": "installed", "interaction_testing": False, "fresh_start": True})
     assert not start_logged_out(driver, {"app_mode": "web", "interaction_testing": True, "fresh_start": True})
     assert cleared == ["com.project.stacklab"]
+
+
+@pytest.mark.parametrize("only,expected", [(True, ["yours"]), (False, ["yours", "generic", "ai"])])
+def test_a_requirement_based_android_run_runs_only_the_selected_cases(monkeypatch, tmp_path, only, expected):
+    """Jira requirement-based on Android: the app is discovered, the selected cases run, and the engine's own checks
+    and AI journeys do not (they are listed as not tested, with the reason). Hybrid / autonomous keep them."""
+    import backend.android_accounts as accounts
+    first = {"id": "first", "package_name": "com.example", "screen_name": "Products", "elements": []}
+    session = AppSession(SimpleNamespace(config={"app_mode": "installed", "requirements_only": only}, screens=[first],
+                                         stop_path=tmp_path / "stop"))
+    order = []
+    monkeypatch.setattr(accounts, "prepare_account", lambda s: None)
+    monkeypatch.setattr(session, "ai_journeys", lambda ask, req="", owner=False: order.append("yours" if owner else "ai"))
+    monkeypatch.setattr(session, "execute", lambda plan: order.append("generic") or "")
+    session.run(ask=lambda *a: None, requirements="[TC-QPL-4-1] Add a product to the cart - the cart shows it")
+    assert order == expected
+    if only:
+        assert any("requirement-based run" in str(c) for c in session.coverage)
