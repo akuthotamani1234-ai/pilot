@@ -80,6 +80,12 @@
   const VIEWS = [...document.querySelectorAll(".rq-view")].map((s) => s.id.replace("view-", ""));
   // (older bookmarks keep working: the pages they named now live inside these)
   const ALIAS = { coverage: "reports", evidence: "reports" };
+  // Only the newest load of a view may draw it: when a view is loaded again (a filter changed, a site was just
+  // connected) while an older request is still answering, the older answer arriving LAST used to overwrite the newer
+  // one (a filtered list showing every row again, a just-connected site shown without its token). Responses arrive
+  // out of order whenever the server is busy.
+  const SEQ = {};
+  function newest(key) { const n = (SEQ[key] = (SEQ[key] || 0) + 1); return () => SEQ[key] === n; }
   function route() {
     if (!S.caps) return;
     const asked = location.hash.slice(1);
@@ -123,8 +129,10 @@
   async function overview() {
     const stats = $("stats");
     stats.setAttribute("aria-busy", "true");
+    const fresh = newest("overview");
     try {
       const o = await api("/overview");
+      if (!fresh()) return;
       const tile = (n, label, kind = "") => h("div", { class: `rq-stat ${kind}` }, h("b", { text: n }), h("span", { text: label }));
       stats.replaceChildren(...kids(tile(o.requirements, "requirements imported"), tile(o.pages, "Confluence pages"),
         tile(o.criteria, "acceptance criteria (analysed)"), tile(o.analysed, "analysed"),
@@ -173,9 +181,11 @@
   // ---------------------------------------------------------------- 2 integrations
   async function integrations() {
     const box = $("connCards");
+    const fresh = newest("integrations");
     box.replaceChildren(...kids(h("p", { class: "small", text: "Loading connections…" })));
     try {
       const data = await api("/connections");
+      if (!fresh()) return;  // (a newer load draws the cards)
       S.conns = data.connections;
       const legacy = $("legacyWarning");
       legacy.hidden = !data.defect_creation_writes_to_jira;
@@ -195,7 +205,7 @@
           connCard(p, null, mine.length, freeId(p))));
       }
       box.replaceChildren(...kids(...cards));
-    } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
+    } catch (e) { if (fresh()) box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
   }
   function connCard(product, conn, n = 0, newId = "") {
     const name = newId ? (product === "jira" ? "Another Jira Cloud site" : "Another Confluence Cloud site")
@@ -406,6 +416,7 @@
     const body = mode() === "items" ? { keys: $("wKeys").value } : { filters: filters() };
     if (mode() === "items" && !$("wKeys").value.trim()) throw new Error("Enter one or more work-item keys or links.");
     body.limit = 50; if (more) body.next_page_token = pvToken;
+    const fresh = newest("preview");
     $("pvSummary").textContent = "Asking Jira…";
     const tbody = $("pvTable").tBodies[0];
     if (!more) {
@@ -415,6 +426,7 @@
       pvCounts = { new: 0, updated: 0, unchanged: 0, reappeared: 0, unreadable: 0 };
     }
     const r = await api(`/connections/${encodeURIComponent($("wConn").value)}/preview`, { method: "POST", body });
+    if (!fresh()) return;  // (a newer preview replaced this one: its rows would be counted twice)
     pvToken = r.next_page_token || "";
     $("pvMore").hidden = !pvToken;
     if (r.items.length) tbody.querySelector(".rq-empty")?.closest("tr").remove();
@@ -574,13 +586,16 @@
     S.ex.sort = S.ex.sort === k ? `-${k}` : k; explorer();
   }));
   async function explorer() {
+    const fresh = newest("explorer");
     if (!WF.draft) await refreshWorkflow();
+    if (!fresh()) return;
     const tbody = $("exTable").tBodies[0];
     $("exTable").setAttribute("aria-busy", "true");
     const q = new URLSearchParams({ kind: "jira_issue", q: $("exQ").value, type: $("exType").value, status: $("exStatus").value,
       analysis: $("exAnalysis").value, missing: $("exMissing").checked, sort: S.ex.sort, page: S.ex.page, size: S.ex.size });
     try {
       const r = await api(`/items?${q}`);
+      if (!fresh()) return;  // (the filters changed meanwhile: the newer load draws the table)
       if (S.ex.page === 1 && !$("exQ").value && !$("exType").value) fillFacets();
       document.querySelectorAll("#exTable th button").forEach((b) => {
         const k = b.dataset.sort;
@@ -606,8 +621,8 @@
       $("exPager").replaceChildren(...kids(`${plural(r.total, "requirement")} · page ${r.page} of ${pages}`,
         h("button", { class: "secondary", type: "button", text: "Previous", disabled: r.page <= 1, onclick: () => { S.ex.page -= 1; explorer(); } }),
         h("button", { class: "secondary", type: "button", text: "Next", disabled: r.page >= pages, onclick: () => { S.ex.page += 1; explorer(); } })));
-    } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
-    finally { $("exTable").removeAttribute("aria-busy"); }
+    } catch (e) { if (fresh()) tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 12, class: "rq-empty", text: e.message })))); }
+    finally { if (fresh()) $("exTable").removeAttribute("aria-busy"); }
   }
   async function fillFacets() {
     try {
