@@ -2,6 +2,21 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 7: iOS apps (native and hybrid) through Appium XCUITest
+
+- `backend/ios.py`: config (bundle id or .app / .ipa, simulator / device UDID, iOS version, signing team for devices),
+  XCUITest capabilities, the environment a real run needs - macOS with Xcode, a booted simulator or a device, an
+  Appium server with the xcuitest driver - each checked and named when missing; the real screen read from the XCUI
+  hierarchy (type, accessibility id, label, value, enabled); steps (tap / type / clear / assert_visible /
+  assert_not_visible / assert_text / swipe / back) by accessibility id, label, name, predicate or - in a WebView - CSS,
+  with the context switched per step and recorded (an iOS WebView that is not inspectable is reported, never
+  faked); a screenshot per case; outcomes in the run's `test_cases.json`. The AI plans each case only over controls the
+  screen shows (a plan with an unseen control is refused).
+- Jira executions with target type "ios" (Execution Center: bundle id, app file, UDID, iOS version, Appium server): the
+  preflight refuses with exactly what this machine lacks; on a Mac the cases run as a Studio job with per-case results.
+- `docs/IOS_SETUP.md`: what a live iOS run needs, step by step.
+- Live validation BLOCKED: no Mac / Xcode / simulator / device here; tested with a fake Appium driver.
+
 ## 2026-11-26 - Phase 8: large executions in batches, checkpointed and resumable
 
 - `backend/atlassian/scheduler.py`: an execution with more than `QPILOT_BATCH_SIZE` (default 20) cases is split into

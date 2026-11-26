@@ -274,7 +274,7 @@
         <section class="rq-target" aria-labelledby="tgTitle"><h2 class="rq-sub" id="tgTitle">Application under test</h2>
           <div id="tgBox" role="status" aria-live="polite"><p class="small">Looking for the website of these requirements…</p></div>
           <div class="rq-filter-grid">
-            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android">Android app (device / emulator)</option><option value="api">REST API</option></select></label>
+            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android">Android app (device / emulator)</option><option value="api">REST API</option><option value="ios">iOS app (Mac with Xcode)</option></select></label>
             <label class="rq-wide" for="exUrl">Website address<input id="exUrl" type="url" placeholder="https://www.saucedemo.com/" autocomplete="url"></label>
             <label for="exEnv">Environment<select id="exEnv"><option value="test">Test (nothing is sent or changed)</option><option value="staging">Staging</option></select></label>
           </div>
@@ -287,6 +287,14 @@
               <label class="rq-check"><input type="checkbox" class="exApiAllow" value="PATCH"> PATCH</label>
               <label class="rq-check"><input type="checkbox" class="exApiAllow" value="DELETE"> DELETE</label></fieldset>
             <p class="small rq-wide">Each test case becomes real requests to the documented operations, checked for status, the documented schema, the expected values and the response time. GET is always allowed; other methods only when ticked. Requests and answers are kept with secrets removed.</p>
+          </div>
+          <div class="rq-filter-grid" id="xcIos" hidden>
+            <label for="exIosBundle">Bundle id<input id="exIosBundle" placeholder="com.example.app" autocomplete="off"></label>
+            <label for="exIosApp">App file (optional)<input id="exIosApp" placeholder="/path/App.app or .ipa" autocomplete="off"></label>
+            <label for="exIosUdid">Simulator / device UDID (optional)<input id="exIosUdid" autocomplete="off"></label>
+            <label for="exIosVersion">iOS version (optional)<input id="exIosVersion" placeholder="17.4" autocomplete="off"></label>
+            <label class="rq-wide" for="exIosAppium">Appium server (on the Mac)<input id="exIosAppium" value="http://127.0.0.1:4723" autocomplete="off"></label>
+            <p class="small rq-wide">iOS runs need macOS with Xcode, a booted simulator or an authorized device, and Appium 2 with the XCUITest driver. Before the run, Qpilot checks each and names what is missing.</p>
           </div>
           <div class="rq-filter-grid" id="xcAndroid" hidden>
             <label for="exAndMode">On Android<select id="exAndMode"><option value="installed">The installed app (native / hybrid)</option><option value="web">The website in Android Chrome</option></select></label>

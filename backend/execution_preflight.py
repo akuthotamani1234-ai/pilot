@@ -113,7 +113,8 @@ def browser_probe(url: str, timeout_s: float = PROBE_TIMEOUT_S) -> dict:
 def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_type: str = "web",
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
           probe=None, demo_checkout: bool = False, android: dict | None = None,
-          payment: tuple[str, bool] = ("", False), api: tuple[str, list] = ("", [])) -> dict:
+          payment: tuple[str, bool] = ("", False), api: tuple[str, list] = ("", []),
+          ios: dict | None = None) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -139,6 +140,13 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
             problem("package", "Enter the Android app's package name (e.g. com.example.app).", "enter_package")
         if a.get("mode") == "web" and not url:
             problem("target", "Enter the website address to open in Android Chrome.", "enter_url")
+    elif app_type == "ios":
+        from .ios import environment_problems, validate
+        try:
+            for why in environment_problems(validate(ios or {})):
+                problem("ios_environment", why, "ios_setup")
+        except ValueError as error:
+            problem("ios_app", str(error), "enter_ios_app")
     elif app_type == "api":
         spec_url, allow = api
         address = spec_url or url
@@ -154,8 +162,8 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
             problem("api_writes", "DELETE is only sent by requirement-based runs.", "choose_strategy")
     elif app_type != "web":
         problem("app_type", f"'{app_type}' targets are not run from here.", "use_studio")
-    if app_type == "api":
-        pass  # (checked above: the API document / base address)
+    if app_type in ("api", "ios"):
+        pass  # (checked above: the API document / the iOS app and environment)
     elif not url:
         if app_type == "web":
             problem("target", "Target website not found. Please enter the website URL you want to test.",

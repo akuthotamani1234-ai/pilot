@@ -1241,9 +1241,11 @@
       epic: { epic: $("exEpic").value.trim().toUpperCase() } }[mode];
     const url = $("exUrl").value.trim();
     const android = $("xcApp").value === "android", androidApp = android && $("exAndMode").value === "installed";
-    const apiRun = $("xcApp").value === "api";
+    const apiRun = $("xcApp").value === "api", iosRun = $("xcApp").value === "ios";
     if (strategy !== "autonomous" && mode === "selected" && !selected.length) return fail("No test case is selected. Select approved test cases in Test Cases first (or choose Autonomous).");
-    if (apiRun) {  // (a REST API: its document; no browser)
+    if (iosRun) {
+      if (!$("exIosBundle").value.trim() && !$("exIosApp").value.trim()) { $("exIosBundle").focus(); return fail("Enter the iOS app's bundle id or app file."); }
+    } else if (apiRun) {  // (a REST API: its document; no browser)
       if (!$("exApiSpec").value.trim()) { $("exApiSpec").focus(); return fail("Enter the API's OpenAPI / Swagger document address."); }
     } else if (androidApp) {  // (an installed app: no website address; Appium checks the device)
       if (!$("exDevice").value.trim()) { $("exDevice").focus(); return fail("Choose the Android device or emulator (its id from 'adb devices')."); }
@@ -1251,7 +1253,7 @@
     } else if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
     if (!/^https?:\/\/[^\s/]+/i.test(url)) { $("exUrl").focus(); return fail("Enter a full website address starting with http:// or https://"); }
     if (!$("exAuth").checked) { $("exAuth").focus(); return fail("Confirm that you own the application or have permission to test it."); }
-    if (!androidApp && !apiRun) {
+    if (!androidApp && !apiRun && !iosRun) {
       out.textContent = "Checking the website…";
       let reach;
       try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
@@ -1264,6 +1266,8 @@
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
       demo_checkout: $("exDemo").checked, use_saved_account: true,
       payment_provider: $("exPayProvider").value, payment_sandbox_confirmed: $("exPayConfirm").checked,
+      ...(iosRun ? { ios: { bundle_id: $("exIosBundle").value.trim(), app_path: $("exIosApp").value.trim(), udid: $("exIosUdid").value.trim(),
+        platform_version: $("exIosVersion").value.trim(), appium_url: $("exIosAppium").value.trim() } } : {}),
       ...(apiRun ? { api_spec_url: $("exApiSpec").value.trim(), api_token: $("exApiToken").value,
         api_allow: [...document.querySelectorAll(".exApiAllow:checked")].map((x) => x.value) } : {}),
       ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
@@ -1290,7 +1294,7 @@
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)
     } catch (err) { fail(err.message); }
   });
-  $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; $("xcApi").hidden = $("xcApp").value !== "api"; });
+  $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; $("xcApi").hidden = $("xcApp").value !== "api"; $("xcIos").hidden = $("xcApp").value !== "ios"; });
   // the application keeps the tester out (bot check, CAPTCHA, SSO / MFA ...): the run is paused - an authorized person
   // signs in / passes the check in their own browser and gives the run that session (only the site's own cookies)
   async function livePause(job) {

@@ -26,7 +26,7 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Bot protection, CAPTCHA, SSO / MFA (Phase 6) | built: recognised (vendor), durable pause, resume with an authorized person's session (own-domain cookies only), Blocked with the blocker otherwise; headless logins pause too. Verified with a real browser against a local bot-check site; real protected / SSO / MFA app: BLOCKED | `access_help.py`, `/api/runs/{job}/pause`, `/api/runs/{job}/help` |
 | Feature inventory and requirement accountability (Phase 9) | built: inventory across runs per application (coverage class, why, linked requirements by evidence, discovery limits); per-requirement accountability with requirement / automation / execution coverage and pass rate kept apart | `inventory.py`, `bridge.accountability`, `/api/inventory`, `/api/requirements/accountability` |
 | Large executions (Phase 8) | built: batches (chains kept, priority first) run one after another, results per batch, checkpoint / interrupted / resume / cancel, cost summed; tested with the engine launch replaced (no thousand-case live project here) | `atlassian/scheduler.py`, `/executions/{id}/resume` |
-| iOS | NOT built | - |
+| iOS native / hybrid (Phase 7) | built: XCUITest config / capabilities, environment check naming what is missing, XCUI screen, steps with native / WebView context, plans over real controls only, Jira executions on iOS. Live: BLOCKED (no Mac / Xcode / simulator here) - see docs/IOS_SETUP.md | `ios.py` |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").

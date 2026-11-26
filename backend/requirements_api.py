@@ -290,7 +290,9 @@ class ExecutionScope(BaseModel):
 
 
 class ExecutionTarget(BaseModel):
-    type: str = Field(default="web", pattern=r"^(web|android|api)$")
+    type: str = Field(default="web", pattern=r"^(web|android|api|ios)$")
+    # iOS (backend/ios.py, Appium XCUITest on a Mac): a simulator / device and the app
+    ios: dict = Field(default_factory=dict)
     # a REST API (backend/api_testing.py): its OpenAPI / Swagger document (or base address), the methods beyond GET
     # this run may send (operation-specific; DELETE only when named) and a bearer token for this run (never stored)
     api_spec_url: str = Field(default="", max_length=2000)
@@ -492,6 +494,8 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     tests = [launch["tests"][c] for c in case_ids if c in launch["tests"]]
     if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
         return _launch_api(t, tests, case_ids)
+    if t.type == "ios":  # iOS (backend/ios.py): Appium XCUITest on a Mac
+        return _launch_ios(t, tests, case_ids)
     if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
         try:
             return _launch_android(t, [f"[{x['tc']}] {x['text']}" for x in tests], launch["authorization"],
@@ -560,6 +564,49 @@ def _launch_api(t, tests: list[dict], case_ids: list[str]) -> int:
             job["status"] = status
             job["finished"] = time.time()
     threading.Thread(target=work, daemon=True, name=f"api-tests-{job_id}").start()
+    return job_id
+
+
+def _launch_ios(t, tests: list[dict], case_ids: list[str]) -> int:
+    """Run the test cases on iOS (Appium XCUITest), as a Studio job with its own run folder."""
+    from . import ios, server
+    cfg = ios.validate(t.ios)
+    job_id = max(server.jobs, default=0) + 1
+    run_id = f"ios_{re.sub(r'[^A-Za-z0-9_.-]', '_', cfg.bundle_id or 'app')}_{time.strftime('%Y%m%d_%H%M%S')}"
+    run_dir = server.RUNS / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    job = server.jobs[job_id] = {"id": job_id, "source": cfg.bundle_id or cfg.app_path, "status": "running",
+                                 "proc": None, "lines": [], "pages": [], "stages": {}, "current": "iOS tests",
+                                 "run": run_id, "started": time.time(), "secrets": [], "target_type": "ios",
+                                 "llm": {"provider": t.llm_provider, "model": t.llm_model}, "workflow": "standard",
+                                 "privacy_mode": "", "principal_id": ""}
+
+    def work():
+        status, driver = "done", None
+        try:
+            from appium import webdriver
+            from appium.options.ios import XCUITestOptions
+            driver = webdriver.Remote(cfg.appium_url, options=XCUITestOptions().load_capabilities(
+                ios.capabilities(cfg)))
+            controls = ios.screen(driver.page_source)
+            job["lines"].append(f"[ios] {len(controls)} control(s) on the first screen")
+            cases = [{"id": x["tc"], "title": x.get("title"), "steps": [x["text"]]} for x in tests]
+            runner = ios.IosRun(driver, run_dir, cfg.bundle_id)
+            records = [runner.run_case(p) for p in ios.plan_cases(cases, controls)]
+            (run_dir / "test_cases.json").write_text(json.dumps(records, indent=1), encoding="utf-8")
+            (run_dir / "ios_contexts.json").write_text(json.dumps(runner.context_switches, indent=1),
+                                                       encoding="utf-8")
+        except Exception as error:
+            status = "failed"
+            job["lines"].append(f"[ios] the iOS run failed: {type(error).__name__}: {str(error)[:300]}")
+        finally:
+            if driver is not None:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            job["status"], job["finished"] = status, time.time()
+    threading.Thread(target=work, daemon=True, name=f"ios-tests-{job_id}").start()
     return job_id
 
 
@@ -1249,7 +1296,8 @@ def register_requirements_api(app) -> None:
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
             probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout,
-            payment=(t.payment_provider, t.payment_sandbox_confirmed), api=(t.api_spec_url, t.api_allow), android={
+            payment=(t.payment_provider, t.payment_sandbox_confirmed), api=(t.api_spec_url, t.api_allow),
+            ios=t.ios if t.type == "ios" else None, android={
                 "mode": t.android_mode, "device_id": t.device_id, "package_name": t.package_name})
 
     @app.post("/api/requirements/executions/preflight")
