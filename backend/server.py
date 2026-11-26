@@ -3360,6 +3360,42 @@ def check_source(
             "title": _html.unescape(" ".join(m.group(1).split()))[:120] if m else ""}
 
 
+def build_info() -> dict:
+    """Which code this Studio runs: the git branch and commit of its folder, read once from .git (no git command).
+    An old checkout or a server not restarted after a pull is the first thing to rule out when a fixed problem is
+    reported again."""
+    global _BUILD
+    if _BUILD is None:
+        root, out = Path(__file__).resolve().parent.parent, {"branch": "", "commit": ""}
+        try:
+            head = (root / ".git" / "HEAD").read_text(encoding="utf-8").strip()
+            if head.startswith("ref: "):
+                ref = head[5:]
+                out["branch"] = ref.rsplit("/", 1)[-1] if ref.startswith("refs/heads/") else ""
+                path = root / ".git" / ref
+                if path.is_file():
+                    out["commit"] = path.read_text(encoding="utf-8").strip()[:7]
+                else:  # (packed refs)
+                    for line in (root / ".git" / "packed-refs").read_text(encoding="utf-8").splitlines():
+                        if line.endswith(" " + ref):
+                            out["commit"] = line[:7]
+            else:
+                out["commit"] = head[:7]
+        except OSError:
+            pass
+        _BUILD = out
+    return dict(_BUILD, started_at=_STARTED_AT)
+
+
+_BUILD: dict | None = None
+_STARTED_AT = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+@app.get("/api/version")
+def version():
+    return build_info()
+
+
 @app.get("/api/providers")
 def providers():
     """AI choices for the UI: which have a key in .env (never the key itself) and whether Ollama is running."""

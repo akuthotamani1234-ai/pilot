@@ -1929,6 +1929,10 @@
     try {
       S.caps = await api("/capabilities");
       $("who").textContent = `Signed in as ${S.caps.actor}${S.caps.tenant !== "local" ? " · " + S.caps.tenant : ""}`;
+      try {  // (which code this Studio runs - an old checkout / a server not restarted shows here)
+        const v = await (await fetch("/api/version", { headers: { "X-Agentic-QA": "1" } })).json();
+        if (v.commit) $("who").textContent += ` · build ${v.branch ? v.branch + " " : ""}${v.commit}`;
+      } catch (_) { /* (an older server has no version) */ }
     } catch (e) { if (e.status !== 401) banner(e.message); return; }
     await refreshWorkflow();
     route();

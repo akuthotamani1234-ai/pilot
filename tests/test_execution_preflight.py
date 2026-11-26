@@ -174,3 +174,14 @@ def test_login_criteria_no_longer_get_generic_security_ideas():
     assert not SECURITY_RULE.search("A user with a valid username and password is taken to the Products page")
     assert not SECURITY_RULE.search("A wrong password shows 'Username and password do not match'")
     assert SECURITY_RULE.search("The password is masked") and N
+
+
+def test_the_studio_says_which_code_it_runs():
+    """A problem reported again after it was fixed: first rule out an old checkout / a server not restarted."""
+    from fastapi.testclient import TestClient
+
+    from backend import server
+    v = TestClient(server.app, base_url="http://127.0.0.1:8000").get("/api/version", headers={"X-Agentic-QA": "1"}).json()
+    import subprocess
+    head = subprocess.run(["git", "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip()
+    assert v["commit"] == head and v["started_at"]

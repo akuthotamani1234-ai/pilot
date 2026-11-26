@@ -1951,7 +1951,8 @@ class Session:
             if (requirements or "").strip() and not ask:
                 for line in [x.strip() for x in requirements.splitlines() if x.strip()][:4]:
                     self.tried.append({"check": "Your test: " + line, "outcome": "not automated",
-                                       "detail": "your own tests need an AI to turn them into steps"})
+                                       "detail": "no AI was available to turn this test into app steps "
+                                                 "(choose an AI provider for the run)"})
             return ""
         try:
             self.ai_journeys(ask, requirements, owner=True)
