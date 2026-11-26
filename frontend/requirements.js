@@ -162,6 +162,11 @@
       caps.traceability ? go("View traceability", "story → test → real result", "#traceability") : later("traceability", "Traceability"),
       caps.defects ? go("Defects and write-back", caps.jira_write_back ? "approve and send Jira updates" : "defects; Jira writes are off", "#writeback") : later("jira_write_back", "Jira write-back")));
   }
+  const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", completed_with_unautomated: "warn",
+    completed_with_blocked: "warn", completed_with_review: "info", completed_with_failures: "bad", no_tests_automated: "bad", automation_failed: "bad" };
+  const outcomeBadge = (ex) => badge(ex.outcome_text || ex.status, OUTCOME_KIND[ex.outcome] || "");
+  const tallyText = (ex) => { const t = ex.tally; if (!t) return "";
+    return `executed ${t.executed} of ${t.selected} · passed ${t.passed} · failed ${t.failed}${t.requires_review ? ` · needs review ${t.requires_review}` : ""} · blocked ${t.blocked} · not automated ${t.not_automated}${t.not_run ? ` · not run ${t.not_run}` : ""}`; };
   const statusBadge = (s) => badge(s || "—", { complete: "ok", partial: "warn", failed: "bad", cancelled: "warn", running: "info" }[s] || "");
   function navCount(n) { const c = $("navReviews"); c.hidden = !n; c.textContent = n || ""; c.setAttribute("aria-label", `${n} waiting`); }
 
@@ -999,7 +1004,7 @@
 
   // ---------------------------------------------------------------- Phase 4: test cases, executions, evidence, trace
   const X = { selected: new Set(), poll: null, current: "" };
-  const resultBadge = (s) => s ? badge(s, { Passed: "ok", Failed: "bad", Blocked: "bad", Flaky: "warn", "Not automated": "warn",
+  const resultBadge = (s) => s ? badge(s, { Passed: "ok", Failed: "bad", Blocked: "bad", Flaky: "warn", "Not automated": "warn", "Requires review": "info",
     Skipped: "warn", "Not run": "", Cancelled: "warn" }[s] || "") : badge("not run yet");
   const caseBadge = (s) => badge(s.replaceAll("_", " "), { approved: "ok", ready: "ok", stale: "warn", blocked: "bad",
     awaiting_approval: "info", requires_review: "info" }[s] || "");
@@ -1219,7 +1224,7 @@
         one.test_case.criterion_ids.forEach((x) => { if (!S.caseCriteria.includes(x)) S.caseCriteria.push(x); });
       }
     } catch (err) { /* (shown without criteria) */ }
-    tcCount(); execSummary(); resolveTarget(); exList();
+    tcCount(); execSummary(); resolveTarget(); exList(); aiProviders();
   }
   document.querySelectorAll("input[name=exStrategy]").forEach((r) => r.addEventListener("change", () => {
     execSummary(); if (WF.draft) saveDraft({ strategy: r.value });
@@ -1249,8 +1254,15 @@
       api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
       use_saved_account: true, save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
+    // preflight: the same checks the server enforces - nothing is created when the run could not test anything
+    out.textContent = "Checking the AI, the browser and the website (the page is opened once)…";
+    $("xcProblems").replaceChildren();
+    let pre;
+    try { pre = await api("/executions/preflight", { method: "POST", body: { strategy, scope, target } }); }
+    catch (err) { return fail(err.message); }
+    if (!pre.ok) { showProblems(pre.problems); return fail(pre.problems.find((p) => p.blocking).message); }
     $("exPass").value = ""; $("exKey").value = "";  // (sent once, never kept in the page)
-    out.textContent = "Starting the test run…";
+    out.textContent = `Starting the test run (AI: ${pre.ai.provider}${pre.ai.model ? ` · ${pre.ai.model}` : ""})…`;
     try {
       const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
       const ex = r.execution;
@@ -1260,6 +1272,58 @@
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)
     } catch (err) { fail(err.message); }
   });
+  // what the preflight found, each with the action that fixes it (the selection and the form stay as they are)
+  function showProblems(problems) {
+    const act = { ai: ["Choose an AI provider", () => $("exAi").focus()], choose_ai: ["Choose an AI provider", () => $("exAi").focus()],
+      api_key: ["Enter the AI key", () => $("exKey").focus()], allow_cloud: ["Allow cloud AI", () => { $("aiCloud").hidden = false; $("aiConsent").focus(); }],
+      start_ollama: ["Choose another AI", () => $("exAi").focus()], choose_model: ["Choose the model", () => $("exModel").focus()],
+      enter_account: ["Enter the test account", () => { $("tgCreds").hidden = false; $("exUser").focus(); }],
+      enter_url: ["Enter the website", () => $("exUrl").focus()], retry_or_change: ["Change the address", () => $("exUrl").focus()],
+      confirm_authorization: ["Confirm permission", () => $("exAuth").focus()], select_cases: ["Select test cases", () => { location.hash = "#builder"; }],
+      install_browser: ["How to install the browser", () => { location.href = "/#help"; }] };
+    $("xcProblems").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Not started - this run could not test anything yet:" }),
+      h("ul", { class: "rq-list" }, problems.map((p) => h("li", {}, p.message, " ",
+        act[p.recovery] ? h("button", { type: "button", class: "secondary", text: act[p.recovery][0], onclick: act[p.recovery][1] }) : null)))));
+  }
+
+  // -- the AI for this run: the providers Qpilot supports, with their real readiness (never a hard-coded model)
+  const AI = { list: [], privacy: null };
+  async function aiProviders() {
+    try {
+      const r = await api("/api/providers");
+      AI.list = r.providers; AI.privacy = r.privacy;
+      const want = (WF.draft && WF.draft.ai_provider) || "";
+      const pick = AI.list.find((p) => p.id === want) || AI.list.find((p) => p.id === r.env_provider && p.ready && p.id !== "none")
+        || AI.list.find((p) => p.ready && p.id !== "none") || AI.list.find((p) => p.id === r.env_provider) || AI.list[0];
+      $("exAi").replaceChildren(...AI.list.map((p) => h("option", { value: p.id, selected: pick && p.id === pick.id,
+        text: `${p.name}${p.id === "none" ? " (only test cases that need no AI)" : ""} — ${p.ready ? "ready" : p.readiness_reason}` })));
+      if (WF.draft && WF.draft.ai_model) $("exModel").value = WF.draft.ai_model;
+      aiChanged(false);
+    } catch (e) { $("aiState").textContent = e.message; }
+  }
+  function aiChanged(save = true) {
+    const p = AI.list.find((x) => x.id === $("exAi").value);
+    if (!p) return;
+    $("exModels").replaceChildren(...(p.models || []).map((m) => h("option", { value: m })));
+    $("exModel").placeholder = (p.models || [])[0] ? `default: ${p.models[0]}` : "the provider's default";
+    const blocked = !p.allowed && AI.privacy && AI.privacy.mode === "local";
+    $("aiCloud").hidden = !blocked;
+    $("aiState").replaceChildren(h("p", { class: "small" }, p.ready ? badge("ready", "ok") : badge(p.readiness_reason, "warn"), " ",
+      p.id === "none" ? "Approved requirement test cases need an AI: with none they cannot be automated, so such a run is not started."
+        : blocked ? `Privacy is set to local-only, so ${p.name} (a cloud AI) may not be used. Allow cloud AI below, or choose a local AI.`
+        : !p.ready && p.key_env ? `Enter a key for this run below, or add ${p.key_env} to the server's .env.` : p.ready ? `${p.name} will turn the test cases into browser steps.` : ""));
+    if (save && WF.draft) saveDraft({ ai_provider: p.id, ai_model: $("exModel").value.trim() });
+  }
+  $("exAi").addEventListener("change", () => aiChanged());
+  $("exModel").addEventListener("change", () => { if (WF.draft) saveDraft({ ai_model: $("exModel").value.trim() }); });
+  $("aiAllow").addEventListener("click", async () => {
+    if (!$("aiConsent").checked) { $("aiConsent").focus(); $("aiState").textContent = "Tick the agreement first: it says what is sent to the cloud AI."; return; }
+    try {
+      await api("/api/settings/privacy", { method: "PUT", body: { mode: "cloud", cloud_consent: true, allow_mcp: Boolean(AI.privacy && AI.privacy.allow_mcp) } });
+      await aiProviders();
+    } catch (err) { $("aiState").textContent = err.message; }
+  });
+
   async function exList() {
     const tbody = $("exList").tBodies[0];
     try {
@@ -1267,7 +1331,7 @@
       tbody.replaceChildren(...kids(r.executions.map((ex) => h("tr", {},
         h("td", {}, h("button", { class: "rq-open", type: "button", text: ex.id, onclick: () => exDetail(ex.id) })),
         h("td", { text: ex.strategy }), h("td", { text: ex.case_ids.length }), h("td", {}, statusBadge({ finished: "complete", running: "running", queued: "running", stopped: "cancelled", failed: "failed" }[ex.status] || ex.status)),
-        h("td", { text: Object.entries(ex.counts || {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—" }),
+        h("td", {}, outcomeBadge(ex), h("br"), h("span", { class: "small", text: tallyText(ex) || "—" })),
         h("td", { text: when(ex.created_at) }), h("td", { text: ex.actor })))));
       if (!r.executions.length) tbody.append(...kids(h("tr", {}, h("td", { colspan: 7, class: "rq-empty", text: "No executions yet." }))));
     } catch (e) { tbody.replaceChildren(...kids(h("tr", {}, h("td", { colspan: 7, class: "rq-empty", text: e.message })))); }
@@ -1282,7 +1346,7 @@
       const running = ["running", "queued"].includes(ex.status);
       box.replaceChildren(...kids(h("section", { class: "lab-card" },
         h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.strategy}` }),
-        h("p", { class: "small" }, `${ex.target.url} · started ${when(ex.created_at)} by ${ex.actor} · `, statusBadge(running ? "running" : ex.status === "finished" ? "complete" : ex.status),
+        h("p", { class: "small" }, `${ex.target.url} · started ${when(ex.created_at)} by ${ex.actor} · `, outcomeBadge(ex),
           live.run ? h("span", {}, " · ", h("a", { href: `/runs/${encodeURIComponent(live.run)}/report.html`, target: "_blank", rel: "noopener", text: "full Qpilot report" })) : null),
         running ? h("div", {}, h("div", { class: "rq-progress", role: "progressbar", "aria-valuetext": live.current || "running" }, h("span")),
           h("p", { role: "status", "aria-live": "polite", text: live.current ? `Now: ${live.current}` : "Running…" }),
@@ -1405,7 +1469,7 @@
     if (!cur) return;
     const idx = WF.steps.indexOf(cur);
     const nDone = WF.steps.filter((s) => done[s]).length;
-    $("wfProgress").textContent = `Step ${idx + 1} of ${WF.steps.length} · ${nDone} of ${WF.steps.length} done`
+    $("wfProgress").textContent = `Workflow step ${idx + 1} of ${WF.steps.length} · ${nDone} of ${WF.steps.length} steps done`
       + (draftReqs().length ? ` · ${draftReqs().join(", ")}` : "");
     $("wfBar").style.width = `${Math.round((100 * nDone) / WF.steps.length)}%`;
     $("wfList").replaceChildren(...WF.steps.map((s, i) => h("li", { class: `${done[s] ? "done" : ""} ${s === cur ? "current" : ""}`.trim() },
@@ -1491,6 +1555,7 @@
   // -- step 4: analyse the selected requirements, then send their ideas to the Review Center
   async function analysisFlow() {
     const box = $("anFlow");
+    box.replaceChildren(h("p", { class: "small", role: "status", text: "Loading the selected requirements…" }));  // (never the previous test's result)
     const keys = draftReqs();
     if (!keys.length) { box.replaceChildren(h("div", { class: "rq-issue" }, "No requirement selected for this test. ", h("a", { href: "#explorer", text: "Choose requirements" }), ".")); return; }
     const conns = await connOf(keys);
@@ -1691,9 +1756,10 @@
       const running = ["running", "queued"].includes(ex.status);
       LV.job = ex.run_id;
       const counts = ex.counts || {};
-      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${(ex.target || {}).url || ""} · `, statusBadge(running ? "running" : ex.status === "finished" ? "complete" : ex.status),
-        live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : ""));
-      $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),
+      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${(ex.target || {}).url || ""} · `, outcomeBadge(ex),
+        live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : "",
+        !running && ex.tally ? h("span", { class: "small", text: ` · ${tallyText(ex)}` }) : null));
+      $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Requires review", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),
         running ? badge(`${ex.case_ids.length} scenario(s) in this run`, "info") : null),
         running ? h("button", { type: "button", class: "secondary", text: "Cancel", onclick: async () => { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); liveTick(); } }) : null,
         !running ? h("a", { class: "primary rq-action-link", href: "#reports", text: "View Report" }) : null,
@@ -1796,9 +1862,14 @@
             const blob = new Blob([JSON.stringify({ execution: ex, results: res, traceability: trace, defects }, null, 2)], { type: "application/json" });
             const a = h("a", { href: URL.createObjectURL(blob), download: `${ex.id}-report.json` }); document.body.append(a); a.click(); a.remove(); } }),
           h("a", { href: "#rpHistTitle", class: "secondary rq-action-link", text: "View Execution History" }))),
-      h("div", { class: "rq-stats" }, tile(count("Passed"), "passed", "ok"), tile(count("Failed") + count("Flaky"), "failed", count("Failed") ? "bad" : ""),
-        tile(count("Blocked"), "blocked", count("Blocked") ? "bad" : ""), tile(count("Not automated") + count("Not run") + count("Cancelled"), "skipped / not run", ""),
+      ex.outcome === "no_tests_automated" ? h("p", { class: "rq-issue", role: "alert", text: "Execution unsuccessful — no tests were automated. Nothing was verified on the website: see the reason of each test case below." }) : null,
+      h("div", { class: "rq-stats" }, tile((ex.tally || {}).selected ?? 0, "selected"), tile((ex.tally || {}).executed ?? 0, "actually executed"),
+        tile(count("Passed") + count("Flaky"), "passed", "ok"), tile(count("Failed"), "failed", count("Failed") ? "bad" : ""),
+        tile(count("Requires review"), "requires review (the test failed, not the website)", count("Requires review") ? "info" : ""),
+        tile(count("Blocked"), "blocked", count("Blocked") ? "warn" : ""), tile(count("Not automated"), "not automated", count("Not automated") ? "bad" : ""),
+        tile(count("Not run") + count("Cancelled") + count("Skipped"), "skipped / not run", ""),
         tile((ex.exploratory || {}).cases || 0, "exploratory (not from requirements)")),
+      h("p", { class: "small", text: `Automation coverage ${ex.automation_coverage ?? 0}% of the selected test cases · pass rate ${ex.pass_rate == null ? "— (nothing executed)" : `${ex.pass_rate}% of the executed ones`}` }),
       h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" }, h("caption", { class: "rq-sr", text: "Results per test case" }),
         h("thead", {}, h("tr", {}, ["Test case", "Requirement", "Result", "Assertions", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
         h("tbody", {}, res.map((x) => {

@@ -54,7 +54,12 @@ ACTION = "requirements.tests"
 STRATEGIES = ("requirements", "autonomous", "hybrid")
 # test-case lifecycle (the run itself has queued / running / finished; each RESULT is Passed, Failed, ...)
 STATUSES = ("draft", "awaiting_approval", "approved", "ready", "stale", "requires_review", "blocked")
-RESULTS = ("Passed", "Failed", "Blocked", "Skipped", "Not run", "Not automated", "Flaky", "Cancelled")
+RESULTS = ("Passed", "Failed", "Blocked", "Skipped", "Not run", "Not automated", "Flaky", "Cancelled",
+           "Requires review")
+# a failure the engine's own analysis puts on the generated TEST (checked on screen: the website did the right thing;
+# the generated script is wrong): it ran, but proves nothing about the website - a person looks. (A locator failure
+# stays Failed: a removed element can be a real regression.)
+TEST_SIDE = ("Test mistake", "Test-script defect")
 # test data a scenario needs that the requirement does not give (asked for in the execution setup, never invented)
 NEEDS = (("a test account (username and password)", re.compile(r"\b(log ?in|sign ?in|password|username|user name|"
                                                                 r"credentials?|account)\b", re.I)),
@@ -205,6 +210,11 @@ def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", aud
             "test_data_needs": needs, "evidence": quotes, "platform": "web",
             "automation": "manual" if blocked else "automated", "blocked_reason": " | ".join(blocked),
             "priority": "high" if s.kind.value in ("positive", "security") else "medium",
+            # a Jira Bug is checked for whether it still happens (reproduction / regression), never reported as a
+            # new defect Qpilot found; a story / task / spec is a requirement
+            "work_item": analysis.requirement.kind,
+            "purpose": "reproduce the reported bug (regression check)" if analysis.requirement.kind == "bug"
+            else "verify the requirement",
         }
         fp = _content_fp(case)
         old = existing.get(s.fingerprint)
@@ -368,6 +378,8 @@ def _result_status(case: dict) -> str:
             return "Blocked"
     if status == "Failed" and _prerequisite_failure(case):
         return "Blocked"
+    if status == "Failed" and str(case.get("failure_category") or "").startswith(TEST_SIDE):
+        return "Requires review"
     return status if status in RESULTS else "Not run"
 
 
@@ -446,6 +458,54 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
     return ex
 
 
+OUTCOME_TEXT = {
+    "running": "Running",
+    "cancelled": "Cancelled",
+    "automation_failed": "Execution unsuccessful - the test run itself failed",
+    "no_tests_automated": "Execution unsuccessful - no tests were automated",
+    "completed_with_failures": "Completed with failures",
+    "completed_with_review": "Completed - some test results need review (the test, not the website, failed)",
+    "completed_with_blocked": "Completed - some tests were blocked",
+    "completed_with_unautomated": "Completed - some tests were not automated",
+    "completed": "Completed - all tests passed",
+}
+
+
+def outcome_of(ex: dict) -> dict:
+    """The execution's lifecycle (status) kept apart from what its tests showed. Counters come only from the stored
+    results: an unautomated or not-run test is never 'executed', an approved one never 'passed'."""
+    counts = ex.get("counts") or {}
+    selected = len(ex.get("case_ids") or [])
+    executed = sum(counts.get(k, 0) for k in ("Passed", "Failed", "Flaky", "Requires review"))
+    tally = {"selected": selected, "executed": executed, "passed": counts.get("Passed", 0) + counts.get("Flaky", 0),
+             "failed": counts.get("Failed", 0), "requires_review": counts.get("Requires review", 0),
+             "blocked": counts.get("Blocked", 0),
+             "not_automated": counts.get("Not automated", 0), "skipped": counts.get("Skipped", 0),
+             "not_run": counts.get("Not run", 0) + counts.get("Cancelled", 0)}
+    status = ex.get("status")
+    if status in ("running", "queued"):
+        key = "running"
+    elif status in ("stopped", "cancelled"):
+        key = "cancelled"
+    elif status == "failed" and not executed:
+        key = "automation_failed"
+    elif selected and not executed:
+        key = "no_tests_automated"
+    elif tally["failed"]:
+        key = "completed_with_failures"
+    elif tally["requires_review"]:
+        key = "completed_with_review"
+    elif tally["blocked"]:
+        key = "completed_with_blocked"
+    elif tally["not_automated"] or tally["not_run"] or tally["skipped"]:
+        key = "completed_with_unautomated"
+    else:
+        key = "completed"
+    return {"outcome": key, "outcome_text": OUTCOME_TEXT[key], "tally": tally,
+            "automation_coverage": round(100 * executed / selected) if selected else 0,
+            "pass_rate": round(100 * tally["passed"] / executed) if executed else None}
+
+
 def results(db, tenant: str, execution_id: str) -> list[dict]:
     rows = db.execute("SELECT data FROM req_results WHERE tenant_id = ? AND execution_id = ? ORDER BY test_case_id",
                       (tenant, execution_id))
@@ -496,7 +556,8 @@ def matrix(db, tenant: str) -> list[dict]:
                 r = c.get("latest_result") or {}
                 status = r.get("status", "")
                 coverage = ("stale" if c["status"] == "stale" else "passed" if status == "Passed" else
-                            "failed" if status in ("Failed", "Flaky") else "blocked" if c["status"] == "blocked"
+                            "failed" if status in ("Failed", "Flaky") else "requires review" if status == "Requires review"
+                            else "blocked" if c["status"] == "blocked"
                             or status == "Blocked" else "not automated" if status == "Not automated" else "planned")
                 rows.append({**base, "test_case": c["id"], "test_title": c["title"], "test_status": c["status"],
                              "result": r.get("status", ""), "last_run": r.get("at", ""), "run_id": r.get("run_id", ""),
@@ -530,7 +591,7 @@ def coverage(db, tenant: str) -> dict:
         d["test_cases"] += 1
         d["stale"] = d["stale"] or c["status"] == "stale"
         r = c.get("latest_result") or {}
-        if r.get("status") in ("Passed", "Failed", "Flaky"):
+        if r.get("status") in ("Passed", "Failed", "Flaky", "Requires review"):
             d["executed"] += 1
         d["passed"] += r.get("status") == "Passed"
         d["failed"] += r.get("status") == "Failed"

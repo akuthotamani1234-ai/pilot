@@ -29,6 +29,7 @@ from fastapi import Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from . import execution_preflight
 from .atlassian import analysis as an, bridge, confluence, credentials, jira, store, sync, workflow
 from .atlassian.client import AtlassianError, Client
 from .atlassian.models import (
@@ -45,6 +46,7 @@ from .atlassian.models import (
 from .safety import redact
 
 ACTION_PREFIX = "requirements."
+PREFLIGHT_PROBE = None  # (tests replace the real browser probe; None = open the page in the run's Chromium)
 CLIENT_BASE_URL = ""  # tests only: a local mock site on 127.0.0.1 (client.Client refuses anything else)
 MAX_JOBS = 200
 
@@ -378,6 +380,10 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
     if run_dir is None:
         return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), job.get("status", "failed"))
     return bridge.collect(db, tenant, ex["id"], run_dir, job.get("status", "done"))
+
+
+def _with_outcome(ex: dict) -> dict:
+    return {**ex, **bridge.outcome_of(ex)}
 
 
 def _watch(tenant: str, execution_id: str, job_id: int) -> None:
@@ -1022,6 +1028,34 @@ def register_requirements_api(app) -> None:
         return {"test_case": c}
 
     # -- Phase 4: executions (the EXISTING Qpilot run executes; results come from its files)
+    def _saved_account(db, tenant: str, t, ids: list[str]) -> tuple[str, str]:
+        projects = sorted({c.split("-", 1)[1].rsplit("-", 1)[0].split("-")[0] for c in ids if c.startswith("TC-")}
+                          | ({t.project_key.upper()} if t.project_key else set()))
+        for p in projects:  # (the project's saved account for THIS website only)
+            user, pw = workflow.test_account(db, tenant, p, t.environment, t.url)
+            if user and pw:
+                return user, pw
+        return "", ""
+
+    def _preflight(db, ctx: dict, body: ExecutionBody, ids: list[str]) -> dict:
+        t = body.target
+        has_account = bool(t.test_username and t.test_password) or (
+            t.use_saved_account and all(_saved_account(db, ctx["tenant"], t, ids)))
+        return execution_preflight.check(
+            strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
+            llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
+            probe=PREFLIGHT_PROBE)
+
+    @app.post("/api/requirements/executions/preflight")
+    def preflight_execution(body: ExecutionBody, authorization: str | None = A, x_qa_token: str | None = Q):
+        """Can this execution test anything? Every prerequisite with a recovery action; nothing is created."""
+        ctx = _context(authorization, x_qa_token, "run.write")
+        db = bridge.connect()
+        try:
+            return _preflight(db, ctx, body, _scope_cases(db, ctx["tenant"], body.scope))
+        finally:
+            db.close()
+
     @app.post("/api/requirements/executions")
     def start_execution(body: ExecutionBody, authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.write")
@@ -1033,6 +1067,15 @@ def register_requirements_api(app) -> None:
             if body.strategy != "autonomous" and not ids:
                 raise HTTPException(400, "No approved test case matches this selection. Generate test cases from "
                                          "accepted ideas first.")
+            # a run that cannot automate anything is never started (it used to end 'complete', all 'Not automated')
+            pre = _preflight(db, ctx, body, ids)
+            if not pre["ok"]:
+                first = next(p for p in pre["problems"] if p["blocking"])
+                _audit(ctx, "execution.preflight", False, problems=[p["code"] for p in pre["problems"]])
+                raise HTTPException(409, first["message"])
+            if pre["needs_ai"] or body.target.llm_provider:  # (the AI checked is the AI the run gets)
+                body = body.model_copy(update={"target": body.target.model_copy(update={
+                    "llm_provider": pre["ai"]["provider"], "llm_model": pre["ai"]["model"] or body.target.llm_model})})
             try:
                 planned = bridge.plan(db, ctx["tenant"], ids, body.strategy, body.target.public(), actor=ctx["actor"])
             except (LookupError, ValueError) as error:
@@ -1047,11 +1090,9 @@ def register_requirements_api(app) -> None:
                     workflow.save_target(db, ctx["tenant"], p, t.url, environment=t.environment, actor=ctx["actor"],
                                          username=t.test_username, password=t.test_password)
             if t.use_saved_account and not (t.test_username and t.test_password):
-                for p in projects:  # (the project's saved account for THIS website only)
-                    user, pw = workflow.test_account(db, ctx["tenant"], p, t.environment, t.url)
-                    if user and pw:
-                        t = t.model_copy(update={"test_username": user, "test_password": pw})
-                        break
+                user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
+                if user and pw:
+                    t = t.model_copy(update={"test_username": user, "test_password": pw})
             req = server.RunRequest(
                 source=t.url, authorized=True, environment=t.environment, max_pages=t.max_pages,
                 show_browser=t.show_browser, record_video=t.record_video, thorough=t.thorough,
@@ -1086,7 +1127,7 @@ def register_requirements_api(app) -> None:
         try:
             out = []
             for ex in bridge.list_executions(db, ctx["tenant"], limit):
-                out.append(_settle_execution(db, ctx["tenant"], ex))
+                out.append(_with_outcome(_settle_execution(db, ctx["tenant"], ex)))
             return {"executions": out}
         finally:
             db.close()
@@ -1099,7 +1140,7 @@ def register_requirements_api(app) -> None:
             ex = bridge.get_execution(db, ctx["tenant"], execution_id)
             if not ex:
                 raise HTTPException(404, "No such execution in your workspace.")
-            ex = _settle_execution(db, ctx["tenant"], ex)
+            ex = _with_outcome(_settle_execution(db, ctx["tenant"], ex))
             from . import server
             job = server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
             try:

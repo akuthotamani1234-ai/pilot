@@ -100,3 +100,20 @@ def _playwright_left_unpatched(request):
         _restore(snap)  # (the next tests still get a clean Playwright)
         pytest.fail(f"{request.node.nodeid} left Playwright patched: {', '.join(changed[:8])}. Load "
                     "backend/templates/conftest.py through the template_conftest fixture.", pytrace=False)
+
+
+# ---------------------------------------------------------------- the execution preflight (backend/execution_preflight)
+# Starting a Jira execution now checks the AI and opens the website once in a real browser. Tests that start an
+# execution with a replaced run launcher get a ready stub instead - no network, no AI. Tests of the preflight itself
+# are marked real_preflight.
+
+@pytest.fixture(autouse=True)
+def _execution_preflight_stub(request, monkeypatch):
+    if request.node.get_closest_marker("real_preflight"):
+        return
+    import backend.execution_preflight as pre
+    monkeypatch.setattr(pre, "ai_status", lambda requested="", model="", api_key="": {
+        "requested": requested, "configured": "stub", "privacy_mode": "local", "model": model, "provider": requested,
+        "ready": True, "reason": "", "recovery": ""})
+    monkeypatch.setattr(pre, "browser_probe", lambda url, timeout_s=25: {
+        "ok": True, "browser": True, "login_form": False, "title": "", "final_url": url, "error": ""})

@@ -286,6 +286,20 @@
           </div>
           <label class="rq-check"><input type="checkbox" id="tgSave"> remember this website (and this test account, kept protected on this computer, never shown again) for the Jira project</label>
         </section>
+        <section class="rq-xc-ai" aria-labelledby="aiTitle">
+          <h2 class="rq-sub" id="aiTitle">AI for automation</h2>
+          <p class="small">The AI turns each approved test case into browser steps, using what the run sees on the real website. It is needed for requirement-based and hybrid runs.</p>
+          <div class="rq-filter-grid">
+            <label for="exAi">AI provider<select id="exAi"><option value="">Loading the available AI providers…</option></select></label>
+            <label for="exModel">AI model<input id="exModel" list="exModels" placeholder="the provider's default"><datalist id="exModels"></datalist></label>
+            <label for="exKey">AI key for this run<input id="exKey" type="password" autocomplete="new-password" placeholder="only if it is not configured; never stored"></label>
+          </div>
+          <div id="aiState" role="status" aria-live="polite"></div>
+          <div id="aiCloud" hidden>
+            <label class="rq-check"><input type="checkbox" id="aiConsent"> I agree that page content, test cases and the test steps are sent to the chosen cloud AI for this workspace (passwords and tokens are never sent)</label>
+            <button type="button" class="secondary" id="aiAllow">Allow cloud AI</button>
+          </div>
+        </section>
         <details class="rq-advanced" id="exAdvanced"><summary>Advanced settings</summary>
           <fieldset class="rq-checks" id="exScopeBox"><legend>What to run (changes the selection above)</legend>
             <label><input type="radio" name="exScope" value="selected" checked> the selected test cases (<span id="exSelCount">0</span>)</label>
@@ -299,9 +313,6 @@
           <div class="rq-filter-grid">
             <label for="exReqs">Requirements (keys, comma separated)<input id="exReqs" placeholder="QPL-2, QPL-3"></label>
             <label for="exEpic">Epic key<input id="exEpic" placeholder="QPL-1"></label>
-            <label for="exAi">AI provider<select id="exAi"><option value="">As configured (.env)</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="gemini">Google Gemini</option><option value="ollama">Ollama (local)</option><option value="none">No AI</option></select></label>
-            <label for="exModel">AI model<input id="exModel" placeholder="e.g. gpt-4o"></label>
-            <label for="exKey">AI key for this run<input id="exKey" type="password" autocomplete="new-password" placeholder="optional; never stored"></label>
             <label for="exPages">Max pages to explore<input id="exPages" type="number" min="0" max="5000" value="0"></label>
             <label for="exTimeout">Page timeout (s)<input id="exTimeout" type="number" min="0" max="300" value="0"></label>
           </div>
@@ -309,7 +320,8 @@
           <p class="small">Screenshots, traces of failures, logs and self-healing are always on. Parallel workers follow the Studio's settings.</p>
         </details>
         <label class="rq-check rq-authorize"><input type="checkbox" id="exAuth"> I own this application or have permission to test it</label>
-        <p class="small">Requirement tests need an AI to turn each test case into browser steps; without one they are reported as not automated, never as passed. Checkout, payment and deleting data are never performed in the test environment.</p>
+        <p class="small">Before the run starts, Qpilot checks the AI, the browser and the website (it opens the page once to see whether it asks for a login). A run that could not automate anything is not started. Real payments and deleting data are never performed.</p>
+        <div id="xcProblems" aria-live="polite"></div>
         <div class="rq-nav-buttons"><button class="primary" type="submit" id="exStart">Run Tests</button></div>
         <p class="small" id="xcStatus" role="status" aria-live="polite"></p>
       </form>

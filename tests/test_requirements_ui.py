@@ -542,7 +542,7 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         expect(page.locator("#exPass")).to_have_value("")  # (sent once, not kept in the page)
         assert [t["tc"] for t in launched["req"].requirement_tests] == ["TC-QPL-2-1"]
         assert launched["req"].requirements_only and launched["req"].test_password == "secret_sauce"
-        expect(page.locator("#liveSub")).to_contain_text("running")
+        expect(page.locator("#liveSub")).to_contain_text("Running")
         assert "secret_sauce" not in page.content()
         # the run finishes: its real result file is read, nothing is assumed
         run = tmp_path / "runs" / "ui_run"

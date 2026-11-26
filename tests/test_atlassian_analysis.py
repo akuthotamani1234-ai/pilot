@@ -178,11 +178,20 @@ def test_rule_suggestions_say_what_is_explicit_and_what_is_inferred(db, paths):
     assert kinds[ScenarioKind.positive].expected_outcome in kinds[ScenarioKind.positive].support_quote.replace("\n", " ")
     assert kinds[ScenarioKind.negative].basis == Basis.inferred and kinds[ScenarioKind.negative].expected_outcome == ""
     assert kinds[ScenarioKind.boundary].steps == ["Use 7 characters", "Use 8 characters"]
-    assert kinds[ScenarioKind.security].basis == Basis.inferred and "not stated in the source" in \
-        kinds[ScenarioKind.security].note
+    # no generic 'security around' idea for a criterion that states no security rule (26 Nov 2026: such ideas were
+    # automated as copies of the positive check and 'passed' without checking anything)
+    assert ScenarioKind.security not in kinds
     assert all(s.review == ReviewStatus.needs_review and s.origin == "rules" for s in a.suggestions)
     queued = approvals.list_approvals(tenant_id="t1", path=paths.approvals, limit=200)
     assert {q["kind"] for q in queued} == {"requirement_suggestion"} and len(queued) == len(a.suggestions)
+
+
+def test_a_security_rule_the_criterion_states_gets_an_explicit_security_idea(db, paths):
+    key = put_story(db, ac="After 3 failed attempts the account is locked for 30 minutes")
+    a = run(db, paths, key)
+    sec = [s for s in a.suggestions if s.kind == ScenarioKind.security]
+    assert len(sec) == 1 and sec[0].basis == Basis.explicit and sec[0].title.startswith("Verify the security rule")
+    assert sec[0].expected_outcome and "states a security rule" in sec[0].note
 
 
 def test_an_unautomatable_criterion_is_blocked_with_its_reason(db, paths):

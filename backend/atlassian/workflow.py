@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS req_targets (
 STEPS = ("connect", "import", "explorer", "analysis", "reviews", "builder", "execution", "agents", "reports")
 DRAFT_KEYS = {"connection_id": str, "project_key": str, "requirement_ids": list, "test_case_ids": list,
               "strategy": str, "target_url": str, "target_source": str, "environment": str, "execution_id": str,
-              "step": str, "app_type": str}
+              "step": str, "app_type": str, "ai_provider": str, "ai_model": str}  # (the AI's NAME only)
 NOT_TARGETS = re.compile(r"(^|\.)(atlassian\.(net|com)|jira\.com|github\.com|githubusercontent\.com|gitlab\.com|"
                          r"bitbucket\.org|readthedocs\.io|wikipedia\.org|docs\.google\.com|drive\.google\.com|"
                          r"confluence\.[a-z.]+|youtube\.com|youtu\.be|figma\.com|loom\.com)$"

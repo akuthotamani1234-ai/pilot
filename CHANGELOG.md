@@ -2,6 +2,31 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Jira executions no longer run without an AI and call it "Complete"
+
+- Root cause of "Not automated: your own tests need an AI ... choose an AI in the chat" (reproduced): the Execution
+  Center sent no AI choice by default; the server then used `.env`'s `LLM_PROVIDER` (a cloud AI) while privacy was
+  local-only, and `privacy.select_provider` turned it into `none` without an error; nothing checked before the run,
+  so every requirement test was 'Not automated' and the execution ended 'finished'.
+- `backend/execution_preflight.py` + `POST /api/requirements/executions/preflight`, also enforced by
+  `POST /api/requirements/executions`: the AI the engine will really use and whether it is ready (privacy, key, local
+  model), the target address and authorization, and one headless visit with the run's own Chromium (the browser
+  starts; a visible password box means a test account is needed). Nothing is created when a blocking problem is
+  found; each problem has a recovery action and the selection is kept. The checked AI is the AI the run gets.
+- Execution Center: AI provider (every supported provider with its real readiness), model (the provider's models, no
+  hard-coded one) and an optional key for the run are in the main form; "Allow cloud AI" uses the existing privacy
+  setting with an explicit agreement.
+- Outcomes apart from lifecycle: "Execution unsuccessful - no tests were automated", "Completed with failures",
+  "... some test results need review", etc., with counters from stored results (selected, actually executed, passed,
+  failed, requires review, blocked, not automated), automation coverage and pass rate. A failure the engine itself puts
+  on the generated test ("test mistake", "test-script defect") is "Requires review", not a failed requirement.
+- Test ideas: no generic "Security around" idea (only a security rule the criterion states); AI ideas that repeat a
+  rule idea, or negative / security ideas without a basis in the criterion, are dropped.
+- Test cases record their Jira work-item kind; a reproduced Jira Bug is triaged "reported bug reproduced" and never
+  proposed as a new defect.
+- Evidence: real guided runs on www.saucedemo.com (OpenAI via the Execution Center): QPL-2 4/4 and QPL-3 3/3 passed
+  with real assertions; see docs/REQUIREMENTS_INTELLIGENCE.md.
+
 ## 2026-11-26 - Live Execution shows every browser and every running execution
 
 - The Live view followed only frames an event marked, and only the newest one or two browsers; test workers (`gw0`,

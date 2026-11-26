@@ -89,7 +89,8 @@ def test_hybrid_design_puts_requirement_cases_first_and_keeps_the_exploratory_su
     cases = out["test_cases"]
     req = [c for c in cases if c.get("requirement_test")]
     assert len(req) == 1 and len(cases) > 1  # (plus the usual exploratory cases)
-    assert req[0]["skip_reason"].startswith("Not automated: your own tests need an AI")  # (no AI: said, not faked)
+    assert req[0]["skip_reason"].startswith("Not automated: no AI was available")  # (no AI: said, not faked)
+    assert "in the chat" not in req[0]["skip_reason"]  # (a Jira run is configured in the Execution Center)
     assert all(c.get("origin") != "requirement" for c in cases if not c.get("requirement_test"))
 
 

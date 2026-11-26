@@ -1682,7 +1682,8 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
     tests = [t for t in tests if t["id"] not in refused]
     if not llm_enabled():
         return list(refused.values()) + [
-            kept(t, "Not automated: your own tests need an AI to turn them into steps - choose an AI in the chat")
+            kept(t, "Not automated: no AI was available to turn this test into browser steps (choose an AI "
+                    "provider for the run: the Jira Execution Center or the Test studio)")
             for t in tests]
     if not tests:
         return list(refused.values())

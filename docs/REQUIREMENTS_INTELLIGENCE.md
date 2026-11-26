@@ -597,6 +597,24 @@ project and environment; the optional test account is kept in the owner-only cre
 returned. A run without typed credentials uses the saved account only for that same address; typed credentials win;
 another address never receives it. Jira tokens are never sent to the application under test.
 
+**Execution preflight and the AI (26 Nov 2026).** Requirement test cases are written as browser steps by the AI
+from what the run sees on the real website, so a requirement-based or hybrid run needs one. Before anything is
+created, `execution_preflight.check` resolves the AI exactly as the engine will (`privacy.select_provider`: the
+choice in the Execution Center, else `LLM_PROVIDER`; local-only privacy turns a cloud AI into none), checks it is
+ready (key, local model), validates the target, and opens the page once in the run's Chromium (browser available;
+login form -> a test account is required). Blocking problems stop the run with a recovery action; the selection is
+kept. Reproduced root cause of the reported "Not automated ... choose an AI in the chat": local-only privacy + a cloud
+`LLM_PROVIDER` + no AI chosen = no AI in the run, and the execution still said Complete.
+
+Live evidence (demo Studio, mock Jira text, real www.saucedemo.com, OpenAI gpt-4o-mini chosen in the Execution
+Center after "Allow cloud AI"): QPL-2 `runs/www.saucedemo.com_20261126_060926` 4/4 passed (valid login -> URL
+`/inventory.html`; wrong password -> the exact required message; two generic "security around" ideas also passed but
+checked nothing new - such ideas are no longer generated); QPL-3 alone `..._20261126_062132` 3/3 passed (6 product
+cards with name and price; prices ascending after "lohi"; names descending after "za"), logged in automatically
+although QPL-2 was not selected; the preflight first refused it because the real page showed a login form and no
+account was given. An earlier QPL-3 run with AI-added ideas (`..._061309`) had 4 test mistakes, now "Requires review"
+and the duplicated / baseless AI ideas are filtered.
+
 **Several Atlassian sites.** Integrations lists every connection and offers "Connect another Jira site". Each
 site has its own token slot; a token is bound to the site it was saved for, and a connection moved to another site or
 account loses its token (the page says so and asks for the new one), so a token is never sent to a site it was not

@@ -235,6 +235,9 @@ def propose_defect(db, tenant: str, defect_id: str, actor: str, audit_db=None) -
         raise LookupError(defect_id)
     if d["status"] not in ("open", "reopened"):
         raise ValueError(f"this defect is {d['status']}: only an open defect is proposed to Jira")
+    if d.get("triage") == "reported_bug_reproduced":
+        raise ValueError("this is the reported Jira bug itself, reproduced - it is not a new defect; comment on the "
+                         "existing issue instead")
     if d.get("triage") in ("test_problem", "environment"):
         raise ValueError(f"triaged as {d['triage'].replace('_', ' ')}: fix the test or the environment; it is not "
                          "proposed as an application bug")

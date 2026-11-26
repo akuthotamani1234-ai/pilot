@@ -85,6 +85,8 @@ def refresh(db, tenant: str) -> dict:
         sig = signature(res.get("actual") or res.get("reason") or "")
         did = "DF-" + hashlib.sha1(f"{tenant}|{cid}|{sig}".encode(), usedforsecurity=False).hexdigest()[:10]
         kind = triage(res.get("failure_category") or "")
+        if case.get("work_item") == "bug" and kind in ("likely_defect", "needs_triage"):
+            kind = "reported_bug_reproduced"  # (it is already in Jira: not a new defect found by Qpilot)
         d = found.get(did)
         if d is None:
             d = {"id": did, "test_case_id": cid, "requirement_id": case.get("requirement_id", ""),

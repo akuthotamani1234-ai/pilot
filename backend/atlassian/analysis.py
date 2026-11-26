@@ -90,6 +90,12 @@ NEGATION = re.compile(r"\b(must not|shall not|cannot|can not|never|is not allowe
                       r"should not|no longer|not)\b", re.I)
 SECURITY = re.compile(r"\b(passwords?|passcodes?|pin|log ?in|sign ?in|sign ?up|log ?out|auth\w*|token|session|"
                       r"permission|role|admin|payment|card|credit|personal data|account|otp|2fa|captcha)\b", re.I)
+# a security rule stated by the criterion itself (a lockout, masking, a permission, an expiring session ...)
+SECURITY_RULE = re.compile(r"\b(lock(?:ed|s)?(?: out)?|lockout|(?:failed|wrong) attempts|attempts? (?:are|is) limited|"
+                           r"masked|hidden characters|encrypt\w*|must not (?:show|reveal|display|expose)|"
+                           r"(?:not|never) (?:shown|revealed|displayed|exposed)|session (?:expires|times? out|timeout)|"
+                           r"unauthori[sz]ed|access (?:is )?denied|permission|only (?:an? )?(?:admin|administrator|owner)s?)\b",
+                           re.I)
 NUMBER = re.compile(r"(?P<lim>at least|minimum(?: of)?|min\.?|no (?:fewer|less) than|more than|over|"
                     r"at most|maximum(?: of)?|max\.?|up to|no more than|fewer than|less than|within|after)?\s*"
                     r"(?P<n>\d{1,9}(?:\.\d+)?)\s*(?P<unit>%|[a-z]+(?:\s+[a-z]+){0,2})?", re.I)
@@ -541,14 +547,16 @@ def rule_suggestions(requirement: Requirement, blocked: set[str]) -> list[dict]:
                             "steps": [f"Use {v:g} {unit}" for v in values], "expected_outcome": "", "basis": Basis.inferred,
                             "support_quote": "", "note": f"inferred from the number {n:g} {unit} in the source"})
             break
-        if SECURITY.search(c.text):
+        rule = SECURITY_RULE.search(c.text)
+        if rule:  # (only a security rule the criterion states - never generic checks on every login criterion)
             out.append({"criterion": c, "kind": ScenarioKind.security,
-                            "title": f"Security around: {c.text}"[:300],
-                            "steps": ["Check secrets are never shown or sent in clear text",
-                                   "Check error messages do not reveal which part was wrong",
-                                   "Check repeated attempts are limited"],
-                            "expected_outcome": "", "basis": Basis.inferred, "support_quote": "",
-                            "note": "inferred: common security checks, not stated in the source"})
+                            "title": f"Verify the security rule: {c.text.strip().rstrip('.')}"[:300],
+                            "steps": [f"Given {c.given}" if c.given else "Open the page where this applies",
+                                      f"Do what the rule is about: {c.when or c.text}",
+                                      f"Check that {(c.then or c.text)[0].lower() + (c.then or c.text)[1:]}"],
+                            "expected_outcome": c.then or c.text, "basis": Basis.explicit,
+                            "support_quote": c.citations[0].quote,
+                            "note": f"the criterion states a security rule ('{rule.group(0)}')"})
     return out
 
 
@@ -600,6 +608,41 @@ def ai_suggestions(requirement: Requirement, blocked: set[str], ask=None) -> lis
                         "AI suggestion: inferred, not a confirmed requirement", "destructive": destructive(words).lower(),
                         "origin": "ai"})
     return out
+
+
+ERROR_PATH = re.compile(r"\b(wrong|invalid|incorrect|error|fails?|failed|denied|not allowed|empty|missing|rejected|"
+                        r"refused|blank|expired|locked)\b", re.I)  # (the criterion itself is about a failure path)
+_WORD = re.compile(r"[a-z0-9]+")
+_FILLER = {"verify", "check", "test", "that", "the", "a", "an", "all", "every", "each", "is", "are", "with", "its",
+           "their", "and", "of", "on", "in", "to", "by", "page", "products", "product", "items", "item", "sort",
+           "sorting", "sorted", "shows", "displayed", "listed", "list"}
+
+
+def _gist(text: str) -> set[str]:
+    return {w for w in _WORD.findall(text.lower()) if w not in _FILLER}
+
+
+def useful_ai_ideas(ai_ideas: list[dict], rule_ideas: list[dict]) -> list[dict]:
+    """AI ideas that add something (live QPL-3 run, 26 Nov 2026: the AI repeated the three specific rule ideas and
+    added 'sort by price with invalid input' - a dropdown has no invalid input - and a vague 'untrusted data' check;
+    four of them failed as test mistakes). Dropped: an idea of the same kind as a rule idea for the same criterion
+    whose words say the same thing; a negative idea for a criterion that states no constraint; a security idea for
+    a criterion that states no security rule."""
+    keep = []
+    for idea in ai_ideas:
+        crits = idea.get("criteria") or [idea["criterion"]]
+        kind = getattr(idea["kind"], "value", idea["kind"])
+        if kind == "negative" and not any(CONSTRAINT.search(c.text) or ERROR_PATH.search(c.text) for c in crits):
+            continue
+        if kind == "security" and not any(SECURITY_RULE.search(c.text) for c in crits):
+            continue
+        mine = _gist(idea["title"])
+        same = [r for r in rule_ideas if r["criterion"].id in {c.id for c in crits}
+                and getattr(r["kind"], "value", r["kind"]) == kind]
+        if any(mine and len(mine & _gist(r["title"])) >= max(2, -(-len(mine) * 3 // 5)) for r in same):
+            continue
+        keep.append(idea)
+    return keep
 
 
 # ---------------------------------------------------------------- 4 coverage
@@ -695,7 +738,7 @@ def analyze(db, tenant_id: str, root_key: str, *, ai: str = "off", actor: str = 
             ai_state, ai_note = "not_allowed", why
         else:
             try:
-                ideas += ai_suggestions(requirement, blocked, ask=ask)
+                ideas += useful_ai_ideas(ai_suggestions(requirement, blocked, ask=ask), ideas)
                 ai_state, ai_note = "used", "AI suggestions added (each one reviewed before use)"
             except Exception as error:  # (no AI answer: the rules result stands)
                 ai_state, ai_note = "failed", f"AI unavailable: {type(error).__name__}"
