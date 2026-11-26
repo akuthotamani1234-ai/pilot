@@ -478,8 +478,11 @@ def to_run_cases(results: list[dict], why: dict[str, str], case_ids: list[str]) 
             out.append({"requirement_test": cid, "tc_id": cid, "execution_status": "Not run",
                         "skip_reason": why.get(cid, "Not automated: no API test was planned for it")})
             continue
-        statuses = {r["status"] for r in mine}
-        real = [r for r in mine if r["status"] == "Failed" and r.get("category") != "Test mistake"]
+        # a step after a BLOCKED step depends on what that step would have done (the pet a blocked POST never
+        # created is not found): its failure is not the API's - the case is Blocked. A failure BEFORE it stays Failed.
+        first_blocked = next((i for i, r in enumerate(mine) if r["status"] == "Blocked"), len(mine))
+        statuses = {r["status"] for r in mine[:first_blocked]} | ({"Blocked"} if first_blocked < len(mine) else set())
+        real = [r for r in mine[:first_blocked] if r["status"] == "Failed" and r.get("category") != "Test mistake"]
         status = "Failed" if "Failed" in statuses else "Blocked" if "Blocked" in statuses else "Passed"
         reasons = [f"{r['name']}: {r.get('reason')}" for r in mine if r.get("reason")]
         out.append({"requirement_test": cid, "tc_id": cid, "execution_status": status,

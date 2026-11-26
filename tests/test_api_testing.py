@@ -168,3 +168,16 @@ def test_a_check_of_a_field_the_answer_does_not_have_is_the_tests_mistake_not_an
     assert res[1]["status"] == "Passed"
     cases = {c["requirement_test"]: c for c in at.to_run_cases(res, {}, ["TC-1", "TC-2"])}
     assert cases["TC-1"]["failure_category"] == "Test mistake"  # (-> "Requires review" in the Jira result)
+
+
+def test_a_check_after_a_blocked_write_is_blocked_not_a_failure():
+    """Live Petstore run (26 Nov): POST /pet was blocked (writes not allowed), then GET /pet/{id} did not find
+    'Fluffy' - that was reported Failed, a false failure of the API."""
+    from backend.api_testing import to_run_cases
+    results = [{"name": "Add", "case": "TC-1", "status": "Blocked", "reason": "Blocked: POST changes data"},
+               {"name": "Get", "case": "TC-1", "status": "Failed", "reason": "name eq 'Fluffy': name = 'shpitz'"},
+               {"name": "List", "case": "TC-2", "status": "Failed", "reason": "status 500"},
+               {"name": "Add", "case": "TC-2", "status": "Blocked", "reason": "Blocked: POST changes data"}]
+    out = {c["tc_id"]: c for c in to_run_cases(results, {}, ["TC-1", "TC-2"])}
+    assert out["TC-1"]["execution_status"] == "Blocked" and "Fluffy" in out["TC-1"]["skip_reason"]
+    assert out["TC-2"]["execution_status"] == "Failed"  # (a failure before the blocked step is the API's)

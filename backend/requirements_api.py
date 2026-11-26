@@ -493,7 +493,7 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     t, strategy = launch["target"], launch["strategy"]
     tests = [launch["tests"][c] for c in case_ids if c in launch["tests"]]
     if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
-        return _launch_api(t, tests, case_ids)
+        return _launch_api(t, tests, case_ids, explore=strategy in ("autonomous", "hybrid"))
     if t.type == "ios":  # iOS (backend/ios.py): Appium XCUITest on a Mac
         return _launch_ios(t, tests, case_ids)
     if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
@@ -521,9 +521,11 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     return int(job.get("id"))
 
 
-def _launch_api(t, tests: list[dict], case_ids: list[str]) -> int:
+def _launch_api(t, tests: list[dict], case_ids: list[str], explore: bool = False) -> int:
     """Run the REST API tests of these test cases in the background, as a job of the Studio (Live / Reports see it);
-    its run folder holds api_results.json (every request and answer, redacted) and test_cases.json."""
+    its run folder holds api_results.json (every request and answer, redacted) and test_cases.json.
+    explore (autonomous / hybrid): also every documented GET that needs no unknown input (api_testing.smoke_tests:
+    status + response schema; read-only)."""
     from . import api_testing, server
     job_id = max(server.jobs, default=0) + 1
     host = (urlparse(t.api_spec_url or t.url).hostname or "api").replace(":", "_")
@@ -549,8 +551,12 @@ def _launch_api(t, tests: list[dict], case_ids: list[str]) -> int:
             base = api_testing.base_url(spec, t.api_spec_url) if spec else t.url.rstrip("/")
             say(f"[api] {len(ops)} documented operation(s) at {base}")
             cases = [{"id": x["tc"], "title": x.get("title"), "steps": [x["text"]], "expected": ""} for x in tests]
-            planned, why = api_testing.tests_for_cases(cases, ops)
+            planned, why = api_testing.tests_for_cases(cases, ops) if cases else ([], {})
             say(f"[api] {len(planned)} API test(s) planned for {len(cases)} test case(s)")
+            if explore:
+                smoke = api_testing.smoke_tests(ops)
+                planned = planned + smoke
+                say(f"[api] {len(smoke)} read-only smoke test(s) over the documented API (autonomous)")
             results = api_testing.run(base, planned, auth=auth, allow=set(t.api_allow), ops=ops)
             for r in results:
                 say(f"[api] {r['status']}: {r['name']} {(r.get('reason') or '')[:160]}")
