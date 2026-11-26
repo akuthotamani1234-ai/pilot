@@ -503,6 +503,15 @@ def _undo(test_dir: Path, run_dir: Path, file: str, entries: list[dict]) -> None
         return
     kept = [h for h in entries if h["status"] in ("healed", "repaired")]
     undo = [h for h in entries if h["status"] == "reverted"]
+    # an evidence rewrite changed ONE test function: only that function goes back (the file's other repairs stay)
+    for h in [h for h in undo if h.get("method") == "evidence"]:
+        from .self_healing import restore_function
+        backup = run_dir / (h.get("backup") or "")
+        if h.get("backup") and ".." not in Path(h["backup"]).parts and backup.is_file() and not backup.is_symlink():
+            restore_function(path, backup, h["test"])
+        undo.remove(h)
+    if not undo:
+        return
     whole = any(h["method"] == "llm" or not h.get("to") or "broke" in (h.get("why") or "") for h in undo) or not kept
     if whole:
         backup = run_dir / (undo[0].get("backup") or "")
@@ -594,6 +603,11 @@ def _rerun_healed(state: QAState, run_dir: Path, test_dir: Path, shot_dir: Path)
         broke = [n for n in h["related"] if (before.get(n) or {}).get("outcome") == "passed"
                  and (fresh.get(n) or {}).get("outcome") in ("failed", "error")]
         h["status"], h["why"] = _repair_verdict(r, broke)
+        was = ((before.get(h["nodeid"]) or {}).get("live_page") or {}).get("url")
+        now = ((r or {}).get("live_page") or {}).get("url")
+        if h.get("method") == "evidence" and h["status"] == "reverted" and not broke and now and now != was:
+            # the rewrite got further (it now fails on a later page): kept, and rewritten again from there
+            h["status"], h["why"] = "progressed", f"the rewrite got further - it now fails on {now[:160]}"
         h["rerun"] = {"outcome": r["outcome"] if r else "not run", "error": _short_error(r.get("error")) if r else "",
                       "category": classify(r)[0] if r and r["outcome"] in ("failed", "error") else ""}
     by_file: dict[str, list[dict]] = {}

@@ -2462,6 +2462,11 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
         code = extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + "\nOBSERVED PAGES (use only this evidence):\n" + data,
                                     system=SYSTEM, agent="script_generator", page="site"))
         err = problem(code)
+    if err and any(f.get("my_test") for f in flows):  # the owner's / Jira tests: reach the page, check what is certain
+        code = extract_code(ask_llm(load_prompt("fix_script").format(error=err, code=code) + UNSEEN_PAGE_HINT
+                                    + "\nOBSERVED PAGES (use only this evidence):\n" + data,
+                                    system=SYSTEM, agent="script_generator", page="site"))
+        err = problem(code)
     if err:
         raise LLMError(f"the AI's test code failed the checks: {err}")
     code = _with_said(_steady(_full_rows(code, used)))
@@ -2471,6 +2476,14 @@ def _llm_flows(flows: list[dict], pages: dict[str, dict]) -> str:
     return code
 
 
+# The last try for the owner's / Jira tests whose checks need a page exploring never reached: the test does every step
+# and checks only what is certain there; when it fails, self-healing rewrites it from the page it really reached
+# (self_healing.evidence_repair) - so the test runs instead of staying 'Not automated'.
+UNSEEN_PAGE_HINT = ("\nA page this test reaches AFTER its actions may be missing from OBSERVED PAGES (e.g. a step that "
+                    "only appears after adding something or submitting a form). Do NOT check headings, labels or texts "
+                    "of such a page: do every step and check only what is certain - the address changed, the control "
+                    "you click or fill is visible - plus every check on observed pages. Its exact texts are checked "
+                    "later, from the real page.\n")
 FLOW_BATCH = 5  # the AI writes its large test cases 5 at a time: one bad answer loses 5 journeys, not all 20
 
 

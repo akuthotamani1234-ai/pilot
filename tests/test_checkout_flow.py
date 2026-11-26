@@ -23,7 +23,7 @@ def _guard(monkeypatch, mode: str, strict: bool = True) -> dict:
     want = {"PROTECTED_RX", "TEST_ACCOUNT_RX", "SAFE_TEXT_RX", "UNSAFE_LINK_RX", "MONEY_RX", "WRITE_RX",
             "CONTROL_TEXT_JS", "CHECKOUT_FLOW", "CHECKOUT_WORDS", "ORDER_SUBMIT", "_checkout_open",
             "_payment_target_any", "_pay_bits", "_payment_target", "_risky", "_redirects_to_payment",
-            "_refuse_protected"}
+            "_refuse_protected", "CART_PAGE", "_cart_line_remove"}
     nodes = [n for n in tree.body if (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in want)
              or (isinstance(n, ast.FunctionDef) and n.name in want)]
     ns = {"re": re, "os": os, "pytest": pytest,
@@ -32,10 +32,12 @@ def _guard(monkeypatch, mode: str, strict: bool = True) -> dict:
     return ns
 
 
-def _control(url: str, text: str, href: str = ""):
+def _control(url: str, text: str, href: str = "", add_buttons: int = 0):
     class Loc:
         class page:
-            pass
+            @staticmethod
+            def get_by_role(*_a, **_k):
+                return type("L", (), {"count": staticmethod(lambda: add_buttons)})()
 
         class first:
             @staticmethod
@@ -101,3 +103,93 @@ def test_the_ai_is_told_that_states_reached_by_using_the_site_are_not_missing():
     assert "press Checkout" in NO_CHECKOUT_RULE and "NEVER press the button" in NO_CHECKOUT_RULE
     assert "DEMO shop" in DEMO_CHECKOUT_RULE and "NEVER type real card" in DEMO_CHECKOUT_RULE
     assert text.format(n=1, site="[]", tests="1. x", checkout_rule=NO_CHECKOUT_RULE)
+
+
+def test_taking_the_item_out_of_the_tests_own_cart_is_allowed_but_remove_elsewhere_is_not(monkeypatch):
+    g = _guard(monkeypatch, "form")
+    g["_refuse_protected"](_control("https://shop.example/cart.html", "Remove"))
+    g["_refuse_protected"](_control("https://shop.example/inventory.html", "Remove", add_buttons=6))
+    with pytest.raises(pytest.skip.Exception):  # (an admin page: 'Remove' could remove a user)
+        g["_refuse_protected"](_control("https://admin.example/users", "Remove"))
+    g = _guard(monkeypatch, "form", strict=False)  # (built-in tests: unchanged)
+    with pytest.raises(pytest.skip.Exception):
+        g["_refuse_protected"](_control("https://shop.example/inventory.html", "Remove", add_buttons=6))
+
+
+CASE = {"title": "Verify: After adding a product the cart badge shows 1", "tests": ["test_ai_flow_1"], "my_test": "x",
+        "instruction": "Verify: After adding a product the cart badge shows 1. Expected: the cart badge shows 1.",
+        "steps": ["Add a product", "Check the badge"], "expected": "the cart badge shows 1"}
+OLD = '''import re
+import pytest
+from playwright.sync_api import expect
+
+
+def test_ai_flow_1(page):
+    """badge"""
+    page.goto("https://shop.example/inventory.html")
+    page.locator("#add").click()
+    expect(page.get_by_role("button", name="Cart, empty")).to_have_text("Cart, 1 items")
+
+
+def test_ai_flow_2(page):
+    """other"""
+    page.goto("https://shop.example/")
+    expect(page.locator("h1")).to_have_text("Shop")
+'''
+LIVE = {"url": "https://shop.example/inventory.html", "texts": [{"text": "1", "cls": "shopping_cart_badge",
+                                                                 "data_test": "shopping-cart-badge"}]}
+
+
+def _new(body: str) -> str:
+    return OLD.replace('''    expect(page.get_by_role("button", name="Cart, empty")).to_have_text("Cart, 1 items")''', body)
+
+
+def test_an_evidence_rewrite_must_keep_the_stated_value_and_use_only_real_values():
+    from backend.agents.self_healing import evidence_check as check
+    good = _new('''    expect(page.locator('[data-test="shopping-cart-badge"]')).to_have_text("1")''')
+    assert check(OLD, good, "test_ai_flow_1", CASE, LIVE, "") is None
+    invented = _new('''    expect(page.locator('[data-test="shopping-cart-badge"]')).to_have_text("1 item added")''')
+    assert "neither the test case nor the real page" in check(OLD, invented, "test_ai_flow_1", CASE, LIVE, "")
+    weaker = _new('''    page.locator('[data-test="shopping-cart-badge"]').click()''')
+    assert "checks less" in check(OLD, weaker, "test_ai_flow_1", CASE, LIVE, "")
+    escape = _new('''    try:
+        expect(page.locator('[data-test="shopping-cart-badge"]')).to_have_text("1")
+    except AssertionError:
+        pass''')
+    assert "pass without checking" in check(OLD, escape, "test_ai_flow_1", CASE, LIVE, "")
+    other = good.replace('to_have_text("Shop")', 'to_be_visible()')
+    assert "only test_ai_flow_1 may be rewritten" in check(OLD, other, "test_ai_flow_1", CASE, LIVE, "")
+
+
+def test_an_evidence_rewrite_never_drops_a_value_the_test_case_states():
+    from backend.agents.self_healing import evidence_check as check
+    case = dict(CASE, instruction="After a wrong password the page says 'Epic sadface: no match'.")
+    old = OLD.replace('to_have_text("Cart, 1 items")', 'to_contain_text("Epic sadface: no match")')
+    live = {"texts": [{"text": "Epic sadface: Username and password do not match"}]}
+    new = old.replace('to_contain_text("Epic sadface: no match")', 'to_contain_text("Epic sadface: Username and password do not match")')
+    assert "no longer checks what the test case states" in check(old, new, "test_ai_flow_1", case, live, "")
+
+
+def test_an_evidence_rewrite_that_does_not_pass_is_undone_for_that_test_only(tmp_path):
+    from backend.agents.self_healing import restore_function
+    before, path = tmp_path / "before.py", tmp_path / "test_flows_ai.py"
+    before.write_text(OLD)
+    now = _new('''    expect(page.locator('[data-test="shopping-cart-badge"]')).to_have_text("1")''').replace(
+        'to_have_text("Shop")', 'to_have_text("Shop!")')
+    path.write_text(now)
+    restore_function(path, before, "test_ai_flow_1")
+    text = path.read_text()
+    assert 'name="Cart, empty"' in text and 'to_have_text("Shop!")' in text  # (the other test keeps its change)
+
+
+def test_a_name_the_test_types_into_a_form_is_its_own_test_data_not_an_invented_record():
+    from backend.ai_grounding import grounding_problem
+    pages = [{"url": "https://fixture.test/checkout", "title": "Checkout", "headings": [], "buttons": [], "forms": [], "links": [], "behaviour": [],
+              "inputs": [{"selector": "#first-name", "label": "First Name"}]}]
+    typed = ('def test_ai_flow_1(page):\n'
+             '    page.goto("https://fixture.test/checkout")\n'
+             '    page.get_by_placeholder("First Name").fill("John")\n')
+    assert grounding_problem(typed, pages) is None
+    clicked = typed.replace('page.get_by_placeholder("First Name").fill("John")',
+                            'page.get_by_text("John Doe", exact=True).click()')
+    assert grounding_problem(clicked, pages)

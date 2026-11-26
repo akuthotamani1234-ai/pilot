@@ -61,7 +61,7 @@ STRICT RULES:
 - A page the steps reach that is NOT in PAGES (it appears only after using the site: the cart with an item, a
   checkout step, a badge or a message after an action): find its controls as a person sees them
   (`page.get_by_role("button", name="Continue")`, `page.get_by_placeholder("First Name")`, `page.get_by_label(...)`)
-  and check it by a stable fact - the URL contains a word of that step (`expect(page).to_have_url(re.compile("checkout"))`),
+  and check it by a stable fact - the URL changed / contains a word the step names,
   the form or button is visible, a count / badge shows the number. NEVER invent an accessible name ("Cart, 1 items"),
   a full address or a message for it.
 - Never FIND an element by a name that changes with the page's state (an aria-label / text holding a count or

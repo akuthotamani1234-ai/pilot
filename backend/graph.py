@@ -60,11 +60,17 @@ def after_analysis(state: QAState) -> str:
     """Broken SCRIPTS (not website bugs) and rounds left? -> try to heal them."""
     if state.get("contract_only"):
         return "report"
-    if state.get("heal_round", 0) >= settings.max_heal_rounds:
+    from .agents.self_healing import EVIDENCE_TRIES, evidence_targets
+    from .llm import llm_enabled
+    rnd = state.get("heal_round", 0)
+    # the owner's / Jira tests rewritten from the real page: one more page each round, at most EVIDENCE_TRIES rounds
+    evidence = rnd < EVIDENCE_TRIES and llm_enabled() and bool(evidence_targets(state))
+    if rnd >= settings.max_heal_rounds and not evidence:
         return "report"
     skip = set(state.get("unhealable", []))
-    broken = [f for f in state.get("failures", []) if healable(f) and f.get("nodeid") not in skip]
-    return "self_healing" if broken else "report"
+    broken = rnd < settings.max_heal_rounds and any(
+        healable(f) and f.get("nodeid") not in skip for f in state.get("failures", []))
+    return "self_healing" if broken or evidence else "report"
 
 
 def after_healing(state: QAState) -> str:

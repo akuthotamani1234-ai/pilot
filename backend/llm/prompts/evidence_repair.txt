@@ -1,0 +1,38 @@
+A Playwright (Python, sync) test written from the owner's test case failed. It was written before anyone saw the page
+it failed on, so its locators or expected values may be guesses. Below is what that page REALLY showed when it failed.
+Rewrite ONLY the function `{test}` so it does what the test case says on the real page.
+
+THE TEST CASE (the owner's / Jira words - what must be checked):
+{case}
+
+THE ERROR:
+{error}
+
+THE CURRENT FUNCTION:
+```python
+{code}
+```
+
+THE PAGE WHEN IT FAILED (controls with their text, role, id, data-test, placeholder, label; short visible texts with
+where they are; headings; address):
+{page}
+
+RULES:
+- Keep the same function name, arguments and decorators; keep every step the test case asks for, in order.
+- Find elements as they really are on that page: prefer a `data-test` / id selector from the page data
+  (`page.locator('[data-test="..."]')`, `page.locator('#id')`), else get_by_role with the REAL role and text, or
+  get_by_placeholder / get_by_label. An <input type="submit"> is found with get_by_role("button", name=its value).
+  Never find an element by a name that changes with the page's state (an aria-label with a count or "empty").
+- Check what the test case says, with values the test case states or that the page data REALLY shows (e.g. a
+  count the page shows, a heading or text from the page data, a word of the address in the page data). Never
+  invent a value, an address or a text for a page you have not been shown; never check that the page shows the
+  test case's own sentence. After an action that opens a page you were not shown, check only what is certain (the
+  address changed, a form / heading is visible) - the next failure shows that page and the test is rewritten again.
+- Keep at least as many checks as the current function; never weaken or drop a check the test case asks for; never
+  use pytest.skip, try/except, `assert True` or any check that cannot fail.
+- If the page shows the website really behaving differently from the test case (an error, a missing feature), keep
+  the check as the test case states it - that is a real result, not something to rewrite away.
+- Never open a payment page, type card details, press the button that places an order unless the current function
+  already does, delete anything or log out.
+
+Return ONLY the rewritten function in one ```python block.

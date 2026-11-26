@@ -127,7 +127,15 @@ def grounding_problem(code: str, pages: list[dict], requirements: str = "") -> s
                           for item in page.get(group, []) if isinstance(item, dict)]
     observed_sels = _observed_selectors(pages)
     # Case / step text may also invent people outside the script AST constants — checked on whole code.
-    people = invented_record_problem(code, pages, requirements)
+    # (a value the test TYPES into a form - a checkout's first name - is its own test data, not a record it claims
+    # exists; checking later that the page shows what it typed is fine too)
+    typed = {a.value for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and n.func.attr in ("fill", "type", "press_sequentially") for a in n.args[-1:]
+             if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value.strip()}
+    scan = code
+    for value in sorted(typed, key=len, reverse=True):
+        scan = scan.replace(value, " ")
+    people = invented_record_problem(scan, pages, requirements)
     if people:
         return people
 

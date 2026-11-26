@@ -967,6 +967,50 @@ def _checkout_open() -> str:
     return CHECKOUT_FLOW if CHECKOUT_FLOW in ("form", "demo") and getattr(Locator, "_qa_strict", False) else ""
 
 
+# The page as it is now: its controls (how a person and a locator name them) and its short visible texts (badges,
+# totals, messages) - the evidence of a failure on a page exploring did not see. Data only; nothing is clicked.
+LIVE_PAGE_JS = """() => {
+  const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const at = (e, a) => (e.getAttribute(a) || '').slice(0, 80);
+  const label = (e) => { const id = e.id && document.querySelector('label[for="' + CSS.escape(e.id) + '"]');
+    return ((id && id.innerText) || at(e, 'aria-label') || '').trim().slice(0, 80); };
+  const controls = [...document.querySelectorAll('button, a, [role=button], [role=link], input, select, textarea')]
+    .filter(vis).slice(0, 80).map((e) => ({ tag: e.tagName.toLowerCase(), type: at(e, 'type'),
+      text: (e.innerText || e.value || '').trim().slice(0, 60), role: at(e, 'role'), id: e.id.slice(0, 80),
+      data_test: at(e, 'data-test') || at(e, 'data-testid') || at(e, 'data-qa'), name: at(e, 'name'),
+      placeholder: at(e, 'placeholder'), label: label(e), cls: (e.className && e.className.baseVal === undefined
+        ? String(e.className) : '').slice(0, 80) }));
+  const texts = [];
+  for (const e of document.querySelectorAll('body *')) {
+    if (texts.length >= 80) break;
+    if (e.children.length || !vis(e)) continue;
+    const t = (e.innerText || '').trim();
+    if (t && t.length <= 80) texts.push({ text: t, tag: e.tagName.toLowerCase(), cls: String(e.className || '').slice(0, 60),
+      data_test: at(e, 'data-test') || at(e, 'data-testid'), id: e.id.slice(0, 60) });
+  }
+  return { url: location.href, title: document.title.slice(0, 120),
+    headings: [...document.querySelectorAll('h1,h2,h3,[role=heading]')].filter(vis).map((h) => h.innerText.trim().slice(0, 80)).slice(0, 10),
+    controls, texts };
+}"""
+
+
+CART_PAGE = re.compile(r"(?:^|[/=#.-])(?:cart|basket|bag|trolley)(?:\b|[./?#-])", re.I)
+
+
+def _cart_line_remove(loc, names: list, landed: str) -> bool:
+    """A bare 'Remove' on the cart page or on a page with 'Add to cart' buttons, in an owner's / Jira test (a shop's
+    'Remove' next to the item it put in the cart). Anywhere else 'Remove' stays protected."""
+    if not globals().get("_checkout_open", lambda: "")() or not re.fullmatch(r"\s*remove\s*", names[0] or "", re.I):
+        return False
+    if CART_PAGE.search(landed or ""):
+        return True
+    try:
+        return loc.page.get_by_role("button", name=re.compile(r"add to (cart|basket|bag|trolley)", re.I)).count() > 0
+    except Exception:
+        return False
+
+
 def _payment_target_any(raw: str) -> bool:
     """A checkout / payment page, whatever the mode (for the order-submit rule on a checkout page)."""
     return bool(re.search(r"(?:^|/|[=#])(?:check-?outs?|payments?|place-?orders?|order|cart)\b", raw or "", re.I))
@@ -1115,6 +1159,8 @@ def _refuse_protected(loc) -> None:
     if names and globals().get("_checkout_open", lambda: "")() == "form" and _payment_target_any(landed) and ORDER_SUBMIT.search(names[0] or ""):
         pytest.skip(f"Blocked: '{names[0][:60]}' places the order or pays - the checkout is tested up to this step; "
                     "it is finished only on a demo shop you confirm for the run (no real payment)")
+    if names and globals().get("_cart_line_remove", lambda *_: False)(loc, names, landed):
+        return  # (taking an item out of the test's own cart: as reversible as adding it)
     if names and _risky(names):
         label = next((n for n in names if n), "control").splitlines()[0][:60]
         pytest.skip(f"Blocked: '{label}' is a protected action (it could pay, order, delete, send or log out) - "
@@ -2118,6 +2164,13 @@ def pytest_runtest_makereport(item, call):
                         entry["screenshot"] = str(path)
                 except Exception:
                     pass
+                # what the page REALLY showed when the AI-written test failed (a page exploring may never have
+                # reached: a filled cart, a checkout step) - the evidence self-healing rewrites the test from
+                if entry["file"] in AI_FILES:
+                    try:
+                        entry["live_page"] = p.evaluate(LIVE_PAGE_JS)
+                    except Exception:
+                        pass
                 # the session ended DURING the test: the login page is no failure of the page this test is about
                 if rep.when == "call" and getattr(item, "_qa_kind", "") == "user" and _logged_out(p):
                     entry["outcome"] = "inconclusive"

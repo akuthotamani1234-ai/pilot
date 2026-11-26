@@ -2,6 +2,23 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Tests from Jira / your own cases are rewritten from the real page they failed on
+
+- The AI writes a Jira / owner test before anyone has seen the pages it reaches after acting (a filled cart, a
+  checkout step), so its locators and expected values there were guesses ("Requires review" results). Now the
+  generated conftest records the real page when such a test fails (`live_page`: controls, short texts, headings,
+  address) and self-healing rewrites that one test from it (`self_healing.evidence_repair`, prompt
+  `evidence_repair.txt`). A rewrite is accepted only when it keeps as many checks, keeps every value the test case
+  states, expects only values from the test case or the real page, adds no skip / try / `assert True`, opens no
+  payment page and changes no other test; it then runs again and is kept (passes, or fails on a real check),
+  continued (it got to a later page: rewritten again from there, up to 3 rounds) or undone for that test only.
+- Code writing for these tests: a last try that checks only what is certain on a page exploring never reached; a value
+  the test types into a form (a checkout's first name) is its own test data, not an "invented record".
+- The cart's own "Remove" (on the cart page or next to "Add to cart" buttons) is allowed for these tests; "Remove"
+  elsewhere stays protected. Prompts no longer carry website-specific examples.
+- Live (mock Jira text of QPL-5 / QPL-13, www.saucedemo.com, gpt-4o-mini, demo shop ticked): passed went from 0-1 to
+  4 of 7 real passes; healing_log.json of each run shows every rewrite, its evidence and its verdict.
+
 ## 2026-11-26 - Jira checkout and cart tests run on real websites; only placing the order or paying is not done
 
 - Reported: QPL-5 (Checkout) and QPL-13 (cart badge) ended "Not automated: Not possible: The page where this applies
