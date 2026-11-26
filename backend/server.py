@@ -4349,7 +4349,9 @@ def run_live_frame(
     path = folder / worker_file(worker)
     if folder_is_linked(folder) or path.is_symlink() or not path.is_file():
         raise HTTPException(404, "No live screen yet")
-    return FileResponse(path, media_type="image/jpeg",
+    with path.open("rb") as f:  # (a device screen from Appium is PNG data: sent with its real type)
+        kind = "image/png" if f.read(8) == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+    return FileResponse(path, media_type=kind,
                         headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 

@@ -31,7 +31,8 @@ def routed(api, monkeypatch):
         ai=req.llm_provider)})
     monkeypatch.setattr(rapi, "_launch_api", lambda t, tests, ids, explore=False: job(
         "api", cases=sorted(ids), ai=t.llm_provider, explore=explore))
-    monkeypatch.setattr(rapi, "_launch_ios", lambda t, tests, ids: job("ios", cases=sorted(ids), ai=t.llm_provider))
+    monkeypatch.setattr(rapi, "_launch_ios", lambda t, tests, ids, strategy="": job(
+        "ios", cases=sorted(ids), ai=t.llm_provider, strategy=strategy))
     monkeypatch.setattr(rapi, "_launch_android", lambda t, texts, a, x: job(
         "android", cases=sorted(s.split("]")[0][1:] for s in texts), ai=t.llm_provider))
     monkeypatch.setattr(rapi.execution_preflight, "check", lambda **kw: {
@@ -55,21 +56,21 @@ def test_each_type_and_strategy_reaches_its_engine_with_the_chosen_ai(routed, ki
         assert seen[0]["cases"] == ["TC-QPL-2-1", "TC-QPL-2-2"]
     if kind == "web":
         assert seen[0]["only"] is (strategy == "requirements")  # (hybrid / autonomous also explore the site)
+    if kind == "ios":
+        assert seen[0]["strategy"] == strategy  # (the iOS engine discovers the app for autonomous / hybrid)
     if kind == "api":
         assert seen[0]["explore"] is (strategy != "requirements")  # (+ read-only smoke tests over the whole API)
     ex = r.json()["execution"]
     assert ex["strategy"] == strategy and ex["target"].get("type", "web") in (kind, "web")
 
 
-def test_ios_refuses_autonomous_and_says_hybrid_runs_the_cases_only():
+def test_ios_allows_every_strategy():
     from backend import execution_preflight
     env = dict(case_count=2, url="", authorized=True, app_type="ios", llm_provider="openai", api_key="sk-x",
                ios={"bundle_id": "com.example.shop"})
-    auto = execution_preflight.check(strategy="autonomous", **{**env, "case_count": 0})
-    assert any(p["code"] == "strategy" and p["blocking"] for p in auto["problems"])
-    hybrid = execution_preflight.check(strategy="hybrid", **env)
-    note = next(p for p in hybrid["problems"] if p["code"] == "strategy")
-    assert not note["blocking"] and "test cases only" in note["message"]
+    for strategy, n in (("autonomous", 0), ("hybrid", 2), ("requirements", 2)):
+        pre = execution_preflight.check(strategy=strategy, **{**env, "case_count": n})
+        assert not [p for p in pre["problems"] if p["code"] == "strategy"]  # (only the Mac / Appium checks remain)
 
 
 def test_api_autonomous_adds_read_only_smoke_tests_for_every_simple_get():

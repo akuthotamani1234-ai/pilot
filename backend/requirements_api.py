@@ -495,7 +495,7 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
         return _launch_api(t, tests, case_ids, explore=strategy in ("autonomous", "hybrid"))
     if t.type == "ios":  # iOS (backend/ios.py): Appium XCUITest on a Mac
-        return _launch_ios(t, tests, case_ids)
+        return _launch_ios(t, tests, case_ids, strategy=strategy)
     if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
         try:
             return _launch_android(t, [f"[{x['tc']}] {x['text']}" for x in tests], launch["authorization"],
@@ -573,8 +573,11 @@ def _launch_api(t, tests: list[dict], case_ids: list[str], explore: bool = False
     return job_id
 
 
-def _launch_ios(t, tests: list[dict], case_ids: list[str]) -> int:
-    """Run the test cases on iOS (Appium XCUITest), as a Studio job with its own run folder."""
+def _launch_ios(t, tests: list[dict], case_ids: list[str], strategy: str = "requirements") -> int:
+    """Run on iOS (Appium XCUITest) as a Studio job with its own run folder. Every strategy first discovers the app
+    (ios.explore: screens, WebViews, transitions; nothing risky tapped). requirements: the Jira cases, planned over
+    every discovered screen. autonomous: scenarios from discovery (+ AI-designed ones when an AI is ready). hybrid:
+    both. Each case's outcome goes to test_cases.json; the device screen is the run's live frame."""
     from . import ios, server
     cfg = ios.validate(t.ios)
     job_id = max(server.jobs, default=0) + 1
@@ -582,29 +585,25 @@ def _launch_ios(t, tests: list[dict], case_ids: list[str]) -> int:
     run_dir = server.RUNS / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     job = server.jobs[job_id] = {"id": job_id, "source": cfg.bundle_id or cfg.app_path, "status": "running",
-                                 "proc": None, "lines": [], "pages": [], "stages": {}, "current": "iOS tests",
+                                 "proc": None, "lines": [], "pages": [], "stages": {}, "current": "iOS discovery",
                                  "run": run_id, "started": time.time(), "secrets": [], "target_type": "ios",
                                  "llm": {"provider": t.llm_provider, "model": t.llm_model}, "workflow": "standard",
                                  "privacy_mode": "", "principal_id": ""}
+    job["stop"] = threading.Event()
 
     def work():
         status, driver = "done", None
+        say = job["lines"].append
         try:
             from appium import webdriver
             from appium.options.ios import XCUITestOptions
             driver = webdriver.Remote(cfg.appium_url, options=XCUITestOptions().load_capabilities(
                 ios.capabilities(cfg)))
-            controls = ios.screen(driver.page_source)
-            job["lines"].append(f"[ios] {len(controls)} control(s) on the first screen")
-            cases = [{"id": x["tc"], "title": x.get("title"), "steps": [x["text"]]} for x in tests]
-            runner = ios.IosRun(driver, run_dir, cfg.bundle_id)
-            records = [runner.run_case(p) for p in ios.plan_cases(cases, controls)]
+            records = run_ios(driver, run_dir, cfg.bundle_id, tests, strategy, say, job)
             (run_dir / "test_cases.json").write_text(json.dumps(records, indent=1), encoding="utf-8")
-            (run_dir / "ios_contexts.json").write_text(json.dumps(runner.context_switches, indent=1),
-                                                       encoding="utf-8")
         except Exception as error:
             status = "failed"
-            job["lines"].append(f"[ios] the iOS run failed: {type(error).__name__}: {str(error)[:300]}")
+            say(f"[ios] the iOS run failed: {type(error).__name__}: {str(error)[:300]}")
         finally:
             if driver is not None:
                 try:
@@ -614,6 +613,44 @@ def _launch_ios(t, tests: list[dict], case_ids: list[str]) -> int:
             job["status"], job["finished"] = status, time.time()
     threading.Thread(target=work, daemon=True, name=f"ios-tests-{job_id}").start()
     return job_id
+
+
+def run_ios(driver, run_dir: Path, bundle_id: str, tests: list[dict], strategy: str, say, job: dict | None = None,
+            ask=None, settle_s: float = 1.0) -> list[dict]:
+    """One iOS run on an open Appium session (used by _launch_ios; tests pass a fake driver)."""
+    from . import ios
+    job = job if job is not None else {}
+    job["current"] = "iOS discovery"
+    model = ios.explore(driver, run_dir, bundle_id, say=say, settle_s=settle_s,
+                        max_screens=12 if strategy != "requirements" else 8)
+    say(f"[ios] discovery: {len(model['screens'])} screen(s), {len(model['transitions'])} transition(s), "
+        f"{len(model['skipped'])} control(s) not tapped (could change data / not replayable)")
+    plans: list = []
+    cases = [{"id": x["tc"], "title": x.get("title"), "steps": [x["text"]]} for x in tests]
+    if cases and strategy in ("requirements", "hybrid"):
+        job["current"] = "iOS: planning the Jira test cases"
+        plans += ios.plan_cases(cases, model["screens"][0]["controls"], ask=ask, screens=model["screens"])
+    if strategy in ("autonomous", "hybrid"):
+        job["current"] = "iOS: autonomous scenarios"
+        own = ios.autonomous_cases(model)
+        ai = ios.ai_scenarios(model, ask=ask)
+        say(f"[ios] autonomous: {len(own)} scenario(s) from discovery, {len(ai)} designed by the AI")
+        plans += own + ai
+    runner = ios.IosRun(driver, run_dir, bundle_id)
+    records = []
+    for p in plans:
+        if (job.get("stop") is not None and job["stop"].is_set()) or job.get("status") == "stopped":
+            break
+        job["current"] = f"iOS: {p.case}"
+        rec = runner.run_case(p)
+        if not p.case.startswith("TC-"):
+            rec.pop("requirement_test", None)  # (an autonomous scenario: no Jira case of its own)
+            rec["origin"] = "autonomous"
+        say(f"[ios] {p.case}: {rec.get('execution_status')} {(rec.get('actual_result') or rec.get('skip_reason') or '')[:160]}")
+        records.append(rec)
+    (run_dir / "ios_contexts.json").write_text(json.dumps(model["context_switches"] + runner.context_switches,
+                                                          indent=1), encoding="utf-8")
+    return records
 
 
 def _launch_android(t, lines: list[str], authorization, x_qa_token) -> int:

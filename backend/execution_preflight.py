@@ -147,12 +147,6 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
                 problem("ios_environment", why, "ios_setup")
         except ValueError as error:
             problem("ios_app", str(error), "enter_ios_app")
-        if strategy == "autonomous":
-            problem("strategy", "iOS runs approved test cases only: autonomous exploration of iOS apps is not built "
-                                "yet. Choose requirement-based testing and select test cases.", "choose_strategy")
-        elif strategy == "hybrid":
-            problem("strategy", "On iOS, hybrid testing runs the selected test cases only (no autonomous exploration "
-                                "of iOS apps yet).", "", blocking=False)
     elif app_type == "api":
         spec_url, allow = api
         address = spec_url or url

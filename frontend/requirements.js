@@ -1888,7 +1888,7 @@
           const img = h("img", { alt: `Live screen of ${w}` });
           LV.frames[w] = img;
           if ($("lvScreens").querySelector("p")) $("lvScreens").replaceChildren();
-          const fig = h("figure", { "data-worker": w }, img, h("figcaption", { text: `${w} — ${/^gw\d+$/.test(w) ? "test browser" : "exploring browser"} of the run` }));
+          const fig = h("figure", { "data-worker": w }, img, h("figcaption", { text: w === "device" ? "device — the app's screen on the simulator / device" : `${w} — ${/^gw\d+$/.test(w) ? "test browser" : "exploring browser"} of the run` }));
           const after = [...$("lvScreens").querySelectorAll("figure")].find((f) => rank(f.dataset.worker) > rank(w));
           $("lvScreens").insertBefore(fig, after || null);
         }

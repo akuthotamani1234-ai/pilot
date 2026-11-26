@@ -628,7 +628,9 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
     ex.update(status="finished" if run_status == "done" else run_status, finished_at=_now(), counts=counts,
               exploratory={"cases": len(exploratory),
                            "failed": sum(1 for c in exploratory if c.get("execution_status") == "Failed"),
-                           "passed": sum(1 for c in exploratory if c.get("execution_status") == "Passed")})
+                           "passed": sum(1 for c in exploratory if c.get("execution_status") == "Passed"),
+                           "not_run": sum(1 for c in exploratory if c.get("execution_status") not in (
+                               "Passed", "Failed", "Flaky"))})
     with db:
         db.execute("UPDATE req_executions SET status = ?, data = ? WHERE tenant_id = ? AND id = ?",
                    (ex["status"], json.dumps(ex), tenant, execution_id))
@@ -670,6 +672,12 @@ def outcome_of(ex: dict) -> dict:
         key = "interrupted"
     elif status == "failed" and not executed:
         key = "automation_failed"
+    elif not selected and ex.get("strategy") == "autonomous":  # (no Jira case: what the run's own scenarios showed)
+        auto = ex.get("exploratory") or {}
+        key = ("no_tests_automated" if not auto.get("cases") or auto.get("cases") == auto.get("not_run") else
+               "completed_with_failures" if auto.get("failed") else
+               "completed_with_unautomated" if auto.get("not_run") else "completed")
+        tally["autonomous"] = {k: auto.get(k, 0) for k in ("cases", "passed", "failed", "not_run")}
     elif selected and not executed:
         key = "no_tests_automated"
     elif tally["failed"]:
