@@ -124,14 +124,25 @@ def _execution_preflight_stub(request, monkeypatch):
 # ---------------------------------------------------------------- one test's background run never blocks the next
 # backend.server keeps the runs in process-wide registries (jobs, rechecks). Under pytest-xdist one worker runs many
 # tests in a row; a run a previous test started in the background (still "running" when that test ended) made the next
-# test see "A test is already running" or a scheduled test wait. Each test starts with registries holding no running
-# entries from earlier tests (finished entries are kept); the earlier run's thread keeps updating its own old dict.
+# test see "A test is already running" or a scheduled test wait. Each test starts with no running entries from
+# earlier tests (they are parked and put back after it; finished entries stay). The registries are emptied IN PLACE:
+# other modules hold these very dicts (replacing them made /api/mcp/jobs read a stale registry).
 
 @pytest.fixture(autouse=True)
-def _isolated_run_registry(monkeypatch):
+def _isolated_run_registry():
+    # (in place: other modules keep a reference to these very dicts - mcp_api.register_mcp_api(app, jobs, ...))
     import sys
     server = sys.modules.get("backend.server")
-    if server is not None:
-        monkeypatch.setattr(server, "jobs", {k: v for k, v in server.jobs.items() if v.get("status") != "running"})
-        monkeypatch.setattr(server, "rechecks", {k: v for k, v in server.rechecks.items() if not v.get("running")})
+    if server is None:
+        yield
+        return
+    parked = {}
+    for name, running in (("jobs", lambda v: v.get("status") == "running"), ("rechecks", lambda v: v.get("running"))):
+        registry = getattr(server, name)
+        parked[name] = {k: registry.pop(k) for k in [k for k, v in list(registry.items())
+                                                     if isinstance(v, dict) and running(v)]}
     yield
+    for name, entries in parked.items():  # (an earlier test's background run gets its entry back)
+        registry = getattr(server, name)
+        for k, v in entries.items():
+            registry.setdefault(k, v)

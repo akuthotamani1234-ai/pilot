@@ -216,7 +216,7 @@ def test_results_come_only_from_the_runs_own_cases(db, paths, tmp_path):
         {"tc_id": "TC-002", "execution_status": "Failed"}]))  # (an exploratory case: not a requirement result)
     done = bridge.collect(db, "t1", ex["id"], run)
     assert done["counts"] == {"Passed": 1, "Not run": 1} and done["exploratory"] == {"cases": 1, "failed": 1,
-                                                                                      "passed": 0}
+                                                                                      "passed": 0, "not_run": 0}
     res = {r["test_case_id"]: r for r in bridge.results(db, "t1", ex["id"])}
     assert res["TC-QPL-2-1"]["status"] == "Passed" and res["TC-QPL-2-1"]["evidence"] == ["screenshots/1.png"]
     assert res["TC-QPL-2-1"]["case_version"] == 1 and res["TC-QPL-2-1"]["source_version"] == 1
