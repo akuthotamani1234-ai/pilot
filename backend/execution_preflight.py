@@ -113,7 +113,7 @@ def browser_probe(url: str, timeout_s: float = PROBE_TIMEOUT_S) -> dict:
 def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_type: str = "web",
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
           probe=None, demo_checkout: bool = False, android: dict | None = None,
-          payment: tuple[str, bool] = ("", False)) -> dict:
+          payment: tuple[str, bool] = ("", False), api: tuple[str, list] = ("", [])) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -139,9 +139,24 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
             problem("package", "Enter the Android app's package name (e.g. com.example.app).", "enter_package")
         if a.get("mode") == "web" and not url:
             problem("target", "Enter the website address to open in Android Chrome.", "enter_url")
+    elif app_type == "api":
+        spec_url, allow = api
+        address = spec_url or url
+        if not address:
+            problem("target", "Enter the API's OpenAPI / Swagger document address (or its base address).",
+                    "enter_url")
+        else:
+            try:
+                check_target(address, resolve=False)
+            except UrlError as error:
+                problem("target", str(error), "enter_url")
+        if "DELETE" in [a.upper() for a in allow] and strategy != "requirements":
+            problem("api_writes", "DELETE is only sent by requirement-based runs.", "choose_strategy")
     elif app_type != "web":
         problem("app_type", f"'{app_type}' targets are not run from here.", "use_studio")
-    if not url:
+    if app_type == "api":
+        pass  # (checked above: the API document / base address)
+    elif not url:
         if app_type == "web":
             problem("target", "Target website not found. Please enter the website URL you want to test.",
                     "enter_url")

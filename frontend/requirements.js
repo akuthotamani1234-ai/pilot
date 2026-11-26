@@ -1241,14 +1241,17 @@
       epic: { epic: $("exEpic").value.trim().toUpperCase() } }[mode];
     const url = $("exUrl").value.trim();
     const android = $("xcApp").value === "android", androidApp = android && $("exAndMode").value === "installed";
+    const apiRun = $("xcApp").value === "api";
     if (strategy !== "autonomous" && mode === "selected" && !selected.length) return fail("No test case is selected. Select approved test cases in Test Cases first (or choose Autonomous).");
-    if (androidApp) {  // (an installed app: no website address; Appium checks the device)
+    if (apiRun) {  // (a REST API: its document; no browser)
+      if (!$("exApiSpec").value.trim()) { $("exApiSpec").focus(); return fail("Enter the API's OpenAPI / Swagger document address."); }
+    } else if (androidApp) {  // (an installed app: no website address; Appium checks the device)
       if (!$("exDevice").value.trim()) { $("exDevice").focus(); return fail("Choose the Android device or emulator (its id from 'adb devices')."); }
       if (!$("exPackage").value.trim()) { $("exPackage").focus(); return fail("Enter the Android app's package name."); }
     } else if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
     if (!/^https?:\/\/[^\s/]+/i.test(url)) { $("exUrl").focus(); return fail("Enter a full website address starting with http:// or https://"); }
     if (!$("exAuth").checked) { $("exAuth").focus(); return fail("Confirm that you own the application or have permission to test it."); }
-    if (!androidApp) {
+    if (!androidApp && !apiRun) {
       out.textContent = "Checking the website…";
       let reach;
       try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
@@ -1261,6 +1264,8 @@
       show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
       demo_checkout: $("exDemo").checked, use_saved_account: true,
       payment_provider: $("exPayProvider").value, payment_sandbox_confirmed: $("exPayConfirm").checked,
+      ...(apiRun ? { api_spec_url: $("exApiSpec").value.trim(), api_token: $("exApiToken").value,
+        api_allow: [...document.querySelectorAll(".exApiAllow:checked")].map((x) => x.value) } : {}),
       ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
         app_activity: $("exActivity").value.trim(), appium_url: $("exAppium").value.trim() } : {}), save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
     // preflight: the same checks the server enforces - nothing is created when the run could not test anything
@@ -1270,7 +1275,7 @@
     try { pre = await api("/executions/preflight", { method: "POST", body: { strategy, scope, target } }); }
     catch (err) { return fail(err.message); }
     if (!pre.ok) { showProblems(pre.problems); return fail(pre.problems.find((p) => p.blocking).message); }
-    $("exPass").value = ""; $("exKey").value = "";  // (sent once, never kept in the page)
+    $("exPass").value = ""; $("exKey").value = ""; $("exApiToken").value = "";  // (sent once, never kept in the page)
     out.textContent = `Starting the test run (AI: ${pre.ai.provider}${pre.ai.model ? ` · ${pre.ai.model}` : ""})…`;
     try {
       const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
@@ -1285,7 +1290,7 @@
       location.hash = "#agents";  // (the live view opens by itself: no second Run button)
     } catch (err) { fail(err.message); }
   });
-  $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; });
+  $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; $("xcApi").hidden = $("xcApp").value !== "api"; });
   // what the preflight found, each with the action that fixes it (the selection and the form stay as they are)
   function showProblems(problems) {
     const act = { ai: ["Choose an AI provider", () => $("exAi").focus()], choose_ai: ["Choose an AI provider", () => $("exAi").focus()],

@@ -239,7 +239,7 @@ def closure(selected: list[str], all_edges: list[dict], runnable: set[str]) -> d
     for s in selected:
         walk(s)
     return {"order": order, "added": [n for n in order if n not in selected], "requires": requires,
-            "skipped": skipped, "cycles": [c for c in cycles(all_edges)]}
+            "skipped": skipped, "cycles": list(cycles(all_edges))}
 
 
 def all_requirements_of(case_id: str, requires: dict[str, list[str]]) -> list[str]:

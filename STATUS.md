@@ -22,7 +22,8 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Web (Playwright), native Android (Appium) | built, live-verified | |
 | Hybrid Android WebView (Phase 4) | built: automatic native / WebView context per step, exact WebView limitation, ChromeDriver folder / opt-in download; Jira executions run on Android through the existing engine with per-case results. Live: BLOCKED (no device / hybrid test build here) | `qa_runtime.py`, `android.py`, `requirements_api._launch_android`, `bridge._android_results` |
 | Prerequisites across stories (Phase 1) | built and run live: graph from Jira links, declared preconditions, optional AI, manual; added to runs; Blocked naming the failed prerequisite; cycles reported | `atlassian/prerequisites.py`, `/api/requirements/dependencies` |
-| iOS, REST API test execution, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
+| REST API tests (Phase 3) | built and run live (Petstore): OpenAPI import, real requests, status / schema / JSON / time checks, chains, method permissions, redacted evidence; Jira test cases -> AI-planned API tests from documented operations only -> per-case results | `api_testing.py`, `requirements_api._launch_api` |
+| iOS, pause-for-SSO/MFA-and-resume, per-feature inventory | NOT built | - |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").

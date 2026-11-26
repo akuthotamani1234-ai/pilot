@@ -24,6 +24,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import Header, HTTPException
 from fastapi.responses import JSONResponse
@@ -289,7 +290,12 @@ class ExecutionScope(BaseModel):
 
 
 class ExecutionTarget(BaseModel):
-    type: str = Field(default="web", pattern=r"^(web|android)$")
+    type: str = Field(default="web", pattern=r"^(web|android|api)$")
+    # a REST API (backend/api_testing.py): its OpenAPI / Swagger document (or base address), the methods beyond GET
+    # this run may send (operation-specific; DELETE only when named) and a bearer token for this run (never stored)
+    api_spec_url: str = Field(default="", max_length=2000)
+    api_allow: list[str] = Field(default_factory=list, max_length=4)
+    api_token: str = Field(default="", max_length=4000)
     url: str = Field(default="", max_length=2000)  # (a website, or the start page of an Android Chrome run)
     # Android (the existing Appium engine): the installed app of a device / emulator, or Android Chrome
     android_mode: str = Field(default="installed", pattern=r"^(installed|web)$")
@@ -321,7 +327,7 @@ class ExecutionTarget(BaseModel):
     project_key: str = Field(default="", max_length=20)
 
     def public(self) -> dict:
-        return {k: v for k, v in self.model_dump().items() if k not in ("test_password", "api_key")} | {
+        return {k: v for k, v in self.model_dump().items() if k not in ("test_password", "api_key", "api_token")} | {
             "test_password": "[set]" if self.test_password else "", "api_key": "[set]" if self.api_key else ""}
 
 
@@ -408,6 +414,52 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
 
 def _with_outcome(ex: dict) -> dict:
     return {**ex, **bridge.outcome_of(ex)}
+
+
+def _launch_api(t, tests: list[dict], case_ids: list[str]) -> int:
+    """Run the REST API tests of these test cases in the background, as a job of the Studio (Live / Reports see it);
+    its run folder holds api_results.json (every request and answer, redacted) and test_cases.json."""
+    from . import api_testing, server
+    job_id = max(server.jobs, default=0) + 1
+    host = (urlparse(t.api_spec_url or t.url).hostname or "api").replace(":", "_")
+    run_id = f"api_{host}_{time.strftime('%Y%m%d_%H%M%S')}"
+    run_dir = server.RUNS / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    server.jobs[job_id] = {"id": job_id, "source": t.api_spec_url or t.url, "status": "running", "proc": None,
+                           "lines": [], "pages": [], "stages": {}, "current": "API tests", "run": run_id,
+                           "started": time.time(), "llm": {"provider": t.llm_provider, "model": t.llm_model},
+                           "secrets": [v for v in (t.api_token, t.api_key) if v], "target_type": "api",
+                           "workflow": "standard", "privacy_mode": "", "principal_id": ""}
+    job = server.jobs[job_id]
+    auth = {"type": "bearer", "token": t.api_token} if t.api_token else None
+
+    def say(line: str) -> None:
+        job["lines"].append(line)
+
+    def work():
+        status = "done"
+        try:
+            spec = api_testing.load_spec(t.api_spec_url) if t.api_spec_url else None
+            ops = api_testing.operations(spec) if spec else []
+            base = api_testing.base_url(spec, t.api_spec_url) if spec else t.url.rstrip("/")
+            say(f"[api] {len(ops)} documented operation(s) at {base}")
+            cases = [{"id": x["tc"], "title": x.get("title"), "steps": [x["text"]], "expected": ""} for x in tests]
+            planned, why = api_testing.tests_for_cases(cases, ops)
+            say(f"[api] {len(planned)} API test(s) planned for {len(cases)} test case(s)")
+            results = api_testing.run(base, planned, auth=auth, allow=set(t.api_allow), ops=ops)
+            for r in results:
+                say(f"[api] {r['status']}: {r['name']} {(r.get('reason') or '')[:160]}")
+            (run_dir / "api_results.json").write_text(json.dumps(results, indent=1, default=str), encoding="utf-8")
+            (run_dir / "test_cases.json").write_text(json.dumps(api_testing.to_run_cases(results, why, case_ids),
+                                                                indent=1), encoding="utf-8")
+        except Exception as error:  # (the run itself failed: said, and every case is collected as not run)
+            status = "failed"
+            say(f"[api] the API run failed: {type(error).__name__}: {str(error)[:300]}")
+        finally:
+            job["status"] = status
+            job["finished"] = time.time()
+    threading.Thread(target=work, daemon=True, name=f"api-tests-{job_id}").start()
+    return job_id
 
 
 def _launch_android(t, lines: list[str], authorization, x_qa_token) -> int:
@@ -1096,7 +1148,7 @@ def register_requirements_api(app) -> None:
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
             probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout,
-            payment=(t.payment_provider, t.payment_sandbox_confirmed), android={
+            payment=(t.payment_provider, t.payment_sandbox_confirmed), api=(t.api_spec_url, t.api_allow), android={
                 "mode": t.android_mode, "device_id": t.device_id, "package_name": t.package_name})
 
     @app.post("/api/requirements/executions/preflight")
@@ -1147,6 +1199,15 @@ def register_requirements_api(app) -> None:
                 user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
                 if user and pw:
                     t = t.model_copy(update={"test_username": user, "test_password": pw})
+            if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
+                job = _launch_api(t, planned["requirement_tests"], ex["case_ids"])
+                bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
+                db.close()
+                _watch(ctx["tenant"], ex["id"], int(job))
+                _audit(ctx, "execution.start", True, execution=ex["id"], strategy=body.strategy,
+                       cases=len(ex["case_ids"]), target=f"api:{t.api_spec_url or t.url}"[:200],
+                       writes=sorted(t.api_allow))
+                return {"execution": {**ex, "status": "running", "run_id": str(job)}, "job": job}
             if t.type == "android":  # the existing Android engine runs them first ('yours first'), tagged per case
                 lines = [f"[{x['tc']}] {x['text']}" for x in planned["requirement_tests"]]
                 try:

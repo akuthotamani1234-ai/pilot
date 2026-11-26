@@ -2,6 +2,26 @@
 
 All notable changes to Qpilot should be recorded here. Phase 0 added project status/planning documentation only; it did not alter application code or runtime behavior.
 
+## 2026-11-26 - Phase 3: REST API tests (real requests, real checks), from Jira test cases
+
+- `backend/api_testing.py` (api_inventory.py only records a website's calls; this EXECUTES API tests): OpenAPI 3 /
+  Swagger 2 from a URL (checked like a website target) or text, JSON or YAML, `$ref` resolved; operations with
+  parameters, body and documented responses; smoke tests for GETs that need no unknown input; `ApiTest`: method, path
+  with `path_params`, query, headers, JSON body, the run's bearer / basic / header auth, expected statuses, checks on
+  the JSON answer (eq / ne / contains / exists / not_exists / gte / lte / len_gte / len_eq / type / matches), the
+  documented schema of the answer, a response-time limit, values saved for later requests (`{{name}}` chains).
+- Safety: GET / HEAD / OPTIONS always; POST / PUT / PATCH only when the run allows them; DELETE only when named;
+  anything else Blocked with the reason and never sent; requests never leave the API's host; evidence keeps each
+  request and answer with Authorization, cookies, api keys, password / token fields and card-like numbers redacted.
+- Jira executions with target type "api": the OpenAPI document, the methods allowed, a bearer token for the run (never
+  stored); the AI maps each approved test case to tests built ONLY from documented operations (an invented operation
+  is dropped; a case no operation covers is "Not automated" with the reason); the run is a Studio job with its own run
+  folder (`api_results.json`, `test_cases.json`); each case's result goes through the usual collection: Passed, Failed
+  (an API defect), Requires review (a check of a field the answer does not have: the test's mistake), Blocked.
+- Live (mock Jira text, real AI gpt-4o-mini, real https://petstore3.swagger.io): 4 cases -> 3 Passed (find by status,
+  a missing id answers 404, create a pet and read it back by its saved id), 1 Failed on a real finding (the shared
+  sandbox returns `tags` as strings where its schema documents objects). Opt-in live test: `QPILOT_LIVE_API=1`.
+
 ## 2026-11-26 - Phase 5: payment sandbox, order lifecycle, no selected case left out
 
 - `backend/payment_sandbox.py`: the payment providers' published TEST instruments and sandbox hosts (Stripe test

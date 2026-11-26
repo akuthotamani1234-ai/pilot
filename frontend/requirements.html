@@ -274,9 +274,19 @@
         <section class="rq-target" aria-labelledby="tgTitle"><h2 class="rq-sub" id="tgTitle">Application under test</h2>
           <div id="tgBox" role="status" aria-live="polite"><p class="small">Looking for the website of these requirements…</p></div>
           <div class="rq-filter-grid">
-            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android">Android app (device / emulator)</option></select></label>
+            <label for="xcApp">Application<select id="xcApp"><option value="web">Website (browser)</option><option value="android">Android app (device / emulator)</option><option value="api">REST API</option></select></label>
             <label class="rq-wide" for="exUrl">Website address<input id="exUrl" type="url" placeholder="https://www.saucedemo.com/" autocomplete="url"></label>
             <label for="exEnv">Environment<select id="exEnv"><option value="test">Test (nothing is sent or changed)</option><option value="staging">Staging</option></select></label>
+          </div>
+          <div class="rq-filter-grid" id="xcApi" hidden>
+            <label class="rq-wide" for="exApiSpec">OpenAPI / Swagger document<input id="exApiSpec" type="url" placeholder="https://api.example.com/openapi.json" autocomplete="off"></label>
+            <label for="exApiToken">Bearer token for this run<input id="exApiToken" type="password" autocomplete="new-password" placeholder="only if the API needs one; never stored"></label>
+            <fieldset class="rq-wide"><legend class="small">Requests that change data (only for a test / staging API)</legend>
+              <label class="rq-check"><input type="checkbox" class="exApiAllow" value="POST"> POST</label>
+              <label class="rq-check"><input type="checkbox" class="exApiAllow" value="PUT"> PUT</label>
+              <label class="rq-check"><input type="checkbox" class="exApiAllow" value="PATCH"> PATCH</label>
+              <label class="rq-check"><input type="checkbox" class="exApiAllow" value="DELETE"> DELETE</label></fieldset>
+            <p class="small rq-wide">Each test case becomes real requests to the documented operations, checked for status, the documented schema, the expected values and the response time. GET is always allowed; other methods only when ticked. Requests and answers are kept with secrets removed.</p>
           </div>
           <div class="rq-filter-grid" id="xcAndroid" hidden>
             <label for="exAndMode">On Android<select id="exAndMode"><option value="installed">The installed app (native / hybrid)</option><option value="web">The website in Android Chrome</option></select></label>

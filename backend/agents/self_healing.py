@@ -343,8 +343,8 @@ def self_healing_agent(state: QAState) -> QAState:
     to_rerun += ev_rerun
     tried = {e["nodeid"] for e in ev_log}
 
-    from .failure_analysis import healable
     from ..config import settings
+    from .failure_analysis import healable
     targets = [] if state.get("heal_round", 0) >= settings.max_heal_rounds else [  # (an evidence-only round)
         f for f in state.get("failures", []) if healable(f) and f.get("nodeid") not in unhealable
         and f.get("nodeid") not in tried]
