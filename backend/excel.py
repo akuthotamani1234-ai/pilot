@@ -173,6 +173,9 @@ def case_result(case: dict, results: list[dict] | None) -> tuple[str, str]:
         res = "Passed"
     detail = (_short_error(bad[0].get("error")) + (f" (+{len(bad) - 1} more failed)" if len(bad) > 1 else "")) if bad \
         else (f"{len(hits)} check(s) passed" if len(hits) > 1 else "")
+    if res == "Inconclusive":  # (why it proves nothing: e.g. the expected result it quotes was never checked)
+        detail = next((_short_error(r.get("error")) for r in hits if _outcome(r) == "Inconclusive" and r.get("error")),
+                      "the test ran but did not establish its expected result")
     notes = [r["note"] for r in hits if r.get("note")]
     if notes and res == "Passed":  # a step this website did not allow is said, never hidden behind "passed"
         detail = f"{detail or 'All checks passed'}; not possible on this website: {'; '.join(notes)[:300]}"

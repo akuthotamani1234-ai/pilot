@@ -468,6 +468,8 @@ def _result_status(case: dict) -> str:
         return "Blocked"
     if status == "Failed" and str(case.get("failure_category") or "").startswith(TEST_SIDE):
         return "Requires review"
+    if status == "Inconclusive":  # (it ran, but did not establish its expected result: a person looks - never Passed)
+        return "Requires review"
     return status if status in RESULTS else "Not run"
 
 
@@ -572,6 +574,9 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         else:
             status = _result_status(c)
             reason = str(c.get("skip_reason") or "")[:500]
+            if c.get("execution_status") == "Inconclusive":
+                reason = ("Inconclusive: " + str(c.get("actual_result") or "the test did not establish its expected "
+                                                                          "result"))[:500]
             if status == "Blocked" and c.get("execution_status") == "Failed":
                 reason = f"Blocked: a prerequisite failed ({c.get('failure_category')}), not the feature under test"
             result = {"status": status, "actual": str(c.get("actual_result") or "")[:2000],
