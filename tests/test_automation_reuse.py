@@ -131,9 +131,18 @@ def test_the_run_reuses_it_only_after_revalidating_it_against_the_current_pages(
     assert list(reused) == ["ai_flow_18"] and [f["id"] for f in rest] == ["ai_flow_19"]
     assert "def test_ai_flow_18(page)" in reused["ai_flow_18"] and "test_ai_flow_2" not in reused["ai_flow_18"]
     assert "QA_EXPECTS_test_ai_flow_18 = ['Sauce Labs Backpack']" in reused["ai_flow_18"]
-    gone = _pages(['[data-test="shopping-cart-badge"]'])  # (the add button is not on the page any more)
+    gone = _pages(['[data-test="shopping-cart-badge"]'])  # (this run did not see the add button)
     reused, rest = sg.reuse_validated([flow], gone)
-    assert reused == {} and rest == [flow]  # (no longer fits: the AI writes it again)
+    assert reused == {} and rest == [flow]  # (not seen, not proven: the AI writes it again)
+    proven = json.loads(__import__("os").environ["QA_REQUIREMENT_TESTS"])
+    proven[0]["automation"]["selectors"] = ["#add-to-cart-sauce-labs-backpack"]  # (executed in a passing run)
+    monkeypatch.setenv("QA_REQUIREMENT_TESTS", json.dumps(proven))
+    reused, rest = sg.reuse_validated([flow], gone)
+    assert list(reused) == ["ai_flow_18"]  # (proven against this application: the run itself revalidates it)
+    invented = dict(proven[0], automation=dict(proven[0]["automation"], code=code.replace(
+        "#add-to-cart-sauce-labs-backpack", "#buy-now")))
+    monkeypatch.setenv("QA_REQUIREMENT_TESTS", json.dumps([invented]))
+    assert sg.reuse_validated([flow], gone)[0] == {}  # (a selector neither seen nor proven is never accepted)
 
 
 def test_the_full_list_with_code_reaches_the_run_through_a_private_file(tmp_path, monkeypatch):

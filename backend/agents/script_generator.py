@@ -7,6 +7,7 @@ With an LLM: the model writes the code of its own journeys; we validate it (synt
 own mistakes once. If it still fails, its journeys are left out (the built-in test cases still run).
 """
 import ast
+import contextlib
 import json
 import re
 import shutil
@@ -2620,7 +2621,12 @@ def reuse_validated(flows: list[dict], pages: dict[str, dict]) -> tuple[dict[str
         old = a["test"]
         code = re.sub(rf"\b{re.escape(old)}\b", new, a["code"]).replace(f"QA_EXPECTS_{old} =", f"QA_EXPECTS_{new} =")
         used = [pages[x] for x in f.get("pages", []) if x in pages] or list(pages.values())
-        err = validate_script(code) or grounding_problem(code, used, _requirement_evidence())
+        # a selector is grounded when this run's exploring saw it, or when this automation already executed it
+        # successfully against this application (e.g. a cart row: this run's exploring may have seen an empty cart).
+        # Running the test against the current application is the final revalidation: a test-side failure marks
+        # the automation stale and the next execution regenerates it.
+        proven = [{"slug": "proven", "url": "", "buttons": [{"selector": x} for x in a.get("selectors") or []]}]
+        err = validate_script(code) or grounding_problem(code, used + proven, _requirement_evidence())
         missing = [q for q in quoted_expectations(f) if q.casefold() not in code.casefold()]
         if err or missing or not re.search(rf"^\s*def {new}\(", code, re.M):
             print(f"  [script-gen] {f['id']}: its validated automation no longer fits this application "
@@ -3070,7 +3076,12 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
         for c in ai:
             if c.get("my_test"):
                 c["automation_source"] = "reused" if c["id"] in reused else "generated"
-        code, lost, why = _llm_flows_in_batches(ai_new, pages) if ai_new else ("", [], "")
+        from .. import requirement_tests
+        from ..llm import optional_ai
+        # requirement-based: no rule-based suite exists to fall back to - a case the AI cannot write is Not
+        # automated (said, with the reason) and the others still run; hybrid / autonomous keep the stop rule
+        with optional_ai() if requirement_tests.only() else contextlib.nullcontext():
+            code, lost, why = _llm_flows_in_batches(ai_new, pages) if ai_new else ("", [], "")
         if reused:
             code = _merge_flows(list(reused.values()) + ([code] if code else []))
             notes.append(f"{len(reused)} Jira test case(s) ran their validated automation again (revalidated "

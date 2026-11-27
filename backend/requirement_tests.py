@@ -56,6 +56,7 @@ def load() -> list[dict]:
                     "criteria": [str(c)[:80] for c in (item.get("criteria") or [])][:10],
                     "title": str(item.get("title", ""))[:200],
                     **({"automation": {**{k: str(a.get(k, ""))[:30000] for k in ("code", "test", "validated_in")},
+                                       "selectors": [str(x)[:300] for x in (a.get("selectors") or [])][:60],
                                        **({"design": a["design"]} if isinstance(a.get("design"), dict) else {})}}
                        if isinstance(a := item.get("automation"), dict) and a.get("code") and a.get("test") else {})})
         if len(out) >= MAX_TESTS:
