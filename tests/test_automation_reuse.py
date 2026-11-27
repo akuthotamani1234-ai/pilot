@@ -168,3 +168,18 @@ def test_a_case_with_validated_automation_needs_no_ai_to_be_designed(monkeypatch
     assert proven["kind"] == "flow" and proven["design_source"] == "reused" and proven["pages"] == ["inventory_html"]
     assert proven["steps"] == design["steps"] and proven["tests"] == ["test_ai_flow_1"]
     assert cases["rq_tc_b_1"]["skip_reason"].startswith("Not automated: no AI")  # (the other one still needs an AI)
+
+
+def test_an_optional_explanation_call_never_stops_the_run_but_a_test_call_does(monkeypatch):
+    from backend import llm, runctl
+    stops = []
+    monkeypatch.setattr(runctl, "request_stop", lambda *a: stops.append(a))
+    monkeypatch.setenv("QA_ALLOW_RULES_FALLBACK", "0")
+    monkeypatch.setattr(llm, "_ask_once", lambda *a, **k: (_ for _ in ()).throw(llm.LLMError("no credits")))
+    monkeypatch.setattr(llm, "llm_enabled", lambda: True, raising=False)
+    with llm.optional_ai(), pytest.raises(llm.LLMError):
+        llm.ask_llm("names please", agent="test_design", max_attempts=1)
+    assert stops == []  # (feature names / failure explanations fall back; the run goes on)
+    with pytest.raises(llm.LLMError):
+        llm.ask_llm("write the test", agent="script_generator", max_attempts=1)
+    assert stops and stops[0][0] == "ai_unavailable"  # (a test-producing call still stops it)

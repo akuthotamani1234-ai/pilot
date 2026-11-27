@@ -77,6 +77,27 @@ and password fields are masked by the browser, but anything else a page shows is
 screenshots before sharing them.
 ---
 
+## 0b. What you need before you start (accounts, devices, permissions, configuration)
+
+| Validation | Accounts / access | Device / machine | Permissions | Configuration in Qpilot |
+|---|---|---|---|---|
+| Real Jira integration | an Atlassian account that can **browse** the test project (QPL); an API token of that account | your Mac | read access to the project and its linked Confluence pages; **no** write permission needed (Jira write-back stays off) | Integrations: site address, e-mail, API token (section 3) |
+| Website (all strategies) | a test account of the website (never a real customer's) | your Mac (Chrome via Playwright) | written permission to test the site; a test / staging environment for anything that sends forms | Execution Center: address, environment, test username / password |
+| Native Android | the app's test account (if it has a login) | Android Studio emulator (or a phone with Developer options -> USB debugging on) | a **test build** of the app (debug or internal track); the right to install it | Application = Android app, device id, package, Appium server |
+| Hybrid Android | as native Android | as native Android | the test build calls `WebView.setWebContentsDebuggingEnabled(true)` | as native; Appium with `--allow-insecure chromedriver_autodownload`; `QPILOT_CHROMEDRIVER_AUTODOWNLOAD=1` in `.env` |
+| Native iOS | the app's test account (if it has a login) | Mac with Xcode + an iOS simulator; a real iPhone additionally needs an Apple developer team (signing) and Developer Mode on | a **simulator build** (.app) or a signed test build (.ipa) | Application = iOS app, bundle id (+ app file / UDID / Appium server) |
+| Hybrid iOS | as native iOS | as native iOS | the test build sets `webView.isInspectable = true` (iOS 16.4+) | as native iOS |
+| Payment sandbox | a provider **sandbox** account (Stripe test mode, Braintree sandbox, Adyen test, Razorpay test mode or PayPal sandbox buyer) | your Mac | the shop's **staging** environment must be connected to that sandbox (its test keys are configured in the shop, never in Qpilot) | Execution Center: Payment sandbox = provider, tick the sandbox confirmation, strategy Requirement-based |
+| Order history | a shop test account that can place (sandbox) orders and has a "My orders" page | your Mac | staging | Jira cases "the order appears in My orders", prerequisite = the order case |
+| Order status | as order history, plus someone (or a back-office job) who moves the order to the next status in the test environment within 10 minutes | your Mac | access to the shop's back office in staging (for the person, not for Qpilot) | Jira case "the order status becomes 'Shipped'"; Qpilot waits up to 10 minutes, reloading |
+| Bot protection | the application owner's agreement | your Mac | a test environment with the protection switched on; or an allow-list entry for your IP | none; when paused, the help form takes your own browser session (section 11) |
+| SSO | a test user of the identity provider (Okta / Entra ID / Google Workspace) assigned to the application | your Mac | the application's SSO enabled in staging | the identity provider's host in `ALLOWED_HOSTS` in `.env` (comma separated), or sign in yourself when the run pauses |
+| MFA | the test user's authenticator **secret** (the text behind its QR code) - for TOTP only | your Mac | MFA enrolled for the test user | `TEST_TOTP_SECRET` in `.env`; SMS / e-mail / push MFA always pauses for you |
+| Large projects | a Jira project with more than 20 approved cases | your Mac | read access | `QPILOT_BATCH_SIZE` in `.env` if you want batches other than 20 |
+
+Secrets (tokens, passwords, TOTP secrets) go only into Qpilot's own fields or your local `.env`. Never paste them
+into a ticket, a chat or a screenshot you share.
+
 ## 1. Install the tools (once)
 
 Open **Terminal** (Applications -> Utilities -> Terminal). Each block is one command.
@@ -503,7 +524,7 @@ the wait, that part ends **Blocked** with the exact blocker - never Failed.
 |---|---|---|
 | MFA with an authenticator app (TOTP) | put the **test account's** authenticator secret in `.env` as `TEST_TOTP_SECRET` | the code is generated during login; the run proceeds |
 | MFA by SMS / e-mail / push | nothing | the run pauses ("the login asks for a one-time code"); sign in yourself and give the session (section 11) |
-| SSO redirect (Okta, Entra ID, Google) | approve the SSO host in scope, or sign in yourself | pause, help, resume as in section 11 |
+| SSO redirect (Okta, Entra ID, Google) | add the identity provider's host to `ALLOWED_HOSTS` in `.env` (comma separated) and restart the Studio, or sign in yourself when it pauses | with the host allowed and a TOTP secret: the run signs in; otherwise pause, help, resume as in section 11 |
 
 Evidence: the pause banner screenshot, `runs/<run>/pause.json`, the resumed run's report.
 

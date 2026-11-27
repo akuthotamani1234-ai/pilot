@@ -901,8 +901,11 @@ def failure_analysis_agent(state: QAState) -> QAState:
         try:
             brief = [{"id": f["id"], "test": f["test"], "category": f["category"], "error": f["error"]}
                      for f in test_failures[:40]]
-            for upd in extract_json(ask_llm(load_prompt("failure_analysis").format(failures=json.dumps(brief, indent=1)),
-                                            agent="failure_analysis")):
+            from ..llm import optional_ai
+            with optional_ai():  # (an explanation only: category, severity and verdict stay the rules')
+                answer = ask_llm(load_prompt("failure_analysis").format(failures=json.dumps(brief, indent=1)),
+                                 agent="failure_analysis")
+            for upd in extract_json(answer):
                 f = failures[int(upd["id"])]
                 if upd.get("explanation"):
                     f["ai_explanation"] = str(upd["explanation"])[:400]

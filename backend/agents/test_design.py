@@ -2429,7 +2429,9 @@ def _link_registry(state: QAState, cases: list[dict]) -> None:
     registry.link_tests(reg, cases)
     if llm_enabled():  # (one call: names for people - the checks stay rule-based)
         try:
-            n = ai_feature_labels(reg)
+            from ..llm import optional_ai
+            with optional_ai():  # (names only: the built-in names stand in when it fails)
+                n = ai_feature_labels(reg)
             print(f"  [test-design] the AI named the feature of {n} learned control(s) - from the evidence only")
         except LLMError as e:
             print(f"  [test-design] AI feature names skipped ({str(e)[:120]}) - the built-in names are used")

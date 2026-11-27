@@ -6,6 +6,8 @@ The instructions sent to the AI live next to it in  backend/llm/prompts/*.txt
 Supported providers: openai, gemini, anthropic, huggingface, ollama.
 Set LLM_PROVIDER=none to run without AI (rule-based fallback is used instead).
 """
+import contextlib as _contextlib
+import contextvars as _contextvars
 import json
 import re
 import time
@@ -128,6 +130,22 @@ def vision_enabled() -> bool:
     return bool(OLLAMA_VISION.search(settings.llm_model or ""))
 
 
+_OPTIONAL = _contextvars.ContextVar("qpilot_optional_ai", default=False)
+
+
+@_contextlib.contextmanager
+def optional_ai():
+    """A call whose answer only adds explanation (names for people, failure explanations) and that has its own
+    fallback: when it fails, the run is NOT stopped by QA_ALLOW_RULES_FALLBACK=0. That rule is about tests - a Jira /
+    owner test must never silently become a rule-based one - and stays in force for every call that designs,
+    writes, repairs or judges a test."""
+    token = _OPTIONAL.set(True)
+    try:
+        yield
+    finally:
+        _OPTIONAL.reset(token)
+
+
 def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
             agent: str = "", page: str = "", test: str = "", images: list[bytes] | None = None, response_schema: dict | None = None,
             timeout_s: float | None = None, max_attempts: int = 3) -> str:
@@ -179,7 +197,7 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
             retry_allowed = attempt + 1 < max_attempts and (deadline is None or time.monotonic() + wait < deadline)
             if not (retry_allowed and ((busy and attempt < 2) or (timed_out and attempt == 0))):
                 import os
-                if os.environ.get("QA_ALLOW_RULES_FALLBACK", "1") == "0":
+                if os.environ.get("QA_ALLOW_RULES_FALLBACK", "1") == "0" and not _OPTIONAL.get():
                     runctl.request_stop("ai_unavailable", "The selected AI failed and rules fallback was not approved.")
                 raise
             why = "did not answer in time" if timed_out else "is busy"
