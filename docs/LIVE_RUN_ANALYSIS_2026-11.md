@@ -58,3 +58,25 @@ Summary of the 21 cases that did not pass:
 
 Without reuse, a fresh AI answer passed in 1 of 3 requirement-based runs. That is the variability the automation
 store removes once a case has been proven.
+
+### After the automation store (27 Nov 2026, commits `6a346db`-`81c987f`, OpenAI account without credits)
+
+The store was seeded from the real execution that validated both cases (run `www.saucedemo.com_20261127_040506`,
+saved through `automations.save`, exactly as the bridge does after an execution).
+
+| Run | Strategy | TC-QPL-4-1 | TC-QPL-5-1 | Automation | AI used |
+|---|---|---|---|---|---|
+| 7 | requirements | Passed (3 checks) | Passed (5 checks) | both reused, revalidated (store passes 1 -> 2) | none (3 optional naming calls failed - no credits - without stopping the run) |
+| 8 | requirements | Passed | Passed | both reused (passes 2 -> 3) | none |
+| 9 | requirements | Passed | Passed | both reused (passes 3 -> 4) | none |
+
+Two problems found on the way and fixed:
+- `a44e92c`: an optional feature-naming call stopped the run.
+- `81c987f`: a proven selector (a cart row) was refused because the run's short exploration had seen an empty cart,
+  and one case's AI failure stopped the whole requirement-only run.
+
+Requirement-based: **3 of 3 consistent passes with reuse**, against 1 of 3 with fresh AI code.
+
+Hybrid: **BLOCKED** - its exploration needs the AI, and the OpenAI account used here has no credits
+(`credit_balance_exhausted`). Run 4 showed the hybrid path accepting the reused, revalidated automation before the
+credits ran out. Repeat it with a funded AI account (LOCAL_ACCEPTANCE_TESTING.md section 4).

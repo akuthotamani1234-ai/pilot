@@ -35,7 +35,7 @@ real application.
 
 | Application | Requirement-based | Hybrid | Autonomous |
 |---|---|---|---|
-| Website | **Live**: SauceDemo via the Jira route (mock Jira + OpenAI): TC-QPL-4-1 and TC-QPL-5-1 Passed | **Live**: SauceDemo via the Jira route: 52 exploratory cases ran (32 passed, 18 failed - the failures include real SauceDemo 404s and AI test mistakes); the 2 Jira cases ended Not automated (AI used a refused `text=` locator) and Requires review (test mistake confirmed on screen) | **Live** as standard Qpilot runs (SauceDemo, OrangeHRM); not re-run through the Jira route today |
+| Website | **Live**: SauceDemo via the Jira route (mock Jira + OpenAI). Fresh AI code passed in 1 of 3 runs; with the validated automation reused, **3 of 3 runs passed** both cases (27 Nov) | **Live** once (26 Nov): 52 exploratory cases, failures classified in docs/LIVE_RUN_ANALYSIS_2026-11.md; repeat runs **BLOCKED** (the OpenAI account ran out of credits) | **Live** as standard Qpilot runs (SauceDemo, OrangeHRM); not re-run through the Jira route |
 | REST API | **Live**: Petstore, 4 cases (3 passed, 1 failed on a real schema violation) | **Live**: Petstore, cases + spec-derived tests | **Live**: Petstore via the Jira route: 10 spec-derived tests (7 passed, 3 failed on real API problems) |
 | Native Android | Routed + executed (fake driver); only the selected cases run. Live **BLOCKED** (no device) | Routed + executed (fake driver). Live **BLOCKED** | Routed + executed (fake driver / fixture app). Live **BLOCKED** |
 | Hybrid Android | Routed; WebView context switching executed (fake driver). Live **BLOCKED** (no device, no hybrid test build) | same | same |
@@ -52,6 +52,7 @@ real application.
 | Accurate outcome per selected case (defect / automation error / inconclusive / blocked prerequisite / not automated / not run kept apart) | yes | yes | yes (through the real collect path) | yes | Live runs show Passed, Requires review, Not automated and Blocked with reasons |
 | A pass needs the quoted expected result checked at runtime | yes | yes | yes (real Chromium + generated-test runtime) | yes | Live on SauceDemo |
 | Selector recovery (exact, same kind of identifier only) | yes | yes | yes | yes | Live on SauceDemo (TC-QPL-4-1) |
+| Validated Jira automation stored and reused (requirement-based and hybrid), revalidated, regenerated only when stale | yes | yes | yes | yes | Live: 3 of 3 requirement-based runs passed with reused automation (27 Nov) |
 | Self-healing cannot change what a test checks | yes | yes | yes | yes | Live: healing rounds on SauceDemo kept the stated values |
 | REST API testing (cases + autonomous schema / rule / negative / boundary / auth / validation) | yes | yes | yes | yes | Live on the public Petstore API; your API not yet |
 | Native Android (APK / installed package) | yes | yes | yes (fake Appium driver / fixture app) | **no** | Blocked: no device or emulator |
@@ -81,6 +82,7 @@ screenshots before sharing them.
 
 | Validation | Accounts / access | Device / machine | Permissions | Configuration in Qpilot |
 |---|---|---|---|---|
+| Any execution with Jira cases or exploration | an AI provider account **with credits** (OpenAI, Anthropic or Gemini API key; the build environment's OpenAI account ran out of credits on 27 Nov) | your Mac | - | `.env` (`LLM_PROVIDER` + key) or Execution Center "AI for automation". Proven Jira cases reuse their validated automation and need no new AI call; new cases and exploration do |
 | Real Jira integration | an Atlassian account that can **browse** the test project (QPL); an API token of that account | your Mac | read access to the project and its linked Confluence pages; **no** write permission needed (Jira write-back stays off) | Integrations: site address, e-mail, API token (section 3) |
 | Website (all strategies) | a test account of the website (never a real customer's) | your Mac (Chrome via Playwright) | written permission to test the site; a test / staging environment for anything that sends forms | Execution Center: address, environment, test username / password |
 | Native Android | the app's test account (if it has a login) | Android Studio emulator (or a phone with Developer options -> USB debugging on) | a **test build** of the app (debug or internal track); the right to install it | Application = Android app, device id, package, Appium server |
