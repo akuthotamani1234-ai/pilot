@@ -395,7 +395,6 @@ def pytest_runtest_call(item):
             done.set()
             _OVERTIME.pop(me, None)  # (the clean-up after the test may use the browser again)
         _running(None)
-        _CURRENT["item"] = None  # (the next test's set-up - e.g. its storage reset - is not a step of this one)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -1859,6 +1858,9 @@ def page(_shared, request):
         context.clear_cookies()  # (the logged-in session keeps its login cookies)
     reset = globals().get("_reset_web_storage")  # (tests may copy this fixture alone)
     if reset:
+        current = globals().get("_CURRENT")
+        if current is not None:  # (this set-up - the storage reset - is no step / event of the previous test)
+            current["item"] = None
         reset(p, kind)
     p.goto("about:blank")
     _status(p, "Next test", request.node.name)  # (visible browser: say what comes, instead of an empty window)
