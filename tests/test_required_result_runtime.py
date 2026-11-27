@@ -89,7 +89,7 @@ def test_a_pass_needs_the_quoted_result_checked_while_the_test_ran(tmp_path, sit
            "QA_TARGET_LOCAL": "1", "QA_ALLOWED_HOSTS": "127.0.0.1", "QA_LIVE_FRAMES": "false", "QA_TRACES": "false",
            "QA_SCREENSHOT_DIR": str(tmp_path / "shots"), "PYTHONPATH": ""}
     subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:xdist", "."],
-                   cwd=tests, env=env, capture_output=True, text=True, timeout=300)
+                   cwd=tests, env=env, capture_output=True, text=True, timeout=300, check=False)
     got = {json.loads(ln)["test"]: json.loads(ln) for ln in results.read_text().splitlines()}
     assert got["test_tc_1"]["outcome"] == "passed"
     assert got["test_tc_2"]["outcome"] == "inconclusive" and "never checked" in got["test_tc_2"]["error"]

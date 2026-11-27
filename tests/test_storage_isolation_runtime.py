@@ -76,7 +76,7 @@ def test_an_earlier_tests_web_storage_never_reaches_the_next_test(tmp_path, site
            "QA_AUTH_STATE": str(auth), "QA_TARGET_LOCAL": "1", "QA_ALLOWED_HOSTS": "127.0.0.1",
            "QA_LIVE_FRAMES": "false", "QA_TRACES": "false", "QA_SCREENSHOT_DIR": str(tmp_path / "s"), "PYTHONPATH": ""}
     out = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:xdist", "."],
-                         cwd=tests, env=env, capture_output=True, text=True, timeout=300)
+                         cwd=tests, env=env, capture_output=True, text=True, timeout=300, check=False)
     got = {json.loads(ln)["test"]: json.loads(ln) for ln in results.read_text().splitlines()}
     assert got["test_a_adds"]["outcome"] == "passed", out.stdout[-2000:]
     assert got["test_b_starts_clean_but_logged_in"]["outcome"] == "passed", got["test_b_starts_clean_but_logged_in"]
