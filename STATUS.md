@@ -34,11 +34,12 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").
 
-**Test suite health (26 Nov, commit `41e2686`):** full suite without `.env`, 4 parallel workers: **2704 passed, 0
-failed, 48 skipped** (skips: opt-in live tests such as `QPILOT_LIVE_API=1`, and Postgres / Redis / MinIO / the optional
-`mcp` package / Windows-only tests not available here). The two failures of the run before it (`0660a50`) were found,
-reproduced and fixed: the test-isolation fixture replaced a registry other modules hold (now in place), and a test
-expectation that predated the exploratory `not_run` count.
+**Test suite health (27 Nov, commit `8f0f840`):** full suite without `.env`, 4 parallel workers: **2715 passed, 0
+failed, 48 skipped**. Skips (none is a failure hidden as a skip): opt-in live tests (`QPILOT_LIVE`, `QPILOT_LIVE_JIRA`,
+`QPILOT_LIVE_API`, real Android device / emulator UI runs), services not present here (Redis, Postgres, MinIO), the
+optional `mcp` package, Windows-only tests (DPAPI, npm entrypoint) and local immutable evidence not shipped with the
+source. The run before it (`4b690a4`: 1 failed) found that clearing the current test after its body suppressed its
+final event - fixed in `8f0f840`.
 
 ## Requirements Intelligence (Jira Cloud + Confluence Cloud) — Phases 0–4 (web) + Milestones 1–3
 
