@@ -103,6 +103,9 @@ def save(db, tenant: str, case: dict, run_record: dict, run_dir: Path, target: d
             "source_version": case.get("source_version"),
             "scenario": {k: case.get(k) for k in ("title", "steps", "expected", "preconditions")},
             "test": str(tests[0]), "file": str(files[0]), "code": code,
+            # the plan the run designed for it (so a reuse needs no AI to design the case again either)
+            "design": {k: run_record.get(k) for k in ("steps", "expected", "pages", "guest", "test_data",
+                                                       "preconditions", "assertions", "priority", "type")},
             "selectors": sorted({m[1] for m in SELECTOR.findall(code)})[:60],
             "expected_results": _literal(expects[0]) if expects else [],
             "origin": origin(target.get("url", "")), "environment": target.get("environment") or "test",

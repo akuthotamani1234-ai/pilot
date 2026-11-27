@@ -423,7 +423,8 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
         for t in tests:
             a = automations.compatible(db, tenant, by_id[t["tc"]], target)
             if a:
-                t["automation"] = {"code": a["code"], "test": a["test"], "validated_in": a["evidence"]["run"]}
+                t["automation"] = {"code": a["code"], "test": a["test"], "validated_in": a["evidence"]["run"],
+                                   **({"design": a["design"]} if a.get("design") else {})}
                 reused[t["tc"]] = {"validated_in": a["evidence"]["run"], "passes": a.get("passes", 1)}
         execution["automation_reuse"] = reused
     with db:

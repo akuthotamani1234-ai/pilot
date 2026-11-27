@@ -148,3 +148,23 @@ def test_the_full_list_with_code_reaches_the_run_through_a_private_file(tmp_path
     assert len(requirement_tests.load()[0]["automation"]["code"]) == 30000
     monkeypatch.setenv("QA_REQUIREMENT_TESTS_FILE", str(tmp_path / "elsewhere.json"))
     assert requirement_tests.load() == []  # (only the Studio's own hand-off folder)
+
+
+def test_a_case_with_validated_automation_needs_no_ai_to_be_designed(monkeypatch):
+    """With the plan and code that were proven, a Jira case is designed and scripted without asking the AI again -
+    a requirement-based execution of proven cases does not vary with the AI (and still runs when it is unavailable)."""
+    from backend.agents import test_design
+    monkeypatch.setattr(test_design, "llm_enabled", lambda: False)
+    monkeypatch.setattr(test_design, "ask_structured", lambda *a, **k: (_ for _ in ()).throw(AssertionError("AI")))
+    pages = [{"slug": "inventory_html", "url": "https://www.saucedemo.com/inventory.html", "auth": True,
+              "title": "Swag Labs", "headings": [], "buttons": [], "links": [], "inputs": [], "forms": []}]
+    design = {"steps": ["Add the backpack", "Open the cart"], "expected": "the cart shows 'Sauce Labs Backpack'",
+              "pages": ["inventory_html", "gone_page"], "guest": False, "priority": "high"}
+    tests = [{"id": "rq_tc_a_1", "text": "Add the backpack", "tc": "TC-A-1",
+              "automation": {"code": "x", "test": "test_ai_flow_2", "validated_in": "run_1", "design": design}},
+             {"id": "rq_tc_b_1", "text": "Sort by price", "tc": "TC-B-1"}]
+    cases = {c["my_test"]: c for c in test_design.my_test_cases(pages, tests, start=1)}
+    proven = cases["rq_tc_a_1"]
+    assert proven["kind"] == "flow" and proven["design_source"] == "reused" and proven["pages"] == ["inventory_html"]
+    assert proven["steps"] == design["steps"] and proven["tests"] == ["test_ai_flow_1"]
+    assert cases["rq_tc_b_1"]["skip_reason"].startswith("Not automated: no AI")  # (the other one still needs an AI)

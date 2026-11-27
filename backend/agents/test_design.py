@@ -1707,6 +1707,32 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
                                 "does not do that from an instruction (only on a staging copy with explicit permission)")
                for t in risky}
     tests = [t for t in tests if t["id"] not in refused]
+    # a Jira case with validated automation handed over (atlassian/automations.py) keeps the plan that was proven:
+    # no AI is asked to design it again (its code is revalidated against this run's pages by the script generator)
+    proven = []
+    for t in tests:
+        d = (t.get("automation") or {}).get("design") or {}
+        if not d.get("steps"):
+            continue
+        used = [s for s in (d.get("pages") or []) if s in by_slug] or [pages[0]["slug"]]
+        n = start + len(proven)
+        proven.append({
+            "id": f"ai_flow_{n}", "kind": "flow", "size": "large", "ai": True, "my_test": t["id"],
+            "type": d.get("type") or "end-to-end", "priority": d.get("priority") or "high",
+            "title": _short_title(t["text"]), "instruction": t["text"], "test_data": str(d.get("test_data") or ""),
+            "preconditions": d.get("preconditions") or [], "assertions": d.get("assertions") or [], "unknowns": [],
+            "steps": [str(s) for s in d["steps"]], "expected": str(d.get("expected") or ""),
+            "page": ", ".join(used), "url": by_slug[used[0]]["url"], "pages": used, "requirement": MY_TEST,
+            "feature": "Your own tests", "element": "as written by you", "guest": bool(d.get("guest")),
+            "files": ["test_flows_ai.py"], "tests": [f"test_ai_flow_{n}"], "design_source": "reused"})
+        plan_note(t, "automated", steps=proven[-1]["steps"], expected=proven[-1]["expected"],
+                  test=f"test_ai_flow_{n}", reused_from=(t.get("automation") or {}).get("validated_in", ""))
+    if proven:
+        print(f"  [test-design] {len(proven)} Jira test case(s) keep their validated plan (no AI needed to design them)")
+        done = {c["my_test"] for c in proven}
+        rest = my_test_cases(pages, [t for t in tests if t["id"] not in done], start + len(proven), run_dir) \
+            if len(done) < len(tests) else []
+        return list(refused.values()) + proven + rest
     if not llm_enabled():
         return list(refused.values()) + [
             kept(t, "Not automated: no AI was available to turn this test into browser steps (choose an AI "
