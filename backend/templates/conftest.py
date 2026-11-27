@@ -395,6 +395,7 @@ def pytest_runtest_call(item):
             done.set()
             _OVERTIME.pop(me, None)  # (the clean-up after the test may use the browser again)
         _running(None)
+        _CURRENT["item"] = None  # (the next test's set-up - e.g. its storage reset - is not a step of this one)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -1788,6 +1789,53 @@ def _redact_zip(path: Path) -> None:
     tmp.replace(path)
 
 
+STORAGE_RESET_PATH = "/__qa_storage_reset__"
+
+
+def _login_storage(kind: str) -> dict:
+    """{origin: [{name, value}]} - the web storage the saved login had ({} for a guest window)."""
+    path = _login_file(AUTH_STATE) if kind == "user" else ""
+    if not path:
+        return {}
+    try:
+        state = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(o.get("origin", "")).rstrip("/"): [i for i in o.get("localStorage") or [] if isinstance(i, dict)]
+            for o in state.get("origins") or [] if o.get("origin")}
+
+
+def _reset_web_storage(page, kind: str) -> None:
+    """Every test starts from the same web storage: what the saved login had (a guest: nothing). A website that keeps
+    state in localStorage / sessionStorage (a shopping cart, a wizard step, a filter) otherwise hands it from one test
+    to the next in the shared window: the next test's 'Add to cart' button was already 'Remove'. A tiny blank page of
+    the website's own origin is answered by the test browser itself (the website is not contacted), its storage is
+    reset, and the test starts from about:blank as before. Cookies are handled as before (the login is kept)."""
+    keep = _login_storage(kind)
+    base = urlparse(BASE_URL) if BASE_URL else None
+    origins = set(keep) | ({f"{base.scheme}://{base.netloc}"} if base and base.scheme and base.netloc else set())
+
+    def blank(route):
+        route.fulfill(status=200, content_type="text/html", body="<!doctype html><title>reset</title>")
+    for origin in sorted(o for o in origins if o.startswith(("http://", "https://"))):
+        url = origin + STORAGE_RESET_PATH
+        try:
+            page.route(url, blank)
+            # (a page-side navigation: the guarded page.goto would first probe the address on the website itself)
+            page.evaluate("(u) => { location.href = u; }", url)
+            page.wait_for_url(url, timeout=5000)
+            page.evaluate("(items) => { localStorage.clear(); sessionStorage.clear();"
+                          " for (const i of items) localStorage.setItem(i.name, i.value); }",
+                          [{"name": str(i.get("name")), "value": str(i.get("value"))} for i in keep.get(origin, [])])
+        except Exception:
+            pass
+        finally:
+            try:
+                page.unroute(url, blank)
+            except Exception:
+                pass
+
+
 @pytest.fixture
 def page(_shared, request):
     """The shared tab, cleaned before each test so every test still starts fresh.
@@ -1809,6 +1857,9 @@ def page(_shared, request):
         pytest.skip(NOT_RUN_DOWN.format(why=_DOWN["why"], since=_DOWN["since"]))
     if kind == "guest":
         context.clear_cookies()  # (the logged-in session keeps its login cookies)
+    reset = globals().get("_reset_web_storage")  # (tests may copy this fixture alone)
+    if reset:
+        reset(p, kind)
     p.goto("about:blank")
     _status(p, "Next test", request.node.name)  # (visible browser: say what comes, instead of an empty window)
     request.node._qa_page = p

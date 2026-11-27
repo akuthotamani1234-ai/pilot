@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 
 ENV = "QA_REQUIREMENT_TESTS"
 ONLY_ENV = "QA_REQUIREMENTS_ONLY"
@@ -28,6 +29,14 @@ ID = re.compile(r"^rq_[a-z0-9_]{1,80}$")
 def load() -> list[dict]:
     """[{'id': 'rq_…', 'text': plain-English test, 'tc': test case id, 'requirement': 'QPL-2', 'criteria': [...]}]"""
     raw = os.environ.get(ENV, "")
+    handoff = os.environ.get(ENV + "_FILE", "")
+    if handoff:  # (the full list, with validated automation - server._launch_run)
+        try:
+            path = Path(handoff)
+            if path.is_file() and not path.is_symlink() and path.parent.name == ".handoff":
+                raw = path.read_text(encoding="utf-8")
+        except OSError:
+            pass
     if not raw.strip():
         return []
     try:
@@ -45,7 +54,9 @@ def load() -> list[dict]:
         out.append({"id": tid, "text": text[:2000], "tc": str(item.get("tc", ""))[:80],
                     "requirement": str(item.get("requirement", ""))[:80],
                     "criteria": [str(c)[:80] for c in (item.get("criteria") or [])][:10],
-                    "title": str(item.get("title", ""))[:200]})
+                    "title": str(item.get("title", ""))[:200],
+                    **({"automation": {k: str(a.get(k, ""))[:30000] for k in ("code", "test", "validated_in")}}
+                       if isinstance(a := item.get("automation"), dict) and a.get("code") and a.get("test") else {})})
         if len(out) >= MAX_TESTS:
             break
     return out

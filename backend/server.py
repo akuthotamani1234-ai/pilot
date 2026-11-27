@@ -3673,7 +3673,23 @@ def _launch_run(req: RunRequest, caller: str | None):
         if req.my_tests is not None:  # (the chat's box: what is in it becomes this website's own tests - main.py)
             env["QA_MY_TESTS_SET"], env["QA_MY_TESTS"] = "1", req.my_tests[:12000]
         env["QA_OBJECTIVE_FOCUS"] = "1" if req.objective_focus else "0"
-        env["QA_REQUIREMENT_TESTS"] = json.dumps(req.requirement_tests or [])[:60000]
+        # the text of each case in the environment; the full list (with validated automation code, which can be
+        # long) in a private file - an environment variable is limited (32 767 characters on Windows) and a cut
+        # JSON would lose every case
+        env["QA_REQUIREMENT_TESTS"] = json.dumps([{k: v for k, v in t.items() if k != "automation"}
+                                                  for t in req.requirement_tests or []])[:30000]
+        env.pop("QA_REQUIREMENT_TESTS_FILE", None)
+        if any(t.get("automation") for t in req.requirement_tests or []):
+            import secrets as _secrets
+            handoff = RUNS / ".handoff"
+            handoff.mkdir(parents=True, exist_ok=True)
+            hfile = handoff / f"{_secrets.token_hex(8)}.json"
+            hfile.write_text(json.dumps(req.requirement_tests), encoding="utf-8")
+            try:
+                hfile.chmod(0o600)
+            except OSError:
+                pass
+            env["QA_REQUIREMENT_TESTS_FILE"] = str(hfile)
         env["QA_REQUIREMENTS_ONLY"] = "1" if req.requirements_only and req.requirement_tests else "0"
         if req.review:
             env["REVIEW"] = "on"

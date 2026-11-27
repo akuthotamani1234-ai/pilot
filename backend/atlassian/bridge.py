@@ -71,8 +71,9 @@ NEEDS = (("a test account (username and password)", re.compile(r"\b(log ?in|sign
 def connect(path=None):
     db = store.connect(path)
     db.executescript(SCHEMA)
-    from . import prerequisites
+    from . import automations, prerequisites
     prerequisites.connect_schema(db)
+    automations.connect_schema(db)
     return db
 
 
@@ -416,6 +417,15 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
                  "requirements": sorted({c["requirement_id"] for c in cases}), "status": "queued", "run_id": "",
                  "prerequisites": prerequisite_info}
     tests = [] if strategy == "autonomous" else _tests_for(cases, by_id, prerequisite_info)
+    if (target.get("type") or "web") == "web":  # (validated automation of a website case is reused - automations.py)
+        from . import automations
+        reused = {}
+        for t in tests:
+            a = automations.compatible(db, tenant, by_id[t["tc"]], target)
+            if a:
+                t["automation"] = {"code": a["code"], "test": a["test"], "validated_in": a["evidence"]["run"]}
+                reused[t["tc"]] = {"validated_in": a["evidence"]["run"], "passes": a.get("passes", 1)}
+        execution["automation_reuse"] = reused
     with db:
         db.execute("INSERT INTO req_executions (tenant_id, id, status, run_id, created_at, data) VALUES "
                    "(?, ?, ?, ?, ?, ?)", (tenant, execution["id"], "queued", "", execution["created_at"],
@@ -614,6 +624,18 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                                          "run_case": "", "excluded": True, "execution_id": execution_id,
                                          "test_case_id": x["id"], "run_id": ex.get("run_id", ""), "at": _now(),
                                          "run_folder": Path(run_dir).name}))
+    for cid, _status, result in stored:
+        rec = by_tc.get(cid) or {}
+        if rec.get("automation_source"):
+            result["automation"] = rec["automation_source"]  # (reused validated automation / newly generated)
+    if (ex.get("target") or {}).get("type", "web") == "web":
+        from . import automations
+        try:
+            ex["automation_store"] = automations.after_execution(
+                db, tenant, ex, by_tc, {cid: r for cid, _s, r in stored},
+                {cid: get_case(db, tenant, cid) for cid, _s, _r in stored}, Path(run_dir))
+        except Exception as error:  # (keeping automation is extra: results stand without it)
+            ex["automation_store"] = {"error": type(error).__name__}
     for cid, status, result in stored:
         with db:
             db.execute("INSERT OR REPLACE INTO req_results (tenant_id, execution_id, test_case_id, status, at, data) "

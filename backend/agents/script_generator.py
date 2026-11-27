@@ -2603,6 +2603,35 @@ UNSEEN_PAGE_HINT = ("\nA page this test reaches AFTER its actions may be missing
 FLOW_BATCH = 5  # the AI writes its large test cases 5 at a time: one bad answer loses 5 journeys, not all 20
 
 
+def reuse_validated(flows: list[dict], pages: dict[str, dict]) -> tuple[dict[str, str], list[dict]]:
+    """The Jira cases whose validated automation the execution handed over (atlassian/automations.py): the stored
+    test, renamed to this run's test, revalidated against THIS run's explored pages - the same checks as new AI code
+    (allowed code only, every selector one the run saw, the quoted expected result still checked). Returns
+    ({case id: code}, the flows the AI must write). Anything not valid any more is regenerated."""
+    from .. import requirement_tests
+    by_rq = {t["id"]: t.get("automation") for t in requirement_tests.load() if t.get("automation")}
+    reused, rest = {}, []
+    for f in flows:
+        a = by_rq.get(str(f.get("my_test") or ""))
+        if not a:
+            rest.append(f)
+            continue
+        new = f"test_{_ident(f['id'])}"
+        old = a["test"]
+        code = re.sub(rf"\b{re.escape(old)}\b", new, a["code"]).replace(f"QA_EXPECTS_{old} =", f"QA_EXPECTS_{new} =")
+        used = [pages[x] for x in f.get("pages", []) if x in pages] or list(pages.values())
+        err = validate_script(code) or grounding_problem(code, used, _requirement_evidence())
+        missing = [q for q in quoted_expectations(f) if q.casefold() not in code.casefold()]
+        if err or missing or not re.search(rf"^\s*def {new}\(", code, re.M):
+            print(f"  [script-gen] {f['id']}: its validated automation no longer fits this application "
+                  f"({(err or 'the quoted expected result is not checked')[:120]}) - the AI writes it again")
+            rest.append(f)
+            continue
+        print(f"  [script-gen] {f['id']}: validated automation of {a.get('validated_in')} reused (revalidated)")
+        reused[f["id"]] = with_required_results(code, [f])
+    return reused, rest
+
+
 def _llm_flows_in_batches(flows: list[dict], pages: dict[str, dict]) -> tuple[str, list[str], str]:
     """test_flows_ai.py for many large test cases, written FLOW_BATCH at a time and merged into one file. Returns
     (the code - '' when no batch worked, the ids of the cases whose batch failed, the last error)."""
@@ -3037,7 +3066,15 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
     # 1) the large test cases written by the AI -> its own code; if that fails, built-in large cases instead
     ai = [c for c in cases if c.get("kind") == "flow" and c.get("ai")]
     if ai:
-        code, lost, why = _llm_flows_in_batches(ai, pages)
+        reused, ai_new = reuse_validated(ai, pages)  # (Jira cases proven before: not written again)
+        for c in ai:
+            if c.get("my_test"):
+                c["automation_source"] = "reused" if c["id"] in reused else "generated"
+        code, lost, why = _llm_flows_in_batches(ai_new, pages) if ai_new else ("", [], "")
+        if reused:
+            code = _merge_flows(list(reused.values()) + ([code] if code else []))
+            notes.append(f"{len(reused)} Jira test case(s) ran their validated automation again (revalidated "
+                         "against this run's pages); the AI wrote the others.")
         if code:
             save("test_flows_ai.py", code, "llm")
         if lost:
