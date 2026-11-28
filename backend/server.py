@@ -26,7 +26,7 @@ from urllib.parse import urljoin, urlparse
 from fastapi import FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -331,6 +331,7 @@ class RunRequest(BaseModel):
     contract_only: bool = False      # run only the approved contract flows; no built-in site suite
     review: bool = False              # review the test cases before the scripts are written (untick, add tests)
     # approved Jira / Confluence scenarios for THIS run only (backend/requirement_tests.py; never saved per website)
+    _validated_cases_only: bool = PrivateAttr(default=False)
     requirement_tests: list[dict] | None = None
     requirements_only: bool = False   # requirement-based testing: only those scenarios, no built-in site suite
 
@@ -556,6 +557,8 @@ def _reader(job: dict) -> None:
             job["run"] = Path(line.split(":", 1)[1].strip()).name
         job["lines"].append(line)
     proc.wait()
+    if handoff := job.pop("_handoff", None):
+        Path(handoff).unlink(missing_ok=True)
     job["exit_code"] = proc.returncode
     job["status"] = "stopped" if job.get("stopping") else ("done" if proc.returncode == 0 else "failed")
     job["current"] = None
@@ -3585,7 +3588,7 @@ def _launch_run(req: RunRequest, caller: str | None):
     # Your own tests / Jira test cases are turned into browser steps by the AI: a run that has them but no ready AI
     # would end with every one 'Not automated' (privacy local-only + a cloud LLM_PROVIDER, LLM_PROVIDER=none, Ollama
     # not running). It is refused before it starts, and such a run never falls back to rules.
-    if _has_owner_tests(req):
+    if _has_owner_tests(req) and not req._validated_cases_only:
         from backend import execution_preflight
         ai = execution_preflight.ai_status(requested_ai if requested_ai != "none" else "", req.llm_model or "",
                                            req.api_key or "")
@@ -3705,20 +3708,6 @@ def _launch_run(req: RunRequest, caller: str | None):
         # the text of each case in the environment; the full list (with validated automation code, which can be
         # long) in a private file - an environment variable is limited (32 767 characters on Windows) and a cut
         # JSON would lose every case
-        env["QA_REQUIREMENT_TESTS"] = json.dumps([{k: v for k, v in t.items() if k != "automation"}
-                                                  for t in req.requirement_tests or []])[:30000]
-        env.pop("QA_REQUIREMENT_TESTS_FILE", None)
-        if any(t.get("automation") for t in req.requirement_tests or []):
-            import secrets as _secrets
-            handoff = RUNS / ".handoff"
-            handoff.mkdir(parents=True, exist_ok=True)
-            hfile = handoff / f"{_secrets.token_hex(8)}.json"
-            hfile.write_text(json.dumps(req.requirement_tests), encoding="utf-8")
-            try:
-                hfile.chmod(0o600)
-            except OSError:
-                pass
-            env["QA_REQUIREMENT_TESTS_FILE"] = str(hfile)
         env["QA_REQUIREMENTS_ONLY"] = "1" if req.requirements_only and req.requirement_tests else "0"
         if req.review:
             env["REVIEW"] = "on"
@@ -3762,8 +3751,27 @@ def _launch_run(req: RunRequest, caller: str | None):
             if IS_WINDOWS
             else {"start_new_session": True}
         )
-        proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, encoding="utf-8", errors="replace", **kwargs)
+        payload = json.dumps(req.requirement_tests or [])
+        env.pop("QA_REQUIREMENT_TESTS_FILE", None)
+        env["QA_REQUIREMENT_TESTS"] = payload
+        if len(payload) > 30000 or any(t.get("automation") for t in req.requirement_tests or []):
+            import tempfile
+            handoff = RUNS / ".handoff"
+            if _run_path_is_linked(RUNS, handoff):
+                raise HTTPException(409, "The requirement handoff directory is linked.")
+            handoff.mkdir(mode=0o700, parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=handoff,
+                                             suffix=".json", delete=False) as handoff_file:
+                handoff_file.write(payload)
+            env["QA_REQUIREMENT_TESTS_FILE"] = handoff_file.name
+            env["QA_REQUIREMENT_TESTS"] = "[]"
+        try:
+            proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, encoding="utf-8", errors="replace", **kwargs)
+        except OSError:
+            if env.get("QA_REQUIREMENT_TESTS_FILE"):
+                Path(env["QA_REQUIREMENT_TESTS_FILE"]).unlink(missing_ok=True)
+            raise
         job_id = len(jobs) + 1
         secrets = [v for v in [req.test_password, (req.api_key or "").strip()] + [env.get(k) for k in API_KEY_ENV]
                    if v and len(v) >= 4]
@@ -3771,6 +3779,7 @@ def _launch_run(req: RunRequest, caller: str | None):
                         "(repeated controls, ≥80 actions/page, ≥60 min crawl, ≥500 test cases, every URL pattern)."]
                        if apply_thorough else [])
         jobs[job_id] = {"id": job_id, "source": source, "status": "running", "proc": proc, "lines": start_lines,
+                        "_handoff": env.get("QA_REQUIREMENT_TESTS_FILE"),
                         "pages": [], "stages": {}, "current": None, "run": None, "started": time.time(), "llm": llm,
                         "secrets": secrets, "discovery_only": req.discovery_only,
                         "thorough": apply_thorough, "principal_id": caller or "",

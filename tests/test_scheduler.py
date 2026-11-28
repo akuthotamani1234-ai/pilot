@@ -105,8 +105,8 @@ def test_cancel_stops_the_remaining_batches(batched, monkeypatch):
     api.server.jobs[launched[0][0]]["status"] = "stopped"
     e = api.client.get(f"/api/requirements/executions/{ex_id}", headers=api.H).json()["execution"]
     assert e["status"] == "cancelled" and e["batches"][1]["status"] == "cancelled" and len(launched) == 1
-    db = bridge.connect()
-    db.close()
+    rows = api.client.get(f"/api/requirements/executions/{ex_id}", headers=api.H).json()["results"]
+    assert sorted(r["status"] for r in rows) == ["Cancelled", "Passed"]
 
 
 def test_provider_block_pauses_other_batches_and_resumes_at_the_checkpoint(batched, monkeypatch):
@@ -130,3 +130,27 @@ def test_provider_block_pauses_other_batches_and_resumes_at_the_checkpoint(batch
     recovered = api.client.get(path, headers=api.H).json()["execution"]
     assert recovered["tally"]["passed"] == 2 and recovered["tally"]["blocked"] == 0
     assert "provider_failure" not in recovered
+
+
+def test_stale_poll_cannot_collect_the_next_batch_with_the_previous_job(batched, monkeypatch):
+    from backend import requirements_api
+    api, launched, ex_id = batched
+    monkeypatch.setattr(api.server, "_plain_run_dir", lambda run: api.tmp / run)
+    db = bridge.connect()
+    try:
+        tenant = db.execute("SELECT tenant_id FROM req_executions WHERE id=?", (ex_id,)).fetchone()[0]
+        stale = bridge.get_execution(db, tenant, ex_id)
+        _finish(api, *launched[0])
+        requirements_api._settle_execution(db, tenant, stale)
+        assert len(launched) == 2
+        still_active = requirements_api._settle_execution(db, tenant, stale)
+        assert still_active["status"] == "running"
+        assert len(bridge.results(db, tenant, ex_id)) == 1
+    finally:
+        db.close()
+
+
+def test_validated_independent_cases_run_before_cases_waiting_for_design():
+    cases = [{"id": f"TC-X-{i}", "priority": "high"} for i in range(1, 5)]
+    assert scheduler.split(cases, {}, size=2, validated={"TC-X-3", "TC-X-4"}) == [
+        ["TC-X-3", "TC-X-4"], ["TC-X-1", "TC-X-2"]]

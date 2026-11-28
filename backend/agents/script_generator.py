@@ -2655,17 +2655,34 @@ def _llm_flows_in_batches(flows: list[dict], pages: dict[str, dict]) -> tuple[st
         except LLMError as e:
             why = str(e)
             print(f"  [script-gen] the AI could not write journeys {i + 1}-{i + len(part)}: {why[:160]}")
+            if e.diagnostics:
+                for f in flows[i:]:
+                    f.update(blocked_by_provider=True, provider_category=e.diagnostics.get("classification"),
+                             design_error=why[:350])
+                lost.extend(f["id"] for f in flows[i:])
+                break
             if len(part) == 1:
                 lost.append(part[0]["id"])
+                part[0]["design_error"] = why[:350]
                 continue
             # one bad journey must not take the other four with it: each one again, on its own
             print(f"  [script-gen] trying journeys {i + 1}-{i + len(part)} one at a time")
-            for f in part:
+            for offset, f in enumerate(part):
                 try:
                     codes.append(_llm_flows([f], pages))
                 except LLMError as e1:
                     lost.append(f["id"])
                     why = str(e1)
+                    f["design_error"] = why[:350]
+                    if e1.diagnostics:
+                        remaining = flows[i + offset:]
+                        for pending in remaining:
+                            pending.update(blocked_by_provider=True, provider_category=e1.diagnostics.get("classification"),
+                                           design_error=why[:350])
+                        lost.extend(p["id"] for p in remaining[1:])
+                        break
+            if flows[-1].get("blocked_by_provider"):
+                break
     if not codes:
         return "", lost, why
     code = _merge_flows(codes) if len(codes) > 1 else codes[0]
@@ -3106,7 +3123,10 @@ def _generate(state: QAState, pages: dict, cases: list[dict], save, rejected: li
             for c in cases:
                 if c.get("my_test") and c["id"] in gone:
                     kept.append(dict(c, kind="mine", ai=False, files=[], tests=[],
-                                     skip_reason="Not automated: the AI could not write working code for it this time",
+                                     skip_reason=(("Blocked: " if c.get("blocked_by_provider") else "Design failed: ")
+                                                  + (c.get("design_error") or why or "no validated script")[:350]
+                                                  if c.get("requirement_test") else
+                                                  "Not automated: the AI could not write working code for it this time"),
                                      verification="interaction"))
                 elif c.get("ai") and c.get("id") in gone:
                     kept.append(dict(c, kind="unsupported", unsupported=True, ai=False, files=[], tests=[], type="exploratory",

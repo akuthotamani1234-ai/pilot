@@ -540,6 +540,9 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         # (the reachability check is a real GET in the product; the test answers it so nothing leaves the machine)
         page.route("**/api/requirements/targets/check", lambda route: route.fulfill(
             json={"ok": True, "kind": "ok", "status": 200, "url": "https://www.saucedemo.com/", "message": "The site answered."}))
+        # Creation succeeds while the unrelated workflow-draft write is unavailable.
+        page.route("**/api/requirements/workflow/draft", lambda route: route.fulfill(
+            status=503, json={"detail": "draft temporarily unavailable"}))
         page.locator("#exStart").click()
         # Run Tests: the Live Execution view opens by itself
         expect(page).to_have_url(re.compile(r"#agents$"))
@@ -547,6 +550,18 @@ def test_builder_execution_results_and_traceability_in_chromium(browser, studio,
         assert [t["tc"] for t in launched["req"].requirement_tests] == ["TC-QPL-2-1"]
         assert launched["req"].requirements_only and launched["req"].test_password == "secret_sauce"
         expect(page.locator("#liveSub")).to_contain_text("Running")
+        pinned = page.url
+        assert "execution=EX-" in pinned
+        page.route("**/api/requirements/executions?limit=20", lambda route: route.abort())
+        page.reload()
+        expect(page.locator("#liveSub")).to_contain_text("Running")
+        assert page.url == pinned
+        page.unroute("**/api/requirements/workflow/draft")
+        page.unroute("**/api/requirements/executions?limit=20")
+        # Chromium logs the two HTTP failures deliberately injected above.
+        assert all(error.startswith("Failed to load resource:") and
+                   ("503" in error or "net::ERR_FAILED" in error) for error in errors), errors
+        errors.clear()
         assert "secret_sauce" not in page.content()
         # the run finishes: its real result file is read, nothing is assumed
         run = tmp_path / "runs" / "ui_run"

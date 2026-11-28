@@ -28,15 +28,18 @@ REQ_TESTS = [{"id": "rq_tc_qpl_2_1", "text": "Log in with a valid account. Expec
 # ================================================================ the engine hook (backend/requirement_tests.py)
 
 def test_requirement_tests_are_read_for_this_run_only(monkeypatch):
-    monkeypatch.setenv(requirement_tests.ENV, json.dumps(REQ_TESTS + [{"id": "bad id", "text": "x"},
-                                                                     {"id": "rq_tc_qpl_2_1", "text": "duplicate"}]))
+    monkeypatch.setenv(requirement_tests.ENV, json.dumps(REQ_TESTS + [REQ_TESTS[0]]))
+    with pytest.raises(ValueError, match="duplicate"):
+        requirement_tests.load()
+    monkeypatch.setenv(requirement_tests.ENV, json.dumps(REQ_TESTS))
     loaded = requirement_tests.load()
     assert [t["id"] for t in loaded] == ["rq_tc_qpl_2_1", "rq_tc_qpl_2_2"] and loaded[0]["tc"] == "TC-QPL-2-1"
     assert requirement_tests.only() is False
     monkeypatch.setenv(requirement_tests.ONLY_ENV, "1")
     assert requirement_tests.only() is True
     monkeypatch.setenv(requirement_tests.ENV, "not json")
-    assert requirement_tests.load() == [] and requirement_tests.only() is False
+    with pytest.raises(ValueError):
+        requirement_tests.only()
 
 
 def test_requirement_tests_steer_the_objective_and_replace_saved_tests_when_only(tmp_path, monkeypatch):
@@ -89,7 +92,7 @@ def test_hybrid_design_puts_requirement_cases_first_and_keeps_the_exploratory_su
     cases = out["test_cases"]
     req = [c for c in cases if c.get("requirement_test")]
     assert len(req) == 1 and len(cases) > 1  # (plus the usual exploratory cases)
-    assert req[0]["skip_reason"].startswith("Not automated: no AI was available")  # (no AI: said, not faked)
+    assert req[0]["skip_reason"].startswith("Blocked: no AI was available")  # (no AI: said, not faked)
     assert "in the chat" not in req[0]["skip_reason"]  # (a Jira run is configured in the Execution Center)
     assert all(c.get("origin") != "requirement" for c in cases if not c.get("requirement_test"))
 
@@ -380,9 +383,11 @@ def test_a_skipped_not_automated_case_is_never_counted_as_executed(db, paths, tm
         "requirement_test": "TC-QPL-2-1", "execution_status": "Skipped",
         "skip_reason": "Not automated: the AI could not write working code for it this time"}]))
     done = bridge.collect(db, "t1", ex["id"], run)
-    assert done["counts"] == {"Not automated": 1}
+    assert done["counts"] == {"Blocked": 1}
+    row, = bridge.results(db, "t1", ex["id"])
+    assert row["failure_stage"] == "Test design" and row["retryable"]
     assert bridge.coverage(db, "t1")["executed"] == 0
-    assert [r["coverage"] for r in bridge.matrix(db, "t1") if r["test_case"]] == ["not automated"]
+    assert [r["coverage"] for r in bridge.matrix(db, "t1") if r["test_case"]] == ["blocked"]
 
 
 def test_a_message_quoted_by_an_approved_requirement_test_is_grounded_but_invented_selectors_are_not(monkeypatch):
@@ -477,3 +482,45 @@ def test_same_issue_key_on_another_connection_cannot_reuse_an_analysis(api):
     assert api.client.post(f"{path}/analyze", headers=api.H, json={}).status_code == 400
     assert api.client.post(f"{path}/test-cases", headers=api.H).status_code == 409
     assert api.client.get("/api/requirements/items/jira-main/QPL-2/analysis", headers=api.H).status_code == 200
+
+
+def test_long_requirement_handoff_preserves_every_case_and_criterion(tmp_path, monkeypatch):
+    batch = [dict(REQ_TESTS[0], id=f"rq_{n}", tc=f"TC-QPL-2-{n}", text="Approved step. " * 120,
+                  criteria=[f"QPL-2#AC-{i}" for i in range(12)]) for n in range(75)]
+    folder = tmp_path / ".handoff"
+    folder.mkdir()
+    handoff = folder / "tests.json"
+    handoff.write_text(json.dumps(batch))
+    monkeypatch.setenv("QA_REQUIREMENT_TESTS_FILE", str(handoff))
+    monkeypatch.setenv("QA_REQUIREMENTS_ONLY", "1")
+    assert [t["tc"] for t in requirement_tests.load()] == [t["tc"] for t in batch]
+    assert requirement_tests.load()[-1]["criteria"] == batch[-1]["criteria"]
+    handoff.write_text("[")
+    with pytest.raises(ValueError):
+        requirement_tests.only()
+
+
+def test_unobserved_target_capability_needs_design_review(monkeypatch):
+    monkeypatch.setattr(test_design, "llm_enabled", lambda: True)
+    monkeypatch.setattr(test_design, "ask_structured", _stub_ai)
+    monkeypatch.setattr(test_design, "_invented", lambda *args, **kwargs: "flight reservation page")
+    case, = test_design.my_test_cases(PAGES, REQ_TESTS[:1], start=1)
+    assert "flight reservation page" in case["skip_reason"]
+    assert bridge._result_status(case) == "Blocked"
+
+
+def test_historical_429_displays_a_block_without_changing_the_audit_record(db, paths):
+    put_story(db)
+    analysed(db, paths, accept=1)
+    cid, = bridge.generate(db, "t1", "QPL-2")["created"]
+    ex = bridge.plan(db, "t1", [cid], "requirements", {"url": "https://shop.test"})["execution"]
+    ex.update(counts={"Not automated": 1}, status="finished")
+    bridge.save_execution(db, "t1", ex)
+    original = dict(status="Not automated", test_case_id=cid, reason="Not automated: the AI could not turn it into steps (HTTP 429)")
+    with db:
+        db.execute("INSERT INTO req_results VALUES (?, ?, ?, ?, ?, ?)",
+                   ("t1", ex["id"], cid, original["status"], ex["created_at"], json.dumps(original)))
+    assert bridge.get_execution(db, "t1", ex["id"])["counts"] == {"Blocked": 1}
+    corrected, = bridge.results(db, "t1", ex["id"])
+    assert corrected["recorded_status"] == original["status"] and corrected["error_category"] == "http_429_unspecified"
+    assert db.execute("SELECT status FROM req_results").fetchone()[0] == original["status"]

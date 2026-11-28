@@ -1,0 +1,48 @@
+{
+  "id": "EX-6322fb1fb4",
+  "status": "stopped",
+  "counts": {
+    "Cancelled": 1
+  },
+  "requirements": [
+    "QPL-2"
+  ],
+  "case_ids": [
+    "TC-QPL-2-1"
+  ],
+  "automation_coverage": 0,
+  "pass_rate": null,
+  "batches": null,
+  "tally": {
+    "selected": 1,
+    "executed": 0,
+    "passed": 0,
+    "failed": 0,
+    "requires_review": 0,
+    "blocked": 0,
+    "not_automated": 0,
+    "skipped": 0,
+    "not_run": 1,
+    "prerequisites_added": 0
+  },
+  "outcome": "cancelled",
+  "provider_failure": null,
+  "studio_boot": "081b4421503d4df8b9ba67129f93c5ff",
+  "results": [
+    {
+      "test_case_id": "TC-QPL-2-1",
+      "status": "Cancelled",
+      "checks": null,
+      "failure_stage": "Execution",
+      "error_category": "cancelled",
+      "retryable": true,
+      "corrective_action": "Start another attempt when ready.",
+      "reason": "the run ended before this test case was designed or executed",
+      "run_folder": "nonexistent",
+      "designed": false,
+      "automation": null,
+      "case_version": 1,
+      "source_version": 1
+    }
+  ]
+}

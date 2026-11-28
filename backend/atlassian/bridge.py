@@ -160,7 +160,7 @@ def instruction(case: dict) -> str:
         parts.append("Test account: take its user name and password from the qa_login fixture (never write them). "
                      "A valid login uses both; a wrong-password check types the test account's user name with "
                      "another password.")
-    return " ".join(parts)[:1800]
+    return " ".join(parts)
 
 
 def generate(db, tenant: str, requirement_id: str, *, actor: str = "system", audit_db=None) -> dict:
@@ -349,7 +349,7 @@ def _with_prerequisites(text: str, prereqs: list[dict]) -> str:
     first = " Then ".join(f"{p['title'].rstrip('.')}: " + "; ".join(s.rstrip(".") for s in p["steps"])
                           for p in prereqs)
     return (f"Prerequisite (do first; it sets up the state - it is not what this test checks): {first}. "
-            f"Then this test: {text}")[:2600]
+            f"Then this test: {text}")
 
 
 def _tests_for(cases: list[dict], by_id: dict, prerequisite_info: dict) -> list[dict]:
@@ -364,7 +364,24 @@ def _tests_for(cases: list[dict], by_id: dict, prerequisite_info: dict) -> list[
 def tests_for_execution(db, tenant: str, ex: dict) -> list[dict]:
     """The engine's tests of an execution again (a resumed batch: only ids are stored, never a password)."""
     cases = [c for c in (get_case(db, tenant, cid) for cid in ex.get("case_ids") or []) if c]
-    return _tests_for(cases, {c["id"]: c for c in cases}, ex.get("prerequisites") or {})
+    by_id = {c["id"]: c for c in cases}
+    tests = _tests_for(cases, by_id, ex.get("prerequisites") or {})
+    if (ex["target"].get("type") or "web") == "web":
+        _attach_automation(db, tenant, by_id, ex["target"], tests)
+    return tests
+
+
+def _attach_automation(db, tenant, by_id, target, tests):
+    from . import automations
+    reused = {}
+    for t in tests:
+        a = automations.compatible(db, tenant, by_id[t["tc"]], target)
+        if a:
+            t["automation"] = {"code": a["code"], "test": a["test"], "validated_in": a["evidence"]["run"],
+                               "selectors": a.get("selectors") or [],
+                               **({"design": a["design"]} if a.get("design") else {})}
+            reused[t["tc"]] = {"validated_in": a["evidence"]["run"], "passes": a.get("passes", 1)}
+    return reused
 
 
 def save_execution(db, tenant: str, ex: dict) -> None:
@@ -415,20 +432,12 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
                  "case_versions": {c["id"]: c["version"] for c in cases},
                  "source_versions": {c["id"]: c["source_version"] for c in cases},
                  "target": {k: v for k, v in target.items() if k not in ("test_password", "api_key")},
+                 "criteria_by_case": {c["id"]: c["criterion_ids"] for c in cases},
                  "requirements": sorted({c["requirement_id"] for c in cases}), "status": "queued", "run_id": "",
                  "prerequisites": prerequisite_info}
     tests = [] if strategy == "autonomous" else _tests_for(cases, by_id, prerequisite_info)
     if (target.get("type") or "web") == "web":  # (validated automation of a website case is reused - automations.py)
-        from . import automations
-        reused = {}
-        for t in tests:
-            a = automations.compatible(db, tenant, by_id[t["tc"]], target)
-            if a:
-                t["automation"] = {"code": a["code"], "test": a["test"], "validated_in": a["evidence"]["run"],
-                                   "selectors": a.get("selectors") or [],
-                                   **({"design": a["design"]} if a.get("design") else {})}
-                reused[t["tc"]] = {"validated_in": a["evidence"]["run"], "passes": a.get("passes", 1)}
-        execution["automation_reuse"] = reused
+        execution["automation_reuse"] = _attach_automation(db, tenant, by_id, target, tests)
     with db:
         db.execute("INSERT INTO req_executions (tenant_id, id, status, run_id, created_at, data) VALUES "
                    "(?, ?, ?, ?, ?, ?)", (tenant, execution["id"], "queued", "", execution["created_at"],
@@ -453,7 +462,7 @@ def get_execution(db, tenant: str, execution_id: str) -> dict | None:
         return None
     data = json.loads(r["data"])
     data["status"] = r["status"]
-    return data
+    return _historical_counts(db, tenant, data)
 
 
 def list_executions(db, tenant: str, limit: int = 50) -> list[dict]:
@@ -463,7 +472,7 @@ def list_executions(db, tenant: str, limit: int = 50) -> list[dict]:
     for r in rows:
         d = json.loads(r["data"])
         d["status"] = r["status"]
-        out.append(d)
+        out.append(_historical_counts(db, tenant, d))
     return out
 
 
@@ -473,7 +482,9 @@ def _result_status(case: dict) -> str:
     status = str(case.get("execution_status") or "").strip()
     reason = str(case.get("skip_reason", ""))
     if status in ("Not run", "Skipped", ""):
-        if reason.startswith(("Not automated", "Needs clarif")):
+        if reason.startswith(("Design failed", "Needs clarif", "Not automated: the AI", "Not automated: no AI")):
+            return "Blocked"
+        if reason.startswith("Not automated"):
             return "Not automated"
         if reason.startswith("Blocked"):
             return "Blocked"
@@ -489,6 +500,38 @@ def _result_status(case: dict) -> str:
 LOGIN_WORDS = re.compile(r"\b(log ?in|sign ?in|username|password|credentials?|authenticat\w*)\b", re.I)
 PREREQ_CATEGORIES = ("Authentication / permission failure", "Test data / precondition problem",
                      "Infrastructure failure")
+
+
+def _nonexecution(result: dict, case: dict) -> dict:
+    reason = (result.get("reason") or case.get("skip_reason") or result.get("actual") or
+              "The worker reported no executed assertion for this case.")
+    text = reason.lower()
+    retryable = True
+    if result.get("blocked_by"):
+        stage, category, action = "Setup", "dependency", "Restore the named prerequisite and retry."
+    elif result.get("blocked_by_provider") or any(k in text for k in ("http 429", "no ai was available")):
+        stage = "Script generation" if case.get("design_error") else "Test design"
+        category = case.get("provider_category") or ("quota" if "quota" in text or "credits" in text else
+                   "rate_limit" if "429" in text else "provider_unavailable")
+        action = ("Restore provider billing or project credits before retrying." if category == "quota" else
+                  "Wait for provider capacity and retry." if category in ("temporary", "rate_limit", "tokens", "requests", "queue_timeout") else
+                  "Check the selected provider configuration and retry.")
+    elif result.get("status") == "Cancelled":
+        stage, category, action = "Execution", "cancelled", "Start another attempt when ready."
+    elif result.get("access_blocked") or result.get("failure_category") or result.get("excluded"):
+        stage, category, action = "Setup", result.get("failure_category") or "prerequisite", "Correct the stated prerequisite and retry."
+    elif text.startswith(("design failed", "not automated: the ai", "needs clarif")):
+        stage, category, action = "Test design", "invalid_design", "Review the scenario and target observations, then retry."
+    elif result.get("status") == "Not automated":
+        stage, category, action, retryable = "Test design", "target_mismatch", "Review the required capability and target.", False
+    elif text.startswith("blocked:"):
+        stage, category, action = "Setup", "precondition", "Review the stated constraint before retrying."
+    else:
+        stage, category, action = "Execution", "worker", "Check the worker log and retry this case."
+    phase = "Waiting for AI provider" if category in ("temporary", "requests", "tokens", "rate_limit", "queue_timeout") else (
+        "Design failed" if category == "invalid_design" else result["status"])
+    return dict(reason=reason, failure_stage=stage, error_category=category, retryable=retryable,
+                corrective_action=action, phase=phase)
 
 
 def _prerequisite_failure(case: dict) -> bool:
@@ -544,7 +587,7 @@ def _android_results(run_dir: Path) -> dict[str, dict]:
 
 
 def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str = "done",
-            only: list[str] | None = None, final: bool = True) -> dict:
+            only: list[str] | None = None, final: bool = True, waiting_on: str = "", worker_error: str = "") -> dict:
     """Read the REAL results of the finished run and record one result per requirement test case. only / final: one
     batch of a large execution (scheduler.py) - its cases only, and the execution stays running until the last."""
     ex = get_execution(db, tenant, execution_id)
@@ -561,6 +604,21 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
     for c in run_cases if isinstance(run_cases, list) else []:
         if isinstance(c, dict) and c.get("requirement_test"):
             by_tc[c["requirement_test"]] = c
+    if (ex.get("target") or {}).get("type", "web") == "web" and by_tc:
+        from ..excel import case_hits
+        from ..finalization import read_json
+        raw_results = read_json(Path(run_dir) / "results.json", None)
+        if isinstance(raw_results, list):
+            worker_results = [r for r in raw_results if isinstance(r, dict) and r.get("file") and r.get("test")]
+            for case in by_tc.values():
+                hits = case_hits(case, worker_results)
+                if hits and all(isinstance(r.get("checks"), int) for r in hits):
+                    case["check_count"] = sum(r["checks"] for r in hits)
+                if case.get("execution_status") in ("Passed", "Flaky"):
+                    if not hits:
+                        case.update(execution_status="Not run", skip_reason="No matching browser test result was recorded.")
+                    elif case.get("check_count") == 0:
+                        case.update(execution_status="Inconclusive", actual_result="The worker ran without a recorded assertion.")
     for cid, c in _android_results(run_dir).items():  # (an Android run: its own evidence, per tagged case)
         by_tc.setdefault(cid, dict(c, requirement_test=cid, tc_id=cid))
     counts: dict[str, int] = {}
@@ -580,7 +638,7 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         summ = {}
     if not isinstance(summ, dict):
         summ = {}
-    provider_failure = ""
+    provider_failure = waiting_on
     if summ.get("stop_kind") == "ai_unavailable":
         provider_failure = str(summ.get("incomplete_reason") or "The selected AI provider is unavailable.")[:500]
         ex["provider_failure"] = provider_failure
@@ -590,7 +648,7 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         if case_provider_failure or (provider_failure and
                                      (c is None or _result_status(c) in ("Not run", "Not automated", "Skipped"))):
             status = "Blocked"
-            reason = provider_failure or str(c.get("skip_reason") or "The selected AI provider is unavailable.")[:500]
+            reason = provider_failure or str((c or {}).get("skip_reason") or "The selected AI provider is unavailable.")[:500]
             ex.setdefault("provider_failure", reason)
             result = {"status": status, "reason": reason, "evidence": [], "actual": "",
                       "run_case": str((c or {}).get("tc_id") or ""), "blocked_by_provider": True}
@@ -600,11 +658,11 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                       "evidence": [], "actual": "", "run_case": "", "access_blocked": access.get("kind")}
             status = "Blocked"
         elif c is None:
-            status = "Cancelled" if run_status in ("stopped", "cancelled") else "Not run"
-            result = {"status": status, "reason": "the run ended before this test case was designed or executed"
+            status = "Cancelled" if run_status in ("stopped", "cancelled") else "Blocked" if worker_error else "Not run"
+            result = {"status": status, "reason": worker_error or ("the run ended before this test case was designed or executed"
                       if run_status in ("stopped", "cancelled") else
                       "the Studio stopped (restart / crash) while this execution ran, before this test case ran"
-                      if run_status == "interrupted" else "the run did not produce this test case",
+                      if run_status == "interrupted" else "the run did not produce this test case"),
                       "evidence": [], "actual": "", "run_case": ""}
         else:
             status = _result_status(c)
@@ -627,12 +685,13 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         stored.append((cid, status, result))
     # a test that did not pass while a prerequisite it needs really failed: Blocked, naming that prerequisite
     pre = ex.get("prerequisites") or {}
-    outcome_of_case = {cid: status for cid, status, _ in stored}
+    outcome_of_case = {r["test_case_id"]: r["status"] for r in results(db, tenant, execution_id)}
+    outcome_of_case.update({cid: status for cid, status, _ in stored})
     for i, (cid, status, result) in enumerate(stored):
         if (pre.get("added") or []) and cid in pre["added"]:
             result["role"] = "prerequisite (added: needed by " + ", ".join(
                 d for d, ch in (pre.get("chains") or {}).items() if cid in ch) + ")"
-        if status == "Passed":
+        if status in ("Passed", "Flaky", "Requires review", "Cancelled"):
             continue
         failed = [p for p in (pre.get("chains") or {}).get(cid, []) if outcome_of_case.get(p) in ("Failed", "Blocked")]
         if failed:
@@ -650,7 +709,13 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                                          "test_case_id": x["id"], "run_id": ex.get("run_id", ""), "at": _now(),
                                          "run_folder": Path(run_dir).name}))
     for cid, _status, result in stored:
+        result["criterion_ids"] = (ex.get("criteria_by_case") or {}).get(cid, [])
+        if not Path(run_dir).is_dir():
+            result["run_folder"] = ""
         rec = by_tc.get(cid) or {}
+        result["designed"] = bool(rec.get("tests") or result["status"] in ("Passed", "Failed", "Flaky", "Requires review"))
+        if result["status"] not in ("Passed", "Failed", "Flaky", "Requires review"):
+            result.update(_nonexecution(result, rec))
         if rec.get("automation_source"):
             result["automation"] = rec["automation_source"]  # (reused validated automation / newly generated)
     if (ex.get("target") or {}).get("type", "web") == "web":
@@ -661,11 +726,12 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
                 {cid: get_case(db, tenant, cid) for cid, _s, _r in stored}, Path(run_dir))
         except Exception as error:  # (keeping automation is extra: results stand without it)
             ex["automation_store"] = {"error": type(error).__name__}
-    for cid, status, result in stored:
-        with db:
-            db.execute("INSERT OR REPLACE INTO req_results (tenant_id, execution_id, test_case_id, status, at, data) "
-                       "VALUES (?, ?, ?, ?, ?, ?)", (tenant, execution_id, cid, status, result["at"],
-                                                     json.dumps(result, default=str)))
+    with db:
+        db.executemany("INSERT OR REPLACE INTO req_results (tenant_id, execution_id, test_case_id, status, at, data) "
+                       "VALUES (?, ?, ?, ?, ?, ?)",
+                       [(tenant, execution_id, cid, status, r["at"], json.dumps(r, default=str))
+                        for cid, status, r in stored])
+    ex["designed"] = sum(bool(r.get("designed")) for r in results(db, tenant, execution_id))
     for row in db.execute("SELECT status FROM req_results WHERE tenant_id = ? AND execution_id = ?",
                           (tenant, execution_id)):  # (every batch so far, and the excluded cases at the end)
         counts[row["status"]] = counts.get(row["status"], 0) + 1
@@ -756,6 +822,8 @@ def outcome_of(ex: dict) -> dict:
                "completed_with_failures" if auto.get("failed") else
                "completed_with_unautomated" if auto.get("not_run") else "completed")
         tally["autonomous"] = {k: auto.get(k, 0) for k in ("cases", "passed", "failed", "not_run")}
+    elif selected and not executed and tally["blocked"]:
+        key = "completed_with_blocked"
     elif selected and not executed:
         key = "no_tests_automated"
     elif tally["failed"]:
@@ -773,22 +841,51 @@ def outcome_of(ex: dict) -> dict:
             "pass_rate": round(100 * tally["passed"] / executed) if executed else None}
 
 
+def _public_result(raw: str) -> dict:
+    row = json.loads(raw)
+    reason = str(row.get("reason") or "")
+    if row["status"] == "Not automated" and reason.startswith(
+            ("Not automated: the AI", "Not automated: no AI", "Needs clarification")):
+        row.update(status="Blocked", recorded_status="Not automated")
+        if "http 429" in reason.lower():
+            row["blocked_by_provider"] = True
+            row.update(_nonexecution(row, {"provider_category": "http_429_unspecified"}))
+            row["corrective_action"] = "Check provider credits and request limits before retrying."
+        else:
+            row.update(_nonexecution(row, {}))
+    return row
+
+
+def _historical_counts(db, tenant, execution):
+    if (execution.get("counts") or {}).get("Not automated"):
+        changed = [r for r in results(db, tenant, execution["id"]) if r.get("recorded_status") == "Not automated"]
+        if changed:
+            counts = execution["counts"]
+            counts["Not automated"] -= len(changed)
+            if counts["Not automated"] <= 0:
+                counts.pop("Not automated")
+            counts["Blocked"] = counts.get("Blocked", 0) + len(changed)
+            if all(r.get("blocked_by_provider") for r in changed) and not execution.get("provider_failure"):
+                execution["provider_failure"] = "The stored test design reported HTTP 429. The original provider code was not recorded."
+    return execution
+
+
 def results(db, tenant: str, execution_id: str) -> list[dict]:
     rows = db.execute("SELECT data FROM req_results WHERE tenant_id = ? AND execution_id = ? ORDER BY test_case_id",
                       (tenant, execution_id))
-    return [json.loads(r["data"]) for r in rows]
+    return [_public_result(r["data"]) for r in rows]
 
 
 def latest_result(db, tenant: str, case_id: str) -> dict | None:
     r = db.execute("SELECT data FROM req_results WHERE tenant_id = ? AND test_case_id = ? ORDER BY at DESC LIMIT 1",
                    (tenant, case_id)).fetchone()
-    return json.loads(r["data"]) if r else None
+    return _public_result(r["data"]) if r else None
 
 
 def case_results(db, tenant: str, case_id: str) -> list[dict]:
     rows = db.execute("SELECT data FROM req_results WHERE tenant_id = ? AND test_case_id = ? ORDER BY at DESC",
                       (tenant, case_id))
-    return [json.loads(r["data"]) for r in rows]
+    return [_public_result(r["data"]) for r in rows]
 
 
 # ---------------------------------------------------------------- traceability and coverage

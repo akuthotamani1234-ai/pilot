@@ -61,5 +61,7 @@ def read_events(root: Path, after: str = "", limit: int = 150) -> dict:
         case = next((case for case in cases if
                      (event.get("case_id") and case.get("id") == event["case_id"]) or case_hits(case, [result])), None)
         if case:
+            if case.get("requirement_test"):
+                event["requirement_test"] = case["requirement_test"]
             event["case_title"], event["expected"] = redact(case.get("title", "")), redact(case.get("expected", ""))
     return {"events": sorted(events, key=lambda e: (e.get("timestamp", 0), e.get("id", ""))), "cursor": cursor}

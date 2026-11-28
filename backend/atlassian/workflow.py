@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS req_targets (
 """
 STEPS = ("connect", "import", "explorer", "analysis", "reviews", "builder", "execution", "agents", "reports")
 DRAFT_KEYS = {"connection_id": str, "project_key": str, "requirement_ids": list, "test_case_ids": list,
-              "strategy": str, "target_url": str, "target_source": str, "environment": str, "execution_id": str,
+              "strategy": str, "target_url": str, "target_source": str, "environment": str, "execution_id": str, "retry_of": str,
               "step": str, "app_type": str, "ai_provider": str, "ai_model": str}  # (the AI's NAME only)
 NOT_TARGETS = re.compile(r"(^|\.)(atlassian\.(net|com)|jira\.com|github\.com|githubusercontent\.com|gitlab\.com|"
                          r"bitbucket\.org|readthedocs\.io|wikipedia\.org|docs\.google\.com|drive\.google\.com|"
@@ -64,7 +64,7 @@ def _clean(data: dict) -> dict:
             continue
         v = data[k]
         if kind is list:
-            out[k] = [str(x)[:80] for x in (v or []) if str(x).strip()][:200] if isinstance(v, list) else []
+            out[k] = [str(x)[:80] for x in (v or []) if str(x).strip()] if isinstance(v, list) else []
         else:
             out[k] = str(v or "")[:500]
     if "step" in out and out["step"] not in STEPS:
@@ -101,8 +101,10 @@ def update_draft(db, tenant: str, actor: str, changes: dict, draft_id: str = "")
         raise ValueError("this workflow was replaced by a newer one (New Test); reload to continue it")
     updates = _clean(changes)
     if any(key in updates and updates[key] != (d.get(key) or "") for key in ("connection_id", "project_key")):
-        for key in ("requirement_ids", "test_case_ids", "execution_id", "target_url", "target_source"):
+        for key in ("requirement_ids", "test_case_ids", "execution_id", "retry_of", "target_url", "target_source"):
             d.pop(key, None)
+    if "test_case_ids" in updates and updates["test_case_ids"] != d.get("test_case_ids"):
+        d.pop("retry_of", None)
     d.update(updates)
     with db:
         db.execute("UPDATE req_workflow_drafts SET updated_at = ?, data = ? WHERE tenant_id = ? AND actor = ?",

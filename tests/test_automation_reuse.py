@@ -156,7 +156,8 @@ def test_the_full_list_with_code_reaches_the_run_through_a_private_file(tmp_path
     monkeypatch.setenv("QA_REQUIREMENT_TESTS_FILE", str(f))
     assert len(requirement_tests.load()[0]["automation"]["code"]) == 30000
     monkeypatch.setenv("QA_REQUIREMENT_TESTS_FILE", str(tmp_path / "elsewhere.json"))
-    assert requirement_tests.load() == []  # (only the Studio's own hand-off folder)
+    with pytest.raises(ValueError, match="handoff"):
+        requirement_tests.load()
 
 
 def test_a_case_with_validated_automation_needs_no_ai_to_be_designed(monkeypatch):
@@ -176,7 +177,7 @@ def test_a_case_with_validated_automation_needs_no_ai_to_be_designed(monkeypatch
     proven = cases["rq_tc_a_1"]
     assert proven["kind"] == "flow" and proven["design_source"] == "reused" and proven["pages"] == ["inventory_html"]
     assert proven["steps"] == design["steps"] and proven["tests"] == ["test_ai_flow_1"]
-    assert cases["rq_tc_b_1"]["skip_reason"].startswith("Not automated: no AI")  # (the other one still needs an AI)
+    assert cases["rq_tc_b_1"]["skip_reason"].startswith("Blocked: no AI")  # (the other one still needs an AI)
 
 
 def test_an_optional_explanation_call_never_stops_the_run_but_a_test_call_does(monkeypatch):
@@ -192,3 +193,14 @@ def test_an_optional_explanation_call_never_stops_the_run_but_a_test_call_does(m
     with pytest.raises(llm.LLMError):
         llm.ask_llm("write the test", agent="script_generator", max_attempts=1)
     assert stops and stops[0][0] == "ai_unavailable"  # (a test-producing call still stops it)
+
+
+@pytest.mark.parametrize("assertions,expected", [(0, "Requires review"), (3, "Passed")])
+def test_worker_assertions_determine_pass_credit(db, tmp_path, assertions, expected):
+    ex = bridge.plan(db, "t", ["TC-A-1"], "requirements", TARGET)["execution"]
+    run = _run(tmp_path)
+    (run / "results.json").write_text(json.dumps([{
+        "file": "test_flows_ai.py", "test": "test_ai_flow_2", "outcome": "passed", "checks": assertions}]))
+    bridge.collect(db, "t", ex["id"], run)
+    row, = bridge.results(db, "t", ex["id"])
+    assert row["status"] == expected and row["checks"] == assertions

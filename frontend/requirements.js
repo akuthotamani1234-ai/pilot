@@ -834,7 +834,7 @@
       for (const c of r.test_cases) {
         const d = await api(`/test-cases/${encodeURIComponent(c.id)}`);
         d.results.forEach((x) => rows.push(h("li", {}, h("time", { text: when(x.at) }), h("b", { text: c.id }), resultBadge(x.status),
-          h("span", { text: x.actual || x.reason || "" }), ...evidenceLinks(x))));
+          h("span", { text: resultDetail(x) }), ...evidenceLinks(x))));
       }
       body.replaceChildren(...kids(rows.length ? h("ul", { class: "rq-audit" }, rows) : h("p", { class: "small", text: "No test case of this requirement has run yet." })));
     } catch (e) { body.replaceChildren(h("p", { text: e.message })); }
@@ -1178,7 +1178,7 @@
 
   async function builder() {
     await refreshWorkflow();
-    if (draftCases().length) X.selected = new Set(draftCases());
+    X.selected = new Set(draftCases());
     try {
       const reqs = await api("/items?kind=jira_issue&analysis=current&size=100");
       $("genReq").replaceChildren(...kids(reqs.items.length ? reqs.items.map((r) => h("option", { value: `${r.connection_id}|${r.key}`, text: `${r.key} — ${r.summary}` }))
@@ -1279,7 +1279,7 @@
       editable ? h("details", {}, h("summary", { text: "Edit test case" }), form) : null,
       h("h3", { class: "rq-sub", text: `Results (${d.results.length})` }),
       d.results.length ? h("ul", { class: "rq-audit" }, d.results.map((r) => h("li", {}, h("time", { text: when(r.at) }), resultBadge(r.status),
-        h("span", { text: r.actual || r.reason || "" }), ...evidenceLinks(r)))) : h("p", { class: "small", text: "Not run yet." }),
+        h("span", { text: resultDetail(r) }), ...evidenceLinks(r)))) : h("p", { class: "small", text: "Not run yet." }),
       h("h3", { class: "rq-sub", text: "History" }), h("ul", { class: "rq-audit" }, d.history.map((x) => h("li", {}, h("time", { text: when(x.at) }), `v${x.version} — ${x.event}`)))));
     document.querySelectorAll(".rq-tabs").forEach((t) => { t.hidden = true; });
     if (!$("detail").open) $("detail").showModal();
@@ -1388,7 +1388,7 @@
   async function executionCenter() {
     await refreshWorkflow();
     const d = WF.draft || {};
-    if (draftCases().length) X.selected = new Set(draftCases());
+    X.selected = new Set(draftCases());
     const strat = document.querySelector(`input[name=exStrategy][value=${d.strategy || "requirements"}]`);
     if (strat) strat.checked = true;
     if (d.environment) $("exEnv").value = d.environment;
@@ -1397,9 +1397,9 @@
     if (S.presetScope && S.presetScope !== "selected") $("exAdvanced").open = true;
     S.caseCriteria = [];
     try {
-      for (const c of draftCases().slice(0, 30)) {
-        const one = await api(`/test-cases/${encodeURIComponent(c)}`);
-        one.test_case.criterion_ids.forEach((x) => { if (!S.caseCriteria.includes(x)) S.caseCriteria.push(x); });
+      if (X.selected.size) {
+        const data = await api("/test-cases");
+        S.caseCriteria = [...new Set(data.test_cases.filter(c => X.selected.has(c.id)).flatMap(c => c.criterion_ids))];
       }
     } catch (err) { /* (shown without criteria) */ }
     tcCount(); execSummary(); resolveTarget(); exList(); aiProviders();
@@ -1431,46 +1431,51 @@
     } else if (!url) { $("exUrl").focus(); return fail("Target website not found. Please enter the website URL you want to test."); }
     if (!/^https?:\/\/[^\s/]+/i.test(url)) { $("exUrl").focus(); return fail("Enter a full website address starting with http:// or https://"); }
     if (!$("exAuth").checked) { $("exAuth").focus(); return fail("Confirm that you own the application or have permission to test it."); }
-    if (!androidApp && !apiRun && !iosRun) {
-      out.textContent = "Checking the website…";
-      let reach;
-      try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
-      if (!reach || !reach.ok) return fail(`The website could not be used: ${reach ? reach.message : "no answer"} Your selection is kept: correct the address and run again.`);
-    }
-    const projects = TG.projects || [];
-    const target = { type: $("xcApp").value, url, authorized: true, environment: $("exEnv").value,
-      test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
-      api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
-      show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
-      demo_checkout: $("exDemo").checked, use_saved_account: true,
-      payment_provider: $("exPayProvider").value, payment_sandbox_confirmed: $("exPayConfirm").checked,
-      ...(iosRun ? { ios: { bundle_id: $("exIosBundle").value.trim(), app_path: $("exIosApp").value.trim(), udid: $("exIosUdid").value.trim(),
-        platform_version: $("exIosVersion").value.trim(), appium_url: $("exIosAppium").value.trim() } } : {}),
-      ...(apiRun ? { api_spec_url: $("exApiSpec").value.trim(), api_token: $("exApiToken").value,
-        api_allow: [...document.querySelectorAll(".exApiAllow:checked")].map((x) => x.value) } : {}),
-      ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
-        app_activity: $("exActivity").value.trim(), appium_url: $("exAppium").value.trim() } : {}), save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
-    // preflight: the same checks the server enforces - nothing is created when the run could not test anything
-    out.textContent = "Checking the AI, the browser and the website (the page is opened once)…";
-    $("xcProblems").replaceChildren();
-    let pre;
-    try { pre = await api("/executions/preflight", { method: "POST", body: { strategy, scope, target } }); }
-    catch (err) { return fail(err.message); }
-    if (!pre.ok) { showProblems(pre.problems); return fail(pre.problems.find((p) => p.blocking).message); }
-    $("exPass").value = ""; $("exKey").value = ""; $("exApiToken").value = "";  // (sent once, never kept in the page)
-    out.textContent = `Starting the test run (AI: ${pre.ai.provider}${pre.ai.model ? ` · ${pre.ai.model}` : ""})…`;
+    const submit = e.currentTarget.querySelector('button[type="submit"]');
+    if (submit.disabled) return;
+    submit.disabled = true;
     try {
-      const r = await api("/executions", { method: "POST", body: { strategy, scope, target } });
-      const ex = r.execution;
-      const pre = ex.prerequisites || {};
-      out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`
-        + ((pre.added || []).length ? ` Prerequisites added automatically: ${pre.added.join(", ")} (needed first by ${Object.keys(pre.chains || {}).join(", ")}).` : "")
-        + ((pre.skipped || []).length ? ` Prerequisites that cannot run: ${pre.skipped.map((x) => `${x.requires} for ${x.case}`).join("; ")}.` : "")
-        + ((pre.cycles || []).length ? ` Circular prerequisites ignored: ${pre.cycles.map((c) => c.join(" → ")).join("; ")}.` : "");
-      S.presetScope = null; S.reportId = null; S.liveId = null;  // (the run just started is the one shown)
-      await saveDraft({ execution_id: ex.id, target_url: url, strategy, step: "agents" });
-      location.hash = "#agents";  // (the live view opens by itself: no second Run button)
-    } catch (err) { fail(err.message); }
+      if (!androidApp && !apiRun && !iosRun) {
+        out.textContent = "Checking the website…";
+        let reach;
+        try { reach = await checkTarget(); } catch (err) { return fail(err.message); }
+        if (!reach || !reach.ok) return fail(`The website could not be used: ${reach ? reach.message : "no answer"} Your selection is kept: correct the address and run again.`);
+      }
+      const projects = TG.projects || [];
+      const target = { type: $("xcApp").value, url, authorized: true, environment: $("exEnv").value,
+        test_username: $("exUser").value.trim(), test_password: $("exPass").value, llm_provider: $("exAi").value, llm_model: $("exModel").value.trim(),
+        api_key: $("exKey").value, max_pages: Number($("exPages").value) || 0, page_timeout_s: Number($("exTimeout").value) || 0,
+        show_browser: $("exShow").checked, record_video: $("exVideo").checked, thorough: $("exThorough").checked,
+        demo_checkout: $("exDemo").checked, use_saved_account: true,
+        payment_provider: $("exPayProvider").value, payment_sandbox_confirmed: $("exPayConfirm").checked,
+        ...(iosRun ? { ios: { bundle_id: $("exIosBundle").value.trim(), app_path: $("exIosApp").value.trim(), udid: $("exIosUdid").value.trim(),
+          platform_version: $("exIosVersion").value.trim(), appium_url: $("exIosAppium").value.trim() } } : {}),
+        ...(apiRun ? { api_spec_url: $("exApiSpec").value.trim(), api_token: $("exApiToken").value,
+          api_allow: [...document.querySelectorAll(".exApiAllow:checked")].map((x) => x.value) } : {}),
+        ...(android ? { android_mode: $("exAndMode").value, device_id: $("exDevice").value.trim(), package_name: $("exPackage").value.trim(),
+          app_activity: $("exActivity").value.trim(), appium_url: $("exAppium").value.trim() } : {}), save_target: $("tgSave").checked && projects.length > 0, project_key: projects[0] || "" };
+      // preflight: the same checks the server enforces - nothing is created when the run could not test anything
+      out.textContent = "Checking the AI, the browser and the website (the page is opened once)…";
+      $("xcProblems").replaceChildren();
+      let pre;
+      try { pre = await api("/executions/preflight", { method: "POST", body: { strategy, scope, target } }); }
+      catch (err) { return fail(err.message); }
+      if (!pre.ok) { showProblems(pre.problems); return fail(pre.problems.find((p) => p.blocking).message); }
+      $("exPass").value = ""; $("exKey").value = ""; $("exApiToken").value = "";  // (sent once, never kept in the page)
+      out.textContent = `Starting the test run (AI: ${pre.ai.provider}${pre.ai.model ? ` · ${pre.ai.model}` : ""})…`;
+      try {
+        const r = await api("/executions", { method: "POST", body: { strategy, scope, target, retry_of: mode === "selected" ? WF.draft?.retry_of || "" : "" } });
+        const ex = r.execution;
+        const pre = ex.prerequisites || {};
+        out.textContent = `Running ${plural(ex.case_ids.length, "test case")}${ex.excluded.length ? ` (${ex.excluded.length} left out: ${ex.excluded.map((x) => `${x.id} ${x.reason}`).join("; ")})` : ""}.`
+          + ((pre.added || []).length ? ` Prerequisites added automatically: ${pre.added.join(", ")} (needed first by ${Object.keys(pre.chains || {}).join(", ")}).` : "")
+          + ((pre.skipped || []).length ? ` Prerequisites that cannot run: ${pre.skipped.map((x) => `${x.requires} for ${x.case}`).join("; ")}.` : "")
+          + ((pre.cycles || []).length ? ` Circular prerequisites ignored: ${pre.cycles.map((c) => c.join(" → ")).join("; ")}.` : "");
+        S.presetScope = null; S.reportId = ex.id; pinLive(ex.id);  // (the run just started is the one shown)
+        location.hash = "#agents";  // (the live view opens by itself: no second Run button)
+        saveDraft({ execution_id: ex.id, retry_of: "", target_url: url, strategy, step: "agents" }).catch(err => banner(err.message));
+      } catch (err) { fail(err.message); }
+    } finally { submit.disabled = false; }
   });
   $("xcApp").addEventListener("change", () => { $("xcAndroid").hidden = $("xcApp").value !== "android"; $("xcApi").hidden = $("xcApp").value !== "api"; $("xcIos").hidden = $("xcApp").value !== "ios"; });
   // the application keeps the tester out (bot check, CAPTCHA, SSO / MFA ...): the run is paused - an authorized person
@@ -1534,7 +1539,7 @@
     const blocked = !p.allowed && AI.privacy && AI.privacy.mode === "local";
     $("aiCloud").hidden = !blocked;
     $("aiState").replaceChildren(h("p", { class: "small" }, p.ready ? badge("ready", "ok") : badge(p.readiness_reason, "warn"), " ",
-      p.id === "none" ? "Approved requirement test cases need an AI: with none they cannot be automated, so such a run is not started."
+      p.id === "none" ? "Only cases with compatible validated automation can run without AI."
         : blocked ? `Privacy is set to local-only, so ${p.name} (a cloud AI) may not be used. Allow cloud AI below, or choose a local AI.`
         : !p.ready && p.key_env ? `Enter a key for this run below, or add ${p.key_env} to the server's .env.` : p.ready ? `${p.name} will turn the test cases into browser steps.` : ""));
     if (save && WF.draft) saveDraft({ ai_provider: p.id, ai_model: $("exModel").value.trim() });
@@ -1580,13 +1585,13 @@
         d.results.length ? h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" }, h("caption", { class: "rq-sr", text: "Results" }),
           h("thead", {}, h("tr", {}, ["Test case", "Result", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
           h("tbody", {}, d.results.map((r) => h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: r.test_case_id, onclick: () => tcDetail(r.test_case_id) })),
-            h("td", {}, resultBadge(r.status)), h("td", { text: r.actual || r.reason || "" }), h("td", {}, ...evidenceLinks(r))))))) : null,
+            h("td", {}, resultBadge(r.status)), h("td", { text: resultDetail(r) }), h("td", {}, ...evidenceLinks(r))))))) : null,
         ex.exploratory && ex.exploratory.cases ? h("p", { class: "small", text: `Exploratory (not from requirements): ${ex.exploratory.cases} case(s), ${ex.exploratory.passed} passed, ${ex.exploratory.failed} failed — details in the run's report / folder.` }) : null,
         !running && d.results.length ? h("div", { class: "rq-row" }, h("button", { class: "secondary", type: "button", text: "Propose these results to Jira", onclick: async (e) => {
           try { await api("/writeback/proposals", { method: "POST", body: { execution_id: id } }); location.hash = "#writeback"; }
           catch (err) { e.target.after(h("span", { class: "small", role: "alert", text: ` ${err.message}` })); }
         } }), h("span", { class: "small", text: "Only a proposal: you see exactly what would be written, and nothing is sent without approval." })) : null)));
-      if (running) X.poll = setTimeout(() => { if (location.hash === "#execution" || location.hash === "#agents") { exDetail(id); liveView(); } }, 3000);
+      if (running) X.poll = setTimeout(() => { if (location.hash === "#execution") exDetail(id); }, 3000);
       else exList();
     } catch (e) { box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
   }
@@ -1817,7 +1822,8 @@
     builder: { label: () => "Continue to Execution", go: () => (draftCases().some((c) => WF.state.runnable.includes(c)) ? go("#execution")
       : stop(WF.state.runnable.length ? "Select the test cases to run (tick them in the table)." : "No approved test case yet.", WF.state.runnable.length ? null : "#reviews", "Review and generate")) },
     execution: { label: () => "Run Tests", go: () => { $("exForm2").requestSubmit(); return false; } },
-    agents: { label: () => "View Report", go: () => (WF.state.execution && WF.state.done.agents ? go("#reports")
+    agents: { label: () => "View Report", go: () => (LV.id && LV.finished ? (S.reportId = LV.id, go("#reports"))
+      : !LV.id && WF.state.execution && WF.state.done.agents ? go("#reports")
       : stop(WF.state.execution ? "The test is still running: the report opens when it ends." : "No execution yet.", WF.state.execution ? null : "#execution", "Go to the Execution Center")) },
   };
   function go(hash) { location.hash = hash; return false; }
@@ -1836,10 +1842,10 @@
   // -- step 3: the requirements chosen in the explorer
   async function connOf(keys) {  // requirement key -> its connection (from the imported items)
     const map = {};
-    for (let page = 1; page < 50; page += 1) {
+    for (let page = 1; ; page += 1) {
       const r = await api(`/items?${new URLSearchParams({ kind: "jira_issue", size: 100, page, missing: true })}`);
       r.items.forEach((it) => { map[it.key] = it.connection_id; });
-      if (page * r.size >= r.total) break;
+      if (!r.items.length || page * r.size >= r.total) break;
     }
     return keys ? Object.fromEntries(keys.map((k) => [k, map[k]])) : map;
   }
@@ -2026,19 +2032,38 @@
   }
 
   // -- step 8: live execution (the run's real events, agents and screens; only the panels scroll)
+  function pinLive(id) {
+    const url = new URL(location.href);
+    if (id) url.searchParams.set("execution", id);
+    else url.searchParams.delete("execution");
+    window.history.replaceState(window.history.state, "", url);
+  }
   async function liveView() {
-    await refreshWorkflow();
-    let recent = [];
-    try { recent = (await api("/executions?limit=20")).executions || []; } catch (e) { recent = []; }
-    const active = recent.filter((x) => ["running", "queued"].includes(x.status));
-    let id = (S.liveId && recent.some((x) => x.id === S.liveId) && S.liveId) || (WF.draft && WF.draft.execution_id) || "";
-    if (!id) id = active.length ? active[0].id : "";
+    const pinned = new URL(location.href).searchParams.get("execution");
+    if (pinned) renderLive(pinned, []);
+    try {
+      if (!pinned) await refreshWorkflow();
+      const recent = (await api("/executions?limit=20")).executions || [];
+      if (S.view !== "agents" || pinned !== new URL(location.href).searchParams.get("execution")) return;
+      const active = recent.filter(x => ["running", "queued"].includes(x.status));
+      const id = pinned || WF.draft?.execution_id || active[0]?.id || "";
+      if (id && !pinned) pinLive(id);
+      renderLive(id, active);
+    } catch (err) {
+      if (!pinned && S.view === "agents") {
+        $("liveSub").textContent = err.message;
+        clearTimeout(LV.timer);
+        LV.timer = setTimeout(liveView, 4000);
+      }
+    }
+  }
+  function renderLive(id, active) {
     const box = $("liveBox");
     // every other execution still running is one click away (another tab's run, a re-run started from Reports)
     const others = active.filter((x) => x.id !== id);
     $("liveOthers").replaceChildren(...kids(others.length ? h("p", { class: "small" }, "Also running: ",
       ...others.map((x) => h("button", { type: "button", class: "linklike", text: `${x.id} (${x.case_ids.length} test case(s))`,
-        onclick: () => { S.liveId = x.id; liveView(); } }))) : null));
+        onclick: () => { pinLive(x.id); liveView(); } }))) : null));
     if (!id) {
       LV.id = "";
       $("liveSub").textContent = "Live browser, scenarios and agent activity.";
@@ -2048,7 +2073,9 @@
       return;
     }
     if (LV.id !== id) {
-      Object.assign(LV, { id, job: null, cursor: "", follow: true, workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
+      $("liveSub").textContent = id + " · Loading execution status…";
+      for (const frame of Object.values(LV.frames)) URL.revokeObjectURL(frame.src);
+      Object.assign(LV, { id, finished: false, job: null, steps: {}, cursor: "", follow: true, workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
       box.replaceChildren(h("div", { class: "rq-live-grid" },
         h("section", { class: "rq-panel", "aria-labelledby": "lvScTitle" }, h("h2", { id: "lvScTitle", text: "Scenarios" }),
           h("input", { type: "search", id: "lvSearch", "aria-label": "Filter scenarios by case or status", placeholder: "Search case or status", oninput: filterScenarios }),
@@ -2062,7 +2089,7 @@
           h("ul", { class: "rq-log", id: "lvLog" }))),
         h("button", { type: "button", class: "secondary rq-jump", id: "lvJump", hidden: true, text: "Jump to latest", onclick: () => { LV.follow = true; $("lvFollow").checked = true; jumpLatest(); } })));
     }
-    liveTick();
+    if (LV.loading !== id) liveTick();
   }
   function filterScenarios() {
     const q = $("lvSearch").value.trim().toLowerCase();
@@ -2081,13 +2108,19 @@
     clearTimeout(LV.timer);
     if (S.view !== "agents" || !LV.id) return;
     const id = LV.id;
+    LV.loading = id;
+    let retryEvidence = false;
     try {
       const d = await api(`/executions/${encodeURIComponent(id)}`);
       if (LV.id !== id || S.view !== "agents") return;  // (a newer test was started: this answer is old)
       const ex = d.execution, live = d.live || {};
       const running = ["running", "queued"].includes(ex.status);
-      LV.job = ex.run_id;
-      if (running && ex.run_id) livePause(ex.run_id);
+      LV.finished = !running;
+      const job = d.live_job_id === undefined ? live.id : d.live_job_id;
+      if (LV.job !== job) {
+        Object.assign(LV, { job, steps: {}, cursor: "", seen: new Set(), shown: {} });
+      }
+      if (running && job) livePause(job);
       const counts = ex.counts || {};
       const t = ex.target || {}, ai = t.llm_provider ? `AI: ${t.llm_provider}${t.llm_model ? " " + t.llm_model : ""} · ` : "";
       const bs = ex.batches || [], bdone = bs.filter((b) => b.status === "done").length;
@@ -2128,9 +2161,10 @@
         running ? badge(ex.case_ids.length ? `${ex.case_ids.length} scenario(s) in this run`
           : `autonomous: ${live.cases != null ? `${live.cases} scenario(s) designed by the run so far` : "the run designs its own scenarios"}`, "info") : null),
         running ? h("button", { type: "button", class: "secondary", text: "Cancel", onclick: async () => { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); liveTick(); } }) : null,
-        !running && ex.status !== "interrupted" ? providerRetry(d.results) : null,
+        !running && ex.status !== "interrupted" ? providerRetry(d.results, ex.id) : null,
         !running ? h("a", { class: "secondary rq-action-link", href: "#reports", text: "View Report", onclick: () => { S.reportId = ex.id; } }) : null,
         !running ? h("button", { type: "button", class: "secondary", "data-newtest": "", text: "+ New Test" }) : null));
+      const excluded = Object.fromEntries((ex.excluded || []).map(x => [x.id, x.reason]));
       const byCase = Object.fromEntries((d.results || []).map((r) => [r.test_case_id, r]));
       const testing = /^(execution|self_healing)$/.test(live.current || "");  // (exploring first: the cases wait)
       if (!ex.case_ids.length) {  // (autonomous: no Jira case - the run's own scenarios, counted from the run itself)
@@ -2138,15 +2172,15 @@
         $("lvCases").replaceChildren(h("p", { class: "small", text: a ? `Autonomous execution: ${a.cases} scenario(s) - ${a.passed} passed, ${a.failed} failed${a.not_run ? `, ${a.not_run} not run` : ""}. Each one is in the report.`
           : `Autonomous execution: no Jira test case. ${live.cases != null ? `${live.cases} scenario(s) designed by the run so far` : "The run designs its own scenarios"}; results appear as tests finish.` }));
       } else
-      $("lvCases").replaceChildren(h("ul", { class: "rq-audit" }, ex.case_ids.map((c) => h("li", {}, h("b", { text: c }),
-        byCase[c] ? resultBadge(byCase[c].status) : badge(!running ? "—" : testing ? "running" : `waiting (${live.current || "starting"})`, "info"),
-        byCase[c] && (byCase[c].actual || byCase[c].reason) ? h("span", { class: "small", text: byCase[c].actual || byCase[c].reason }) : null))));
+      $("lvCases").replaceChildren(h("ul", { class: "rq-audit" }, [...ex.case_ids, ...Object.keys(excluded)].map((c) => h("li", {}, h("b", { text: c }),
+        byCase[c] ? resultBadge(byCase[c].status) : excluded[c] ? badge(excluded[c], "warn") : badge(!running ? "—" : LV.steps?.[c] ? LV.steps[c] : testing ? "awaiting individual result" : `waiting (${live.current || "starting"})`, "info"),
+        byCase[c] && (byCase[c].actual || byCase[c].reason) ? h("span", { class: "small", text: resultDetail(byCase[c]) }) : null))));
       $("lvSearch").hidden = !ex.case_ids.length;
       filterScenarios();
-      if (LV.job && /^\d+$/.test(String(LV.job))) await liveRun(LV.job, running);
+      if (LV.job && /^\d+$/.test(String(LV.job))) retryEvidence = await liveRun(LV.job, running);
       if (ex.provider_failure) {
         if (!$("lvScreens").querySelector("figure")) {
-          $("lvScreens").replaceChildren(h("p", { class: "small", text: `No browser frame was captured. ${ex.provider_failure}` }));
+          $("lvScreens").replaceChildren(h("p", { class: "small", text: `No live browser frame is available. ${ex.provider_failure}` }));
         }
         if (!$("lvAgents").querySelector("li")) {
           $("lvAgents").replaceChildren(h("p", { class: "small", text: ex.provider_failure }));
@@ -2156,22 +2190,34 @@
         }
       }
       if (!running && !ex.provider_failure && !$("lvScreens").querySelector("figure")) {
-        $("lvScreens").replaceChildren(h("p", { class: "small", text: "This execution ended without a recorded browser frame." }));
+        const folder = (d.results || []).find(r => r.run_folder && r.run_folder !== "nonexistent")?.run_folder;
+        $("lvScreens").replaceChildren(h("p", { class: "small" }, "No live frame is available for this execution.",
+          folder ? h("a", { href: "/runs/" + encodeURIComponent(folder) + "/report.html", text: " Open the recorded run report." }) : null));
       }
       $("lvLogEmpty").textContent = running ? "Waiting for the first execution event." : "No execution events were recorded.";
       $("lvLogEmpty").hidden = Boolean($("lvLog").children.length);
-      if (running) LV.timer = setTimeout(liveTick, 1500);
+      if (LV.id !== id || S.view !== "agents") return;
+      if (running || retryEvidence) LV.timer = setTimeout(liveTick, running ? 1500 : 4000);
       else refreshWorkflow();
-    } catch (e) { $("liveSub").textContent = e.message; LV.timer = setTimeout(liveTick, 4000); }
+    } catch (e) {
+      if (LV.id === id && S.view === "agents") {
+        $("liveSub").textContent = id + " · " + e.message;
+        LV.timer = setTimeout(liveTick, 4000);
+      }
+    } finally { if (LV.loading === id) LV.loading = null; }
   }
   async function liveRun(job, running) {
+    let retry = false;
     try {
       const ev = await api(`/api/runs/${job}/events?${new URLSearchParams({ after: LV.cursor, limit: 300 })}`);
+      if (LV.job !== job || S.view !== "agents") return;
+      retry = (ev.events || []).length >= 300;
       const log = $("lvLog"), body = $("lvLogBody");
       const stick = LV.follow && body.scrollHeight - body.scrollTop - body.clientHeight < 24;
       for (const e of ev.events || []) {
         if (LV.seen.has(e.id)) continue;
         LV.seen.add(e.id);
+        if (e.requirement_test) LV.steps[e.requirement_test] = e.text;
         log.append(h("li", { class: e.status }, `${new Date(e.timestamp * 1000).toLocaleTimeString()} ${e.worker} · ${e.test} · ${e.text} (${e.status})`));
         if (e.url && e.url !== "about:blank") $("lvUrl").textContent = ` · ${e.url}`;
         if (e.worker && e.worker !== "main" && e.frame != null) {  // (the worker saved a real screen with this event)
@@ -2183,26 +2229,28 @@
       if (ev.cursor) LV.cursor = ev.cursor;
       if (stick || (LV.follow && (ev.events || []).length)) jumpLatest();
       else if ((ev.events || []).length) $("lvJump").hidden = false;
-    } catch (e) { /* (events start once the run has a folder) */ }
+    } catch (e) { retry = true; }
     try {
       const ag = await api(`/api/runs/${job}/agents`);
+      if (LV.job !== job || S.view !== "agents") return;
       $("lvAgents").replaceChildren((ag.agents || []).length ? h("ul", { class: "rq-audit" }, ag.agents.map((a) => h("li", {}, h("b", { text: a.name }),
         badge(a.status, { completed: "ok", running: "info", failed: "bad", skipped: "" }[a.status] || ""), a.detail ? h("span", { class: "small", text: a.detail }) : null)))
         : h("p", { class: "small", text: running ? "Waiting for agent activity." : "No agent activity was recorded." }));
-    } catch (e) { /* (no agents yet) */ }
+    } catch (e) { retry = true; }
     // every browser of the run that saved a real screen (explorers, learners, test workers gw0..): a screen is
     // reloaded only when its file changed; test workers come first
     let frames = [];
-    try { frames = (await api(`/api/runs/${job}/live`)).frames || []; } catch (e) { frames = []; }
+    try { frames = (await api(`/api/runs/${job}/live`)).frames || []; } catch (e) { retry = true; }
     const rank = (w) => (/^gw\d+$/.test(w) ? 0 : /^explorer/.test(w) ? 1 : 2);
+    if (LV.job !== job || S.view !== "agents") return;
     frames.sort((a, b) => rank(a.worker) - rank(b.worker) || a.worker.localeCompare(b.worker, undefined, { numeric: true }));
     for (const { worker: w, updated } of frames) {
       if (LV.shown[w] === updated) continue;
-      LV.shown[w] = updated;
       try {
         const res = await fetch(`/api/runs/${job}/live/${encodeURIComponent(w)}?v=${updated}`, { headers: { "X-Agentic-QA": "1", ...(S.auth ? { Authorization: `Bearer ${S.auth}` } : {}) } });
-        if (!res.ok) continue;
+        if (!res.ok) { retry = true; continue; }
         const url = URL.createObjectURL(await res.blob());
+        if (LV.job !== job || S.view !== "agents") { URL.revokeObjectURL(url); return; }
         if (LV.frames[w]) URL.revokeObjectURL(LV.frames[w].src);
         if (!LV.frames[w]) {
           const img = h("img", { alt: `Live screen of ${w}` });
@@ -2213,21 +2261,31 @@
           $("lvScreens").insertBefore(fig, after || null);
         }
         LV.frames[w].src = url;
-      } catch (e) { /* (no screen yet) */ }
+        LV.shown[w] = updated;
+      } catch (e) { retry = true; }
     }
+    return retry;
   }
 
-  function providerRetry(results) {
+  function resultDetail(r) {
+    if (!r) return "";
+    return [r.phase !== r.status && r.phase, r.reason, r.actual, r.failure_stage && [r.failure_stage, r.error_category].filter(Boolean).join(" · "),
+      r.corrective_action, r.retryable == null ? "" : r.retryable ? "Retry available" : "Review required"]
+      .filter(Boolean).join(" · ");
+  }
+  async function retryCases(ids, original) {
+    await saveDraft({ test_case_ids: ids, execution_id: "", retry_of: original });
+    S.presetScope = "selected";
+    location.hash = "#execution";
+  }
+  function providerRetry(results, original) {
     const ids = (results || []).filter(result => result.blocked_by_provider).map(result => result.test_case_id);
     if (!ids.length) return null;
     return h("button", { type: "button", class: "secondary", text: "Retry Provider-Blocked Tests", onclick: async event => {
       const button = event.currentTarget;
       button.disabled = true;
-      try {
-        await saveDraft({ test_case_ids: ids, execution_id: "" });
-        S.presetScope = "selected";
-        location.hash = "#execution";
-      } catch (error) { banner(error.message); }
+      try { await retryCases(ids, original); }
+      catch (error) { banner(error.message); }
       finally { button.disabled = false; }
     } });
   }
@@ -2238,7 +2296,7 @@
     $("rpBox").textContent = "Loading execution report…";
     const r = await api("/executions?limit=50");
     const finished = r.executions;
-    const id = S.reportId || (WF.draft && WF.draft.execution_id) || (finished.find((x) => !["running", "queued"].includes(x.status)) || {}).id;
+    const id = S.reportId || new URL(location.href).searchParams.get("execution") || (WF.draft && WF.draft.execution_id) || (finished.find((x) => !["running", "queued"].includes(x.status)) || {}).id;
     $("rpHistory").tBodies[0].replaceChildren(...kids(finished.map((ex) => h("tr", { class: ex.id === id ? "current" : "" },
       h("td", {}, h("button", { class: "rq-open", type: "button", text: ex.id, onclick: () => { S.reportId = ex.id; reportsView(); } })),
       h("td", { text: ex.strategy }), h("td", { text: (ex.target || {}).url || "" }), h("td", { text: ex.case_ids.length }),
@@ -2260,13 +2318,13 @@
     const shots = res.flatMap((x) => (x.evidence || []).filter((e) => /\.(png|jpe?g)$/i.test(e)).map((e) => ({ e, x })));
 
 
-    const failedIds = res.filter((x) => !x.blocked_by_provider && ["Failed", "Blocked", "Flaky"].includes(x.status)).map((x) => x.test_case_id);
+    const failedIds = res.filter((x) => !x.blocked_by_provider && (x.retryable || ["Failed", "Blocked", "Flaky", "Requires review"].includes(x.status))).map((x) => x.test_case_id);
     $("rpBox").replaceChildren(...kids(h("section", { class: "lab-card" },
       h("div", { class: "rq-head-row" }, h("div", {}, h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.strategy}` }), outcomeBadge(ex),
         h("p", { class: "small", text: `${(ex.target || {}).url || ""} · started ${when(ex.created_at)}${ex.finished_at ? ` · ended ${when(ex.finished_at)}` : ""} · by ${ex.actor} · ${reqs.join(", ")}` })),
         h("div", { class: "rq-row" },
-          h("button", { type: "button", class: "secondary", text: "Rerun Failed Tests", disabled: !failedIds.length, onclick: async () => { await saveDraft({ test_case_ids: failedIds, execution_id: "" }); S.presetScope = "selected"; location.hash = "#execution"; } }),
-          providerRetry(res),
+          h("button", { type: "button", class: "secondary", text: "Rerun Failed Tests", disabled: !failedIds.length, onclick: () => retryCases(failedIds, ex.id).catch(err => banner(err.message)) }),
+          providerRetry(res, ex.id),
           h("button", { type: "button", class: "secondary", text: "Run Impacted Tests", onclick: () => { S.presetScope = "impacted"; location.hash = "#execution"; } }),
           h("button", { type: "button", class: "secondary", text: "Export Report", onclick: () => {
             const blob = new Blob([JSON.stringify({ execution: ex, results: res, traceability: traceError ? null : trace, defects: defectError ? null : defects,
@@ -2276,6 +2334,7 @@
       ex.provider_failure ? h("p", { class: "rq-issue", role: "alert", text: ex.provider_failure })
         : ex.outcome === "no_tests_automated" ? h("p", { class: "rq-issue", role: "alert", text: "Execution unsuccessful — no tests were automated. Nothing was verified on the website: see the reason of each test case below." }) : null,
       h("div", { class: "rq-stats" }, metricTile((ex.tally || {}).selected ?? 0, "selected"), metricTile((ex.tally || {}).executed ?? 0, "actually executed"),
+        metricTile(ex.designed ?? (res.some(x => x.designed != null) ? res.filter(x => x.designed).length : "—"), "executable designs"),
         metricTile(count("Passed") + count("Flaky"), "passed", count("Passed") || count("Flaky") ? "ok" : ""), metricTile(count("Failed"), "failed", count("Failed") ? "bad" : ""),
         metricTile(count("Requires review"), "requires review (the test failed, not the website)", count("Requires review") ? "info" : ""),
         metricTile(count("Blocked"), "blocked", count("Blocked") ? "warn" : ""), metricTile(count("Not automated"), "not automated", count("Not automated") ? "bad" : ""),
@@ -2287,10 +2346,13 @@
         h("tbody", {}, res.map((x) => {
           const row = trace.find((t) => t.test_case === x.test_case_id) || {};
           return h("tr", {}, h("td", {}, h("button", { class: "rq-open", type: "button", text: x.test_case_id, onclick: () => tcDetail(x.test_case_id) })),
-            h("td", { text: row.requirement ? `${row.requirement} ${String(row.criterion || "").split("#")[1] || ""}` : "" }),
+            h("td", { text: x.criterion_ids?.length ? x.criterion_ids.join(", ") : row.requirement ? `${row.requirement} ${String(row.criterion || "").split("#")[1] || ""}` : "" }),
             h("td", {}, resultBadge(x.status)),
             h("td", { text: x.checks ? `${x.checks} check(s); expected: ${x.expected || "—"}` : x.expected || "—" }),
-            h("td", { text: x.actual || x.reason || "" }), h("td", {}, ...evidenceLinks(x)));
+            h("td", {}, resultDetail(x), (x.retryable || ["Failed", "Requires review"].includes(x.status)) ?
+              h("button", { type: "button", class: "linklike", text: "Retry this case", "aria-label": "Retry " + x.test_case_id,
+                onclick: () => retryCases([x.test_case_id], ex.id).catch(err => banner(err.message)) }) : null),
+            h("td", {}, ...evidenceLinks(x)));
         })))),
       shots.length ? h("div", {}, h("h3", { class: "rq-sub", text: "Screenshots" }), h("div", { class: "rq-rp-shots" }, shots.slice(0, 12).map(({ e, x }) => h("a", { href: `/runs/${encodeURIComponent(x.run_folder)}/${e.split("/").map(encodeURIComponent).join("/")}`, target: "_blank", rel: "noopener" },
         h("img", { src: `/runs/${encodeURIComponent(x.run_folder)}/${e.split("/").map(encodeURIComponent).join("/")}`, alt: `${x.test_case_id} ${x.status}`, loading: "lazy" }))))) : null,
@@ -2310,7 +2372,7 @@
       if (run) {
         box.hidden = false;
         box.replaceChildren(h("b", { text: `${run.id} is still running. ` }), "It keeps running while you start a new test. ",
-          h("a", { href: "#agents", text: "Continue watching it", onclick: async () => { $("newTest").close(); await saveDraft({ execution_id: run.id }); } }), " · ",
+          h("a", { href: "#agents", text: "Continue watching it", onclick: async () => { $("newTest").close(); pinLive(run.id); await saveDraft({ execution_id: run.id }); } }), " · ",
           h("button", { type: "button", class: "secondary", text: "Cancel it", onclick: async () => { await api(`/executions/${encodeURIComponent(run.id)}/cancel`, { method: "POST" }); box.textContent = `${run.id} is being cancelled.`; } }));
       }
     } catch (e) { /* (the choices still work) */ }
@@ -2325,7 +2387,7 @@
       autonomous: { step: "execution", strategy: "autonomous" }, hybrid: { step: "explorer", strategy: "hybrid" } }[kind];
     const r = await api("/workflow/new", { method: "POST", body: { changes: start } });
     WF.draft = r.draft; WF.state = r.state; WF.steps = r.steps;
-    X.selected = new Set(start.test_case_ids || []); S.reportId = null; S.presetScope = null;
+    pinLive(null); X.selected = new Set(start.test_case_ids || []); S.reportId = null; S.presetScope = null;
     Object.assign(LV, { id: "", job: null, cursor: "", workers: [], seen: new Set(), frames: {}, framed: {}, shown: {} });
     TG.cand = null; $("exUrl").value = ""; $("exUser").value = ""; $("exPass").value = ""; $("exAuth").checked = false; $("exDemo").checked = false; $("exPayProvider").value = ""; $("exPayConfirm").checked = false;
     $("tgCheckOut").textContent = ""; $("xcStatus").textContent = ""; $("exDetail").replaceChildren();

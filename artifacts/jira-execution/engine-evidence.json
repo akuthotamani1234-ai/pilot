@@ -1,0 +1,231 @@
+{
+  "run_folder": "www.saucedemo.com_20261128_192207",
+  "provider_calls": 1,
+  "provider_diagnostics": [
+    {
+      "error_code": "credit_balance_exhausted",
+      "error_type": "insufficient_quota",
+      "http_status": 429,
+      "classification": "quota",
+      "attempts": 1,
+      "batch_size": 6,
+      "concurrency": 1
+    },
+    {
+      "error_code": "credit_balance_exhausted",
+      "error_type": "insufficient_quota",
+      "http_status": 429,
+      "classification": "quota",
+      "attempts": 0,
+      "batch_size": 7,
+      "concurrency": 0,
+      "cached": true
+    },
+    {
+      "error_code": "credit_balance_exhausted",
+      "error_type": "insufficient_quota",
+      "http_status": 429,
+      "classification": "quota",
+      "attempts": 0,
+      "batch_size": 4,
+      "concurrency": 0,
+      "cached": true
+    },
+    {
+      "error_code": "credit_balance_exhausted",
+      "error_type": "insufficient_quota",
+      "http_status": 429,
+      "classification": "quota",
+      "attempts": 0,
+      "concurrency": 0,
+      "cached": true
+    }
+  ],
+  "agents": [
+    {
+      "stage": "setup",
+      "name": "Supervisor",
+      "status": "completed",
+      "detail": ""
+    },
+    {
+      "stage": "discovery",
+      "name": "Website Discovery",
+      "status": "completed",
+      "detail": "2 page(s), 1 behind the login"
+    },
+    {
+      "stage": "change_detection",
+      "name": "Change Detection",
+      "status": "completed",
+      "detail": ""
+    },
+    {
+      "stage": "visual_check",
+      "name": "Visual Testing",
+      "status": "completed",
+      "detail": ""
+    },
+    {
+      "stage": "test_design",
+      "name": "Test Design",
+      "status": "completed",
+      "detail": "20 test case(s)"
+    },
+    {
+      "stage": "review_gate",
+      "name": "Human Review",
+      "status": "completed",
+      "detail": ""
+    },
+    {
+      "stage": "script_generator",
+      "name": "Script Generator",
+      "status": "completed",
+      "detail": "1 test file(s)"
+    },
+    {
+      "stage": "execution",
+      "name": "Test Execution",
+      "status": "completed",
+      "detail": "3 test(s): 3 passed, 0 failed"
+    },
+    {
+      "stage": "failure_analysis",
+      "name": "Failure Analysis",
+      "status": "completed",
+      "detail": "3 finding(s)"
+    },
+    {
+      "stage": "self_healing",
+      "name": "Self-Healing",
+      "status": "skipped",
+      "detail": ""
+    },
+    {
+      "stage": "report",
+      "name": "Reporting",
+      "status": "completed",
+      "detail": "verdict: Ready with Risks"
+    },
+    {
+      "stage": "save_baseline",
+      "name": "Baseline",
+      "status": "completed",
+      "detail": ""
+    },
+    {
+      "stage": "integrations",
+      "name": "Integrations",
+      "status": "completed",
+      "detail": ""
+    }
+  ],
+  "worker_events": [
+    {
+      "timestamp": 1795873967.9141078,
+      "worker": "gw1",
+      "test": "test_ai_flow_2",
+      "status": "running",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873967.915859,
+      "worker": "gw2",
+      "test": "test_ai_flow_3",
+      "status": "running",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873967.916063,
+      "worker": "gw0",
+      "test": "test_ai_flow_1",
+      "status": "running",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873968.301536,
+      "worker": "gw0",
+      "test": "test_ai_flow_1",
+      "status": "completed",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873968.3081129,
+      "worker": "gw2",
+      "test": "test_ai_flow_3",
+      "status": "completed",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873968.311562,
+      "worker": "gw1",
+      "test": "test_ai_flow_2",
+      "status": "completed",
+      "text": "Open /"
+    },
+    {
+      "timestamp": 1795873968.668908,
+      "worker": "gw2",
+      "test": "test_ai_flow_3",
+      "status": "running",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.7244742,
+      "worker": "gw2",
+      "test": "test_ai_flow_3",
+      "status": "completed",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.737979,
+      "worker": "gw1",
+      "test": "test_ai_flow_2",
+      "status": "running",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.739375,
+      "worker": "gw2",
+      "test": "test_ai_flow_3",
+      "status": "passed",
+      "text": "Test finished"
+    },
+    {
+      "timestamp": 1795873968.744343,
+      "worker": "gw0",
+      "test": "test_ai_flow_1",
+      "status": "running",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.783057,
+      "worker": "gw1",
+      "test": "test_ai_flow_2",
+      "status": "completed",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.800436,
+      "worker": "gw0",
+      "test": "test_ai_flow_1",
+      "status": "completed",
+      "text": "Click 'login-button'"
+    },
+    {
+      "timestamp": 1795873968.818984,
+      "worker": "gw0",
+      "test": "test_ai_flow_1",
+      "status": "passed",
+      "text": "Test finished"
+    },
+    {
+      "timestamp": 1795873968.8193228,
+      "worker": "gw1",
+      "test": "test_ai_flow_2",
+      "status": "passed",
+      "text": "Test finished"
+    }
+  ]
+}

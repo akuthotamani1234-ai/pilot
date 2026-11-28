@@ -331,8 +331,8 @@ class CaseEdit(BaseModel):
 
 
 class ExecutionScope(BaseModel):
-    test_case_ids: list[str] = Field(default_factory=list, max_length=200)
-    requirements: list[str] = Field(default_factory=list, max_length=200)  # Jira keys / conf-<page id>
+    test_case_ids: list[str] = Field(default_factory=list)
+    requirements: list[str] = Field(default_factory=list)  # Jira keys / conf-<page id>
     all_approved: bool = False
     impacted: bool = False   # test cases changed since they last ran (requirement source versions)
     failed: bool = False     # test cases whose latest result failed or was blocked
@@ -423,6 +423,7 @@ class ResumeBody(BaseModel):  # (what is never stored, given again to resume)
 
 class ExecutionBody(BaseModel):
     strategy: str = Field(pattern=r"^(requirements|autonomous|hybrid)$")
+    retry_of: str = Field(default="", max_length=40)
     scope: ExecutionScope = Field(default_factory=ExecutionScope)
     target: ExecutionTarget
 
@@ -462,7 +463,7 @@ def _job_of(ex: dict) -> dict | None:
     """The Studio job running this execution - None when it is gone, or when its number belongs to another Studio
     process (job numbers start again after a restart: an execution must never show or collect a foreign run)."""
     from . import server
-    if ex.get("studio_boot") and ex["studio_boot"] != server.BOOT_ID:
+    if ex.get("studio_boot") != server.BOOT_ID:
         return None
     return server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
 
@@ -472,9 +473,9 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
     collects the batch, then starts the next one - or, after a Studio restart, is left 'interrupted' (resumable)."""
     if ex.get("status") not in ("running", "queued") or not str(ex.get("run_id", "")).isdigit():
         return ex
-    job = _job_of(ex)
     if ex.get("batches"):
-        return _settle_batch(db, tenant, ex, job)
+        return _settle_batch(db, tenant, ex)
+    job = _job_of(ex)
     if job is None:  # (the Studio restarted: that run is gone - never shown as running, never another run's job)
         return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), "interrupted")
     if job.get("status") == "running":
@@ -489,25 +490,30 @@ def _settle_execution(db, tenant: str, ex: dict) -> dict:
 _BATCH_LOCK = threading.Lock()
 
 
-def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
+def _settle_batch(db, tenant: str, ex: dict) -> dict:
     from . import server
     from .atlassian import scheduler
     with _BATCH_LOCK:
         ex = bridge.get_execution(db, tenant, ex["id"]) or ex  # (one settling at a time: re-read under the lock)
         if ex.get("status") not in ("running", "queued"):
             return ex
+        job = _job_of(ex)
         current = next((b for b in ex["batches"] if b["status"] == "running"), None)
         if job is None:  # (the Studio restarted: that batch's run is gone - resumable, never silently lost)
             if current:
-                current["status"] = "interrupted"
+                complete = {r["test_case_id"] for r in bridge.results(db, tenant, ex["id"])
+                            if r["status"] in ("Passed", "Failed", "Flaky", "Requires review")}
+                current["attempt_ids"] = [cid for cid in current.get("attempt_ids", current["case_ids"])
+                                          if cid not in complete]
+                current["status"] = "interrupted" if current["attempt_ids"] else "done"
             ex["status"] = "interrupted"
             bridge.save_execution(db, tenant, ex)
-            return ex
+            return _checkpoint(db, tenant, ex, "interrupted")
         if job.get("status") == "running" or current is None:
             return ex
         run_dir = server._plain_run_dir(str(job.get("run"))) if job.get("run") else None
         bridge.collect(db, tenant, ex["id"], run_dir or Path("/nonexistent"), job.get("status", "done"),
-                       only=current["case_ids"], final=False)
+                       only=current.get("attempt_ids", current["case_ids"]), final=False)
         ex = bridge.get_execution(db, tenant, ex["id"])
         current = next(b for b in ex["batches"] if b["n"] == current["n"])
         current["status"] = "done" if job.get("status") == "done" else str(job.get("status") or "failed")
@@ -515,22 +521,31 @@ def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
                                         for b in ex["batches"] if b.get("run_folder")]
                                        + ([run_dir] if run_dir else []))
         current["run_folder"] = run_dir.name if run_dir else ""
+        current.setdefault("attempts", []).append({
+            "run_id": ex["run_id"], "run_folder": current["run_folder"], "status": current["status"],
+            "case_ids": current.get("attempt_ids", current["case_ids"]),
+            "provider_failure": ex.get("provider_failure", "")})
         if ex.get("provider_failure") and job.get("status") not in ("stopped", "cancelled"):
-            current["status"] = "interrupted"
+            outcomes = {r["test_case_id"]: r for r in bridge.results(db, tenant, ex["id"])}
+            current["attempt_ids"] = [cid for cid in current["case_ids"] if outcomes.get(cid, {}).get("blocked_by_provider")]
+            current["status"] = "interrupted" if current["attempt_ids"] else "done"
             ex["status"] = "interrupted"
             bridge.save_execution(db, tenant, ex)
             _PENDING.pop(ex["id"], None)
-            return ex
+            # Publish an individual checkpoint for work waiting on the same provider.
+            queued = [cid for b in ex["batches"] if b["status"] == "queued" for cid in b["case_ids"]]
+            return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), "interrupted", only=queued,
+                                  waiting_on=ex["provider_failure"])
         nxt = scheduler.next_batch(ex)
         launch = _PENDING.get(ex["id"])
         if nxt and launch and job.get("status") not in ("stopped", "cancelled"):
             try:
-                new_job = _launch_for(launch, nxt["case_ids"])
-            except HTTPException as error:
-                nxt.update(status="failed", reason=str(error.detail)[:300])
+                new_job = _launch_for(launch, nxt.get("attempt_ids", nxt["case_ids"]))
+            except (HTTPException, OSError) as error:
+                nxt.update(status="interrupted", reason=safe_error(getattr(error, "detail", str(error)))[:300])
                 ex["status"] = "interrupted"
                 bridge.save_execution(db, tenant, ex)
-                return ex
+                return _checkpoint(db, tenant, ex, "interrupted", nxt["reason"])
             nxt.update(status="running", run_id=str(new_job))
             ex["run_id"], ex["studio_boot"] = str(new_job), server.BOOT_ID
             bridge.save_execution(db, tenant, ex)
@@ -543,10 +558,20 @@ def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
             ex["status"] = "cancelled" if job.get("status") in ("stopped", "cancelled") else "interrupted"
             bridge.save_execution(db, tenant, ex)
             _PENDING.pop(ex["id"], None)
+            if ex["status"] == "cancelled":
+                remaining = [cid for b in ex["batches"] if b["status"] == "cancelled" and b is not current
+                             for cid in b["case_ids"]]
+                return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), "cancelled", only=remaining)
             return ex
         _PENDING.pop(ex["id"], None)
         bridge.save_execution(db, tenant, ex)
-        return bridge.collect(db, tenant, ex["id"], run_dir or Path("/nonexistent"), "done", only=[], final=True)
+        return bridge.collect(db, tenant, ex["id"], run_dir or Path("/nonexistent"), job.get("status", "done"), only=[], final=True)
+
+
+def _checkpoint(db, tenant, ex, status, reason=""):
+    recorded = {r["test_case_id"] for r in bridge.results(db, tenant, ex["id"])}
+    missing = [cid for cid in ex["case_ids"] if cid not in recorded]
+    return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), status, only=missing, worker_error=reason)
 
 
 def _with_outcome(ex: dict) -> dict:
@@ -560,7 +585,7 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
     """Start the existing engine for these test cases (a whole execution, or one batch). Returns the job id."""
     from . import server
     t, strategy = launch["target"], launch["strategy"]
-    tests = [launch["tests"][c] for c in case_ids if c in launch["tests"]]
+    tests = [] if strategy == "autonomous" else [launch["tests"][c] for c in case_ids]
     if t.type == "api":  # REST API tests (backend/api_testing.py), planned by the AI from the documented API
         return _launch_api(t, tests, case_ids, explore=strategy in ("autonomous", "hybrid"))
     if t.type == "ios":  # iOS (backend/ios.py): Appium XCUITest on a Mac
@@ -584,6 +609,8 @@ def _launch_for(launch: dict, case_ids: list[str]) -> int:
         auth_mode="existing" if t.test_username and t.test_password else "auto",
         page_timeout_s=t.page_timeout_s, requirement_tests=tests,
         requirements_only=strategy == "requirements", objective_focus=strategy == "requirements", fresh=False)
+    req._validated_cases_only = strategy == "requirements" and bool(tests) and all(
+        (case.get("automation") or {}).get("design", {}).get("steps") for case in tests)
     job = server._launch_run(req, launch["caller"])
     if isinstance(job, JSONResponse):
         raise HTTPException(job.status_code, "not allowed")
@@ -1491,7 +1518,14 @@ def register_requirements_api(app) -> None:
         t = body.target
         has_account = bool(t.test_username and t.test_password) or (
             t.use_saved_account and all(_saved_account(db, ctx["tenant"], t, ids)))
+        reusable = False
+        if ids and t.type == "web" and body.strategy == "requirements":
+            from .atlassian import automations
+            reusable = all((case := bridge.get_case(db, ctx["tenant"], cid))
+                           and (saved := automations.compatible(db, ctx["tenant"], case, t.public()))
+                           and (saved.get("design") or {}).get("steps") for cid in ids)
         return execution_preflight.check(
+            validated_cases_only=reusable,
             strategy=body.strategy, case_count=len(ids), url=t.url, authorized=t.authorized, app_type=t.type,
             llm_provider=t.llm_provider, llm_model=t.llm_model, api_key=t.api_key, has_account=has_account,
             probe=PREFLIGHT_PROBE, demo_checkout=t.demo_checkout,
@@ -1529,12 +1563,19 @@ def register_requirements_api(app) -> None:
             if pre["needs_ai"] or body.target.llm_provider:  # (the AI checked is the AI the run gets)
                 body = body.model_copy(update={"target": body.target.model_copy(update={
                     "llm_provider": pre["ai"]["provider"], "llm_model": pre["ai"]["model"] or body.target.llm_model})})
+            if body.retry_of:
+                parent = bridge.get_execution(db, ctx["tenant"], body.retry_of)
+                if not parent or not set(ids).issubset(set(parent["case_ids"]) | {c["id"] for c in parent["excluded"]}):
+                    raise HTTPException(400, "Retry cases must belong to the original execution in this workspace.")
             bridge.plan_dependencies(db, ctx["tenant"])  # (the current links / preconditions; AI and manual kept)
             try:
                 planned = bridge.plan(db, ctx["tenant"], ids, body.strategy, body.target.public(), actor=ctx["actor"])
             except (LookupError, ValueError) as error:
                 raise HTTPException(400, safe_error(error)) from None
             ex = planned["execution"]
+            ex["requested_requirements"] = list(dict.fromkeys(body.scope.requirements)) or ex["requirements"]
+            if body.retry_of:
+                ex["retry_of"] = body.retry_of
             t = body.target
             projects = sorted({c.split("-", 1)[1].rsplit("-", 1)[0].split("-")[0] for c in ex.get("case_ids", [])
                                if c.startswith("TC-")} | ({t.project_key.upper()} if t.project_key else set()))
@@ -1555,14 +1596,15 @@ def register_requirements_api(app) -> None:
             if body.strategy != "autonomous" and len(ex["case_ids"]) > scheduler.BATCH_SIZE:
                 cases_all = [c for c in (bridge.get_case(db, ctx["tenant"], cid) for cid in ex["case_ids"]) if c]
                 ex["batches"] = scheduler.plan_batches(ex["case_ids"], cases_all,
-                                                       (ex.get("prerequisites") or {}).get("chains") or {})
+                                                       (ex.get("prerequisites") or {}).get("chains") or {},
+                                                       validated=set(ex.get("automation_reuse") or {}))
             batch = scheduler.next_batch(ex)
             try:
                 job = _launch_for(launch, batch["case_ids"] if batch else ex["case_ids"])
-            except HTTPException as error:
-                ex["status"] = "failed"
-                bridge.save_execution(db, ctx["tenant"], ex)
-                raise HTTPException(error.status_code, f"The test run could not start: {error.detail}") from None
+            except (HTTPException, OSError) as error:
+                reason = safe_error(getattr(error, "detail", str(error)))
+                _checkpoint(db, ctx["tenant"], ex, "failed", reason)
+                raise HTTPException(getattr(error, "status_code", 503), f"The test run could not start: {reason}") from None
             if batch:
                 batch.update(status="running", run_id=str(job))
                 _PENDING[ex["id"]] = launch  # (in memory only: it may hold the typed password / keys)
@@ -1599,12 +1641,12 @@ def register_requirements_api(app) -> None:
                 raise HTTPException(404, "No such execution in your workspace.")
             ex = _with_outcome(_settle_execution(db, ctx["tenant"], ex))
             from . import server
-            job = server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
+            job = _job_of(ex)
             try:
                 live = server._public(job) if job else None
             except (KeyError, TypeError, ValueError):  # (the live view is extra: results come from the run's files)
                 live = None
-            return {"execution": ex, "results": bridge.results(db, ctx["tenant"], execution_id),
+            return {"execution": ex, "live_job_id": ex["run_id"] if job else None, "results": bridge.results(db, ctx["tenant"], execution_id),
                     "live": {k: live.get(k) for k in ("status", "current", "stages", "run", "lines", "elapsed",
                                                       "pages", "cases", "scripts", "report_ready", "live_pages",
                                                       "started", "tests", "id")
@@ -1623,7 +1665,7 @@ def register_requirements_api(app) -> None:
         if not ex:
             raise HTTPException(404, "No such execution in your workspace.")
         from . import server
-        job = server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
+        job = _job_of(ex)
         if not job or job.get("status") != "running":
             return {"execution": execution_id, "cancelling": False}
         server.stop_run(int(ex["run_id"]), authorization, x_qa_token)
@@ -1638,33 +1680,40 @@ def register_requirements_api(app) -> None:
         from .atlassian import scheduler
         ctx = _context(authorization, x_qa_token, "run.write")
         db = bridge.connect()
-        try:
-            ex = bridge.get_execution(db, ctx["tenant"], execution_id)
-            if not ex:
-                raise HTTPException(404, "No such execution in your workspace.")
-            if ex.get("status") != "interrupted" or not scheduler.next_batch(ex):
-                raise HTTPException(409, "This execution has nothing to resume.")
-            stored = {k: v for k, v in (ex.get("target") or {}).items() if k in ExecutionTarget.model_fields
-                      and v not in ("[set]",)}
-            t = ExecutionTarget.model_validate({**stored, **body.model_dump(exclude_none=True)})
-            if t.use_saved_account and not (t.test_username and t.test_password):
-                user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
-                if user and pw:
-                    t = t.model_copy(update={"test_username": user, "test_password": pw})
-            launch = {"target": t, "strategy": ex["strategy"],
-                      "tests": {x["tc"]: x for x in bridge.tests_for_execution(db, ctx["tenant"], ex)},
-                      "caller": ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None,
-                      "authorization": authorization, "x_qa_token": x_qa_token}
-            nxt = scheduler.next_batch(ex)
-            job = _launch_for(launch, nxt["case_ids"])
-            nxt.update(status="running", run_id=str(job))
-            from . import server as _server
-            ex.update(status="running", run_id=str(job), studio_boot=_server.BOOT_ID)
-            ex.pop("provider_failure", None)
-            _PENDING[ex["id"]] = launch
-            bridge.save_execution(db, ctx["tenant"], ex)
-        finally:
-            db.close()
+        with _BATCH_LOCK:
+            try:
+                ex = bridge.get_execution(db, ctx["tenant"], execution_id)
+                if not ex:
+                    raise HTTPException(404, "No such execution in your workspace.")
+                if ex.get("status") != "interrupted" or not scheduler.next_batch(ex):
+                    raise HTTPException(409, "This execution has nothing to resume.")
+                stored = {k: v for k, v in (ex.get("target") or {}).items() if k in ExecutionTarget.model_fields
+                          and v not in ("[set]",)}
+                t = ExecutionTarget.model_validate({**stored, **body.model_dump(exclude_none=True)})
+                if t.use_saved_account and not (t.test_username and t.test_password):
+                    user, pw = _saved_account(db, ctx["tenant"], t, ex.get("case_ids", []))
+                    if user and pw:
+                        t = t.model_copy(update={"test_username": user, "test_password": pw})
+                launch = {"target": t, "strategy": ex["strategy"],
+                          "tests": {x["tc"]: x for x in bridge.tests_for_execution(db, ctx["tenant"], ex)},
+                          "caller": ctx["actor"] if ctx["mode"] in ("principal", "oidc") else None,
+                          "authorization": authorization, "x_qa_token": x_qa_token}
+                nxt = scheduler.next_batch(ex)
+                for cid in nxt.get("attempt_ids", nxt["case_ids"]):
+                    case = bridge.get_case(db, ctx["tenant"], cid)
+                    if (not case or case["version"] != ex["case_versions"].get(cid)
+                            or case["source_version"] != ex["source_versions"].get(cid)):
+                        raise HTTPException(409, f"{cid} changed since this execution. Review it and start a new attempt.")
+                job = _launch_for(launch, nxt.get("attempt_ids", nxt["case_ids"]))
+                nxt.update(status="running", run_id=str(job))
+                from . import server as _server
+                ex.update(status="running", run_id=str(job), studio_boot=_server.BOOT_ID)
+                ex.pop("provider_failure", None)
+                ex.pop("finished_at", None)
+                _PENDING[ex["id"]] = launch
+                bridge.save_execution(db, ctx["tenant"], ex)
+            finally:
+                db.close()
         _watch(ctx["tenant"], execution_id, job)
         _audit(ctx, "execution.resume", True, execution=execution_id, batch=nxt["n"])
         return {"execution": execution_id, "batch": nxt["n"], "job": job}

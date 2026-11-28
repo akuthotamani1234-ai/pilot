@@ -21,7 +21,8 @@ BATCH_SIZE = max(1, int(os.environ.get("QPILOT_BATCH_SIZE", "20")))
 PRIORITY = {"high": 0, "medium": 1, "low": 2}
 
 
-def split(cases: list[dict], chains: dict[str, list[str]], size: int | None = None) -> list[list[str]]:
+def split(cases: list[dict], chains: dict[str, list[str]], size: int | None = None,
+          validated: set[str] | None = None) -> list[list[str]]:
     """Case ids in batches; each case's prerequisite chain stays in its batch."""
     size = size or BATCH_SIZE
     ids = [c["id"] for c in cases]
@@ -44,7 +45,8 @@ def split(cases: list[dict], chains: dict[str, list[str]], size: int | None = No
         groups[target] |= members
         for m in members:
             group_of[m] = target
-    order = sorted((g for g in groups if g), key=lambda g: (min(PRIORITY.get(str((by_id.get(m) or {})
+    order = sorted((g for g in groups if g), key=lambda g: (bool(validated) and not g.issubset(validated),
+                                                         min(PRIORITY.get(str((by_id.get(m) or {})
                                                                                    .get("priority")), 1) for m in g),
                                                            min(g)))
     batches: list[list[str]] = []
@@ -58,10 +60,10 @@ def split(cases: list[dict], chains: dict[str, list[str]], size: int | None = No
 
 
 def plan_batches(case_ids: list[str], cases: list[dict], chains: dict[str, list[str]],
-                 size: int | None = None) -> list[dict]:
+                 size: int | None = None, validated: set[str] | None = None) -> list[dict]:
     wanted = set(case_ids)
     return [{"n": i + 1, "case_ids": [c for c in b if c in wanted], "status": "queued", "run_id": ""}
-            for i, b in enumerate(split([c for c in cases if c["id"] in wanted], chains, size))]
+            for i, b in enumerate(split([c for c in cases if c["id"] in wanted], chains, size, validated))]
 
 
 def next_batch(ex: dict) -> dict | None:

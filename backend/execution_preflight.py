@@ -114,7 +114,7 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
           llm_provider: str = "", llm_model: str = "", api_key: str = "", has_account: bool = False,
           probe=None, demo_checkout: bool = False, android: dict | None = None,
           payment: tuple[str, bool] = ("", False), api: tuple[str, list] = ("", []),
-          ios: dict | None = None) -> dict:
+          ios: dict | None = None, validated_cases_only: bool = False) -> dict:
     """All prerequisites of one execution. problems: [{code, message, recovery, blocking}]."""
     from .safety import UrlError, check_target
     started = time.time()
@@ -123,7 +123,7 @@ def check(*, strategy: str, case_count: int, url: str, authorized: bool, app_typ
     def problem(code, message, recovery, blocking=True):
         problems.append({"code": code, "message": message, "recovery": recovery, "blocking": blocking})
 
-    needs_ai = strategy in ("requirements", "hybrid") and case_count > 0
+    needs_ai = strategy in ("requirements", "hybrid") and case_count > 0 and not validated_cases_only
     if strategy != "autonomous" and case_count == 0:
         problem("no_cases", "No approved test case is selected.", "select_cases")
     ai = ai_status(llm_provider, llm_model, api_key)

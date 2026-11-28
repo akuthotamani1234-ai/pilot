@@ -1,0 +1,36 @@
+{
+  "id": "EX-d1bb4d84b5",
+  "counts": {
+    "Failed": 1,
+    "Passed": 1
+  },
+  "retry_of": null,
+  "results": [
+    {
+      "test_case_id": "TC-QPL-2-1",
+      "criterion_ids": [
+        "QPL-2#AC-1"
+      ],
+      "checks": 1,
+      "status": "Failed",
+      "failure_category": "Inconclusive (not enough evidence)",
+      "retryable": null,
+      "reason": "",
+      "automation": "reused",
+      "run_folder": "www.saucedemo.com_20261128_192512"
+    },
+    {
+      "test_case_id": "TC-QPL-2-4",
+      "criterion_ids": [
+        "QPL-2#AC-3"
+      ],
+      "checks": 1,
+      "status": "Passed",
+      "failure_category": "",
+      "retryable": null,
+      "reason": "",
+      "automation": "reused",
+      "run_folder": "www.saucedemo.com_20261128_192512"
+    }
+  ]
+}

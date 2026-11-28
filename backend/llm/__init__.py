@@ -131,12 +131,12 @@ def _classify_provider_failure(provider: str, error: BaseException, timeout_s: f
     if isinstance(error, requests.Timeout):
         return LLMError(
             f"{provider} timed out after {timeout_s:.0f}s. "
-            "The agent will use built-in rules if fallback is allowed."
+            "Retry when the provider is available.", diagnostics={"classification": "timeout"}
         )
     if isinstance(error, requests.ConnectionError):
         return LLMError(
             f"{provider} could not be reached ({error.__class__.__name__}). "
-            "Check the network or local Ollama address; built-in rules are used if fallback is allowed."
+            "Check the network or local provider address.", diagnostics={"classification": "connection"}
         )
     if isinstance(error, requests.HTTPError):
         status = error.response.status_code if error.response is not None else None
@@ -144,19 +144,26 @@ def _classify_provider_failure(provider: str, error: BaseException, timeout_s: f
         detail = str(error)
         if status == 401:
             return LLMError(
-                f"{provider} rejected the API key (HTTP 401). Check the key for this run or in settings."
+                f"{provider} rejected the API key (HTTP 401). Check the key for this run or in settings.",
+                diagnostics={"classification": "credentials", "http_status": 401}
             )
         if status == 403:
-            return LLMError(f"{provider} refused the request (HTTP 403). {detail[:200]}")
+            return LLMError(f"{provider} refused the request (HTTP 403). Check provider permissions.",
+                            diagnostics={"classification": "permission", "http_status": 403})
         if status == 404:
             return LLMError(
-                f"{provider} model or endpoint was not found (HTTP 404). Check LLM_MODEL. {detail[:160]}"
+                f"{provider} model or endpoint was not found (HTTP 404). Check LLM_MODEL.",
+                diagnostics={"classification": "model", "http_status": 404}
             )
         if status in (429, 503):
             diagnostics = _http_diagnostics(error.response)
             quota = _QUOTA_ERRORS.get(diagnostics.get("error_code")) or _QUOTA_ERRORS.get(
                 diagnostics.get("error_type"))
             diagnostics["classification"] = "quota" if quota else "temporary"
+            if status == 429 and not quota:
+                for resource in ("requests", "tokens"):
+                    if diagnostics.get(f"x-ratelimit-remaining-{resource}") == "0":
+                        diagnostics["limit_resource"] = resource
             message = (f"{provider} API quota or billing limit reached (HTTP {status}). {quota}" if quota else
                        f"{provider} is rate-limited (HTTP 429). Retry when capacity is available." if status == 429
                        else f"{provider} is temporarily unavailable (HTTP {status}).")
@@ -196,6 +203,9 @@ def vision_enabled() -> bool:
 
 
 _OPTIONAL = _contextvars.ContextVar("qpilot_optional_ai", default=False)
+# A Jira worker is a single run in its own process. Once a provider rejects billing,
+# the remaining design calls share the error while validated scripts can still run.
+_worker_quota: dict[str, tuple[str, dict]] = {}
 _DESIGN = _contextvars.ContextVar("qpilot_design_batch", default=None)
 _PROVIDER_SLOTS = threading.Condition()
 _IN_FLIGHT: dict[str, int] = {}
@@ -266,6 +276,7 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
     agent / page / test only label the call for the cost report (backend/cost.py).
     images: PNG / JPEG screenshots the AI looks at with the prompt (backend/vision.py; only when vision_enabled()).
     Passwords, API keys and the test account's user name are removed from the prompt before it is sent."""
+    import os
     from .. import runctl
     from ..safety import redact
     if runctl.stopping():  # (the agent uses its built-in rules - a long AI call must not hold up the report)
@@ -286,11 +297,15 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
     attempts = max(1, min(3, max_attempts))
     provider = settings.llm_provider
     log, batch_size = _DESIGN.get() or (None, None)
+    jira_only = os.environ.get("QA_REQUIREMENTS_ONLY") == "1"
     for attempt in range(attempts):
         t0 = time.time()
         concurrency = 0
         try:
             schema_args = {"response_schema": response_schema} if response_schema is not None else {}
+            if jira_only and provider in _worker_quota:
+                message, details = _worker_quota[provider]
+                raise LLMError(message, diagnostics={**details, "cached": True})
             with _provider_slot(provider, deadline, log) as concurrency:
                 if deadline is not None:
                     remaining = deadline - time.monotonic()
@@ -303,7 +318,10 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
             cost.record(agent, page, test, t_in, t_out, time.time() - t0, True)
             return text
         except LLMError as e:
-            cost.record(agent, page, test, 0, 0, time.time() - t0, False)
+            if not e.diagnostics.get("cached"):
+                cost.record(agent, page, test, 0, 0, time.time() - t0, False)
+            if jira_only and e.diagnostics.get("classification") == "quota":
+                _worker_quota[provider] = (str(e), dict(e.diagnostics))
             cause = e.__cause__
             busy = isinstance(cause, requests.HTTPError) and cause.response is not None \
                 and (cause.response.status_code == 429 or cause.response.status_code >= 500)
@@ -323,8 +341,7 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
             if not (retry_allowed and retryable):
                 if log and diagnostics:
                     log.emit(str(e), "blocked", provider=settings.llm_provider, diagnostics=diagnostics)
-                import os
-                if os.environ.get("QA_ALLOW_RULES_FALLBACK", "1") == "0" and not _OPTIONAL.get():
+                if not jira_only and os.environ.get("QA_ALLOW_RULES_FALLBACK", "1") == "0" and not _OPTIONAL.get():
                     reason = str(e) if diagnostics else "The selected AI failed and rules fallback was not approved."
                     runctl.request_stop("ai_unavailable", reason)
                 raise

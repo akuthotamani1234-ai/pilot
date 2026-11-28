@@ -1690,6 +1690,11 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
                 pass
 
     def kept(t: dict, why: str) -> dict:
+        if t.get("tc"):
+            if why.startswith("Not automated: no AI") or why.startswith("Needs clarification:"):
+                why = "Blocked: " + why.partition(": ")[2]
+            elif why.startswith(("Not automated: the AI", "Not automated: Not possible", "Not automated: the website has no")):
+                why = "Design failed: " + why.partition(": ")[2]
         plan_note(t, why)
         return {"id": f"my_test_{t['id']}", "kind": "mine", "size": "large", "type": "functional", "priority": "high",
                 "title": _short_title(t["text"]), "instruction": t["text"], "steps": [t["text"]], "expected": "-",
@@ -1740,6 +1745,31 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
             for t in tests]
     if not tests:
         return list(refused.values())
+    if all(t.get("tc") for t in tests):
+        # Budget both instruction bytes and expected structured output for each case.
+        # The site observation is repeated in each prompt.
+        budget = max(2200, 24000 - len(_site_summary(pages).encode()))
+        groups, group, used = [], [], 0
+        for test in tests:
+            size = len(test["text"].encode()) + 1800
+            if group and used + size > budget:
+                groups.append(group)
+                group, used = [], 0
+            group.append(test)
+            used += size
+        groups.append(group)
+        if len(groups) > 1:
+            designed = list(refused.values())
+            for group in groups:
+                from .. import runctl
+                if runctl.kind() == "ai_unavailable" and runctl.stopping():
+                    designed.extend(dict(kept(t, "Blocked: " + runctl.reason()), blocked_by_provider=True)
+                                    for t in group)
+                    continue
+                cases = my_test_cases(pages, group, start, run_dir)
+                start += sum(c.get("kind") == "flow" for c in cases)
+                designed.extend(cases)
+            return designed
     try:
         with design_batch(run_dir, len(tests)):
             answer = ask_structured(load_prompt("my_tests").format(
@@ -1752,7 +1782,8 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
     except (LLMError, json.JSONDecodeError, ValueError) as e:
         if isinstance(e, LLMError) and e.diagnostics:
             print(f"  [test-design] design blocked by the AI provider: {e}", flush=True)
-            return list(refused.values()) + [dict(kept(t, f"Blocked: {e}"), blocked_by_provider=True) for t in tests]
+            return list(refused.values()) + [dict(kept(t, f"Blocked: {e}"), blocked_by_provider=True,
+                                                  provider_category=e.diagnostics.get("limit_resource") or e.diagnostics.get("classification")) for t in tests]
         print(f"  [test-design] your own tests: the AI failed ({str(e)[:120]}) - they stay as not automated")
         return list(refused.values()) + [
             kept(t, f"Not automated: the AI could not turn it into steps this time ({str(e)[:80]})") for t in tests]

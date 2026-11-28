@@ -22,7 +22,6 @@ from pathlib import Path
 
 ENV = "QA_REQUIREMENT_TESTS"
 ONLY_ENV = "QA_REQUIREMENTS_ONLY"
-MAX_TESTS = 60
 ID = re.compile(r"^rq_[a-z0-9_]{1,80}$")
 
 
@@ -31,36 +30,31 @@ def load() -> list[dict]:
     raw = os.environ.get(ENV, "")
     handoff = os.environ.get(ENV + "_FILE", "")
     if handoff:  # (the full list, with validated automation - server._launch_run)
-        try:
-            path = Path(handoff)
-            if path.is_file() and not path.is_symlink() and path.parent.name == ".handoff":
-                raw = path.read_text(encoding="utf-8")
-        except OSError:
-            pass
-    if not raw.strip():
+        path = Path(handoff)
+        if not path.is_file() or path.is_symlink() or path.parent.is_symlink() or path.parent.name != ".handoff":
+            raise ValueError("The selected requirement tests handoff is unavailable.")
+        raw = path.read_text(encoding="utf-8")
+    if not raw.strip() and os.environ.get(ONLY_ENV) != "1":
         return []
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        print("  [run] the requirement tests could not be read (not JSON) - none are used", flush=True)
-        return []
-    out = []
-    for item in data if isinstance(data, list) else []:
+    data = json.loads(raw)
+    if not isinstance(data, list) or (not data and os.environ.get(ONLY_ENV) == "1"):
+        raise ValueError("Expected a list of selected requirement tests.")
+    out, seen = [], set()
+    for item in data:
         if not isinstance(item, dict):
-            continue
+            raise ValueError("Invalid requirement test in the run handoff.")
         tid, text = str(item.get("id", "")), " ".join(str(item.get("text", "")).split())
-        if not ID.match(tid) or not text or tid in {t["id"] for t in out}:
-            continue
-        out.append({"id": tid, "text": text[:2000], "tc": str(item.get("tc", ""))[:80],
+        if not ID.fullmatch(tid) or not text or tid in seen:
+            raise ValueError("Missing or duplicate requirement test identifier or instruction.")
+        seen.add(tid)
+        out.append({"id": tid, "text": text, "tc": str(item.get("tc", ""))[:80],
                     "requirement": str(item.get("requirement", ""))[:80],
-                    "criteria": [str(c)[:80] for c in (item.get("criteria") or [])][:10],
+                    "criteria": [str(c)[:80] for c in (item.get("criteria") or [])],
                     "title": str(item.get("title", ""))[:200],
                     **({"automation": {**{k: str(a.get(k, ""))[:30000] for k in ("code", "test", "validated_in")},
                                        "selectors": [str(x)[:300] for x in (a.get("selectors") or [])][:60],
                                        **({"design": a["design"]} if isinstance(a.get("design"), dict) else {})}}
                        if isinstance(a := item.get("automation"), dict) and a.get("code") and a.get("test") else {})})
-        if len(out) >= MAX_TESTS:
-            break
     return out
 
 

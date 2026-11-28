@@ -1,0 +1,22 @@
+{
+  "id": "EX-c4cee6454e",
+  "counts": {
+    "Passed": 1
+  },
+  "retry_of": "EX-ffc0e984a6",
+  "results": [
+    {
+      "test_case_id": "TC-QPL-4-1",
+      "criterion_ids": [
+        "QPL-4#AC-1"
+      ],
+      "checks": 1,
+      "status": "Passed",
+      "failure_category": "",
+      "retryable": null,
+      "reason": "",
+      "automation": "reused",
+      "run_folder": "www.saucedemo.com_20261128_192547"
+    }
+  ]
+}

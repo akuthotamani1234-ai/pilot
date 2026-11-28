@@ -1,0 +1,48 @@
+{
+  "id": "EX-37e66f3e13",
+  "status": "finished",
+  "counts": {
+    "Passed": 1
+  },
+  "requirements": [
+    "QPL-2"
+  ],
+  "case_ids": [
+    "TC-QPL-2-4"
+  ],
+  "automation_coverage": 100,
+  "pass_rate": 100,
+  "batches": null,
+  "tally": {
+    "selected": 1,
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "requires_review": 0,
+    "blocked": 0,
+    "not_automated": 0,
+    "skipped": 0,
+    "not_run": 0,
+    "prerequisites_added": 0
+  },
+  "outcome": "completed",
+  "provider_failure": null,
+  "studio_boot": "e9cad45c501a48c9bba695d2f84a20e0",
+  "results": [
+    {
+      "test_case_id": "TC-QPL-2-4",
+      "status": "Passed",
+      "checks": 2,
+      "failure_stage": null,
+      "error_category": null,
+      "retryable": null,
+      "corrective_action": null,
+      "reason": "",
+      "run_folder": "www.saucedemo.com_20261128_193104",
+      "designed": true,
+      "automation": "reused",
+      "case_version": 1,
+      "source_version": 1
+    }
+  ]
+}
