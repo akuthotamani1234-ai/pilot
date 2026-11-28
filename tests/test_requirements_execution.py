@@ -435,3 +435,45 @@ def test_an_instruction_that_needs_the_test_account_says_where_it_comes_from():
     text = bridge.instruction(case)
     assert "qa_login" in text and "another password" in text
     assert "qa_login" not in bridge.instruction({**case, "test_data_needs": []})
+
+
+def test_provider_outage_blocks_unexecuted_cases(db, paths, tmp_path):
+    put_story(db)
+    analysed(db, paths, accept=2)
+    bridge.generate(db, "t1", "QPL-2")
+    ids = ["TC-QPL-2-1", "TC-QPL-2-2"]
+    ex = bridge.plan(db, "t1", ids, "requirements", {"url": "https://shop.test"})["execution"]
+    reason = "openai API quota or billing limit reached (HTTP 429). Check the API billing balance and project limits."
+    (tmp_path / "summary.json").write_text(json.dumps({
+        "incomplete": True, "stop_kind": "ai_unavailable", "incomplete_reason": reason,
+    }))
+    (tmp_path / "test_cases.json").write_text(json.dumps([
+        {"requirement_test": ids[0], "execution_status": "Skipped", "skip_reason": "Not automated"},
+    ]))
+    done = bridge.collect(db, "t1", ex["id"], tmp_path, "failed")
+    outcome = bridge.outcome_of(done)
+    assert outcome["state"] == "Blocked"
+    assert outcome["tally"]["selected"] == 2 and outcome["tally"]["executed"] == 0
+    assert outcome["automation_coverage"] == 0 and outcome["pass_rate"] is None
+    assert done["counts"] == {"Blocked": 2}
+    assert all(row["blocked_by_provider"] and row["reason"] == reason
+               for row in bridge.results(db, "t1", ex["id"]))
+
+
+def test_same_issue_key_on_another_connection_cannot_reuse_an_analysis(api):
+    from backend.atlassian import store
+
+    db = store.connect()
+    try:
+        original = store.get_source(db, "local", "jira-main:jira_issue:QPL-2")
+        duplicate = original["source"].model_copy(update={"connection_id": "jira-other"})
+        store.upsert_source(db, duplicate, original["content"])
+    finally:
+        db.close()
+
+    path = "/api/requirements/items/jira-other/QPL-2"
+    assert api.client.get(path, headers=api.H).json()["analysis"] == "not_analyzed"
+    assert api.client.get(f"{path}/analysis", headers=api.H).status_code == 404
+    assert api.client.post(f"{path}/analyze", headers=api.H, json={}).status_code == 400
+    assert api.client.post(f"{path}/test-cases", headers=api.H).status_code == 409
+    assert api.client.get("/api/requirements/items/jira-main/QPL-2/analysis", headers=api.H).status_code == 200

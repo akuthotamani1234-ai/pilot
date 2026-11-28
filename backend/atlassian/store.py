@@ -22,7 +22,7 @@ from pathlib import Path
 
 from ..migrate import sqlite_path_is_linked
 from ..safety import register_secret_names
-from .models import Analysis, Connection, SourceRef, SyncCursor
+from .models import Analysis, Connection, SourceKind, SourceRef, SyncCursor
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DB = ROOT / "runs" / ".requirements.sqlite"
@@ -188,6 +188,14 @@ def list_sources(db: sqlite3.Connection, tenant_id: str, connection_id: str = ""
     return [_row(r) for r in db.execute(q + " ORDER BY source_key", args)]
 
 
+def source_project(row: dict) -> str:
+    """Jira project of a stored row. Older imports may only have the issue key."""
+    source = row["source"]
+    if source.kind != SourceKind.jira_issue:
+        return ""
+    return str(row["content"].get("project") or source.source_id.rsplit("-", 1)[0]).upper()
+
+
 def find_sources(db: sqlite3.Connection, tenant_id: str, kind: str, source_id: str) -> list[str]:
     """The source keys of an issue key / page id in this tenant (one per connection that has it)."""
     rows = db.execute("SELECT source_key FROM sources WHERE tenant_id = ? AND kind = ? AND source_id = ? "
@@ -268,9 +276,13 @@ def save_analysis(db: sqlite3.Connection, analysis: Analysis, event: str = "anal
     data = analysis.model_dump_json()
     tenant = _tenant(analysis.tenant_id)
     with db:
-        db.execute("INSERT INTO analyses (tenant_id, requirement_id, analyzed_at, data) VALUES (?, ?, ?, ?) "
+        result = db.execute("INSERT INTO analyses (tenant_id, requirement_id, analyzed_at, data) VALUES (?, ?, ?, ?) "
                    "ON CONFLICT (tenant_id, requirement_id) DO UPDATE SET analyzed_at = excluded.analyzed_at, "
-                   "data = excluded.data", (tenant, analysis.requirement.id, analysis.analyzed_at.isoformat(), data))
+                            "data = excluded.data WHERE json_extract(analyses.data, '$.requirement.sources[0].connection_id') "
+                            "= json_extract(excluded.data, '$.requirement.sources[0].connection_id')",
+                            (tenant, analysis.requirement.id, analysis.analyzed_at.isoformat(), data))
+        if result.rowcount != 1:
+            raise ValueError("This requirement identifier already belongs to an analysis from another connection.")
         db.execute("INSERT INTO analysis_history (tenant_id, requirement_id, analyzed_at, event, data) "
                    "VALUES (?, ?, ?, ?, ?)", (tenant, analysis.requirement.id, _now(), event[:200], data))
 

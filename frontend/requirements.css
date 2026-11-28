@@ -80,6 +80,7 @@
 .rq-progress{height:8px;border-radius:6px;background:#e2e8f0;overflow:hidden;margin:6px 0 10px}
 .rq-progress span{display:block;height:100%;width:30%;background:#2563eb;border-radius:6px;animation:rqmove 1.2s ease-in-out infinite}
 .rq-progress.done span{width:100%;animation:none;background:#059669}
+.rq-progress.attention span{width:100%;animation:none;background:#b45309}
 .rq-progress.failed span{width:100%;animation:none;background:#dc2626}
 @keyframes rqmove{0%{transform:translateX(-100%)}100%{transform:translateX(330%)}}
 @media (prefers-reduced-motion:reduce){.rq-progress span{animation:none;width:100%;opacity:.5}}

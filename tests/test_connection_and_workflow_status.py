@@ -148,3 +148,75 @@ def test_a_run_cut_by_its_time_limit_is_timed_out(tmp_path, monkeypatch):
                                                   "ended within the 90 min overall limit (RUN_TIME_LIMIT_MIN)"}))
     done = bridge.collect(db, "t", ex["id"], run)
     assert bridge.outcome_of(done)["state"] == "Timed Out"
+
+
+def test_project_switch_does_not_inherit_import_or_analysis_state(api):  # noqa: F811
+    api.post("/api/requirements/connections", headers=H, json=CONN)
+    api.put("/api/requirements/connections/jira-main/token", headers=H, json={"token": TOKEN})
+    _status(api)
+    job = api.post("/api/requirements/connections/jira-main/imports", headers=H,
+                   json={"mode": "items", "keys": "SHOP-1"}).json()
+    wait_job(api, job)
+    endpoint = "/api/requirements/workflow/draft"
+    changes = {"connection_id": "jira-main", "project_key": "SHOP", "requirement_ids": ["SHOP-1"],
+               "test_case_ids": ["TC-SHOP-1-1"], "execution_id": "old-run", "target_url": "https://shop.example/"}
+    state = api.put(endpoint, headers=H, json={"changes": changes}).json()["state"]
+    assert state["stages"]["import"]["status"] == "done" and state["selected"] == ["SHOP-1"]
+    switched = api.put(endpoint, headers=H, json={"changes": {"project_key": "OTHER"}}).json()
+    assert not any(switched["draft"].get(key) for key in ("test_case_ids", "execution_id", "target_url"))
+    state = switched["state"]
+    assert state["stages"]["import"]["status"] == "pending" and state["selected"] == []
+    assert api.get("/api/requirements/items?project=SHOP", headers=H).json()["total"] == 1
+    assert api.get("/api/requirements/items?project=OTHER", headers=H).json()["total"] == 0
+
+
+def test_a_prior_import_cannot_hide_a_partial_or_failed_import():
+    from backend.atlassian.workflow import stage_status
+
+    state = {"done": dict.fromkeys(("explorer", "analysis", "reviews", "builder"), False),
+             "imported": 1, "selected": [], "analysed": [], "pending_reviews": 0, "runnable": [], "test_cases": []}
+    for outcome, expected in [("partial", "attention"), ("failed", "failed"), ("cancelled", "attention")]:
+        stages = stage_status(state, connection_state="connected", import_state=outcome)
+        assert stages["import"]["status"] == expected
+
+
+def test_project_response_cannot_verify_a_token_rotated_in_flight(api, monkeypatch):  # noqa: F811
+    from backend import requirements_api
+    from backend.atlassian import credentials
+
+    api.post("/api/requirements/connections", headers=H, json=CONN)
+    api.put("/api/requirements/connections/jira-main/token", headers=H, json={"token": TOKEN})
+    real_projects = requirements_api.jira.projects
+
+    def rotate_after_request(client):
+        projects = real_projects(client)
+        credentials.set_token("local", client.connection.token_ref, "wrong-rotated-token",
+                              site=client.connection.site_url)
+        return projects
+
+    monkeypatch.setattr(requirements_api.jira, "projects", rotate_after_request)
+    response = api.get("/api/requirements/connections/jira-main/projects", headers=H)
+    assert response.status_code == 200
+    assert _status(api, verify=False)["jira"]["state"] == "unverified"
+
+
+def test_workflow_retains_an_import_warning_after_restart(api, monkeypatch):  # noqa: F811
+    from backend import requirements_api
+    from backend.atlassian import store
+
+    api.post("/api/requirements/connections", headers=H, json=CONN)
+    api.put("/api/requirements/connections/jira-main/token", headers=H, json={"token": TOKEN})
+    _status(api)
+    job = api.post("/api/requirements/connections/jira-main/imports", headers=H,
+                   json={"mode": "items", "keys": "SHOP-1"}).json()
+    wait_job(api, job)
+    api.put("/api/requirements/workflow/draft", headers=H, json={
+        "changes": {"connection_id": "jira-main", "project_key": "SHOP"},
+    })
+    db = store.connect()
+    try:
+        store.record_sync_run(db, "local", "jira-main", "items", {"status": "partial", "projects": ["SHOP"]}, "test")
+    finally:
+        db.close()
+    monkeypatch.setattr(requirements_api, "JOBS", requirements_api.Jobs())
+    assert _wf(api)["stages"]["import"]["status"] == "attention"

@@ -160,7 +160,7 @@ pages in app_map.json, test cases in test_cases.json, results in results.json, f
     (run_dir / "summary.json").write_text(json.dumps({
         "url": state.get("url"), "source": state.get("source"), "run_id": state.get("run_id"),
         "verdict": "Insufficient Evidence", "reasons": [reason, f"The report could not be written: {detail}"],
-        "gates": [], "incomplete": True, "incomplete_reason": reason, "stopped_at": state.get("stopped_at", ""),
+        "gates": [], "incomplete": True, "incomplete_reason": reason, "stop_kind": state.get("stop_kind", ""), "stopped_at": state.get("stopped_at", ""),
         "limits_hit": [], "pages": len(state.get("app_map", [])), "tests": len(state.get("results", [])),
         "test_cases": len(state.get("test_cases", [])), "findings": len(findings),
         "coverage": {}, "working_well": [], "pass_rate": 0,

@@ -153,3 +153,95 @@ def test_unknown_provider_and_unexpected_shape_are_llmerror(monkeypatch, quiet_c
     monkeypatch.setattr(llm.requests, "post", lambda *a, **k: Odd())
     with pytest.raises(llm.LLMError, match="Unexpected openai response format"):
         llm._ask_once("x", "", 0)
+
+
+@pytest.mark.parametrize("code,expected_calls", [("insufficient_quota", 1), ("rate_limit_exceeded", 2)])
+def test_openai_429_distinguishes_quota_and_retry_after(code, expected_calls, monkeypatch, quiet_cost):
+    monkeypatch.setattr(llm.settings, "llm_provider", "openai")
+    monkeypatch.setattr(llm.settings, "openai_api_key", "fixture-secret")
+    response = requests.Response()
+    response.status_code = 429
+    response.headers.update({"x-request-id": "req_fixture123", "Retry-After": "2"})
+    response._content = json.dumps({"error": {"code": code, "type": code, "message": "fixture-secret"}}).encode()
+    calls, delays = [], []
+
+    def post(*args, **kwargs):
+        calls.append(kwargs)
+        return response
+
+    monkeypatch.setattr(llm.requests, "post", post)
+    monkeypatch.setattr(llm.time, "sleep", delays.append)
+    with pytest.raises(llm.LLMError) as failure:
+        llm.ask_llm("fixture", max_attempts=2)
+
+    assert len(calls) == expected_calls
+    assert "fixture-secret" not in str(failure.value)
+    assert failure.value.diagnostics["request_id"] == "req_fixture123"
+    assert failure.value.diagnostics["attempts"] == expected_calls
+    if expected_calls == 2:
+        assert sum(delays) >= 2
+    else:
+        assert delays == []
+        assert "quota" in str(failure.value)
+
+
+def test_rate_limit_recovers_and_records_real_retry_event(tmp_path, monkeypatch, quiet_cost):
+    monkeypatch.setattr(llm.settings, "llm_provider", "openai")
+    monkeypatch.setattr(llm.settings, "openai_api_key", "fixture-secret")
+    limited = requests.Response()
+    limited.status_code = 429
+    limited.headers.update({"x-request-id": "req_fixture_recovered", "Retry-After": "1",
+                            "x-ratelimit-remaining-tokens": "0"})
+    limited._content = b'{"error":{"code":"rate_limit_exceeded","message":"fixture-secret"}}'
+    success = requests.Response()
+    success.status_code = 200
+    success._content = b'{"choices":[{"message":{"content":"ready"}}],"usage":{"prompt_tokens":6,"completion_tokens":1}}'
+    replies = iter((limited, success))
+    monkeypatch.setattr(llm.requests, "post", lambda *a, **k: next(replies))
+    monkeypatch.setattr(llm.time, "sleep", lambda _s: None)
+
+    with llm.design_batch(tmp_path, 24):
+        assert llm.ask_llm("fixture", max_attempts=2) == "ready"
+
+    raw = next(tmp_path.glob("events.test_design*.jsonl")).read_text()
+    assert "fixture-secret" not in raw
+    event = json.loads(raw)
+    assert event["status"] == "retrying"
+    assert event["diagnostics"]["batch_size"] == 24
+    assert event["diagnostics"]["x-ratelimit-remaining-tokens"] == "0"
+
+
+def test_concurrent_provider_calls_wait_for_the_configured_slot(monkeypatch, quiet_cost):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    monkeypatch.setattr(llm.settings, "llm_provider", "openai")
+    monkeypatch.setattr(llm.settings, "llm_max_in_flight", 1)
+    first_in, release, second_in = Event(), Event(), Event()
+
+    def ask_once(prompt, *_args, **_kwargs):
+        if prompt == "first":
+            first_in.set()
+            assert release.wait(5)
+        else:
+            second_in.set()
+        return prompt, 1, 1
+
+    monkeypatch.setattr(llm, "_ask_once", ask_once)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(llm.ask_llm, "first")
+        assert first_in.wait(5)
+        second = pool.submit(llm.ask_llm, "second")
+        try:
+            assert not second_in.wait(0.1)
+        finally:
+            release.set()
+        assert first.result(5) == "first" and second.result(5) == "second"
+
+
+def test_ordered_batch_corrects_count_and_preserves_invalid_items(monkeypatch, quiet_cost):
+    valid = {"title": "Second approved test", "steps": ["Check the expected value"]}
+    replies = iter([json.dumps([valid]), json.dumps([{"title": "invalid", "steps": 4}, valid])])
+    monkeypatch.setattr(llm, "ask_llm", lambda *a, **k: next(replies))
+    results = llm.ask_structured("Design the two tests in order", list[_Item], expected_items=2)
+    assert results == [None, _Item(**valid)]

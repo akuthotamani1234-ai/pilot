@@ -1,5 +1,12 @@
 # Qpilot — Project Status
 
+## Jira and Confluence audit · 28 November 2026
+
+The implementation audit, controlled provider reproductions, live SauceDemo browser checks, and outstanding live dependencies are recorded in [the Jira and Confluence audit](docs/REQUIREMENTS_AUDIT_2026-11-28.md). Live QPL and Confluence Cloud acceptance remain blocked on authorized credentials.
+
+The final local audit changes passed the full regression suite with **2,748 passed, zero failures, and 41 skipped** on pinned Python 3.13.15. The audit links to the full log and JUnit results.
+
+
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 

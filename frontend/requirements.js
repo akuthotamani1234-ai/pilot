@@ -119,7 +119,12 @@
     set(closed);
     btn.addEventListener("click", () => set(btn.getAttribute("aria-expanded") === "true"));
   })();
-  window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
+  let workspaceReady = false;
+  window.addEventListener("hashchange", () => {
+    if (!workspaceReady) return;
+    route();
+    $("rqMain").focus();
+  });
   // the stepper and sidebar follow the backend by themselves (a disconnected site, an import or execution that
   // ended, another tab's change): every 10 s while the page is visible, and at once when it is shown again
   setInterval(() => { if (document.visibilityState === "visible" && S.caps) refreshWorkflow(); }, 10000);
@@ -578,7 +583,7 @@
   function showResult(j) {
     const r = j.result || {};
     const ok = ["complete", "partial"].includes(j.status);
-    $("impBar").className = `rq-progress ${ok ? "done" : "failed"}`;
+    $("impBar").className = `rq-progress ${j.status === "complete" ? "done" : j.status === "failed" ? "failed" : "attention"}`;
     $("impCancel").hidden = true;
     $("impRetry").hidden = j.status === "complete";
     $("impStatus").textContent = j.status === "failed" ? `The import failed: ${j.error || r.error || "unknown error"}`
@@ -604,7 +609,9 @@
     const got = W.lastImport.body.mode === "space" ? [] : [...new Set([...(r.new_keys || []), ...(r.changed_keys || []), ...(r.unchanged_keys || []),
       ...(W.lastImport.body.mode === "items" ? list(W.lastImport.body.keys || "").map((k) => k.toUpperCase()).filter((k) => /^[A-Z][A-Z0-9_]*-\d+$/.test(k)) : [])])];
     if (ok && got.length && S.view === "import") {
-      saveDraft({ connection_id: W.lastImport.conn, requirement_ids: got, step: "explorer" }).then(() => {
+      const projects = [...new Set(got.map((key) => key.split("-")[0]))];
+      saveDraft({ connection_id: W.lastImport.conn, project_key: projects.length === 1 ? projects[0] : "",
+        requirement_ids: got, test_case_ids: [], execution_id: "", step: "explorer" }).then(() => {
         banner(`Imported: ${got.join(", ")} selected for this test. Analyse them next.`, true);
         location.hash = "#explorer";
       }).catch((e) => banner(e.message));
@@ -625,7 +632,7 @@
 
   // ---------------------------------------------------------------- 4 explorer
   let exTimer;
-  ["exQ", "exType", "exStatus", "exAnalysis", "exMissing"].forEach((id) => $(id).addEventListener(id === "exQ" ? "input" : "change", () => {
+  ["exQ", "exProject", "exType", "exStatus", "exAnalysis", "exMissing"].forEach((id) => $(id).addEventListener(["exQ", "exProject"].includes(id) ? "input" : "change", () => {
     clearTimeout(exTimer); exTimer = setTimeout(() => { S.ex.page = 1; explorer(); }, id === "exQ" ? 250 : 0);
   }));
   $("exForm").addEventListener("submit", (e) => e.preventDefault());
@@ -639,7 +646,7 @@
     if (!fresh()) return;
     const tbody = $("exTable").tBodies[0];
     $("exTable").setAttribute("aria-busy", "true");
-    const q = new URLSearchParams({ kind: "jira_issue", q: $("exQ").value, type: $("exType").value, status: $("exStatus").value,
+    const q = new URLSearchParams({ kind: "jira_issue", q: $("exQ").value, project: $("exProject").value.trim(), type: $("exType").value, status: $("exStatus").value,
       analysis: $("exAnalysis").value, missing: $("exMissing").checked, sort: S.ex.sort, page: S.ex.page, size: S.ex.size });
     try {
       const r = await api(`/items?${q}`);
@@ -1864,10 +1871,12 @@
       box.replaceChildren(h("div", { class: "rq-live-grid" },
         h("section", { class: "rq-panel", "aria-labelledby": "lvScTitle" }, h("h2", { id: "lvScTitle", text: "Scenarios" }), h("div", { class: "rq-panel-body", id: "lvCases" })),
         h("section", { class: "rq-panel", "aria-labelledby": "lvBrTitle" }, h("h2", { id: "lvBrTitle" }, "Browser", h("span", { class: "small", id: "lvUrl" })), h("div", { class: "rq-panel-body rq-screen", id: "lvScreens" }, h("p", { class: "small", text: "The browser screen appears when the run opens the website." }))),
-        h("section", { class: "rq-panel", "aria-labelledby": "lvAgTitle" }, h("h2", { id: "lvAgTitle", text: "Agents" }), h("div", { class: "rq-panel-body", id: "lvAgents" }))),
+        h("section", { class: "rq-panel", "aria-labelledby": "lvAgTitle" }, h("h2", { id: "lvAgTitle", text: "Agents" }), h("div", { class: "rq-panel-body", id: "lvAgents" },
+          h("p", { class: "small", text: "Waiting for agent activity." })))),
       h("div", { class: "rq-logwrap" }, h("section", { class: "rq-panel", "aria-labelledby": "lvLogTitle" },
         h("h2", { id: "lvLogTitle" }, "Activity log", h("label", { class: "rq-check small" }, h("input", { type: "checkbox", id: "lvFollow", checked: true, onchange: (e) => { LV.follow = e.target.checked; if (LV.follow) jumpLatest(); } }), " follow new events")),
-        h("div", { class: "rq-panel-body", id: "lvLogBody", onscroll: logScrolled }, h("ul", { class: "rq-log", id: "lvLog" }))),
+        h("div", { class: "rq-panel-body", id: "lvLogBody", onscroll: logScrolled }, h("p", { id: "lvLogEmpty", class: "small", text: "Waiting for the first execution event." }),
+          h("ul", { class: "rq-log", id: "lvLog" }))),
         h("button", { type: "button", class: "secondary rq-jump", id: "lvJump", hidden: true, text: "Jump to latest", onclick: () => { LV.follow = true; $("lvFollow").checked = true; jumpLatest(); } })));
     }
     liveTick();
@@ -1899,8 +1908,25 @@
         $("livePause").replaceChildren(h("div", { class: "rq-issue", role: "alert" }, h("b", { text: "Interrupted — " }),
           `${bdone} of ${bs.length} batches are done; the rest can go on from where it stopped. `,
           h("label", { for: "resumePass", class: "small", text: "Test password (never stored)" }), h("input", { id: "resumePass", type: "password", autocomplete: "off" }),
-          h("button", { type: "button", class: "secondary", text: "Resume", onclick: async () => {
-            try { await api(`/executions/${encodeURIComponent(ex.id)}/resume`, { method: "POST", body: $("resumePass").value ? { test_password: $("resumePass").value } : {} }); $("resumePass").value = ""; } catch (err) { banner(err.message); }
+          h("label", { for: "resumeKey", class: "small" }, "Provider API key (optional)",
+            h("input", { id: "resumeKey", type: "password", autocomplete: "off" })),
+          h("button", { type: "button", class: "secondary", text: "Resume", onclick: async (event) => {
+            const button = event.currentTarget;
+            const password = $("resumePass");
+            const key = $("resumeKey");
+            const body = { ...(password.value ? { test_password: password.value } : {}),
+              ...(key.value ? { api_key: key.value } : {}) };
+            password.value = "";
+            key.value = "";
+            button.disabled = true;
+            try {
+              await api(`/executions/${encodeURIComponent(ex.id)}/resume`, { method: "POST", body });
+              $("livePause").hidden = true;
+              await liveTick();
+            } catch (err) {
+              banner(err.message);
+              button.disabled = false;
+            }
           } })));
       }
       const tp = live.tests;  // (tests finished so far: from the run's own result files - never estimated)
@@ -1926,6 +1952,18 @@
         byCase[c] ? resultBadge(byCase[c].status) : badge(!running ? "—" : testing ? "running" : `waiting (${live.current || "starting"})`, "info"),
         byCase[c] && (byCase[c].actual || byCase[c].reason) ? h("span", { class: "small", text: byCase[c].actual || byCase[c].reason }) : null))));
       if (LV.job && /^\d+$/.test(String(LV.job))) await liveRun(LV.job, running);
+      if (ex.provider_failure) {
+        if (!$("lvScreens").querySelector("figure")) {
+          $("lvScreens").replaceChildren(h("p", { class: "small", text: `No browser frame was captured. ${ex.provider_failure}` }));
+        }
+        if (!$("lvAgents").querySelector("li")) {
+          $("lvAgents").replaceChildren(h("p", { class: "small", text: ex.provider_failure }));
+        }
+        if (!$("lvLog").children.length) {
+          $("lvLog").append(h("li", { text: ex.provider_failure }));
+        }
+      }
+      $("lvLogEmpty").hidden = Boolean($("lvLog").children.length);
       if (running) LV.timer = setTimeout(liveTick, 1500);
       else refreshWorkflow();
     } catch (e) { $("liveSub").textContent = e.message; LV.timer = setTimeout(liveTick, 4000); }
@@ -1952,8 +1990,9 @@
     } catch (e) { /* (events start once the run has a folder) */ }
     try {
       const ag = await api(`/api/runs/${job}/agents`);
-      $("lvAgents").replaceChildren(h("ul", { class: "rq-audit" }, (ag.agents || []).map((a) => h("li", {}, h("b", { text: a.name }),
-        badge(a.status, { completed: "ok", running: "info", failed: "bad", skipped: "" }[a.status] || ""), a.detail ? h("span", { class: "small", text: a.detail }) : null))));
+      $("lvAgents").replaceChildren((ag.agents || []).length ? h("ul", { class: "rq-audit" }, ag.agents.map((a) => h("li", {}, h("b", { text: a.name }),
+        badge(a.status, { completed: "ok", running: "info", failed: "bad", skipped: "" }[a.status] || ""), a.detail ? h("span", { class: "small", text: a.detail }) : null)))
+        : h("p", { class: "small", text: running ? "Waiting for agent activity." : "No agent activity was recorded." }));
     } catch (e) { /* (no agents yet) */ }
     // every browser of the run that saved a real screen (explorers, learners, test workers gw0..): a screen is
     // reloaded only when its file changed; test workers come first
@@ -1991,7 +2030,7 @@
     $("rpHistory").tBodies[0].replaceChildren(...kids(finished.map((ex) => h("tr", { class: ex.id === id ? "current" : "" },
       h("td", {}, h("button", { class: "rq-open", type: "button", text: ex.id, onclick: () => { S.reportId = ex.id; reportsView(); } })),
       h("td", { text: ex.strategy }), h("td", { text: (ex.target || {}).url || "" }), h("td", { text: ex.case_ids.length }),
-      h("td", {}, statusBadge({ finished: "complete", running: "running", queued: "running", stopped: "cancelled", failed: "failed" }[ex.status] || ex.status)),
+      h("td", {}, outcomeBadge(ex)),
       h("td", { text: Object.entries(ex.counts || {}).map(([k, v]) => `${v} ${k}`).join(" · ") || "—" }),
       h("td", { text: when(ex.created_at) }), h("td", { text: ex.finished_at && ex.created_at ? `${Math.round((new Date(ex.finished_at) - new Date(ex.created_at)) / 1000)} s` : "—" })))));
     if (!finished.length) $("rpHistory").tBodies[0].append(h("tr", {}, h("td", { colspan: 8, class: "rq-empty", text: "No executions yet." })));
@@ -2007,25 +2046,32 @@
     const run = (res.find((x) => x.run_folder) || {}).run_folder || "";
     const shots = res.flatMap((x) => (x.evidence || []).filter((e) => /\.(png|jpe?g)$/i.test(e)).map((e) => ({ e, x })));
     const tile = (n, label, kind = "") => h("div", { class: `rq-stat ${kind}` }, h("b", { text: n }), h("span", { text: label }));
-    const failedIds = res.filter((x) => ["Failed", "Blocked", "Flaky"].includes(x.status)).map((x) => x.test_case_id);
+    const providerBlockedIds = res.filter((x) => x.blocked_by_provider).map((x) => x.test_case_id);
+    const failedIds = res.filter((x) => !x.blocked_by_provider && ["Failed", "Blocked", "Flaky"].includes(x.status)).map((x) => x.test_case_id);
     $("rpBox").replaceChildren(...kids(h("section", { class: "lab-card" },
       h("div", { class: "rq-head-row" }, h("div", {}, h("h2", { class: "rq-sub", text: `${ex.id} — ${ex.strategy}` }),
         h("p", { class: "small", text: `${(ex.target || {}).url || ""} · started ${when(ex.created_at)}${ex.finished_at ? ` · ended ${when(ex.finished_at)}` : ""} · by ${ex.actor} · ${reqs.join(", ")}` })),
         h("div", { class: "rq-row" },
           h("button", { type: "button", class: "secondary", text: "Rerun Failed Tests", disabled: !failedIds.length, onclick: async () => { await saveDraft({ test_case_ids: failedIds, execution_id: "" }); S.presetScope = "selected"; location.hash = "#execution"; } }),
+          providerBlockedIds.length ? h("button", { type: "button", class: "secondary", text: "Retry Provider-Blocked Tests", onclick: async () => {
+            await saveDraft({ test_case_ids: providerBlockedIds, execution_id: "" });
+            S.presetScope = "selected";
+            location.hash = "#execution";
+          } }) : null,
           h("button", { type: "button", class: "secondary", text: "Run Impacted Tests", onclick: () => { S.presetScope = "impacted"; location.hash = "#execution"; } }),
           h("button", { type: "button", class: "secondary", text: "Export Report", onclick: () => {
             const blob = new Blob([JSON.stringify({ execution: ex, results: res, traceability: trace, defects }, null, 2)], { type: "application/json" });
             const a = h("a", { href: URL.createObjectURL(blob), download: `${ex.id}-report.json` }); document.body.append(a); a.click(); a.remove(); } }),
           h("a", { href: "#rpHistTitle", class: "secondary rq-action-link", text: "View Execution History" }))),
-      ex.outcome === "no_tests_automated" ? h("p", { class: "rq-issue", role: "alert", text: "Execution unsuccessful — no tests were automated. Nothing was verified on the website: see the reason of each test case below." }) : null,
+      ex.provider_failure ? h("p", { class: "rq-issue", role: "alert", text: ex.provider_failure })
+        : ex.outcome === "no_tests_automated" ? h("p", { class: "rq-issue", role: "alert", text: "Execution unsuccessful — no tests were automated. Nothing was verified on the website: see the reason of each test case below." }) : null,
       h("div", { class: "rq-stats" }, tile((ex.tally || {}).selected ?? 0, "selected"), tile((ex.tally || {}).executed ?? 0, "actually executed"),
         tile(count("Passed") + count("Flaky"), "passed", "ok"), tile(count("Failed"), "failed", count("Failed") ? "bad" : ""),
         tile(count("Requires review"), "requires review (the test failed, not the website)", count("Requires review") ? "info" : ""),
         tile(count("Blocked"), "blocked", count("Blocked") ? "warn" : ""), tile(count("Not automated"), "not automated", count("Not automated") ? "bad" : ""),
         tile(count("Not run") + count("Cancelled") + count("Skipped"), "skipped / not run", ""),
         tile((ex.exploratory || {}).cases || 0, "exploratory (not from requirements)")),
-      h("p", { class: "small", text: `Automation coverage ${ex.automation_coverage ?? 0}% of the selected test cases · pass rate ${ex.pass_rate == null ? "— (nothing executed)" : `${ex.pass_rate}% of the executed ones`}` }),
+      h("p", { class: "small", text: `Automation coverage ${ex.automation_coverage ?? 0}% of the selected test cases · pass rate ${ex.pass_rate == null ? "Not available (nothing executed)" : `${ex.pass_rate}% of the executed ones`}` }),
       h("div", { class: "rq-table-wrap" }, h("table", { class: "rq-table" }, h("caption", { class: "rq-sr", text: "Results per test case" }),
         h("thead", {}, h("tr", {}, ["Test case", "Requirement", "Result", "Assertions", "Actual result / reason", "Evidence"].map((text) => h("th", { scope: "col", text })))),
         h("tbody", {}, res.map((x) => {
@@ -2090,6 +2136,7 @@
       } catch (_) { /* (an older server has no version) */ }
     } catch (e) { if (e.status !== 401) banner(e.message); return; }
     await refreshWorkflow();
+    workspaceReady = true;
     route();
   }
   start();

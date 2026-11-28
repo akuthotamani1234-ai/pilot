@@ -6,7 +6,7 @@ import json
 import pytest
 
 from backend.atlassian import bridge, scheduler
-from tests.test_requirements_execution import _accept, api  # noqa: F401
+from tests.test_requirements_execution import _accept, api as requirements_fixture  # noqa: F401
 
 
 def c(cid, priority="medium"):
@@ -34,7 +34,8 @@ def test_cost_is_summed_over_the_batch_runs(tmp_path):
 
 
 @pytest.fixture
-def batched(api, monkeypatch):
+def batched(requirements_fixture, monkeypatch):  # noqa: F811
+    api = requirements_fixture
     from backend import requirements_api as rapi
     monkeypatch.setattr(scheduler, "BATCH_SIZE", 1)
     _accept(api, 2)
@@ -106,3 +107,26 @@ def test_cancel_stops_the_remaining_batches(batched, monkeypatch):
     assert e["status"] == "cancelled" and e["batches"][1]["status"] == "cancelled" and len(launched) == 1
     db = bridge.connect()
     db.close()
+
+
+def test_provider_block_pauses_other_batches_and_resumes_at_the_checkpoint(batched, monkeypatch):
+    api, launched, ex_id = batched
+    monkeypatch.setattr(api.server, "_plain_run_dir", lambda run: api.tmp / run)
+    first, ids = launched[0]
+    (api.tmp / f"run{first}" / "summary.json").write_text(json.dumps({
+        "incomplete": True, "stop_kind": "ai_unavailable", "incomplete_reason": "Provider rate-limited (HTTP 429)",
+    }))
+    api.server.jobs[first].update(status="failed", run=f"run{first}")
+    path = f"/api/requirements/executions/{ex_id}"
+    payload = api.client.get(path, headers=api.H).json()
+    assert [b["status"] for b in payload["execution"]["batches"]] == ["interrupted", "queued"]
+    assert payload["results"][0]["blocked_by_provider"]
+    assert len(launched) == 1
+    assert api.client.post(f"{path}/resume", headers=api.H, json={"test_password": "p"}).status_code == 200
+    assert launched[-1][1] == ids
+    _finish(api, *launched[-1])
+    api.client.get(path, headers=api.H)
+    _finish(api, *launched[-1])
+    recovered = api.client.get(path, headers=api.H).json()["execution"]
+    assert recovered["tally"]["passed"] == 2 and recovered["tally"]["blocked"] == 0
+    assert "provider_failure" not in recovered

@@ -38,6 +38,7 @@ class Settings:
     ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
     # seconds to wait for one cloud AI answer (free-tier Gemini can be slow); a timed-out call is retried once
     llm_timeout: int = int(os.getenv("LLM_TIMEOUT", "240"))
+    llm_max_in_flight: int = max(1, int(os.getenv("LLM_MAX_IN_FLIGHT", "2")))
     # the AI LOOKS at screenshots: what every page shows, and before / after pictures of every failed test (website bug
     # or test mistake?). auto = on with a cloud AI (and an Ollama vision model), on, off. Pages with a password box are
     # never sent.

@@ -99,7 +99,11 @@ def update_draft(db, tenant: str, actor: str, changes: dict, draft_id: str = "")
     d = get_draft(db, tenant, actor)
     if draft_id and draft_id != d["id"]:
         raise ValueError("this workflow was replaced by a newer one (New Test); reload to continue it")
-    d.update(_clean(changes))
+    updates = _clean(changes)
+    if any(key in updates and updates[key] != (d.get(key) or "") for key in ("connection_id", "project_key")):
+        for key in ("requirement_ids", "test_case_ids", "execution_id", "target_url", "target_source"):
+            d.pop(key, None)
+    d.update(updates)
     with db:
         db.execute("UPDATE req_workflow_drafts SET updated_at = ?, data = ? WHERE tenant_id = ? AND actor = ?",
                    (_now(), json.dumps(d), tenant, actor))
@@ -127,12 +131,14 @@ def stage_status(st: dict, *, connection_state: str, import_state: str = "", imp
         "" if conn == "connected" else CONNECTION_TEXT.get(conn, ""))
     if import_state == "running":
         put("import", "running", "An import is running.")
-    elif st["imported"]:
-        put("import", "done")
     elif import_state == "failed":
         put("import", "failed", import_error or "The last import failed.")
+    elif import_state in ("partial", "cancelled"):
+        put("import", "attention", "The last import did not complete.")
     elif conn != "connected":
         put("import", "blocked", "Importing needs a verified Jira connection.")
+    elif st["imported"]:
+        put("import", "done")
     else:
         put("import", "pending")
     put("explorer", "done" if done["explorer"] else "pending" if st["imported"] else "blocked",
@@ -190,15 +196,21 @@ def state(db, tenant: str, draft: dict, *, connection_ready: bool, connection_st
     """Facts for the stepper (completed = what the stores say, not what was visited)."""
     from . import analysis as an, bridge, store
     reqs = list(draft.get("requirement_ids") or [])
-    imported = list(store.list_sources(db, tenant))
+    connection_id = draft.get("connection_id") or ""
+    project = (draft.get("project_key") or "").upper()
+    imported = list(store.list_sources(db, tenant, connection_id))
+    if project:
+        imported = [r for r in imported if store.source_project(r) == project]
+    roots = {r["source"].key for r in imported}
     keys = {r["source"].source_id if r["source"].kind.value == "jira_issue" else f"conf-{r['source'].source_id}"
             for r in imported}
-    analyses = {a.requirement.id: a for a in store.list_analyses(db, tenant)}
+    analyses = {a.requirement.id: a for a in store.list_analyses(db, tenant) if a.requirement.sources[0].key in roots}
     chosen = [r for r in reqs if r in keys] or []
     analysed = [r for r in chosen if r in analyses and not an.stale(db, tenant, analyses[r])]
     accepted = [r for r in analysed if any(s.review.value == "accepted" for s in analyses[r].suggestions)]
     pending = sum(1 for r in analysed for s in analyses[r].suggestions if s.review.value == "needs_review")
-    cases = [c for c in bridge.list_cases(db, tenant) if c["requirement_id"] in chosen]
+    cases = [c for c in bridge.list_cases(db, tenant)
+             if c["requirement_id"] in chosen and c.get("source_key") in roots]
     runnable = [c["id"] for c in cases if c["status"] in ("approved", "ready")]
     ex = bridge.get_execution(db, tenant, draft.get("execution_id") or "") if draft.get("execution_id") else None
     done = {"connect": connection_ready, "import": bool(keys), "explorer": bool(chosen),

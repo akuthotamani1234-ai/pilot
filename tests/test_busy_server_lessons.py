@@ -168,3 +168,22 @@ def test_a_request_already_settled_by_playwright_does_not_fail_the_next_page_loa
 
     with pytest.raises(RuntimeError, match="has been closed"):
         _settle(broken)
+
+
+def test_console_check_does_not_report_a_javascript_defect_on_navigation_timeout(capsys):
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+    from backend.agents.script_generator import site_script
+
+    class SlowPage:
+        def goto(self, _url):
+            raise PlaywrightTimeoutError("Page.goto: Timeout 30000ms exceeded.")
+
+    page = {"slug": "dashboard", "url": "http://127.0.0.1/dashboard"}
+    generated = {}
+    exec(compile(site_script([page]), "test_site.py", "exec"), generated)
+    check = generated["test_no_console_errors"]
+    check(SlowPage(), [], page)
+    assert "[qa-inconclusive] Navigation timed out" in capsys.readouterr().out
+    with pytest.raises(AssertionError, match="real script error"):
+        check(SlowPage(), ["real script error"], page)

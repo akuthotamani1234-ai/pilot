@@ -592,6 +592,14 @@ def affected_requirements(db, tenant_id: str, source_keys: list[str]) -> list[di
     return out
 
 
+def import_projects(mode: str, filters: ImportFilter | None, keys: list[str] | None) -> tuple[str, ...]:
+    if mode in ("incremental", "full") and filters:
+        return (filters.project,)
+    if mode == "items":
+        return tuple(sorted({key.rsplit("-", 1)[0] for key in keys or []}))
+    return ()
+
+
 def run_import(db, connection: Connection, client: Client, *, tenant_id: str, mode: str,
                filters: ImportFilter | None = None, keys: list[str] | None = None, include: tuple[str, ...] = (),
                space_key: str = "", full_space: bool = False, actor: str = "system", audit_db=None,
@@ -631,7 +639,7 @@ def run_import(db, connection: Connection, client: Client, *, tenant_id: str, mo
                 a["requirement"] for a in affected_requirements(db, tenant_id, [source_key])}:
             needs_review.append(req.id)
     finished = datetime.now(UTC)
-    result.update(mode=mode, started_at=started.isoformat(), finished_at=finished.isoformat(),
+    result.update(mode=mode, projects=import_projects(mode, filters, keys), started_at=started.isoformat(), finished_at=finished.isoformat(),
                   duration_s=round(time.monotonic() - clock, 2), criteria_extracted=criteria,
                   needs_analysis=needs_review, affected=affected_requirements(db, tenant_id, touched))
     store.record_sync_run(db, tenant_id, connection.id, mode, result, actor)

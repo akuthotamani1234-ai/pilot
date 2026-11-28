@@ -9,8 +9,11 @@ Set LLM_PROVIDER=none to run without AI (rule-based fallback is used instead).
 import contextlib as _contextlib
 import contextvars as _contextvars
 import json
+import random
 import re
+import threading
 import time
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -40,7 +43,62 @@ def load_prompt(name: str) -> str:
 
 
 class LLMError(Exception):
-    pass
+    def __init__(self, message: str, *, diagnostics: dict | None = None):
+        super().__init__(message)
+        self.diagnostics = diagnostics or {}
+
+
+_QUOTA_ERRORS = {
+    "insufficient_quota": "Check the API billing balance and project limits.",
+    "billing_hard_limit_reached": "Check the API billing limit.",
+    "credit_balance_exhausted": "Add API credits.",
+    "organization_spend_limit_exceeded": "Check the organization spend limit.",
+    "project_spend_limit_exceeded": "Check the project spend limit.",
+    "organization_usage_limit_exceeded": "Check the organization usage limit.",
+}
+_RATE_FIELDS = (
+    "x-ratelimit-limit-requests", "x-ratelimit-remaining-requests", "x-ratelimit-reset-requests",
+    "x-ratelimit-limit-tokens", "x-ratelimit-remaining-tokens", "x-ratelimit-reset-tokens",
+    "x-ratelimit-limit-project-tokens", "x-ratelimit-remaining-project-tokens",
+    "x-ratelimit-reset-project-tokens",
+)
+
+
+def _retry_after(value: str) -> float | None:
+    if re.fullmatch(r"[0-9]{1,9}(?:\.[0-9]{1,6})?", value):
+        return float(value)
+    try:
+        return max(0.0, parsedate_to_datetime(value).timestamp() - time.time())
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def _http_diagnostics(response) -> dict:
+    from ..safety import redact
+
+    headers = getattr(response, "headers", {})
+    safe = {"http_status": response.status_code}
+    try:
+        body = response.json()
+        error = body.get("error") if isinstance(body, dict) else None
+    except ValueError:
+        error = None
+    if isinstance(error, dict):
+        for field in ("code", "type"):
+            value = error.get(field)
+            if isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9_]{1,80}", value):
+                safe[f"error_{field}"] = redact(value, include_username=True)
+    request_id = headers.get("x-request-id", "")
+    if re.fullmatch(r"req_[a-zA-Z0-9_-]{1,96}", request_id):
+        safe["request_id"] = redact(request_id, include_username=True)
+    retry_after = _retry_after(headers.get("Retry-After", ""))
+    if retry_after is not None:
+        safe["retry_after_s"] = retry_after
+    for field in _RATE_FIELDS:
+        value = headers.get(field, "")
+        if re.fullmatch(r"[0-9.hmsd]{1,32}", value):
+            safe[field] = value
+    return safe
 
 
 # Cloud providers need a key before any outbound call; never contact the vendor without one.
@@ -94,8 +152,15 @@ def _classify_provider_failure(provider: str, error: BaseException, timeout_s: f
             return LLMError(
                 f"{provider} model or endpoint was not found (HTTP 404). Check LLM_MODEL. {detail[:160]}"
             )
-        if status == 429:
-            return LLMError(f"{provider} is rate-limited (HTTP 429). {detail[:200]}")
+        if status in (429, 503):
+            diagnostics = _http_diagnostics(error.response)
+            quota = _QUOTA_ERRORS.get(diagnostics.get("error_code")) or _QUOTA_ERRORS.get(
+                diagnostics.get("error_type"))
+            diagnostics["classification"] = "quota" if quota else "temporary"
+            message = (f"{provider} API quota or billing limit reached (HTTP {status}). {quota}" if quota else
+                       f"{provider} is rate-limited (HTTP 429). Retry when capacity is available." if status == 429
+                       else f"{provider} is temporarily unavailable (HTTP {status}).")
+            return LLMError(message, diagnostics=diagnostics)
         if status is not None and status >= 500:
             return LLMError(f"{provider} is temporarily unavailable (HTTP {status}). {detail[:200]}")
         return LLMError(f"{provider} request failed (HTTP {status}): {detail[:240]}")
@@ -131,6 +196,53 @@ def vision_enabled() -> bool:
 
 
 _OPTIONAL = _contextvars.ContextVar("qpilot_optional_ai", default=False)
+_DESIGN = _contextvars.ContextVar("qpilot_design_batch", default=None)
+_PROVIDER_SLOTS = threading.Condition()
+_IN_FLIGHT: dict[str, int] = {}
+
+
+@_contextlib.contextmanager
+def _provider_slot(provider: str, deadline: float | None, log):
+    from .. import runctl
+
+    wait_until = time.monotonic() + settings.llm_timeout
+    if deadline is not None:
+        wait_until = min(wait_until, deadline)
+    with _PROVIDER_SLOTS:
+        if _IN_FLIGHT.get(provider, 0) >= settings.llm_max_in_flight and log:
+            log.emit(f"Waiting for a {provider} request slot", "queued", provider=provider)
+        while _IN_FLIGHT.get(provider, 0) >= settings.llm_max_in_flight:
+            if runctl.stopping():
+                raise LLMError(f"the run is stopping ({runctl.reason()})")
+            remaining = wait_until - time.monotonic()
+            if remaining <= 0:
+                raise LLMError(f"Timed out waiting for a {provider} request slot.",
+                               diagnostics={"classification": "queue_timeout"})
+            _PROVIDER_SLOTS.wait(min(0.25, remaining))
+        if runctl.stopping():
+            raise LLMError(f"the run is stopping ({runctl.reason()})")
+        concurrency = _IN_FLIGHT[provider] = _IN_FLIGHT.get(provider, 0) + 1
+    try:
+        yield concurrency
+    finally:
+        with _PROVIDER_SLOTS:
+            _IN_FLIGHT[provider] -= 1
+            _PROVIDER_SLOTS.notify_all()
+
+
+
+@_contextlib.contextmanager
+def design_batch(run_dir, batch_size: int):
+    """Attach provider retry and failure events to the run designing these cases."""
+    from ..live_frames import EventLog
+
+    log = EventLog(run_dir, "main", role="Test design", phase="test_design") if run_dir else None
+    token = _DESIGN.set((log, batch_size))
+    try:
+        yield
+    finally:
+        _DESIGN.reset(token)
+
 
 
 @_contextlib.contextmanager
@@ -171,16 +283,21 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
     if timeout_s is not None and timeout_s <= 0:
         raise LLMError("AI call time limit was reached.")
     deadline = time.monotonic() + timeout_s if timeout_s is not None else None
-    for attempt in range(max(1, min(3, max_attempts))):
+    attempts = max(1, min(3, max_attempts))
+    provider = settings.llm_provider
+    log, batch_size = _DESIGN.get() or (None, None)
+    for attempt in range(attempts):
         t0 = time.time()
+        concurrency = 0
         try:
             schema_args = {"response_schema": response_schema} if response_schema is not None else {}
-            if deadline is not None:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise LLMError("AI call time limit was reached.")
-                schema_args["timeout_s"] = min(settings.llm_timeout, remaining)
-            text, t_in, t_out = _ask_once(prompt, system, temperature, images or [], **schema_args)
+            with _provider_slot(provider, deadline, log) as concurrency:
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise LLMError("AI call time limit was reached.")
+                    schema_args["timeout_s"] = min(settings.llm_timeout, remaining)
+                text, t_in, t_out = _ask_once(prompt, system, temperature, images or [], **schema_args)
             if not t_in:  # provider sent no usage numbers -> estimate (~4 characters per token)
                 t_in, t_out = (len(system) + len(prompt)) // 4, len(text) // 4
             cost.record(agent, page, test, t_in, t_out, time.time() - t0, True)
@@ -191,18 +308,38 @@ def ask_llm(prompt: str, system: str = "", temperature: float = 0.2,
             busy = isinstance(cause, requests.HTTPError) and cause.response is not None \
                 and (cause.response.status_code == 429 or cause.response.status_code >= 500)
             timed_out = isinstance(cause, (requests.Timeout, requests.ConnectionError))
-            # busy (429 / 5xx): up to 3 attempts. Timeout / dropped connection: one more try only,
-            # so a slow AI can't hold up the run for long (the agent then falls back to rules)
-            wait = 10 * (attempt + 1)
-            retry_allowed = attempt + 1 < max_attempts and (deadline is None or time.monotonic() + wait < deadline)
-            if not (retry_allowed and ((busy and attempt < 2) or (timed_out and attempt == 0))):
+            diagnostics = e.diagnostics
+            if diagnostics:
+                diagnostics.update(attempts=attempt + int(concurrency > 0), concurrency=concurrency,
+                                   input_tokens=None, output_tokens=None)
+                if batch_size is not None:
+                    diagnostics["batch_size"] = batch_size
+                print(f"  [llm] {settings.llm_provider} {json.dumps(diagnostics, sort_keys=True)}", flush=True)
+            hint = diagnostics.get("retry_after_s")
+            wait = (hint if hint is not None else 2 ** attempt) + random.uniform(0.1, 0.5)
+            retry_allowed = (attempt + 1 < attempts and wait <= 60 and not runctl.stopping()
+                             and (deadline is None or time.monotonic() + wait < deadline))
+            retryable = (busy and diagnostics.get("classification") != "quota") or (timed_out and attempt == 0)
+            if not (retry_allowed and retryable):
+                if log and diagnostics:
+                    log.emit(str(e), "blocked", provider=settings.llm_provider, diagnostics=diagnostics)
                 import os
                 if os.environ.get("QA_ALLOW_RULES_FALLBACK", "1") == "0" and not _OPTIONAL.get():
-                    runctl.request_stop("ai_unavailable", "The selected AI failed and rules fallback was not approved.")
+                    reason = str(e) if diagnostics else "The selected AI failed and rules fallback was not approved."
+                    runctl.request_stop("ai_unavailable", reason)
                 raise
-            why = "did not answer in time" if timed_out else "is busy"
-            print(f"  [llm] {settings.llm_provider} {why} - retrying in {wait}s ...")
-            time.sleep(wait)
+            retry_message = f"{settings.llm_provider} retrying in {wait:.1f}s"
+            print(f"  [llm] {retry_message}", flush=True)
+            if log:
+                log.emit(retry_message, "retrying", provider=settings.llm_provider, diagnostics=diagnostics)
+            while wait > 0:
+                if runctl.stopping():
+                    raise LLMError(f"the run is stopping ({runctl.reason()})") from None
+                interval = min(wait, 0.25)
+                time.sleep(interval)
+                wait -= interval
+            if runctl.stopping():
+                raise LLMError(f"the run is stopping ({runctl.reason()})") from None
 
 
 def _raise_with_reason(r: requests.Response) -> None:
@@ -210,6 +347,9 @@ def _raise_with_reason(r: requests.Response) -> None:
     try:
         r.raise_for_status()
     except requests.HTTPError as e:
+        status = getattr(r, "status_code", None)
+        if status in (429, 503):
+            raise requests.HTTPError(f"HTTP {status}", response=r) from None
         try:
             payload = r.json()
             error = payload.get("error") if isinstance(payload, dict) else None
@@ -362,12 +502,14 @@ def _ask_once(prompt: str, system: str, temperature: float, images: list[bytes] 
 
 
 def ask_structured(prompt: str, shape, system: str = "", agent: str = "", page: str = "", test: str = "",
-                   images: list[bytes] | None = None, timeout_s: float | None = None):
+                   images: list[bytes] | None = None, timeout_s: float | None = None, *,
+                   expected_items: int | None = None):
     """Ask for JSON and VALIDATE it against `shape` (a pydantic model, or e.g. list[Model]) before anything uses it.
     A malformed or invalid answer gets ONE corrective retry - the AI is told exactly what was wrong - then LLMError
     (the agent falls back to its built-in rules). A LIST is checked item by item: the valid items are used and the
     invalid ones left out (said in the log) - one test case with a single step no longer throws away the other nine;
     only an answer without any valid item is asked again. Budget, busy / timeout retries: see ask_llm.
+    For ordered lists, expected_items enforces the count and preserves invalid items as empty positions.
     images: screenshots the AI looks at (sent again with the corrective retry)."""
     from typing import get_args, get_origin
 
@@ -384,13 +526,17 @@ def ask_structured(prompt: str, shape, system: str = "", agent: str = "", page: 
             data = extract_json(text)
             if one is None or not isinstance(data, list):
                 return adapter.validate_python(data)
+            if expected_items is not None and len(data) != expected_items:
+                raise ValueError(f"expected exactly {expected_items} ordered items; received {len(data)}")
             kept, bad = [], []
             for item in data:
                 try:
                     kept.append(one.validate_python(item))
                 except ValidationError as e:
                     bad.append(" | ".join(str(e).splitlines()[:3])[:200])
-            if bad and not kept:
+                    if expected_items is not None:
+                        kept.append(None)
+            if bad and len(bad) == len(data):
                 raise ValueError(f"none of the {len(data)} items is valid: {bad[0]}")
             if bad:
                 print(f"  [llm] {len(bad)} of {len(data)} items of the AI's answer did not match the expected structure "

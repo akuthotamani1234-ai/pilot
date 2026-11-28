@@ -572,9 +572,29 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
             access = json.loads(pause_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             access = {}
+    summary_file = Path(run_dir) / "summary.json"  # (a run cut short says why: a time limit is 'Timed Out')
+    try:
+        summ = json.loads(summary_file.read_text(encoding="utf-8")) if summary_file.is_file() and \
+            not summary_file.is_symlink() else {}
+    except (OSError, ValueError):
+        summ = {}
+    if not isinstance(summ, dict):
+        summ = {}
+    provider_failure = ""
+    if summ.get("stop_kind") == "ai_unavailable":
+        provider_failure = str(summ.get("incomplete_reason") or "The selected AI provider is unavailable.")[:500]
+        ex["provider_failure"] = provider_failure
     for cid in (only if only is not None else ex["case_ids"]):
         c = by_tc.get(cid)
-        if c is None and access.get("state") == "timed_out":
+        case_provider_failure = (c or {}).get("blocked_by_provider")
+        if case_provider_failure or (provider_failure and
+                                     (c is None or _result_status(c) in ("Not run", "Not automated", "Skipped"))):
+            status = "Blocked"
+            reason = provider_failure or str(c.get("skip_reason") or "The selected AI provider is unavailable.")[:500]
+            ex.setdefault("provider_failure", reason)
+            result = {"status": status, "reason": reason, "evidence": [], "actual": "",
+                      "run_case": str((c or {}).get("tc_id") or ""), "blocked_by_provider": True}
+        elif c is None and access.get("state") == "timed_out":
             result = {"status": "Blocked", "reason": f"Blocked: {access.get('message')} ({access.get('url')}) - "
                                                      f"{access.get('help')}"[:500],
                       "evidence": [], "actual": "", "run_case": "", "access_blocked": access.get("kind")}
@@ -657,12 +677,6 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
             db.execute("UPDATE req_executions SET data = ? WHERE tenant_id = ? AND id = ?",
                        (json.dumps(ex), tenant, execution_id))
         return ex
-    summary_file = Path(run_dir) / "summary.json"  # (a run cut short says why: a time limit is 'Timed Out')
-    try:
-        summ = json.loads(summary_file.read_text(encoding="utf-8")) if summary_file.is_file() and \
-            not summary_file.is_symlink() else {}
-    except (OSError, ValueError):
-        summ = {}
     if summ.get("incomplete"):
         reason = str(summ.get("incomplete_reason") or "")
         ex["run_incomplete"] = reason[:300]
@@ -685,6 +699,7 @@ OUTCOME_TEXT = {
     "interrupted": "Interrupted - resume it to run the remaining batches",
     "interrupted_run": "Interrupted - the Studio stopped while this execution ran; start it again",
     "automation_failed": "Execution unsuccessful - the test run itself failed",
+    "provider_blocked": "Blocked by the selected AI provider",
     "no_tests_automated": "Execution unsuccessful - no tests were automated",
     "completed_with_failures": "Completed with failures",
     "completed_with_review": "Completed - some test results need review (the test, not the website, failed)",
@@ -707,7 +722,7 @@ def execution_state(ex: dict, key: str, tally: dict) -> str:
     if ex.get("timed_out"):
         return "Timed Out"
     return {"completed": "Passed", "completed_with_failures": "Failed", "automation_failed": "Failed",
-            "no_tests_automated": "Failed", "completed_with_blocked": "Blocked"}.get(key, "Partially Completed")
+            "no_tests_automated": "Failed", "completed_with_blocked": "Blocked", "provider_blocked": "Blocked"}.get(key, "Partially Completed")
 
 
 def outcome_of(ex: dict) -> dict:
@@ -727,6 +742,8 @@ def outcome_of(ex: dict) -> dict:
         key = "running"
     elif status in ("stopped", "cancelled"):
         key = "cancelled"
+    elif ex.get("provider_failure") and not executed:
+        key = "provider_blocked"
     elif status == "interrupted" and not ex.get("batches"):
         key = "interrupted_run"
     elif status == "interrupted":

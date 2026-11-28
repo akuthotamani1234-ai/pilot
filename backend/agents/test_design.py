@@ -26,7 +26,7 @@ from ..auth import login_form  # (the login form finder lives with the login log
 from ..config import settings
 from ..excel import _ident, write_workbook
 from ..features import shown_first
-from ..llm import LLMError, ask_structured, llm_enabled, load_prompt
+from ..llm import LLMError, ask_structured, design_batch, llm_enabled, load_prompt
 from ..navigation import opener_path
 from ..observe import READING_SUBMIT  # (a search / filter form's button: it only reads)
 from ..page_status import page_testable
@@ -1741,14 +1741,18 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
     if not tests:
         return list(refused.values())
     try:
-        answer = ask_structured(load_prompt("my_tests").format(
-            n=len(tests), site=_site_summary(pages),
-            checkout_rule=(DEMO_CHECKOUT_RULE + "\n" + sandbox_rule(settings.payment_sandbox) if sandbox else
-                           DEMO_CHECKOUT_RULE if demo else NO_CHECKOUT_RULE),
-            tests="\n".join(f"{n}. {t['text']}" for n, t in
-                                                                   enumerate(tests, start=1))),
-            list[AICase], system=SYSTEM, agent="test_design", page="my tests")
+        with design_batch(run_dir, len(tests)):
+            answer = ask_structured(load_prompt("my_tests").format(
+                n=len(tests), site=_site_summary(pages),
+                checkout_rule=(DEMO_CHECKOUT_RULE + "\n" + sandbox_rule(settings.payment_sandbox) if sandbox else
+                               DEMO_CHECKOUT_RULE if demo else NO_CHECKOUT_RULE),
+                tests="\n".join(f"{n}. {t['text']}" for n, t in
+                                                                       enumerate(tests, start=1))),
+                list[AICase], system=SYSTEM, agent="test_design", page="my tests", expected_items=len(tests))
     except (LLMError, json.JSONDecodeError, ValueError) as e:
+        if isinstance(e, LLMError) and e.diagnostics:
+            print(f"  [test-design] design blocked by the AI provider: {e}", flush=True)
+            return list(refused.values()) + [dict(kept(t, f"Blocked: {e}"), blocked_by_provider=True) for t in tests]
         print(f"  [test-design] your own tests: the AI failed ({str(e)[:120]}) - they stay as not automated")
         return list(refused.values()) + [
             kept(t, f"Not automated: the AI could not turn it into steps this time ({str(e)[:80]})") for t in tests]
@@ -1756,7 +1760,7 @@ def my_test_cases(pages: list[dict], tests: list[dict], start: int, run_dir=None
     kinds = [{f["kind"] for f in page_features(p)} for p in pages]
     out = list(refused.values())
     for i, t in enumerate(tests):
-        c = answer[i].model_dump() if i < len(answer) else None
+        c = answer[i].model_dump() if i < len(answer) and answer[i] is not None else None
         if c is None:
             out.append(kept(t, "Not automated: the AI gave no steps for it"))
             continue

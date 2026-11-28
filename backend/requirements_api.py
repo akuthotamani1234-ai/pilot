@@ -119,8 +119,13 @@ def _connection(db, ctx: dict, connection_id: str, product: Product | None = Non
     return conn
 
 
-def _client(ctx: dict, conn: Connection) -> Client:
-    return Client(conn, secret=credentials.resolver(ctx["tenant"], site=conn.site_url), base_url=CLIENT_BASE_URL,
+def _client(ctx: dict, conn: Connection, *, token: str | None = None) -> Client:
+    if token is None:
+        resolver = credentials.resolver(ctx["tenant"], site=conn.site_url)
+    else:
+        def resolver(name: str) -> str:
+            return token if name == conn.token_ref else ""
+    return Client(conn, secret=resolver, base_url=CLIENT_BASE_URL,
                   max_retries=3,
                   max_wait=30.0)
 
@@ -168,7 +173,7 @@ def _check(db, ctx: dict, conn: Connection) -> dict:
     Raises the HTTPException the UI shows when it fails."""
     from .atlassian import connection_status
     token = _token(ctx, conn)
-    client = _client(ctx, conn)
+    client = _client(ctx, conn, token=token)
     try:
         if conn.product == Product.jira:
             who = jira.myself(client)
@@ -191,7 +196,7 @@ class Jobs:
         self._jobs: dict[str, dict] = {}
         self._lock = threading.Lock()
 
-    def start(self, ctx: dict, connection_id: str, mode: str, work) -> dict:
+    def start(self, ctx: dict, connection_id: str, mode: str, work, *, projects=()) -> dict:
         with self._lock:
             busy = [j for j in self._jobs.values() if j["tenant"] == ctx["tenant"] and j["status"] == "running"
                     and j["connection_id"] == connection_id]
@@ -202,7 +207,7 @@ class Jobs:
                                   key=lambda j: j["created"])[: len(self._jobs) - MAX_JOBS + 1]:
                     self._jobs.pop(old["id"], None)
             job = {"id": uuid.uuid4().hex, "tenant": ctx["tenant"], "actor": ctx["actor"],
-                   "connection_id": connection_id, "mode": mode, "status": "running", "progress": {},
+                   "connection_id": connection_id, "mode": mode, "projects": projects, "status": "running", "progress": {},
                    "result": None, "error": "", "created": time.time(), "cancel": threading.Event()}
             self._jobs[job["id"]] = job
 
@@ -222,10 +227,13 @@ class Jobs:
         threading.Thread(target=run, daemon=True, name=f"requirements-import-{job['id'][:8]}").start()
         return self.view(job)
 
-    def latest(self, tenant: str) -> dict | None:
+    def latest(self, tenant: str, connection_id: str = "", project_key: str = "") -> dict | None:
         """This workspace's newest import (running or ended) - for the workflow's Import stage."""
-        mine = [j for j in self._jobs.values() if j["tenant"] == tenant]
-        return max(mine, key=lambda j: j["created"]) if mine else None
+        with self._lock:
+            mine = [j for j in self._jobs.values() if j["tenant"] == tenant
+                    and j["mode"] != "space" and (not connection_id or j["connection_id"] == connection_id)
+                    and (not project_key or project_key in j.get("projects", ()))]
+            return max(mine, key=lambda j: j["created"]) if mine else None
 
     def get(self, ctx: dict, job_id: str) -> dict:
         job = self._jobs.get(job_id)
@@ -506,6 +514,12 @@ def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
                                         for b in ex["batches"] if b.get("run_folder")]
                                        + ([run_dir] if run_dir else []))
         current["run_folder"] = run_dir.name if run_dir else ""
+        if ex.get("provider_failure") and job.get("status") not in ("stopped", "cancelled"):
+            current["status"] = "interrupted"
+            ex["status"] = "interrupted"
+            bridge.save_execution(db, tenant, ex)
+            _PENDING.pop(ex["id"], None)
+            return ex
         nxt = scheduler.next_batch(ex)
         launch = _PENDING.get(ex["id"])
         if nxt and launch and job.get("status") not in ("stopped", "cancelled"):
@@ -776,9 +790,9 @@ def _requirement_id(source) -> str:
     return source.source_id if source.kind == SourceKind.jira_issue else f"conf-{source.source_id}"
 
 
-def _analysis_state(db, tenant: str, req_id: str) -> tuple[str, object]:
+def _analysis_state(db, tenant: str, req_id: str, source_key: str) -> tuple[str, object]:
     analysis = store.get_analysis(db, tenant, req_id)
-    if analysis is None:
+    if analysis is None or analysis.requirement.sources[0].key != source_key:
         return "not_analyzed", None
     return ("stale" if an.stale(db, tenant, analysis) else "current"), analysis
 
@@ -786,7 +800,7 @@ def _analysis_state(db, tenant: str, req_id: str) -> tuple[str, object]:
 def _item_row(db, tenant: str, row: dict, runs: dict) -> dict:
     src, content = row["source"], row["content"]
     req_id = _requirement_id(src)
-    state, analysis = _analysis_state(db, tenant, req_id)
+    state, analysis = _analysis_state(db, tenant, req_id, src.key)
     if analysis is not None:
         criteria = len(analysis.requirement.criteria)
         pending = sum(1 for s in analysis.suggestions if s.review.value == "needs_review")
@@ -992,19 +1006,20 @@ def register_requirements_api(app) -> None:
         finally:
             db.close()
         from .atlassian import connection_status
+        token = _token(ctx, conn)
         try:
-            found = jira.projects(_client(ctx, conn))
+            found = jira.projects(_client(ctx, conn, token=token))
         except (AtlassianError, ValueError) as error:
             db = _db()
             try:
-                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False,
+                connection_status.record(_statedb(db), ctx["tenant"], conn, token, False,
                                          getattr(error, "kind", "invalid"), safe_error(error))
             finally:
                 db.close()
             raise _atlassian_error(error) from None
         db = _db()
         try:
-            connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), True)
+            connection_status.record(_statedb(db), ctx["tenant"], conn, token, True)
         finally:
             db.close()
         return {"projects": found}
@@ -1115,24 +1130,27 @@ def register_requirements_api(app) -> None:
         except (AtlassianError, ValueError) as error:
             raise _atlassian_error(error) from None
 
+        projects = sync.import_projects(body.mode, body.filters, keys)
+
         def work(db, job):
             from .atlassian import connection_status
-            client = _client(ctx, conn)
+            token = _token(ctx, conn)
+            client = _client(ctx, conn, token=token)
             try:
                 result = sync.run_import(db, conn, client, tenant_id=ctx["tenant"], mode=body.mode,
                                          filters=body.filters, keys=keys, include=include, space_key=body.space_key,
                                          actor=ctx["actor"], should_stop=job["cancel"].is_set,
                                          progress=lambda r: job.__setitem__("progress", _progress(r)))
             except AtlassianError as error:  # (the import's answer is the connection's real state too)
-                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False, error.kind,
+                connection_status.record(_statedb(db), ctx["tenant"], conn, token, False, error.kind,
                                          safe_error(error))
                 raise
             if result.get("status") == "failed":  # (sync.run_import keeps the Atlassian error as "kind: message")
                 kind = str(result.get("error") or "").split(":", 1)[0].strip()
-                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False,
+                connection_status.record(_statedb(db), ctx["tenant"], conn, token, False,
                                          kind or "server", str(result.get("error") or "")[:300])
             else:
-                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), True)
+                connection_status.record(_statedb(db), ctx["tenant"], conn, token, True)
             if conf is not None and body.mode == "items":
                 conf_client = _client(ctx, conf)
                 result["confluence"] = []
@@ -1144,7 +1162,7 @@ def register_requirements_api(app) -> None:
                     except (AtlassianError, LookupError, ValueError) as error:
                         result["warnings"].append(f"{key}: linked pages not read ({safe_error(error)[:120]})")
             return result
-        job = JOBS.start(ctx, connection_id, body.mode, work)
+        job = JOBS.start(ctx, connection_id, body.mode, work, projects=projects)
         _audit(ctx, "import.start", True, connection=connection_id, mode=body.mode, job=job["id"])
         return job
 
@@ -1177,7 +1195,7 @@ def register_requirements_api(app) -> None:
     # -- requirements
     @app.get("/api/requirements/items")
     def items(q: str = "", kind: str = "", type: str = "", status: str = "", priority: str = "",
-              analysis: str = "", connection_id: str = "", space: str = "", missing: bool = False,
+              analysis: str = "", connection_id: str = "", project: str = "", space: str = "", missing: bool = False,
               sort: str = "key", page: int = 1, size: int = 25, authorization: str | None = A,
               x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")
@@ -1188,6 +1206,9 @@ def register_requirements_api(app) -> None:
             rows = store.list_sources(db, ctx["tenant"], connection_id, include_missing=True)
             if kind:
                 rows = [r for r in rows if r["source"].kind.value == kind]
+            if project:
+                selected_project = project.strip().upper()
+                rows = [r for r in rows if store.source_project(r) == selected_project]
             rows = [r for r in rows if missing or r["present"]]
             words = q.strip().lower()
             if words:
@@ -1224,7 +1245,7 @@ def register_requirements_api(app) -> None:
                 req = an.build_requirement(db, ctx["tenant"], key)
             except (LookupError, ValueError) as error:
                 raise HTTPException(409, safe_error(error)) from None
-            state, analysis = _analysis_state(db, ctx["tenant"], req.id)
+            state, analysis = _analysis_state(db, ctx["tenant"], req.id, key)
             stale = an.stale(db, ctx["tenant"], analysis) if analysis else []
             linked = []
             for link in store.links_from(db, ctx["tenant"], key) + [
@@ -1289,7 +1310,7 @@ def register_requirements_api(app) -> None:
             row = store.get_source(db, ctx["tenant"], key)
             if not row:
                 raise HTTPException(404, "Not imported in your workspace.")
-            analysis = store.get_analysis(db, ctx["tenant"], _requirement_id(row["source"]))
+            _, analysis = _analysis_state(db, ctx["tenant"], _requirement_id(row["source"]), key)
             if analysis is None:
                 raise HTTPException(404, "Not analysed yet.")
             return _analysis_view(db, ctx["tenant"], analysis)
@@ -1310,6 +1331,8 @@ def register_requirements_api(app) -> None:
             if not row:
                 raise HTTPException(404, "Not imported in your workspace.")
             req_id = _requirement_id(row["source"])
+            if _analysis_state(db, ctx["tenant"], req_id, key)[1] is None:
+                raise HTTPException(404, "Not analysed yet for this connection.")
             try:
                 updated = an.review(db, ctx["tenant"], req_id, suggestion_id, body.answer, ctx["reviewer"],
                                     edit=body.edit.model_dump() if body.edit else None)
@@ -1372,8 +1395,11 @@ def register_requirements_api(app) -> None:
             row = store.get_source(db, ctx["tenant"], key)
             if not row:
                 raise HTTPException(404, "Not imported in your workspace.")
+            req_id = _requirement_id(row["source"])
+            if _analysis_state(db, ctx["tenant"], req_id, key)[1] is None:
+                raise HTTPException(409, "Analyse it and accept test ideas for this connection first.")
             try:
-                out = bridge.generate(db, ctx["tenant"], _requirement_id(row["source"]), actor=ctx["actor"])
+                out = bridge.generate(db, ctx["tenant"], req_id, actor=ctx["actor"])
             except LookupError as error:
                 raise HTTPException(409, safe_error(error) + " - analyse it and accept test ideas first") from None
             except ValueError as error:
@@ -1627,6 +1653,7 @@ def register_requirements_api(app) -> None:
             nxt.update(status="running", run_id=str(job))
             from . import server as _server
             ex.update(status="running", run_id=str(job), studio_boot=_server.BOOT_ID)
+            ex.pop("provider_failure", None)
             _PENDING[ex["id"]] = launch
             bridge.save_execution(db, ctx["tenant"], ex)
         finally:
@@ -1712,19 +1739,27 @@ def register_requirements_api(app) -> None:
             db.close()
 
     # -- the guided workflow and the application under test
-    def _connection_state(db, ctx: dict) -> str:
+    def _connection_state(db, ctx: dict, connection_id: str = "") -> str:
         """The Jira connection for the workflow: 'connected' only after Atlassian really answered (a saved token
         is 'unverified'; a refused one 'failed')."""
         from .atlassian import connection_status
-        states = [_conn_state(db, ctx, c) for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
+        states = [_conn_state(db, ctx, c) for c in store.list_connections(db, ctx["tenant"])
+                  if c.product == Product.jira and (not connection_id or c.id == connection_id)]
         return connection_status.summary(states, "jira")["state"]
 
     def _connection_ready(db, ctx: dict) -> bool:
         return _connection_state(db, ctx) == "connected"
 
     def _workflow_answer(db, ctx: dict, draft: dict) -> dict:
-        conn = _connection_state(db, ctx)
-        imp = JOBS.latest(ctx["tenant"])
+        connection_id = draft.get("connection_id") or ""
+        project = (draft.get("project_key") or "").upper()
+        conn = _connection_state(db, ctx, connection_id)
+        imp = JOBS.latest(ctx["tenant"], connection_id, project)
+        if imp is None:
+            recent = store.sync_runs(db, ctx["tenant"], connection_id, limit=100)
+            imp = next((row for row in recent if row["mode"] != "space"
+                        and (not project or project in row["result"].get("projects", []))), {})
+            imp = {**imp, "error": (imp.get("result") or {}).get("error", "")}
         if draft.get("execution_id"):  # (its real state first: a run whose job is gone is never 'running')
             ex = bridge.get_execution(db, ctx["tenant"], draft["execution_id"])
             if ex:

@@ -631,7 +631,7 @@ def test_defects_and_write_back_in_chromium_never_send_while_off(browser, studio
         ctx.close()
 
 
-def _studio_with_a_failed_run(studio, monkeypatch, tmp_path) -> dict:
+def _studio_with_a_failed_run(studio, monkeypatch, tmp_path, *, provider_failure="", batched=False) -> dict:
     """QPL-2 imported, analysed, two ideas accepted, test cases generated, one execution whose run failed TC-QPL-2-1
     (the run launcher is replaced; its result file is real JSON read by the bridge). Returns the execution."""
     import json
@@ -640,6 +640,10 @@ def _studio_with_a_failed_run(studio, monkeypatch, tmp_path) -> dict:
     import httpx
 
     from backend import server
+    from backend.atlassian import scheduler
+
+    if batched:
+        monkeypatch.setattr(scheduler, "BATCH_SIZE", 1)
     monkeypatch.delenv("QPILOT_JIRA_WRITEBACK", raising=False)
     h = {"X-Agentic-QA": "1"}
     with httpx.Client(base_url=studio.url, headers=h, timeout=30) as c:
@@ -658,15 +662,23 @@ def _studio_with_a_failed_run(studio, monkeypatch, tmp_path) -> dict:
             server.jobs.__setitem__(5252, {"id": 5252, "status": "running", "run": ""}) or {"id": 5252}))
         ex = c.post("/api/requirements/executions", json={
             "strategy": "requirements", "scope": {"requirements": ["QPL-2"]},
-            "target": {"url": "https://www.saucedemo.com/", "authorized": True}}).json()["execution"]
+            "target": {"url": "https://www.saucedemo.com/", "authorized": True,
+                       "api_key": "fixture-backend-key" if batched else ""}}).json()["execution"]
         run = tmp_path / "runs" / "ui_fail"
         run.mkdir(parents=True)
-        (run / "test_cases.json").write_text(json.dumps([{
-            "requirement_test": "TC-QPL-2-1", "execution_status": "Failed", "actual_result": "the dashboard never opened",
-            "failure_category": "Application defect (potential website bug)", "confidence": "high"}]))
+        if provider_failure:
+            (run / "summary.json").write_text(json.dumps({
+                "incomplete": True, "stop_kind": "ai_unavailable", "incomplete_reason": provider_failure,
+            }))
+            c.put("/api/requirements/workflow/draft", json={"changes": {"execution_id": ex["id"]}})
+        else:
+            (run / "test_cases.json").write_text(json.dumps([{
+                "requirement_test": "TC-QPL-2-1", "execution_status": "Failed", "actual_result": "the dashboard never opened",
+                "failure_category": "Application defect (potential website bug)", "confidence": "high"}]))
         monkeypatch.setattr(server, "_plain_run_dir", lambda name: run)
         server.jobs[5252].update(status="done", run="ui_fail")
-        assert c.get(f"/api/requirements/executions/{ex['id']}").json()["execution"]["status"] == "finished"
+        status = c.get(f"/api/requirements/executions/{ex['id']}").json()["execution"]["status"]
+        assert status == ("interrupted" if batched else "finished")
     return ex
 
 
@@ -860,4 +872,85 @@ def test_live_execution_shows_every_browser_and_every_running_execution(browser,
         expect(figures.first).to_contain_text("test browser")
         assert not errors, errors
     finally:
+        ctx.close()
+
+
+def test_provider_block_has_an_explanation_and_a_targeted_retry(browser, studio, monkeypatch, tmp_path):
+    import json
+    import os
+    from pathlib import Path
+
+    from backend import server
+
+    reason = "openai API quota or billing limit reached (HTTP 429). Check the API billing balance."
+    _studio_with_a_failed_run(studio, monkeypatch, tmp_path, provider_failure=reason)
+    ctx, page, _errors = open_page(browser, studio)
+    try:
+        page.goto(studio.url + "/requirements#agents")
+        expect(page.locator("#lvScreens")).to_contain_text(reason)
+        expect(page.locator("#lvScreens figure")).to_have_count(0)
+        expect(page.locator("#lvCases")).to_contain_text("Blocked")
+        expect(page.locator("#lvAgents")).to_contain_text(reason)
+        expect(page.locator("#lvLog")).to_contain_text(reason)
+        page.reload()
+        expect(page.locator("#lvCases")).to_contain_text("Blocked")
+        shots = os.environ.get("QPILOT_UI_SCREENSHOTS")
+        if shots:
+            page.screenshot(path=f"{shots}/provider-blocked-live.png", full_page=True)
+        page.goto(studio.url + "/requirements#reports")
+        expect(page.locator("#rpBox")).to_contain_text("nothing executed")
+        expect(page.locator("#rpBox")).to_contain_text(reason)
+        if shots:
+            page.screenshot(path=f"{shots}/provider-blocked-report.png", full_page=True)
+        with page.expect_download() as downloaded:
+            page.get_by_role("button", name="Export Report").click()
+        exported = json.loads(Path(downloaded.value.path()).read_text())
+        assert exported["execution"]["tally"]["executed"] == 0
+        assert exported["execution"]["pass_rate"] is None
+        page.get_by_role("button", name="Retry Provider-Blocked Tests").click()
+        expect(page.locator('input[name="exScope"][value="selected"]')).to_be_checked()
+    finally:
+        server.jobs.pop(5252, None)
+        ctx.close()
+
+
+def test_hash_navigation_during_startup_loads_integration_cards_once(browser, studio):
+    startup = []
+    connection_requests = []
+    ctx = browser.new_context()
+    page = ctx.new_page()
+    try:
+        page.route("**/api/requirements/capabilities", lambda pending: startup.append(pending))
+        page.on("request", lambda request: connection_requests.append(request.url)
+                if request.url.endswith("/api/requirements/connections") else None)
+        with page.expect_request("**/api/requirements/capabilities"):
+            page.goto(studio.url + "/requirements", wait_until="domcontentloaded")
+        page.evaluate("""() => new Promise(resolve => {
+          window.addEventListener("hashchange", () => resolve(), {once: true});
+          location.hash = "integrations";
+        })""")
+        startup[0].continue_()
+        expect(page.locator("#jiraSite")).to_be_visible()
+        assert len(connection_requests) == 1
+    finally:
+        ctx.close()
+
+
+def test_resuming_a_provider_block_restarts_live_polling(browser, studio, monkeypatch, tmp_path):
+    from backend import server
+
+    _studio_with_a_failed_run(studio, monkeypatch, tmp_path, batched=True,
+                              provider_failure="Provider quota exhausted (HTTP 429)")
+    ctx, page, _errors = open_page(browser, studio)
+    try:
+        page.goto(studio.url + "/requirements#agents")
+        expect(page.locator("#liveSub")).to_contain_text("Blocked")
+        page.get_by_label("Provider API key").fill("replacement-fixture-key")
+        with page.expect_request("**/resume") as sent:
+            page.get_by_role("button", name="Resume", exact=True).click()
+        assert sent.value.post_data_json == {"api_key": "replacement-fixture-key"}
+        expect(page.locator("#liveSub")).to_contain_text("Running")
+        expect(page.get_by_label("Provider API key")).to_be_hidden()
+    finally:
+        server.jobs.pop(5252, None)
         ctx.close()

@@ -729,6 +729,8 @@ def analyze(db, tenant_id: str, root_key: str, *, ai: str = "off", actor: str = 
         raise ValueError("ai must be 'off' or 'auto'")
     requirement = build_requirement(db, tenant_id, root_key)
     previous = store.get_analysis(db, tenant_id, requirement.id)
+    if previous and previous.requirement.sources[0].key != root_key:
+        raise ValueError("This requirement identifier already belongs to an analysis from another connection.")
     kept = {s.fingerprint: s for s in (previous.suggestions if previous else []) if s.fingerprint}
     issues, conflicts = check(requirement)
     if previous:  # (a person's resolution of an unchanged conflict stays)

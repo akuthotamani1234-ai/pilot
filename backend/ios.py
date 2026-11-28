@@ -92,7 +92,10 @@ def environment_problems(c: IosConfig, run=subprocess.run, http_get=None) -> lis
     elif not c.real_device:
         try:
             booted = run(["xcrun", "simctl", "list", "devices", "booted"], capture_output=True, text=True, timeout=20)
-            if "Booted" not in booted.stdout and not c.udid:
+            if booted.returncode:
+                problems.append("iOS testing needs macOS with Xcode and a working simctl command. Select the "
+                                "full Xcode installation with xcode-select.")
+            elif "Booted" not in booted.stdout and not c.udid:
                 problems.append("No iOS simulator is booted: start one in Xcode (or 'xcrun simctl boot <udid>').")
         except (OSError, subprocess.TimeoutExpired):
             problems.append("The iOS simulators could not be listed (xcrun simctl).")

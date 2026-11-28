@@ -1525,7 +1525,7 @@ function copyCode(b) {{
         "tokens": cost["tokens_in"] + cost["tokens_out"], "llm": f"{cost['provider']} {cost['model']}".strip(),
         "run_seconds": cost["run_seconds"],
         "incomplete": bool(state.get("incomplete")), "incomplete_reason": state.get("incomplete_reason", ""),
-        "stopped_at": state.get("stopped_at", ""), "limits_hit": limits,
+        "stop_kind": state.get("stop_kind", ""), "stopped_at": state.get("stopped_at", ""), "limits_hit": limits,
         "environment": cfg.environment, "writes": cfg.writes_note, "coverage_card": card, "seen_by_ai": seen_summary,
         "coverage_confidence": confidence,
         "result_status_counts": clarity["result_status_counts"],
