@@ -141,9 +141,10 @@
         tile(o.stale_analyses, "analyses out of date", o.stale_analyses ? "warn" : ""),
         tile(o.missing, "no longer in Atlassian", o.missing ? "warn" : "")));
       $("ovConnections").replaceChildren(...kids(o.connections.length
-        ? h("ul", { class: "rq-list" }, o.connections.map((c) => h("li", {}, h("b", { text: c.id }), ` ${c.product} · ${c.site_url} `,
-            c.credential ? badge("token set", "ok") : badge("no token", "warn"))))
+        ? h("ul", { class: "rq-list" }, o.connections.map((c) => h("li", { "data-conn": c.id }, h("b", { text: c.id }), ` ${c.product} · ${c.site_url} `,
+            connBadge(c.state, c.state_message))))
         : h("p", { class: "small" }, "No site connected yet. ", h("a", { href: "#integrations", text: "Connect Jira" }), ".")));
+      verifyConnections();
       const last = o.last_import;
       $("ovSync").replaceChildren(...kids(last ? h("dl", { class: "rq-kv" },
         h("dt", { text: "Finished" }), h("dd", { text: when(last.finished_at) }),
@@ -156,6 +157,23 @@
       navCount(o.pending_reviews);
     } catch (e) { stats.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); banner(e.message); }
     finally { stats.removeAttribute("aria-busy"); }
+  }
+  // asks Atlassian (backend: /connections/status?verify=true) and shows Jira and Confluence separately; when the
+  // Studio itself does not answer, every connection reads "Unable to verify" - never a green one from earlier
+  async function verifyConnections() {
+    const fresh = newest("verify");
+    let r = null;
+    try { r = await api("/connections/status?verify=true"); } catch (e) { r = null; }
+    if (!fresh()) return;
+    const by = Object.fromEntries(((r && r.connections) || []).map((c) => [c.id, c]));
+    document.querySelectorAll("#ovConnections li[data-conn], .rq-conn[data-conn]").forEach((el) => {
+      const c = by[el.dataset.conn], old = el.querySelector(".rq-badge[data-state]");
+      if (old) old.replaceWith(connBadge(r ? (c ? c.state : "not_connected") : "unknown", r ? (c && c.message) : "The Studio did not answer: the connection state could not be verified."));
+    });
+    const sum = $("ovConnSummary");
+    if (sum) sum.replaceChildren(...kids(h("span", {}, "Jira: ", connBadge(r ? r.jira.state : "unknown", r && r.jira.message)),
+      " ", h("span", {}, "Confluence: ", connBadge(r ? r.confluence.state : "unknown", r && r.confluence.message))));
+    if (r) refreshWorkflow();
   }
   function actionsPanel(caps) {
     const coming = (S.caps && S.caps.coming) || {};
@@ -170,7 +188,12 @@
       caps.traceability ? go("View traceability", "story → test → real result", "#traceability") : later("traceability", "Traceability"),
       caps.defects ? go("Defects and write-back", caps.jira_write_back ? "approve and send Jira updates" : "defects; Jira writes are off", "#writeback") : later("jira_write_back", "Jira write-back")));
   }
-  const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", interrupted: "warn", completed_with_unautomated: "warn",
+  // a connection's REAL state (backend connection_status.py): a saved token is never shown as connected
+  const CONN_STATE = { connected: ["Connected", "ok"], unverified: ["Saved - not verified", "warn"], failed: ["Connection failed", "bad"],
+    unreachable: ["Unable to reach Atlassian", "warn"], not_configured: ["Not connected", ""], not_connected: ["Not connected", ""],
+    unknown: ["Unable to verify", "warn"] };
+  const connBadge = (st, msg) => { const [label, kind] = CONN_STATE[st] || CONN_STATE.unknown; const b = badge(label, kind); if (msg) b.title = msg; b.dataset.state = st || "unknown"; return b; };
+  const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", interrupted: "warn", interrupted_run: "warn", completed_with_unautomated: "warn",
     completed_with_blocked: "warn", completed_with_review: "info", completed_with_failures: "bad", no_tests_automated: "bad", automation_failed: "bad" };
   const outcomeBadge = (ex) => badge(ex.outcome_text || ex.status, OUTCOME_KIND[ex.outcome] || "");
   const tallyText = (ex) => { const t = ex.tally; if (!t) return "";
@@ -205,6 +228,7 @@
           connCard(p, null, mine.length, freeId(p))));
       }
       box.replaceChildren(...kids(...cards));
+      verifyConnections();
     } catch (e) { if (fresh()) box.replaceChildren(...kids(h("p", { class: "small", text: e.message }))); }
   }
   function connCard(product, conn, n = 0, newId = "") {
@@ -233,11 +257,20 @@
         const token = tokenInput.value.trim();
         tokenInput.value = "";  // (the token leaves the page now; it is never kept)
         if (token) await api(`/connections/${encodeURIComponent(id)}/token`, { method: "PUT", body: { token } });
-        status.textContent = token ? "Saved. Use “Test connection” to check it." : saved.notice || "Saved. Use “Test connection” to check it.";
+        // saved is not connected: Atlassian is asked right away, and only its answer turns the connection green
+        let checked = "";
+        if (token || (!moved && conn && conn.credential && conn.credential.configured)) {  // (a moved site: its old token is never sent)
+          status.textContent = "Saved. Checking the connection with Atlassian…";
+          try {
+            const t = await api(`/connections/${encodeURIComponent(id)}/test`, { method: "POST" });
+            checked = product === "jira" ? `Connected as ${t.account}. ${plural(t.projects, "project")} visible. Read-only.` : `Connected. ${plural(t.spaces, "space")} visible. Read-only.`;
+          } catch (err) { checked = `Saved, but the connection failed: ${err.message}`; }
+        }
         await integrations();
+        refreshWorkflow();
         const card = [...document.querySelectorAll(".rq-conn")].find((c) => c.dataset.conn === id);
         const out = card && card.querySelector("[role=status]");
-        if (out) out.textContent = token ? "Saved with its token. Use “Test connection” to check it." : (saved.notice || "Saved. Paste the API token for this site, then use “Test connection”.");
+        if (out) out.textContent = checked || (saved.notice || "Saved. Paste the API token for this site - the connection is checked when it is saved.");
       } catch (err) { tokenInput.value = ""; status.textContent = err.message; }
     } },
       h("label", { for: site.id }, "Site address", site),
@@ -254,8 +287,9 @@
         status.textContent = "Testing…";
         try { const r = await api(`/connections/${encodeURIComponent(id)}/test`, { method: "POST" });
           status.textContent = product === "jira" ? `Connected as ${r.account}. ${plural(r.projects, "project")} visible. Read-only. ` : `Connected. ${plural(r.spaces, "space")} visible. Read-only.`;
-          if (product === "jira") { status.append(h("a", { class: "primary rq-action-link", href: "#import", text: "Continue to Import" })); refreshWorkflow(); }
+          if (product === "jira") status.append(h("a", { class: "primary rq-action-link", href: "#import", text: "Continue to Import" }));
         } catch (err) { status.textContent = err.message; }
+        verifyConnections();  // (the card's state badge and the workflow follow the answer: green, or failed)
       } }),
       h("button", { class: "secondary", type: "button", text: jira ? "Discover projects" : "Discover spaces", onclick: async () => {
         discovery.textContent = "Loading…";
@@ -282,8 +316,8 @@
       } })) : null;
 
     return h("section", { class: "lab-card rq-conn", "aria-label": name, "data-conn": id },
-      h("h3", {}, name, conn ? badge("configured", "info") : badge("not connected"), badge("read-only", "info"),
-        conn ? badge(credText, cred.configured ? "ok" : "warn") : null),
+      h("h3", {}, name, connBadge(conn ? (conn.status || {}).state : "not_connected", conn && (conn.status || {}).message),
+        badge("read-only", "info"), conn ? badge(credText, cred.configured ? "info" : "warn") : null),
       conn ? h("p", { class: "small" }, `Last successful import: ${when(conn.last_success)}`) : null,
       save, actions, status, discovery);
   }
@@ -1526,23 +1560,36 @@
   function paintWorkflow() {
     if (!WF.state) return;
     const done = WF.state.done;
+    // each stage's colour comes from the backend's facts (workflow.stage_status): grey not started, blue running,
+    // green done, red failed, orange blocked / needs attention - never green because Jira connected
+    const stages = WF.state.stages || {};
+    const ST = ["pending", "running", "done", "failed", "blocked", "attention"];
+    const STATE_WORD = { pending: "not started", running: "in progress", done: "done", failed: "failed", blocked: "blocked", attention: "needs attention" };
+    const stOf = (step) => (stages[step] && stages[step].status) || (done[step] ? "done" : "pending");
     for (const link of navigation) {
       const step = VIEW_STEP[link.dataset.view];
-      link.classList.toggle("done", Boolean(step && done[step]));
+      const st = step ? stOf(step) : "";
+      link.classList.toggle("done", st === "done");
+      ST.forEach((k) => link.classList.toggle(`st-${k}`, st === k && k !== "pending"));
       const name = link.querySelector(".rq-nav-text").textContent;
-      link.title = step && done[step] ? `${name} — done` : name;
+      const why = step && stages[step] && stages[step].reason ? `: ${stages[step].reason}` : "";
+      link.title = step ? `${name} — ${STATE_WORD[st]}${why}` : name;
     }
     const cur = VIEW_STEP[S.view];
     $("wfSteps").hidden = !cur; $("wfNav").hidden = !cur;
     if (!cur) return;
     const idx = WF.steps.indexOf(cur);
-    const nDone = WF.steps.filter((s) => done[s]).length;
+    const nDone = WF.steps.filter((s) => stOf(s) === "done").length;
     $("wfProgress").textContent = `Workflow step ${idx + 1} of ${WF.steps.length} · ${nDone} of ${WF.steps.length} steps done`
       + (draftReqs().length ? ` · ${draftReqs().join(", ")}` : "");
     $("wfBar").style.width = `${Math.round((100 * nDone) / WF.steps.length)}%`;
-    $("wfList").replaceChildren(...WF.steps.map((s, i) => h("li", { class: `${done[s] ? "done" : ""} ${s === cur ? "current" : ""}`.trim() },
-      h("a", { href: `#${STEP_VIEW[s]}`, "aria-current": s === cur ? "step" : null, "aria-label": `${STEP_LABEL[s]}${done[s] ? " (done)" : ""}` },
-        h("span", { class: "n", "aria-hidden": "true", text: done[s] ? "✓" : String(i + 1) }), STEP_LABEL[s]))));
+    $("wfList").replaceChildren(...WF.steps.map((s, i) => {
+      const st = stOf(s), why = (stages[s] && stages[s].reason) || "";
+      return h("li", { class: `${st === "done" ? "done" : ""} st-${st} ${s === cur ? "current" : ""}`.trim(), "data-status": st },
+        h("a", { href: `#${STEP_VIEW[s]}`, "aria-current": s === cur ? "step" : null, title: why || STATE_WORD[st],
+          "aria-label": `${STEP_LABEL[s]} (${STATE_WORD[st]}${why ? ": " + why : ""})` },
+          h("span", { class: "n", "aria-hidden": "true", text: { done: "✓", failed: "!", blocked: "–", attention: "!", running: "…" }[st] || String(i + 1) }), STEP_LABEL[s]));
+    }));
     const prev = WF.steps[idx - 1];
     $("wfBack").hidden = !prev;
     $("wfBack").textContent = prev ? `Back: ${STEP_LABEL[prev]}` : "Back";

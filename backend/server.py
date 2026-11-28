@@ -154,6 +154,9 @@ _mount_dashboard_assets()
 
 jobs: dict[int, dict] = {}
 lock = threading.Lock()
+# this Studio process: a job number is only meaningful in the process that started it (numbers start again at 1
+# after a restart, so an execution must never read another process's job with the same number)
+BOOT_ID = __import__("uuid").uuid4().hex
 from backend.privacy import (  # noqa: E402 - workspace and application state are initialized above
     PrivacyError,
     apply_worker_policy,

@@ -71,9 +71,10 @@ NEEDS = (("a test account (username and password)", re.compile(r"\b(log ?in|sign
 def connect(path=None):
     db = store.connect(path)
     db.executescript(SCHEMA)
-    from . import automations, prerequisites
+    from . import automations, connection_status, prerequisites
     prerequisites.connect_schema(db)
     automations.connect_schema(db)
+    connection_status.connect_schema(db)
     return db
 
 
@@ -435,11 +436,11 @@ def plan(db, tenant: str, case_ids: list[str], strategy: str, target: dict, *, a
     return {"execution": execution, "requirement_tests": tests}
 
 
-def attach_run(db, tenant: str, execution_id: str, run_id: str, status: str = "running") -> None:
+def attach_run(db, tenant: str, execution_id: str, run_id: str, status: str = "running", boot: str = "") -> None:
     ex = get_execution(db, tenant, execution_id)
     if not ex:
         raise LookupError(execution_id)
-    ex.update(run_id=run_id, status=status, started_at=_now())
+    ex.update(run_id=run_id, status=status, started_at=_now(), **({"studio_boot": boot} if boot else {}))
     with db:
         db.execute("UPDATE req_executions SET status = ?, run_id = ?, data = ? WHERE tenant_id = ? AND id = ?",
                    (status, run_id, json.dumps(ex), tenant, execution_id))
@@ -581,7 +582,9 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
         elif c is None:
             status = "Cancelled" if run_status in ("stopped", "cancelled") else "Not run"
             result = {"status": status, "reason": "the run ended before this test case was designed or executed"
-                      if run_status in ("stopped", "cancelled") else "the run did not produce this test case",
+                      if run_status in ("stopped", "cancelled") else
+                      "the Studio stopped (restart / crash) while this execution ran, before this test case ran"
+                      if run_status == "interrupted" else "the run did not produce this test case",
                       "evidence": [], "actual": "", "run_case": ""}
         else:
             status = _result_status(c)
@@ -670,6 +673,7 @@ OUTCOME_TEXT = {
     "running": "Running",
     "cancelled": "Cancelled",
     "interrupted": "Interrupted - resume it to run the remaining batches",
+    "interrupted_run": "Interrupted - the Studio stopped while this execution ran; start it again",
     "automation_failed": "Execution unsuccessful - the test run itself failed",
     "no_tests_automated": "Execution unsuccessful - no tests were automated",
     "completed_with_failures": "Completed with failures",
@@ -697,6 +701,8 @@ def outcome_of(ex: dict) -> dict:
         key = "running"
     elif status in ("stopped", "cancelled"):
         key = "cancelled"
+    elif status == "interrupted" and not ex.get("batches"):
+        key = "interrupted_run"
     elif status == "interrupted":
         key = "interrupted"
     elif status == "failed" and not executed:

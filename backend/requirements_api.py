@@ -146,6 +146,44 @@ def _public(conn: Connection, tenant: str) -> dict:
     return data
 
 
+def _token(ctx: dict, conn: Connection) -> str:
+    return credentials.resolver(ctx["tenant"], site=conn.site_url)(conn.token_ref) or ""
+
+
+def _conn_state(db, ctx: dict, conn: Connection) -> dict:
+    """Where this connection stands - from the last REAL call to Atlassian (connection_status.py), never from a saved
+    token alone."""
+    from .atlassian import connection_status
+    return connection_status.state(_statedb(db), ctx["tenant"], conn, _token(ctx, conn))
+
+
+def _statedb(db):
+    from .atlassian import connection_status
+    connection_status.connect_schema(db)
+    return db
+
+
+def _check(db, ctx: dict, conn: Connection) -> dict:
+    """Ask Atlassian now (Jira: who am I + projects; Confluence: spaces), record the outcome, return the detail.
+    Raises the HTTPException the UI shows when it fails."""
+    from .atlassian import connection_status
+    token = _token(ctx, conn)
+    client = _client(ctx, conn)
+    try:
+        if conn.product == Product.jira:
+            who = jira.myself(client)
+            detail = {"account": who["display_name"] or who["account_id"], "active": who["active"],
+                      "projects": len(jira.projects(client))}
+        else:
+            detail = {"spaces": len(confluence.spaces(client))}
+    except (AtlassianError, ValueError) as error:
+        kind = getattr(error, "kind", "invalid")
+        connection_status.record(_statedb(db), ctx["tenant"], conn, token, False, kind, safe_error(error))
+        raise _atlassian_error(error) from None
+    connection_status.record(_statedb(db), ctx["tenant"], conn, token, True)
+    return detail
+
+
 # ---------------------------------------------------------------- import jobs (background, cancellable)
 
 class Jobs:
@@ -183,6 +221,11 @@ class Jobs:
                 db.close()
         threading.Thread(target=run, daemon=True, name=f"requirements-import-{job['id'][:8]}").start()
         return self.view(job)
+
+    def latest(self, tenant: str) -> dict | None:
+        """This workspace's newest import (running or ended) - for the workflow's Import stage."""
+        mine = [j for j in self._jobs.values() if j["tenant"] == tenant]
+        return max(mine, key=lambda j: j["created"]) if mine else None
 
     def get(self, ctx: dict, job_id: str) -> dict:
         job = self._jobs.get(job_id)
@@ -406,17 +449,28 @@ def _scope_cases(db, tenant: str, scope: ExecutionScope) -> list[str]:
     return list(dict.fromkeys(chosen))
 
 
+def _job_of(ex: dict) -> dict | None:
+    """The Studio job running this execution - None when it is gone, or when its number belongs to another Studio
+    process (job numbers start again after a restart: an execution must never show or collect a foreign run)."""
+    from . import server
+    if ex.get("studio_boot") and ex["studio_boot"] != server.BOOT_ID:
+        return None
+    return server.jobs.get(int(ex["run_id"])) if str(ex.get("run_id", "")).isdigit() else None
+
+
 def _settle_execution(db, tenant: str, ex: dict) -> dict:
     """A running execution whose Qpilot run has ended: collect its real results now (idempotent). A batched execution
     collects the batch, then starts the next one - or, after a Studio restart, is left 'interrupted' (resumable)."""
     if ex.get("status") not in ("running", "queued") or not str(ex.get("run_id", "")).isdigit():
         return ex
-    from . import server
-    job = server.jobs.get(int(ex["run_id"]))
+    job = _job_of(ex)
     if ex.get("batches"):
         return _settle_batch(db, tenant, ex, job)
-    if job is None or job.get("status") == "running":
+    if job is None:  # (the Studio restarted: that run is gone - never shown as running, never another run's job)
+        return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), "interrupted")
+    if job.get("status") == "running":
         return ex
+    from . import server
     run_dir = server._plain_run_dir(str(job.get("run"))) if job.get("run") else None
     if run_dir is None:
         return bridge.collect(db, tenant, ex["id"], Path("/nonexistent"), job.get("status", "failed"))
@@ -463,7 +517,7 @@ def _settle_batch(db, tenant: str, ex: dict, job: dict | None) -> dict:
                 bridge.save_execution(db, tenant, ex)
                 return ex
             nxt.update(status="running", run_id=str(new_job))
-            ex["run_id"] = str(new_job)
+            ex["run_id"], ex["studio_boot"] = str(new_job), server.BOOT_ID
             bridge.save_execution(db, tenant, ex)
             _watch(tenant, ex["id"], new_job)
             return ex
@@ -787,6 +841,7 @@ def register_requirements_api(app) -> None:
             for c in conns:
                 item = _public(c, ctx["tenant"])
                 item["last_success"] = store.last_success(db, ctx["tenant"], c.id)
+                item["status"] = _conn_state(db, ctx, c)
                 out.append(item)
             from .atlassian.cli import legacy_write_status
             legacy = legacy_write_status()
@@ -888,19 +943,45 @@ def register_requirements_api(app) -> None:
             conn = _connection(db, ctx, connection_id)
         finally:
             db.close()
-        client = _client(ctx, conn)
+        db = _db()
         try:
-            if conn.product == Product.jira:
-                who = jira.myself(client)
-                detail = {"account": who["display_name"] or who["account_id"], "active": who["active"],
-                          "projects": len(jira.projects(client))}
-            else:
-                detail = {"spaces": len(confluence.spaces(client))}
-        except (AtlassianError, ValueError) as error:
-            _audit(ctx, "connection.test", False, connection=connection_id, kind=getattr(error, "kind", "invalid"))
-            raise _atlassian_error(error) from None
+            try:
+                detail = _check(db, ctx, conn)
+            except HTTPException as error:
+                kind = error.detail.get("kind", "invalid") if isinstance(error.detail, dict) else "invalid"
+                _audit(ctx, "connection.test", False, connection=connection_id, kind=kind)
+                raise
+        finally:
+            db.close()
         _audit(ctx, "connection.test", True, connection=connection_id)
-        return {"ok": True, "read_only": True, **detail}
+        return {"ok": True, "read_only": True, "state": "connected", **detail}
+
+    @app.get("/api/requirements/connections/status")
+    def connection_states(verify: bool = False, authorization: str | None = A, x_qa_token: str | None = Q):
+        """Every connection's real state (connection_status.py), Jira and Confluence separately. verify=true asks
+        Atlassian again for every connection that has a token and is unverified or checked more than 10 minutes ago
+        (the Studio opening, a refresh) - a saved token alone is never 'connected'."""
+        from .atlassian import connection_status
+        ctx = _context(authorization, x_qa_token, "run.read")
+        db = _db()
+        try:
+            conns = _safe_list(db, ctx)
+            states = []
+            for c in conns:
+                st = _conn_state(db, ctx, c)
+                if verify and st["state"] != "not_configured" and (
+                        st["state"] == "unverified" or st["age_s"] is None
+                        or st["age_s"] > connection_status.STALE_AFTER_S):
+                    try:
+                        _check(db, ctx, c)
+                    except HTTPException:
+                        pass  # (recorded: failed / unreachable with the reason)
+                    st = _conn_state(db, ctx, c)
+                states.append(st)
+        finally:
+            db.close()
+        return {"connections": states, "jira": connection_status.summary(states, "jira"),
+                "confluence": connection_status.summary(states, "confluence")}
 
     @app.get("/api/requirements/connections/{connection_id}/projects")
     def projects(connection_id: str, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -910,10 +991,23 @@ def register_requirements_api(app) -> None:
             conn = _connection(db, ctx, connection_id, Product.jira)
         finally:
             db.close()
+        from .atlassian import connection_status
         try:
-            return {"projects": jira.projects(_client(ctx, conn))}
+            found = jira.projects(_client(ctx, conn))
         except (AtlassianError, ValueError) as error:
+            db = _db()
+            try:
+                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False,
+                                         getattr(error, "kind", "invalid"), safe_error(error))
+            finally:
+                db.close()
             raise _atlassian_error(error) from None
+        db = _db()
+        try:
+            connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), True)
+        finally:
+            db.close()
+        return {"projects": found}
 
     @app.get("/api/requirements/connections/{connection_id}/projects/{project}/types")
     def types(connection_id: str, project: str, authorization: str | None = A, x_qa_token: str | None = Q):
@@ -992,8 +1086,18 @@ def register_requirements_api(app) -> None:
             conn = _connection(db, ctx, connection_id)
             conf = _connection(db, ctx, body.confluence_connection, Product.confluence) \
                 if body.confluence_connection else None
+            st = _conn_state(db, ctx, conn)
         finally:
             db.close()
+        # an import needs a usable connection: never started (nor shown as running) with no token or with credentials
+        # Atlassian already refused - a new token makes it 'unverified' again, and the import itself verifies it
+        if st["state"] == "not_configured":
+            raise HTTPException(412, {"kind": "auth_missing", "message": "This connection has no API token.",
+                                      "hint": "Add the API token in Integrations, then import."})
+        if st["state"] == "failed":
+            raise HTTPException(424, {"kind": "auth_expired", "message": "Atlassian refused this connection's "
+                                      "credentials: " + (st["message"] or "the token was not accepted") + ".",
+                                      "hint": "Replace the API token in Integrations (it is checked when saved)."})
         try:
             if body.mode == "space":
                 if conn.product != Product.confluence or not body.space_key:
@@ -1012,11 +1116,23 @@ def register_requirements_api(app) -> None:
             raise _atlassian_error(error) from None
 
         def work(db, job):
+            from .atlassian import connection_status
             client = _client(ctx, conn)
-            result = sync.run_import(db, conn, client, tenant_id=ctx["tenant"], mode=body.mode, filters=body.filters,
-                                     keys=keys, include=include, space_key=body.space_key, actor=ctx["actor"],
-                                     should_stop=job["cancel"].is_set,
-                                     progress=lambda r: job.__setitem__("progress", _progress(r)))
+            try:
+                result = sync.run_import(db, conn, client, tenant_id=ctx["tenant"], mode=body.mode,
+                                         filters=body.filters, keys=keys, include=include, space_key=body.space_key,
+                                         actor=ctx["actor"], should_stop=job["cancel"].is_set,
+                                         progress=lambda r: job.__setitem__("progress", _progress(r)))
+            except AtlassianError as error:  # (the import's answer is the connection's real state too)
+                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False, error.kind,
+                                         safe_error(error))
+                raise
+            if result.get("status") == "failed":  # (sync.run_import keeps the Atlassian error as "kind: message")
+                kind = str(result.get("error") or "").split(":", 1)[0].strip()
+                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), False,
+                                         kind or "server", str(result.get("error") or "")[:300])
+            else:
+                connection_status.record(_statedb(db), ctx["tenant"], conn, _token(ctx, conn), True)
             if conf is not None and body.mode == "items":
                 conf_client = _client(ctx, conf)
                 result["confluence"] = []
@@ -1418,7 +1534,8 @@ def register_requirements_api(app) -> None:
                 batch.update(status="running", run_id=str(job))
                 _PENDING[ex["id"]] = launch  # (in memory only: it may hold the typed password / keys)
             bridge.save_execution(db, ctx["tenant"], ex)
-            bridge.attach_run(db, ctx["tenant"], ex["id"], str(job))
+            from . import server as _server
+            bridge.attach_run(db, ctx["tenant"], ex["id"], str(job), boot=_server.BOOT_ID)
         finally:
             db.close()
         _watch(ctx["tenant"], ex["id"], int(job))
@@ -1507,7 +1624,8 @@ def register_requirements_api(app) -> None:
             nxt = scheduler.next_batch(ex)
             job = _launch_for(launch, nxt["case_ids"])
             nxt.update(status="running", run_id=str(job))
-            ex.update(status="running", run_id=str(job))
+            from . import server as _server
+            ex.update(status="running", run_id=str(job), studio_boot=_server.BOOT_ID)
             _PENDING[ex["id"]] = launch
             bridge.save_execution(db, ctx["tenant"], ex)
         finally:
@@ -1593,13 +1711,27 @@ def register_requirements_api(app) -> None:
             db.close()
 
     # -- the guided workflow and the application under test
+    def _connection_state(db, ctx: dict) -> str:
+        """The Jira connection for the workflow: 'connected' only after Atlassian really answered (a saved token
+        is 'unverified'; a refused one 'failed')."""
+        from .atlassian import connection_status
+        states = [_conn_state(db, ctx, c) for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
+        return connection_status.summary(states, "jira")["state"]
+
     def _connection_ready(db, ctx: dict) -> bool:
-        conns = [c for c in store.list_connections(db, ctx["tenant"]) if c.product == Product.jira]
-        return any(credentials.status(ctx["tenant"], c.token_ref, site=c.site_url)["configured"] for c in conns)
+        return _connection_state(db, ctx) == "connected"
 
     def _workflow_answer(db, ctx: dict, draft: dict) -> dict:
-        return {"draft": draft, "state": workflow.state(db, ctx["tenant"], draft,
-                                                        connection_ready=_connection_ready(db, ctx)),
+        conn = _connection_state(db, ctx)
+        imp = JOBS.latest(ctx["tenant"])
+        if draft.get("execution_id"):  # (its real state first: a run whose job is gone is never 'running')
+            ex = bridge.get_execution(db, ctx["tenant"], draft["execution_id"])
+            if ex:
+                _settle_execution(db, ctx["tenant"], ex)
+        return {"draft": draft, "state": workflow.state(db, ctx["tenant"], draft, connection_ready=conn == "connected",
+                                                        connection_state=conn,
+                                                        import_state=(imp or {}).get("status", ""),
+                                                        import_error=(imp or {}).get("error", "")),
                 "steps": list(workflow.STEPS)}
 
     @app.get("/api/requirements/workflow")
@@ -1875,6 +2007,7 @@ def register_requirements_api(app) -> None:
         db = _db()
         try:
             conns = _safe_list(db, ctx)
+            conn_states = {c.id: _conn_state(db, ctx, c) for c in conns}
             rows = store.list_sources(db, ctx["tenant"], include_missing=True)
             analyses = store.list_analyses(db, ctx["tenant"])
             stale = sum(1 for a in analyses if an.stale(db, ctx["tenant"], a))
@@ -1885,7 +2018,9 @@ def register_requirements_api(app) -> None:
         return {
             "connections": [{"id": c.id, "product": c.product.value, "site_url": c.site_url,
                              "credential": credentials.status(ctx["tenant"], c.token_ref,
-                                                              site=c.site_url)["configured"]}
+                                                              site=c.site_url)["configured"],
+                             "state": conn_states[c.id]["state"], "state_message": conn_states[c.id]["message"],
+                             "checked_at": conn_states[c.id]["checked_at"]}
                             for c in conns],
             "requirements": sum(1 for r in jira_rows if r["present"]),
             "pages": sum(1 for r in rows if r["source"].kind == SourceKind.confluence_page and r["present"]),

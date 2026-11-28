@@ -106,7 +106,87 @@ def update_draft(db, tenant: str, actor: str, changes: dict, draft_id: str = "")
     return d
 
 
-def state(db, tenant: str, draft: dict, *, connection_ready: bool) -> dict:
+CONNECTION_TEXT = {"not_connected": "Jira is not connected yet.", "not_configured": "No API token is saved.",
+                   "unverified": "A token is saved but Jira has not confirmed it yet - use Test connection.",
+                   "failed": "Jira refused the saved credentials - replace the API token.",
+                   "unreachable": "Jira could not be reached - check the network and try again."}
+
+
+def stage_status(st: dict, *, connection_state: str, import_state: str = "", import_error: str = "",
+                 execution: dict | None = None) -> dict[str, dict]:
+    """{step: {'status': pending | running | done | failed | blocked | attention, 'reason'}} - each stage from its own
+    facts: nothing is 'done' because Jira connected, nothing 'running' without a real job."""
+    from . import bridge
+    done, out = st["done"], {}
+
+    def put(step, status, reason=""):
+        out[step] = {"status": status, "reason": reason}
+    conn = connection_state or "not_connected"
+    put("connect", "done" if conn == "connected" else "failed" if conn == "failed" else
+        "attention" if conn in ("unverified", "unreachable") else "pending",
+        "" if conn == "connected" else CONNECTION_TEXT.get(conn, ""))
+    if import_state == "running":
+        put("import", "running", "An import is running.")
+    elif st["imported"]:
+        put("import", "done")
+    elif import_state == "failed":
+        put("import", "failed", import_error or "The last import failed.")
+    elif conn != "connected":
+        put("import", "blocked", "Importing needs a verified Jira connection.")
+    else:
+        put("import", "pending")
+    put("explorer", "done" if done["explorer"] else "pending" if st["imported"] else "blocked",
+        "" if done["explorer"] or st["imported"] else "Import requirements first.")
+    if done["analysis"]:
+        put("analysis", "done")
+    elif st["selected"]:
+        put("analysis", "pending", f"{len(st['selected']) - len(st['analysed'])} selected requirement(s) not analysed")
+    else:
+        put("analysis", "blocked", "Select the requirements to analyse first.")
+    if done["reviews"]:
+        put("reviews", "done")
+    elif st["pending_reviews"]:
+        put("reviews", "attention", f"{st['pending_reviews']} idea(s) wait for your review.")
+    elif st["analysed"]:
+        put("reviews", "pending", "Accept at least one idea.")
+    else:
+        put("reviews", "blocked", "Analyse the requirements first.")
+    if done["builder"]:
+        put("builder", "done")
+    elif st["runnable"]:
+        put("builder", "pending", "Select the approved test cases to run.")
+    elif st["test_cases"]:
+        put("builder", "attention", "Approve the generated test cases.")
+    else:
+        put("builder", "blocked" if not done["reviews"] else "pending",
+            "Review and accept ideas first." if not done["reviews"] else "Generate the test cases.")
+    if not execution:
+        reason = "" if done["builder"] else "Select approved test cases first."
+        for step in ("execution", "agents", "reports"):
+            put(step, "pending" if done["builder"] else "blocked",
+                reason or ("No execution yet." if step != "execution" else ""))
+        return out
+    status = execution.get("status")
+    if status in ("running", "queued"):
+        put("execution", "running", f"Execution {execution['id']} is {status}.")
+        put("agents", "running", f"Execution {execution['id']} is {status}.")
+        put("reports", "pending", "The report is written when the execution ends.")
+        return out
+    o = bridge.outcome_of(execution)
+    key, text = o["outcome"], o["outcome_text"]
+    result = ("done" if key in ("completed", "completed_with_failures") else
+              "failed" if key in ("automation_failed", "no_tests_automated") else
+              "attention")  # (cancelled, interrupted, review / blocked / not automated cases)
+    put("execution", result, "" if result == "done" and key == "completed" else text)
+    put("agents", result, "" if result == "done" and key == "completed" else text)
+    has_results = bool((execution.get("counts") or {}) or (execution.get("exploratory") or {}).get("cases"))
+    put("reports", "done" if has_results else "failed" if result == "failed" else "attention",
+        "" if has_results else "No result was produced: " + text)
+    return out
+
+
+def state(db, tenant: str, draft: dict, *, connection_ready: bool, connection_state: str = "",
+          import_state: str = "", import_error: str = "") -> dict:
     """Facts for the stepper (completed = what the stores say, not what was visited)."""
     from . import analysis as an, bridge, store
     reqs = list(draft.get("requirement_ids") or [])
@@ -126,10 +206,14 @@ def state(db, tenant: str, draft: dict, *, connection_ready: bool) -> dict:
             "builder": bool(set(draft.get("test_case_ids") or []) & set(runnable)),
             "execution": bool(ex), "agents": bool(ex) and ex["status"] not in ("running", "queued"),
             "reports": bool(ex) and ex["status"] not in ("running", "queued")}
-    return {"done": done, "imported": len(keys), "selected": chosen, "analysed": analysed,
-            "has_analysis": [r for r in chosen if r in analyses], "with_accepted": accepted,
-            "pending_reviews": pending, "test_cases": [c["id"] for c in cases], "runnable": runnable,
-            "execution": {"id": ex["id"], "status": ex["status"]} if ex else None}
+    out = {"done": done, "imported": len(keys), "selected": chosen, "analysed": analysed,
+           "has_analysis": [r for r in chosen if r in analyses], "with_accepted": accepted,
+           "pending_reviews": pending, "test_cases": [c["id"] for c in cases], "runnable": runnable,
+           "execution": {"id": ex["id"], "status": ex["status"]} if ex else None,
+           "connection": connection_state or ("connected" if connection_ready else "not_connected")}
+    out["stages"] = stage_status(out, connection_state=out["connection"], import_state=import_state,
+                                 import_error=import_error, execution=ex)
+    return out
 
 
 # ---------------------------------------------------------------- targets

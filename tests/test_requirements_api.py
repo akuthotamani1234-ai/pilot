@@ -559,6 +559,9 @@ def test_disconnect_keeps_imported_requirements(api):
 
 def test_only_one_import_of_a_connection_runs_at_a_time(api):
     api.post("/api/requirements/connections", headers=H, json=CONN)
+    r = api.post("/api/requirements/connections/jira-main/imports", headers=H, json={"mode": "items", "keys": "SHOP-1"})
+    assert r.status_code == 412  # (no token: never started)
+    api.put("/api/requirements/connections/jira-main/token", headers=H, json={"token": TOKEN})
     import threading
     gate = threading.Event()
     ctx = {"tenant": "local", "actor": "local-user"}

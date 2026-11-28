@@ -262,3 +262,19 @@ html:has(body.rq-workspace), body.rq-workspace { overflow: visible; overflow-x: 
 .rq-conn-add { padding: 14px 18px; }
 .rq-conn-add > summary { cursor: pointer; font-weight: 600; color: #1d4ed8; }
 .rq-conn-add > .rq-conn { border: 0; box-shadow: none; padding: 12px 0 0; }
+
+/* workflow stage states (backend workflow.stage_status): grey not started, blue running, green done, red failed,
+   orange blocked / needs attention - the stepper and the sidebar use the same colours */
+.rq-wf li.st-running a { border-color: #bfdbfe; color: #1e40af; background: #eff6ff; }
+.rq-wf li.st-running a .n { background: #2563eb; color: #fff; }
+.rq-wf li.st-failed a { border-color: #fecaca; color: #991b1b; background: #fef2f2; }
+.rq-wf li.st-failed a .n { background: #dc2626; color: #fff; }
+.rq-wf li.st-blocked a, .rq-wf li.st-attention a { border-color: #fed7aa; color: #9a3412; background: #fff7ed; }
+.rq-wf li.st-blocked a .n, .rq-wf li.st-attention a .n { background: #ea580c; color: #fff; }
+.rq-nav a.st-running .rq-done::after, .rq-nav a.st-failed .rq-done::after, .rq-nav a.st-blocked .rq-done::after,
+.rq-nav a.st-attention .rq-done::after { display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%;
+  color: #fff; font-size: 9px; font-weight: 700; }
+.rq-nav a.st-running .rq-done::after { content: "…"; background: #2563eb; }
+.rq-nav a.st-failed .rq-done::after { content: "!"; background: #dc2626; }
+.rq-nav a.st-blocked .rq-done::after { content: "–"; background: #ea580c; }
+.rq-nav a.st-attention .rq-done::after { content: "!"; background: #ea580c; }
