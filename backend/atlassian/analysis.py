@@ -27,8 +27,10 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, Field
 
 from .. import audit_store
+from ..safety import redact
 from . import store
 from .models import (
+    LOOKS_LIKE_SECRET,
     AcceptanceCriterion,
     Analysis,
     Basis,
@@ -47,6 +49,7 @@ from .models import (
     SourceRef,
     ai_use_allowed,
     normalize_text,
+    safe_error,
 )
 
 ACTION = "requirements.analyze"
@@ -578,7 +581,7 @@ AI_SYSTEM = ("You suggest software test scenarios for acceptance criteria. Use O
              "requirements, people, records, prices or messages that are not in them. Return JSON only.")
 
 
-def ai_suggestions(requirement: Requirement, blocked: set[str], ask=None) -> list[dict]:
+def ai_suggestions(requirement: Requirement, blocked: set[str], ask=None, instructions: str = "") -> list[dict]:
     """AI test ideas, checked before use: unknown criterion ids, invented people / records and outcomes not in the
     cited criteria are refused or marked inferred. The criteria themselves are never changed by the AI."""
     from ..ai_grounding import invented_record_problem
@@ -591,6 +594,9 @@ def ai_suggestions(requirement: Requirement, blocked: set[str], ask=None) -> lis
               "positive, negative, boundary and security (only where relevant). Answer a JSON list of objects "
               '{"criterion_ids": [...], "kind": "...", "title": "...", "steps": ["..."], "expected_outcome": "..."}. '
               "Leave expected_outcome empty when the criteria do not state the result.")
+    if instructions.strip():
+        focus = LOOKS_LIKE_SECRET.sub("[REDACTED]", redact(instructions.strip()))
+        prompt += "\nReviewer focus (apply only within the cited criteria): " + focus
     if ask is None:
         from ..llm import ask_structured
         ask = ask_structured
@@ -720,7 +726,7 @@ def _ai_permission(requirement: Requirement, db, tenant_id: str) -> tuple[bool, 
     return True, "allowed by the privacy settings"
 
 
-def analyze(db, tenant_id: str, root_key: str, *, ai: str = "off", actor: str = "system", approvals_db=None,
+def analyze(db, tenant_id: str, root_key: str, *, ai: str = "off", instructions: str = "", actor: str = "system", approvals_db=None,
             audit_db=None, ask=None, now: datetime | None = None) -> Analysis:
     """Analyse one stored story (with its linked pages) or one stored page. ai: 'off' (rules only) or 'auto' (AI
     ideas too, only when the privacy settings allow it). Suggestions go to the approval queue."""
@@ -746,10 +752,12 @@ def analyze(db, tenant_id: str, root_key: str, *, ai: str = "off", actor: str = 
             ai_state, ai_note = "not_allowed", why
         else:
             try:
-                ideas += useful_ai_ideas(ai_suggestions(requirement, blocked, ask=ask), ideas)
+                ideas += useful_ai_ideas(ai_suggestions(requirement, blocked, ask=ask, instructions=instructions), ideas)
                 ai_state, ai_note = "used", "AI suggestions added (each one reviewed before use)"
             except Exception as error:  # (no AI answer: the rules result stands)
-                ai_state, ai_note = "failed", f"AI unavailable: {type(error).__name__}"
+                from ..llm import LLMError
+                detail = redact(safe_error(error)) if isinstance(error, LLMError) else type(error).__name__
+                ai_state, ai_note = "failed", f"AI unavailable: {detail}. Check the configured provider before retrying."
     suggestions: list[ScenarioSuggestion] = []
     seen_titles = set()
     for idea in ideas:

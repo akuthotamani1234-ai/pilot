@@ -307,6 +307,7 @@ class ImportBody(BaseModel):
 
 
 class AnalyzeBody(BaseModel):
+    instructions: str = Field(default="", max_length=1200)
     ai: str = Field(default="off", pattern=r"^(off|auto)$")
 
 
@@ -836,8 +837,10 @@ def register_requirements_api(app) -> None:
     def capabilities(authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")
         from .atlassian import writeback
+        from .config import settings
         allowed = writeback.server_allows()
         return {"capabilities": {**CAPABILITIES, "jira_write_back": allowed},
+                "analysis_provider": settings.llm_provider, "analysis_model": settings.llm_model,
                 "coming": {} if allowed else COMING, "tenant": ctx["tenant"], "actor": ctx["actor"],
                 "can_review": _can_review(authorization, x_qa_token, ctx), "read_only_atlassian": not allowed}
 
@@ -1294,7 +1297,7 @@ def register_requirements_api(app) -> None:
             if not store.get_source(db, ctx["tenant"], key):
                 raise HTTPException(404, "Not imported in your workspace.")
             try:
-                result = an.analyze(db, ctx["tenant"], key, ai=body.ai, actor=ctx["actor"])
+                result = an.analyze(db, ctx["tenant"], key, ai=body.ai, instructions=body.instructions, actor=ctx["actor"])
             except (LookupError, ValueError) as error:
                 raise HTTPException(400, safe_error(error)) from None
             return _analysis_view(db, ctx["tenant"], result)
@@ -1358,11 +1361,14 @@ def register_requirements_api(app) -> None:
         db = _db()
         try:
             out = []
+            counts = {"needs_review": 0, "accepted": 0, "rejected": 0}
             for a in store.list_analyses(db, ctx["tenant"]):
                 source = a.requirement.sources[0]
                 criteria = {c.id: c for c in a.requirement.criteria}
                 stale = bool(an.stale(db, ctx["tenant"], a))
                 for s in a.suggestions:
+                    if s.review.value in counts:
+                        counts[s.review.value] += 1
                     if status == "stale" and not stale:
                         continue
                     if status not in ("all", "stale") and s.review.value != status:
@@ -1383,7 +1389,8 @@ def register_requirements_api(app) -> None:
         finally:
             db.close()
         can = _can_review(authorization, x_qa_token, ctx)
-        return {"reviews": out, "total": len(out), "can_review": can, "reviewer": ctx["reviewer"] if can else None}
+        return {"counts": {"pending": counts["needs_review"], "accepted": counts["accepted"], "rejected": counts["rejected"]},
+                "reviews": out, "total": len(out), "can_review": can, "reviewer": ctx["reviewer"] if can else None}
 
     # -- Phase 4: test cases (approved scenarios -> executable tests)
     @app.post("/api/requirements/items/{connection_id}/{source_id}/test-cases")
@@ -2040,7 +2047,7 @@ def register_requirements_api(app) -> None:
     @app.get("/api/requirements/overview")
     def overview(authorization: str | None = A, x_qa_token: str | None = Q):
         ctx = _context(authorization, x_qa_token, "run.read")
-        db = _db()
+        db = bridge.connect()
         try:
             conns = _safe_list(db, ctx)
             conn_states = {c.id: _conn_state(db, ctx, c) for c in conns}
@@ -2048,10 +2055,31 @@ def register_requirements_api(app) -> None:
             analyses = store.list_analyses(db, ctx["tenant"])
             stale = sum(1 for a in analyses if an.stale(db, ctx["tenant"], a))
             runs = store.sync_runs(db, ctx["tenant"], limit=1)
+            activity = []
+
+            def add(at: str, label: str, resource: str, view: str) -> None:
+                if at:
+                    activity.append({"at": at, "label": label, "resource": resource, "view": view})
+
+            if runs:
+                add(runs[0]["finished_at"], "Import · " + runs[0]["status"], runs[0]["connection_id"], "history")
+            if analyses:
+                latest = max(analyses, key=lambda analysis: analysis.analyzed_at)
+                add(latest.analyzed_at.isoformat(), "Requirement analyzed", latest.requirement.title, "analysis")
+            generation = db.execute(
+                "SELECT id, at FROM req_test_case_history WHERE tenant_id = ? AND "
+                "(event LIKE 'generated from %' OR event LIKE 'regenerated %') ORDER BY at DESC LIMIT 1",
+                (ctx["tenant"],)).fetchone()
+            if generation:
+                add(generation["at"], "Test case generated", generation["id"], "builder")
+            for execution in bridge.list_executions(db, ctx["tenant"], limit=5):
+                add(execution["created_at"], "Execution created", execution["id"], "execution")
+                add(execution.get("finished_at"), "Execution report available", execution["id"], "reports")
         finally:
             db.close()
         jira_rows = [r for r in rows if r["source"].kind == SourceKind.jira_issue]
         return {
+            "activity": sorted(activity, key=lambda event: event["at"], reverse=True)[:6],
             "connections": [{"id": c.id, "product": c.product.value, "site_url": c.site_url,
                              "credential": credentials.status(ctx["tenant"], c.token_ref,
                                                               site=c.site_url)["configured"],

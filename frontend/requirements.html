@@ -4,54 +4,64 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Qpilot | Jira</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/chat.css">
-<link rel="stylesheet" href="/static/studio.css">
-<link rel="stylesheet" href="/static/qpilot.css">
 <link rel="stylesheet" href="/static/requirements.css">
 </head>
 <body class="rq-workspace">
 <a class="rq-skip" href="#rqMain">Skip to content</a>
 <div class="lab-shell rq-shell">
-  <aside class="side lab-sidebar" aria-label="Workspace navigation">
-    <div class="logo"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>Qpilot</b><small>STUDIO</small></div>
-    <div class="side-title">WORKSPACE</div>
-    <a class="studio-nav" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span></a>
-    <a class="studio-nav current" href="/requirements" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 4h8l4 4v12H4V4h4Z"/><path d="M8 11h8M8 15h5"/></svg><span>Jira</span></a>
-    <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
+  <aside id="sidebar" class="side lab-sidebar" aria-label="Workspace navigation">
+    <div class="logo" aria-label="Qpilot Studio"><span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span><b>Qpilot</b><small>STUDIO</small></div>
     <div class="rq-navgroup">
-      <button type="button" class="rq-navtoggle" id="navToggle" aria-expanded="true" aria-controls="rqNav"><span>Jira workspace</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
-    <nav class="rq-nav" id="rqNav" aria-label="Jira sections">
+      <nav class="rq-nav" id="rqNav" aria-label="Jira sections">
+        <div class="rq-nav-label">Workspace</div>
         <a href="#overview" data-view="overview" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><span class="rq-nav-text">Overview</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#integrations" data-view="integrations" title="Integrations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 7V4M15 7V4M7 7h10v4a5 5 0 0 1-10 0V7ZM12 16v4"/></svg><span class="rq-nav-text">Integrations</span><span class="rq-done" aria-hidden="true"></span></a>
+        <div class="rq-nav-label">Requirements</div>
         <a href="#import" data-view="import" title="Import Requirements"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="rq-nav-text">Import Requirements</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#explorer" data-view="explorer" title="Requirements Explorer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg><span class="rq-nav-text">Requirements Explorer</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#analysis" data-view="analysis" title="Analyze Requirements"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8Z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8Z"/></svg><span class="rq-nav-text">Analyze Requirements</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#reviews" data-view="reviews" title="Review Center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg><span class="rq-nav-text">Review Center</span> <span class="rq-count" id="navReviews" hidden></span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#builder" data-view="builder" title="Test Cases"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg><span class="rq-nav-text">Test Cases</span><span class="rq-done" aria-hidden="true"></span></a>
+        <div class="rq-nav-label">Testing</div>
         <a href="#execution" data-view="execution" title="Execution Center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M7 5v14l11-7Z"/></svg><span class="rq-nav-text">Execution Center</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#agents" data-view="agents" title="Live Execution"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg><span class="rq-nav-text">Live Execution</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#reports" data-view="reports" title="Reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span class="rq-nav-text">Reports</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#traceability" data-view="traceability" title="Traceability Matrix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6h4v4H6zM14 14h4v4h-4zM10 8h4a2 2 0 0 1 2 2v4"/></svg><span class="rq-nav-text">Traceability Matrix</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#writeback" data-view="writeback" title="Defects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 5v6M12 15h.01"/><path d="M10.3 3.6 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/></svg><span class="rq-nav-text">Defects</span><span class="rq-done" aria-hidden="true"></span></a>
+        <div class="rq-nav-label">Administration</div>
         <a href="#confluence" data-view="confluence" title="Confluence"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span class="rq-nav-text">Confluence</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#history" data-view="history" title="Sync History"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4M12 8v4l3 2"/></svg><span class="rq-nav-text">Sync History</span><span class="rq-done" aria-hidden="true"></span></a>
         <a href="#audit" data-view="audit" title="Audit Trail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 5 6v6c0 4 7 8 7 8s7-4 7-8V6Z"/><path d="m9 12 2 2 4-4"/></svg><span class="rq-nav-text">Audit Trail</span><span class="rq-done" aria-hidden="true"></span></a>
-    </nav>
+      </nav>
     </div>
-    <div class="side-footer"><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Read-only to Jira</b><small>Jira writes need an admin switch and a person's approval</small></div></div>
+    <div class="side-footer" tabindex="0" aria-label="Read-only to Jira. Writes require admin authorization and individual approval." title="Jira writes require admin authorization and individual approval."><span class="footer-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m8 12 3 3 5-6"/><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/></svg></span><div><b>Read-only to Jira</b><small>Jira writes need an admin switch and a person's approval</small></div></div>
   </aside>
 
+  <header class="rq-top">
+    <button type="button" class="rq-icon" id="navToggle" aria-controls="sidebar" aria-expanded="true" aria-label="Toggle workspace navigation" title="Toggle workspace navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 5v14"/></svg></button>
+    <nav class="rq-crumb" aria-label="Breadcrumb"><a href="#overview">Jira workspace</a><span aria-hidden="true">/</span><span id="crumb" aria-current="page">Overview</span></nav>
+    <div class="rq-top-actions"><span id="topProject"></span><span id="topConnection" aria-label="Jira connection"></span>
+      <button type="button" id="openSearch" class="rq-icon" aria-label="Search requirements" title="Search requirements"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+      <details class="rq-account-menu" id="noticeMenu"><summary aria-label="Workflow notifications" title="Workflow notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5l-2 3ZM10 20h4"/></svg></summary>
+        <section class="rq-menu"><h2>Workflow notifications</h2><ul id="notices"><li>Checking workflow status…</li></ul></section>
+      </details>
+      <details class="rq-account-menu" id="accountMenu"><summary aria-label="Workspace and account" title="Workspace and account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></summary>
+        <div class="rq-menu"><span class="rq-who" id="who" role="status"></span><a href="#settings">Workspace settings</a>
+          <a class="studio-nav" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Test studio</span></a>
+          <a class="studio-nav current" href="/requirements" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 4h8l4 4v12H4V4h4Z"/><path d="M8 11h8M8 15h5"/></svg><span>Jira</span></a>
+          <a class="studio-nav" href="/qa-lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3M7 14h10"/></svg><span>Accuracy lab</span></a>
+        </div>
+      </details>
+    </div>
+  </header>
   <main class="lab-main rq-main" id="rqMain" tabindex="-1">
-    <div class="lab-topline"><span>Workspace</span><span>/</span><b>Jira</b><span>/</span><span id="crumb"></span><span class="rq-who" id="who" role="status"></span></div>
-    <div class="rq-banner" id="banner" role="alert" hidden></div>
+    <p id="rqStartup" class="small" role="status">Loading workspace…</p>
+    <div class="rq-banner" id="banner" hidden><span id="bannerText" role="alert"></span><button type="button" class="rq-icon" id="dismissBanner" aria-label="Dismiss notification">×</button></div>
     <nav class="rq-wf" id="wfSteps" aria-label="Testing workflow" hidden>
-      <div class="rq-wf-head"><b id="wfTitle">Jira testing workflow</b><span class="small" id="wfProgress"></span>
-        <button type="button" class="secondary rq-newtest" data-newtest>+ New Test</button></div>
+      <div class="rq-wf-head"><b id="wfTitle">Jira testing workflow</b><span class="small" id="wfProgress"></span><button type="button" class="secondary" id="wfNew" data-newtest>+ New Test</button>
+        </div>
       <div class="rq-wf-bar" aria-hidden="true"><i id="wfBar"></i></div>
-      <ol id="wfList"></ol>
+      <ol id="wfList"></ol><details id="wfReasons" class="rq-stage-reasons" hidden><summary>Workflow blockers</summary><ul></ul></details>
     </nav>
 
     <section class="rq-signin lab-card" id="signin" hidden aria-labelledby="signinTitle">
@@ -65,22 +75,21 @@
 
     <!-- ===== 1 overview ===== -->
     <section class="rq-view" id="view-overview" data-title="Overview" hidden>
-      <header class="lab-header">
-        <span class="eyebrow">REQUIREMENTS INTELLIGENCE</span>
-        <h1>Your Jira and Confluence requirements</h1>
-        <p class="lab-purpose">Import user stories and specification pages, check their acceptance criteria, and review test ideas before any test is written. <b>Qpilot only reads Jira and Confluence.</b></p>
+      <header class="rq-head rq-head-row">
+        <div><h1>Requirements Overview</h1><p class="small">Track requirements from import through review, execution and reporting.</p></div>
+        <div class="rq-row"><button type="button" class="secondary" id="ovRefresh">Refresh</button><button type="button" class="primary" data-newtest>+ New Test</button></div>
       </header>
-      <div class="rq-stats" id="stats" aria-busy="true"><p class="small">Loading…</p></div>
-      <div class="rq-grid2">
-        <section class="lab-card" aria-labelledby="ovConnTitle"><div class="lab-card-title"><h2 id="ovConnTitle">Connected sites</h2></div><p class="small" id="ovConnSummary" aria-live="polite">Jira: <span class="rq-badge" data-state="checking">checking…</span> Confluence: <span class="rq-badge" data-state="checking">checking…</span></p><div id="ovConnections"></div></section>
-        <section class="lab-card" aria-labelledby="ovSyncTitle"><div class="lab-card-title"><h2 id="ovSyncTitle">Last import</h2></div><div id="ovSync"></div></section>
+      <div id="projectContext" class="rq-context"></div>
+      <div class="rq-stats" id="stats" aria-label="Workspace metrics" aria-busy="true"><p class="small">Loading metrics…</p></div>
+      <div id="ovWorkflow"></div>
+      <div class="rq-section-head"><h2>Integrations</h2><a href="#integrations">Manage connections</a></div>
+      <p id="ovConnSummary" class="rq-sr" aria-live="polite"></p>
+      <div id="ovConnections" class="rq-grid2"></div>
+      <div class="rq-grid2 rq-overview-bottom">
+        <section class="lab-card"><div class="rq-section-head"><h2>Recent activity</h2><a href="#audit">Audit trail</a></div><div id="ovActivity"></div>
+          <details><summary>Last import details</summary><div id="ovSync"></div></details></section>
+        <section class="lab-card rq-actions-card"><h2>Quick actions</h2><div class="rq-actions" id="actions"></div></section>
       </div>
-      <section class="lab-card rq-actions-card" aria-labelledby="ovActionsTitle">
-        <div class="lab-card-title"><h2 id="ovActionsTitle">What you can do</h2></div>
-        <div class="rq-row"><button type="button" class="primary rq-newtest" data-newtest>+ New Test</button><span class="small">start a guided test: requirements → test cases → a real run → a report</span></div>
-        <div class="rq-actions" id="actions"></div>
-        <p class="small">Importing never runs tests. Each step is its own action.</p>
-      </section>
     </section>
 
     <!-- ===== 2 integrations ===== -->
@@ -109,7 +118,7 @@
             <label><input type="radio" name="wMode" value="jql"> <b>Advanced JQL</b> <small>re-read all work items matching a project-scoped JQL filter</small></label>
             <label><input type="radio" name="wMode" value="items"> <b>Specific work items</b> <small>keys such as QPL-2 or Jira links</small></label>
           </div>
-          <div class="rq-nav-buttons"><button class="primary" type="button" data-next="2">Next</button></div>
+          <div class="rq-nav-buttons"><button class="primary" type="button" data-next="2" disabled>Next</button></div>
         </div>
         <div class="rq-step" data-panel="2" hidden>
           <h2>2. Project or work items</h2>
@@ -207,6 +216,7 @@
     <!-- ===== 6 reviews ===== -->
     <section class="rq-view" id="view-reviews" data-title="Review Center" hidden>
       <header class="rq-head"><h1>Review Center</h1><p class="small">Test ideas wait here until a person accepts, corrects or rejects them. Each shows the requirement words it rests on.</p></header>
+      <div id="reviewCounts" class="rq-summary"></div>
       <div class="rq-toolbar"><label for="rvStatus" class="rq-sr">Show</label><select id="rvStatus"><option value="needs_review">Waiting for review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="stale">Stale</option><option value="all">All</option></select>
         <label for="rvQ" class="rq-sr">Search</label><input id="rvQ" type="search" placeholder="Search ideas"></div>
       <p class="small" id="rvWho" role="status"></p>
@@ -231,16 +241,23 @@
 
     <!-- ===== sync history ===== -->
     <section class="rq-view" id="view-history" data-title="Sync History" hidden>
-      <header class="rq-head"><h1>Sync History</h1></header>
+      <header class="rq-head"><h1>Sync History</h1><p class="small">Import outcomes, timing and scope for each synchronization.</p></header>
+      <div class="rq-toolbar" role="search"><input id="hsQuery" type="search" aria-label="Filter synchronization records" placeholder="Filter synchronization records"></div><p id="hsQueryEmpty" class="small" hidden>No matching records.</p>
       <div class="rq-table-wrap"><table class="rq-table" id="hsTable"><caption class="rq-sr">Imports, newest first</caption>
         <thead><tr><th scope="col">Finished</th><th scope="col">Connection</th><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">New</th><th scope="col">Changed</th><th scope="col">Unchanged</th><th scope="col">Missing</th><th scope="col">Failed</th><th scope="col">Took</th><th scope="col">By</th><th scope="col">Scope</th></tr></thead><tbody></tbody></table></div>
     </section>
     <section class="rq-view" id="view-audit" data-title="Audit Trail" hidden>
       <header class="rq-head"><h1>Audit Trail</h1><p class="small">Every connection, import, analysis, review, test case, execution, target and write-back decision in this workspace: who did it and when. Never a token or password.</p></header>
+      <div class="rq-toolbar" role="search"><input id="auditQuery" type="search" aria-label="Filter audit events" placeholder="Filter audit events"></div><p id="auditQueryEmpty" class="small" hidden>No matching records.</p>
       <ul class="rq-audit" id="auditList"></ul>
     </section>
     <section class="rq-view" id="view-analysis" data-title="Analyze Requirements" hidden>
       <header class="rq-head"><h1>Analyze Requirements</h1><p class="small">The selected requirements are analysed: acceptance criteria with their source words, test suggestions, missing information, conflicts and coverage gaps. Suggestions go to the Review Center.</p></header>
+      <details class="lab-card rq-config"><summary>Analysis configuration</summary>
+        <div class="rq-filter-grid"><label for="anMode">Analysis mode<select id="anMode"><option value="auto">Rules and permitted AI suggestions</option><option value="off">Rules only</option></select></label>
+        <div><p class="small">Workspace provider and model</p><p id="anProvider"></p></div>
+        <label class="rq-wide" for="anInstructions">Optional instructions for AI suggestions<textarea id="anInstructions" rows="2" maxlength="1200" placeholder="For example, focus on boundary cases"></textarea></label></div>
+        <button class="primary" type="button" id="anSelected">Analyze selected requirements</button></details>
       <div id="anFlow"></div>
       <h2 class="rq-sub">All requirements</h2>
       <p class="small">Open a Jira requirement to run deterministic analysis or request AI-assisted ideas when the workspace policy permits it.</p><form class="rq-toolbar" id="analysisSearchForm" role="search"><label for="analysisSearch" class="rq-sr">Search requirements for analysis</label><input id="analysisSearch" type="search" placeholder="Search key or summary"><button type="submit" class="secondary">Search</button></form><div id="analysisItems" aria-live="polite"></div>
@@ -252,6 +269,7 @@
         <form id="genForm" class="rq-inline"><label for="genReq">Analysed requirement<select id="genReq"></select></label><button class="primary" type="submit">Generate from accepted ideas</button></form>
         <p class="small" id="genStatus" role="status" aria-live="polite"></p>
       </div>
+      <div id="caseCounts" class="rq-summary"></div>
       <form class="rq-toolbar" id="tcForm" role="search">
         <label for="tcQ" class="rq-sr">Search test cases</label><input id="tcQ" type="search" placeholder="Search test case, title or requirement">
         <label for="tcStatus" class="rq-sr">Status</label><select id="tcStatus"><option value="">Any status</option><option value="approved">Approved</option><option value="awaiting_approval">Waiting for approval</option><option value="stale">Stale (requirement changed)</option><option value="blocked">Blocked / manual</option></select>
@@ -259,7 +277,7 @@
         <button class="primary" type="button" id="tcRun" disabled>Run Selected Tests</button>
       </form>
       <div class="rq-table-wrap"><table class="rq-table" id="tcTable"><caption class="rq-sr">Requirement test cases</caption>
-        <thead><tr><th scope="col"><input type="checkbox" id="tcAll" aria-label="Select all runnable test cases"></th><th scope="col">Test case</th><th scope="col">Requirement</th><th scope="col">Criteria</th><th scope="col">Title</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Latest result</th></tr></thead><tbody></tbody></table></div>
+        <thead><tr><th scope="col"><input type="checkbox" id="tcAll" aria-label="Select all runnable test cases"></th><th scope="col">Test case</th><th scope="col">Requirement</th><th scope="col">Criteria</th><th scope="col">Title</th><th scope="col">Priority</th><th scope="col">Automation</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Latest result</th></tr></thead><tbody></tbody></table></div>
     </section>
     <section class="rq-view" id="view-execution" data-title="Execution Center" hidden>
       <header class="rq-head rq-head-row"><div><h1>Execution Center</h1><p class="small">Check what will be tested and where, confirm you may test it, and run. Qpilot opens the application in a real browser, signs in when a test needs it, runs the steps and checks the expected results. Results come only from what really ran.</p></div>
@@ -384,7 +402,7 @@
       <header class="rq-head rq-head-row"><div><h1>Reports</h1><p class="small">The real results of each execution: what passed, failed or was blocked, with the run's own screenshots, logs and assertions, and the requirement coverage they give. Earlier executions are kept.</p></div>
         <button type="button" class="primary rq-newtest" data-newtest>+ New Test</button></header>
       <div id="rpBox"><p class="small">Loading…</p></div>
-      <h2 class="rq-sub" id="rpHistTitle">Execution history</h2>
+      <h2 class="rq-sub" id="rpHistTitle" tabindex="-1">Execution history</h2>
       <div class="rq-table-wrap"><table class="rq-table" id="rpHistory"><caption class="rq-sr">Every requirement execution, newest first</caption>
         <thead><tr><th scope="col">Execution</th><th scope="col">Strategy</th><th scope="col">Target</th><th scope="col">Test cases</th><th scope="col">Status</th><th scope="col">Results</th><th scope="col">Started</th><th scope="col">Duration</th></tr></thead><tbody></tbody></table></div>
       <h2 class="rq-sub">Requirement coverage</h2>
@@ -394,7 +412,7 @@
     <section class="rq-view" id="view-writeback" data-title="Defects" hidden>
       <header class="rq-head"><h1>Defects and Write-back</h1><p class="small">Failures of requirement tests become defect records (the same failure again is the same defect). Nothing is written to Jira unless the server owner allows it, a workspace admin switches it on with a separate write token, and a named person approves each write after seeing exactly what will be sent.</p></header>
       <div class="lab-card" id="wbState" role="status" aria-live="polite"><p class="small">Loading…</p></div>
-      <h2 class="rq-sub">Defects</h2>
+      <h2 class="rq-sub">Defects</h2><div class="rq-summary" id="defectCounts"></div>
       <form class="rq-toolbar" id="dfForm" role="search"><label for="dfStatus" class="rq-sr">Defect status</label><select id="dfStatus"><option value="">All defects</option><option value="open">Open</option><option value="reopened">Reopened</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option></select></form>
       <div class="rq-table-wrap"><table class="rq-table" id="dfTable"><caption class="rq-sr">Defects found by requirement tests</caption>
         <thead><tr><th scope="col">Defect</th><th scope="col">Requirement</th><th scope="col">Test case</th><th scope="col">Triage</th><th scope="col">Severity</th><th scope="col">Status</th><th scope="col">Seen</th><th scope="col">Jira</th><th scope="col">Actions</th></tr></thead><tbody></tbody></table></div>

@@ -273,7 +273,8 @@ def test_ai_ideas_are_checked_and_never_change_the_criteria(db, paths, monkeypat
         {"criterion_ids": ["SHOP-12#AC-2"], "kind": "negative", "title": "Delete the account with a short password",
          "steps": ["delete the account"]}])
     before = [c.model_dump() for c in run(db, paths, key).requirement.criteria]
-    a = run(db, paths, key, ai="auto", ask=ai)
+    a = run(db, paths, key, ai="auto", ask=ai, instructions="Focus on boundary cases")
+    assert "Focus on boundary cases" in ai.prompts[0]
     assert a.ai == "used" and [c.model_dump() for c in a.requirement.criteria] == before
     from_ai = {s.title: s for s in a.suggestions if s.origin == "ai"}
     assert set(from_ai) == {"Wrong password message", "Lockout after 7 characters",

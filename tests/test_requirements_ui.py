@@ -199,7 +199,7 @@ def test_the_whole_workspace_from_connection_to_review(browser, studio):
         # overview and history reflect the real data
         page.goto(studio.url + "/requirements#overview")
         expect(page.locator("#stats")).to_contain_text("2requirements imported")
-        expect(page.locator("#stats")).to_contain_text("4acceptance criteria (analysed)")
+        expect(page.locator("#stats")).to_contain_text("4Acceptance criteria analyzed")
         page.goto(studio.url + "/requirements#history")
         expect(page.locator("#hsTable tbody tr")).to_have_count(1)
         expect(page.locator("#hsTable tbody tr").first).to_contain_text("items")
@@ -453,7 +453,7 @@ def test_the_studio_and_lab_link_to_the_workspace(browser, studio):
             expect(page.locator('a.studio-nav[href="/requirements"]')).to_have_text("Jira")  # (renamed from Requirements)
         page.click('a.studio-nav[href="/requirements"]')
         expect(page).to_have_url(studio.url + "/requirements")
-        expect(page.locator("#view-overview h1")).to_have_text("Your Jira and Confluence requirements")
+        expect(page.locator("#view-overview h1")).to_have_text("Requirements Overview")
     finally:
         ctx.close()
 
@@ -887,6 +887,7 @@ def test_provider_block_has_an_explanation_and_a_targeted_retry(browser, studio,
     ctx, page, _errors = open_page(browser, studio)
     try:
         page.goto(studio.url + "/requirements#agents")
+        expect(page.locator("#liveCtrl").get_by_role("button", name="Retry Provider-Blocked Tests")).to_be_visible()
         expect(page.locator("#lvScreens")).to_contain_text(reason)
         expect(page.locator("#lvScreens figure")).to_have_count(0)
         expect(page.locator("#lvCases")).to_contain_text("Blocked")
@@ -953,4 +954,57 @@ def test_resuming_a_provider_block_restarts_live_polling(browser, studio, monkey
         expect(page.get_by_label("Provider API key")).to_be_hidden()
     finally:
         server.jobs.pop(5252, None)
+        ctx.close()
+
+
+def test_workspace_navigation_search_and_workflow_notices(browser, studio):
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        expect(page.locator("#stats .rq-stat")).to_have_count(8)
+        toggle = page.get_by_role("button", name="Toggle workspace navigation")
+        toggle.click()
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        assert page.locator("#sidebar").bounding_box()["width"] == 68
+        page.reload()
+        expect(toggle).to_have_attribute("aria-expanded", "false")
+        page.get_by_label("Workflow notifications", exact=True).click()
+        expect(page.locator("#notices")).to_contain_text("Import")
+        page.keyboard.press("Escape")
+        expect(page.locator("#noticeMenu summary")).to_be_focused()
+
+        page.set_viewport_size({"width": 390, "height": 844})
+        expect(page.locator("#sidebar")).to_be_hidden()
+        toggle.click()
+        expect(page.locator("#rqNav [aria-current=page]")).to_be_focused()
+        page.locator('#rqNav a[href="#audit"]').click()
+        expect(page.locator("#view-audit")).to_be_visible()
+        expect(page.locator("#sidebar")).to_be_hidden()
+        page.get_by_role("button", name="Search requirements", exact=True).click()
+        expect(page.locator("#exQ")).to_be_focused()
+        page.goto(studio.url + "/requirements#evidence")
+        expect(page).to_have_url(re.compile(r"#reports$"))
+        expect(page.locator("#view-reports")).to_be_visible()
+        assert not errors, errors
+    finally:
+        ctx.close()
+
+
+def test_populated_report_and_execution_detail_fit_supported_viewports(browser, studio, monkeypatch, tmp_path):
+    _studio_with_a_failed_run(studio, monkeypatch, tmp_path)
+    ctx, page, errors = open_page(browser, studio)
+    try:
+        for view in ("execution", "reports"):
+            page.goto(studio.url + "/requirements#" + view)
+            if view == "execution":
+                page.locator("#exList .rq-open").first.click()
+                expect(page.locator("#exDetail")).to_contain_text("Failed")
+            else:
+                page.get_by_role("button", name="View Execution History").click()
+                expect(page.locator("#rpHistTitle")).to_be_focused()
+                expect(page).to_have_url(re.compile(r"#reports$"))
+            for width in (1920, 1440, 1280, 1024, 768, 390):
+                page.set_viewport_size({"width": width, "height": 900})
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (view, width)
+        assert not errors, errors
+    finally:
         ctx.close()
