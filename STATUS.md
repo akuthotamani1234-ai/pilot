@@ -3,7 +3,7 @@
 Single source of truth for implementation vs verification. Prefer this file over
 historical `FINAL_*` / phase checklist sprawl.
 
-**Last updated:** 2026-11-26
+**Last updated:** 2026-11-28
 
 ## Current state (26 Nov 2026) - read this first
 
@@ -30,12 +30,16 @@ requirements (Phase 4)" describes that day, not today. Today, on `final`:
 | Strategies x application types | requirement-based / hybrid / autonomous routed to the right engine for web, Android, iOS and API with the chosen AI (12 combinations tested); Android requirement-based runs only the selected cases; autonomous executions are judged by the scenarios they really ran. Live: web and API; Android / iOS BLOCKED | `requirements_api._launch_for`, `tests/test_strategy_type_matrix.py` |
 | Stabilization (26 Nov) | a pass needs the quoted expected result checked at runtime; expect() on a read value repaired (TC-QPL-4-1); selector recovery exact and same-kind only; heals cannot change what is checked; inconclusive Jira cases are Requires review; UI views draw only their newest answer (root cause of the load-sensitive UI failures); test isolation of the run registry | `templates/conftest.py`, `script_generator.py`, `ai_grounding.py`, `self_healing.py`, `requirements.js` |
 | Validated automation reuse (27 Nov) | a Jira case that passed keeps its executable test, plan, selectors, expected results, versions, application / environment and evidence; requirement-based and hybrid executions reuse it while all still match, revalidate it, and regenerate only stale ones. Live: requirement-based 3 of 3 passes with reuse (1 of 3 with fresh AI code); hybrid repeat BLOCKED (AI account without credits). Generated tests now start from the saved login's web storage (an earlier test's cart leaked) | `atlassian/automations.py`, `script_generator.reuse_validated`, `templates/conftest.py`, docs/LIVE_RUN_ANALYSIS_2026-11.md |
+| Connection and workflow status (28 Nov) | a saved token is not a connection: only Atlassian's real answer (bound to site, account and a hash of the token) turns a connection Connected; Not connected / Not verified / Connection failed / Unable to verify, Jira and Confluence apart; workflow stages pending / running / done / failed / blocked / attention from backend state, import refused (412/424) without a working connection; an execution is Running only while its job runs in this Studio process (a restart -> Interrupted / Partially Completed); state words Queued, Running, Passed, Failed, Blocked, Cancelled, Timed Out, Partially Completed; live view shows run id, start time and tests finished / passed / failed from the run's own results; the page refreshes itself every 10 s. Mock Jira + real SauceDemo runs; owner's Jira not verified (no token) | `atlassian/connection_status.py`, `atlassian/workflow.stage_status`, `GET /api/requirements/connections/status`, `bridge.execution_state`, `server._test_progress`, `requirements.js` |
 | Live evidence on real enterprise apps / the owner's Jira | BLOCKED: needs the owner's Jira token, accounts, devices, payment sandbox | - |
 
 Which code a running Studio has: `GET /api/version` and the Jira header ("build <branch> <commit>").
 
-**Test suite health (27 Nov, commit `8f0f840`):** full suite without `.env`, 4 parallel workers: **2715 passed, 0
-failed, 48 skipped**. Skips (none is a failure hidden as a skip): opt-in live tests (`QPILOT_LIVE`, `QPILOT_LIVE_JIRA`,
+**Test suite health (28 Nov, commit `dc33f6d` -> `040e2ff` after the author fix):** full suite without `.env`, 4 parallel
+workers: **2724 passed, 1 failed, 48 skipped**. The failure was a 5 s wait in one parametrization of
+`test_workspace_import_modes_in_chromium` (Connect now checks Atlassian before the card redraws; under 4 workers it
+took longer); it passed 3 of 3 alone and the wait is now 20 s (`2c11393`, UI + status suites 35 passed). Before:
+27 Nov, `8f0f840`: 2715 passed, 0 failed, 48 skipped. Skips (none is a failure hidden as a skip): opt-in live tests (`QPILOT_LIVE`, `QPILOT_LIVE_JIRA`,
 `QPILOT_LIVE_API`, real Android device / emulator UI runs), services not present here (Redis, Postgres, MinIO), the
 optional `mcp` package, Windows-only tests (DPAPI, npm entrypoint) and local immutable evidence not shipped with the
 source. The run before it (`4b690a4`: 1 failed) found that clearing the current test after its body suppressed its
