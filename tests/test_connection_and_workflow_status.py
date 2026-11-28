@@ -6,9 +6,7 @@
 - an execution whose job is gone (Studio restart), or whose job number now belongs to another Studio process, is
   never shown running and never collects another run's results.
 Mock Atlassian (tests/atlassian_mock.py) - real HTTP, simulated Jira."""
-import pytest
 
-from backend import requirements_api as rapi
 from backend.atlassian import bridge
 from tests.atlassian_mock import TOKEN
 from tests.test_requirements_api import CONN, H, api, mock, wait_job  # noqa: F401
@@ -122,3 +120,31 @@ def test_a_job_number_from_another_studio_process_is_never_this_executions_job(a
     server.jobs[7] = {"id": 7, "status": "done", "run": "another-run"}
     e = api.get(f"/api/requirements/executions/{ex_id}", headers=H).json()["execution"]
     assert e["status"] == "interrupted" and e.get("counts", {}).get("Passed") is None
+
+
+def test_each_execution_has_one_honest_state_word():
+    st = bridge.execution_state
+    tally = {}
+    assert st({"status": "queued"}, "running", tally) == "Queued"
+    assert st({"status": "running"}, "running", tally) == "Running"
+    assert st({"status": "cancelled"}, "cancelled", tally) == "Cancelled"
+    assert st({"status": "finished", "timed_out": True}, "completed_with_unautomated", tally) == "Timed Out"
+    assert st({"status": "finished"}, "completed", tally) == "Passed"
+    assert st({"status": "finished"}, "completed_with_failures", tally) == "Failed"
+    assert st({"status": "failed"}, "automation_failed", tally) == "Failed"
+    assert st({"status": "finished"}, "completed_with_blocked", tally) == "Blocked"
+    assert st({"status": "interrupted"}, "interrupted_run", tally) == "Partially Completed"
+
+
+def test_a_run_cut_by_its_time_limit_is_timed_out(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(bridge, "refresh", lambda *a, **k: None)
+    db = bridge.connect(tmp_path / "r.db")
+    ex = bridge.plan(db, "t", [], "autonomous", {"url": "https://shop.example/"})["execution"]
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "test_cases.json").write_text(json.dumps([{"tc_id": "X", "execution_status": "Passed"}]))
+    (run / "summary.json").write_text(json.dumps({"incomplete": True, "incomplete_reason": "the execution budget "
+                                                  "ended within the 90 min overall limit (RUN_TIME_LIMIT_MIN)"}))
+    done = bridge.collect(db, "t", ex["id"], run)
+    assert bridge.outcome_of(done)["state"] == "Timed Out"

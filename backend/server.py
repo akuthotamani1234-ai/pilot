@@ -683,6 +683,30 @@ def _count(path: Path) -> int | None:
     return len(data) if isinstance(data, list) else None
 
 
+def _test_progress(d) -> dict | None:
+    """Tests finished so far in this run, by outcome - read from the run's own result files (results*.jsonl and the
+    heal rounds' files are written as each test ends). None before any test ran."""
+    if d is None or not d.is_dir() or _run_path_is_linked(RUNS, d):
+        return None
+    seen: dict[str, str] = {}
+    for f in sorted(d.glob("results*.jsonl")) + sorted(d.glob("heal_*.jsonl")):  # (a later round's result wins)
+        if f.is_symlink():
+            continue
+        try:
+            for line in f.read_text(encoding="utf-8").splitlines():
+                r = json.loads(line) if line.strip() else {}
+                if r.get("nodeid"):
+                    seen[r["nodeid"]] = str(r.get("outcome") or "")
+        except (OSError, ValueError):
+            continue
+    if not seen:
+        return None
+    out = {"done": len(seen), "passed": 0, "failed": 0, "other": 0}
+    for o in seen.values():
+        out["passed" if o == "passed" else "failed" if o in ("failed", "error") else "other"] += 1
+    return out
+
+
 def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
     run = job.get("run")
     d = _plain_run_dir(str(run)) if run else None
@@ -712,6 +736,8 @@ def _public(job: dict, since: int = 0, psince: int = 0) -> dict:
         "review": bool(d and _run_file(d / "review_request.json") and not _run_file(d / "review_answers.json")
                        and job["status"] == "running"),
         "elapsed": int((job.get("ended") or time.time()) - job["started"]),
+        "started": job.get("started"),
+        "tests": _test_progress(d),
     }
 
 

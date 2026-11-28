@@ -120,6 +120,14 @@
     btn.addEventListener("click", () => set(btn.getAttribute("aria-expanded") === "true"));
   })();
   window.addEventListener("hashchange", () => { route(); $("rqMain").focus(); });
+  // the stepper and sidebar follow the backend by themselves (a disconnected site, an import or execution that
+  // ended, another tab's change): every 10 s while the page is visible, and at once when it is shown again
+  setInterval(() => { if (document.visibilityState === "visible" && S.caps) refreshWorkflow(); }, 10000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !S.caps) return;
+    refreshWorkflow();
+    if (S.view === "overview" || S.view === "integrations") verifyConnections();
+  });
   document.querySelector(".rq-skip").addEventListener("click", (event) => {
     event.preventDefault();
     $("rqMain").focus();
@@ -195,8 +203,14 @@
   const connBadge = (st, msg) => { const [label, kind] = CONN_STATE[st] || CONN_STATE.unknown; const b = badge(label, kind); if (msg) b.title = msg; b.dataset.state = st || "unknown"; return b; };
   const OUTCOME_KIND = { completed: "ok", running: "info", cancelled: "warn", interrupted: "warn", interrupted_run: "warn", completed_with_unautomated: "warn",
     completed_with_blocked: "warn", completed_with_review: "info", completed_with_failures: "bad", no_tests_automated: "bad", automation_failed: "bad" };
-  const outcomeBadge = (ex) => badge(ex.outcome_text || ex.status, OUTCOME_KIND[ex.outcome] || "");
+  // the execution's state word (backend bridge.execution_state: Queued, Running, Passed, Failed, Blocked, Cancelled,
+  // Timed Out, Partially Completed) first, then the detail
+  const STATE_KIND = { Queued: "info", Running: "info", Passed: "ok", Failed: "bad", Blocked: "warn", Cancelled: "warn", "Timed Out": "warn", "Partially Completed": "warn" };
+  const outcomeBadge = (ex) => badge(ex.state && ex.outcome_text && !ex.outcome_text.startsWith(ex.state) ? `${ex.state} — ${ex.outcome_text}` : (ex.outcome_text || ex.status),
+    STATE_KIND[ex.state] || OUTCOME_KIND[ex.outcome] || "");
   const tallyText = (ex) => { const t = ex.tally; if (!t) return "";
+    if (!t.selected && t.autonomous) {  // (an autonomous execution: the scenarios its own run executed)
+      const a = t.autonomous; return `autonomous scenarios ${a.cases} · passed ${a.passed} · failed ${a.failed}${a.not_run ? ` · not run ${a.not_run}` : ""}`; }
     return `executed ${t.executed} of ${t.selected} · passed ${t.passed} · failed ${t.failed}${t.requires_review ? ` · needs review ${t.requires_review}` : ""} · blocked ${t.blocked} · not automated ${t.not_automated}${t.not_run ? ` · not run ${t.not_run}` : ""}`; };
   const statusBadge = (s) => badge(s || "—", { complete: "ok", partial: "warn", failed: "bad", cancelled: "warn", running: "info" }[s] || "");
   function navCount(n) { const c = $("navReviews"); c.hidden = !n; c.textContent = n || ""; c.setAttribute("aria-label", `${n} waiting`); }
@@ -1889,16 +1903,25 @@
             try { await api(`/executions/${encodeURIComponent(ex.id)}/resume`, { method: "POST", body: $("resumePass").value ? { test_password: $("resumePass").value } : {} }); $("resumePass").value = ""; } catch (err) { banner(err.message); }
           } })));
       }
-      $("liveSub").replaceChildren(...kids(`${ex.id} · ${ex.strategy} · ${t.url || t.api_spec_url || t.package_name || ""} · ${ai}${batchText}`, outcomeBadge(ex),
+      const tp = live.tests;  // (tests finished so far: from the run's own result files - never estimated)
+      $("liveSub").replaceChildren(...kids(`${ex.id} · run ${ex.run_id || "—"} · ${ex.strategy} · ${t.url || t.api_spec_url || t.package_name || ""} · ${ai}${batchText}`, outcomeBadge(ex),
+        live.started ? ` · started ${new Date(live.started * 1000).toLocaleTimeString()}` : "",
         live.elapsed != null ? ` · ${live.elapsed} s` : "", live.current ? ` · now: ${live.current}` : "",
+        tp ? ` · tests finished ${tp.done}${live.scripts ? ` (in ${live.scripts} test file(s))` : ""}: ${tp.passed} passed, ${tp.failed} failed${tp.other ? `, ${tp.other} other` : ""}` : (running ? " · no test has finished yet" : ""),
         !running && ex.tally ? h("span", { class: "small", text: ` · ${tallyText(ex)}` }) : null));
       $("liveCtrl").replaceChildren(...kids(h("span", { class: "rq-live-stats" }, ["Passed", "Failed", "Requires review", "Blocked", "Not automated", "Not run", "Cancelled"].filter((k) => counts[k]).map((k) => resultBadge(k) && h("span", {}, resultBadge(k), ` ${counts[k]}`)),
-        running ? badge(`${ex.case_ids.length} scenario(s) in this run`, "info") : null),
+        running ? badge(ex.case_ids.length ? `${ex.case_ids.length} scenario(s) in this run`
+          : `autonomous: ${live.cases != null ? `${live.cases} scenario(s) designed by the run so far` : "the run designs its own scenarios"}`, "info") : null),
         running ? h("button", { type: "button", class: "secondary", text: "Cancel", onclick: async () => { await api(`/executions/${encodeURIComponent(id)}/cancel`, { method: "POST" }); liveTick(); } }) : null,
         !running ? h("a", { class: "primary rq-action-link", href: "#reports", text: "View Report" }) : null,
         !running ? h("button", { type: "button", class: "secondary", "data-newtest": "", text: "+ New Test" }) : null));
       const byCase = Object.fromEntries((d.results || []).map((r) => [r.test_case_id, r]));
       const testing = /^(execution|self_healing)$/.test(live.current || "");  // (exploring first: the cases wait)
+      if (!ex.case_ids.length) {  // (autonomous: no Jira case - the run's own scenarios, counted from the run itself)
+        const a = (ex.tally && ex.tally.autonomous) || null;
+        $("lvCases").replaceChildren(h("p", { class: "small", text: a ? `Autonomous execution: ${a.cases} scenario(s) - ${a.passed} passed, ${a.failed} failed${a.not_run ? `, ${a.not_run} not run` : ""}. Each one is in the report.`
+          : `Autonomous execution: no Jira test case. ${live.cases != null ? `${live.cases} scenario(s) designed by the run so far` : "The run designs its own scenarios"}; results appear as tests finish.` }));
+      } else
       $("lvCases").replaceChildren(h("ul", { class: "rq-audit" }, ex.case_ids.map((c) => h("li", {}, h("b", { text: c }),
         byCase[c] ? resultBadge(byCase[c].status) : badge(!running ? "—" : testing ? "running" : `waiting (${live.current || "starting"})`, "info"),
         byCase[c] && (byCase[c].actual || byCase[c].reason) ? h("span", { class: "small", text: byCase[c].actual || byCase[c].reason }) : null))));

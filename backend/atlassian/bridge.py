@@ -657,6 +657,16 @@ def collect(db, tenant: str, execution_id: str, run_dir: Path, run_status: str =
             db.execute("UPDATE req_executions SET data = ? WHERE tenant_id = ? AND id = ?",
                        (json.dumps(ex), tenant, execution_id))
         return ex
+    summary_file = Path(run_dir) / "summary.json"  # (a run cut short says why: a time limit is 'Timed Out')
+    try:
+        summ = json.loads(summary_file.read_text(encoding="utf-8")) if summary_file.is_file() and \
+            not summary_file.is_symlink() else {}
+    except (OSError, ValueError):
+        summ = {}
+    if summ.get("incomplete"):
+        reason = str(summ.get("incomplete_reason") or "")
+        ex["run_incomplete"] = reason[:300]
+        ex["timed_out"] = bool(re.search(r"time limit|RUN_TIME_LIMIT|execution budget ended", reason, re.I))
     ex.update(status="finished" if run_status == "done" else run_status, finished_at=_now(), counts=counts,
               exploratory={"cases": len(exploratory),
                            "failed": sum(1 for c in exploratory if c.get("execution_status") == "Failed"),
@@ -682,6 +692,22 @@ OUTCOME_TEXT = {
     "completed_with_unautomated": "Completed - some tests were not automated",
     "completed": "Completed - all tests passed",
 }
+
+
+def execution_state(ex: dict, key: str, tally: dict) -> str:
+    """One word for the execution, from its real status and results: Queued, Running, Passed, Failed, Blocked,
+    Cancelled, Timed Out or Partially Completed (the outcome text keeps the detail)."""
+    status = ex.get("status")
+    if status == "queued":
+        return "Queued"
+    if status == "running":
+        return "Running"
+    if status in ("stopped", "cancelled"):
+        return "Cancelled"
+    if ex.get("timed_out"):
+        return "Timed Out"
+    return {"completed": "Passed", "completed_with_failures": "Failed", "automation_failed": "Failed",
+            "no_tests_automated": "Failed", "completed_with_blocked": "Blocked"}.get(key, "Partially Completed")
 
 
 def outcome_of(ex: dict) -> dict:
@@ -725,7 +751,7 @@ def outcome_of(ex: dict) -> dict:
         key = "completed_with_unautomated"
     else:
         key = "completed"
-    return {"outcome": key, "outcome_text": OUTCOME_TEXT[key], "tally": tally,
+    return {"outcome": key, "outcome_text": OUTCOME_TEXT[key], "tally": tally, "state": execution_state(ex, key, tally),
             "automation_coverage": round(100 * executed / selected) if selected else 0,
             "pass_rate": round(100 * tally["passed"] / executed) if executed else None}
 

@@ -1573,7 +1573,8 @@ def register_requirements_api(app) -> None:
                 live = None
             return {"execution": ex, "results": bridge.results(db, ctx["tenant"], execution_id),
                     "live": {k: live.get(k) for k in ("status", "current", "stages", "run", "lines", "elapsed",
-                                                      "pages", "cases", "scripts", "report_ready", "live_pages")
+                                                      "pages", "cases", "scripts", "report_ready", "live_pages",
+                                                      "started", "tests", "id")
                              if k in live} if live else None}
         finally:
             db.close()
