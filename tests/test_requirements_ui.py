@@ -86,7 +86,7 @@ def connect_jira(page, site="https://aimaniforall1234-1795449805793.atlassian.ne
     page.fill("#jiraTypes", "Story, Task")
     page.fill("#jiraToken", token)
     page.get_by_role("button", name="Connect").first.click()
-    expect(page.get_by_text("token saved")).to_be_visible()
+    expect(page.get_by_text("token saved")).to_be_visible(timeout=20000)  # (Connect now also asks Atlassian before the card redraws)
 
 
 def test_the_whole_workspace_from_connection_to_review(browser, studio):
